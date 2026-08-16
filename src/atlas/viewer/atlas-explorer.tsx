@@ -3596,13 +3596,6 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
         nodes.set(node.sourceFilePath, node);
       }
 
-      if (node.path?.startsWith('plans/')) {
-        nodes.set(`bookops://plans/${node.path.split('/').pop()?.replace(/\.md$/, '')}`, node);
-      }
-
-      if (node.path?.startsWith('atlas/items/')) {
-        nodes.set(`bookops://atlas/${node.path.slice('atlas/items/'.length, -'.md'.length)}`, node);
-      }
     }
 
     return nodes;

@@ -7,14 +7,16 @@ describe('plan workstream data', () => {
     const snapshot = buildPlanWorkstreamSnapshotFromFiles([
       {
         path: 'plans/backlog/99-semantic-editorial-workflows.md',
-        content: `# 99. Semantic Editorial Workflows
+        content: `# 99. Product Strategy Workflows
 
 Status: shaping
 Plan kind: initiative
 Scale: large
 Horizon: long-term
 Area: book editing, ontology, LLM collaboration
-Codename: Semantic Editorial
+Codename: Product Strategy
+Territory: Product Strategy
+Workstream: Strategy
 
 Related plans:
 
@@ -28,7 +30,7 @@ Related workstreams:
 
 ## Summary
 
-BookOps should grow into a semantic editorial environment.
+Product should grow into a semantic editorial environment.
 
 ## Plan Hierarchy Experiment
 
@@ -92,11 +94,11 @@ Define Plan as the first pilot.
 
     expect(plan99).toMatchObject({
       candidateCount: 2,
-      markdown: expect.stringContaining('Semantic Editorial Workflows'),
+      markdown: expect.stringContaining('Product Strategy Workflows'),
       planKind: 'initiative',
       relatedCount: 2,
       status: 'shaping',
-      territory: 'Semantic Editorial',
+      territory: 'Product Strategy',
     });
     expect(
       snapshot.edges.filter(
@@ -201,31 +203,31 @@ Status: backlog
       ],
       [
         {
-          path: 'atlas/items/bookops.md',
+          path: 'atlas/items/product.md',
           content: `---
-id: bookops
+id: product
 kind: project
-title: BookOps
+title: Product
 status: in-progress
 horizon: now
 supports: []
 relatedPlans: []
 ---
 
-BookOps is the product surface.
+Product is the product surface.
 `,
         },
         {
-          path: 'atlas/items/bookops/reader-experience.md',
+          path: 'atlas/items/product/reader-experience.md',
           content: `---
-id: bookops.reader-experience
+id: product.reader-experience
 kind: territory
 title: Reader Experience
-parent: bookops
+parent: product
 status: in-progress
 horizon: now
 supports:
-  - bookops
+  - product
 relatedPlans:
   - plans/done/80-reader-audio-and-soundscape-prototype.md
 ---
@@ -234,21 +236,21 @@ Reader Experience is the reading surface.
 `,
         },
         {
-          path: 'atlas/items/bookops/reader-experience/listening-experience.md',
+          path: 'atlas/items/product/reader-experience/listening-experience.md',
           content: `---
-id: bookops.reader-experience.listening
+id: product.reader-experience.listening
 kind: experience
 title: Listening Experience
-parent: bookops.reader-experience
+parent: product.reader-experience
 status: shaping
 horizon: next
 supports:
-  - bookops
+  - product
 relatedPlans:
   - plans/done/80-reader-audio-and-soundscape-prototype.md
   - plans/next/81-listening-follow-up.md
 exemplars:
-  - bookops.model.book
+  - product.model.book
 ---
 
 Listening Experience covers voices and ambience.
@@ -263,7 +265,7 @@ title: Workstream Atlas
 status: shaping
 horizon: now
 supports:
-  - bookops
+  - product
 relatedPlans:
   - plans/next/101-workstream-atlas-semantic-source.md
 ---
@@ -293,13 +295,13 @@ Development as shape transformation frames development as changes to system form
     expect(snapshot.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: 'atlas:bookops.reader-experience.listening',
+          id: 'atlas:product.reader-experience.listening',
           kind: 'experience',
-          exemplars: ['bookops.model.book'],
+          exemplars: ['product.model.book'],
           markdown: expect.stringContaining('Listening Experience covers voices'),
-          semanticId: 'bookops.reader-experience.listening',
+          semanticId: 'product.reader-experience.listening',
           status: 'shaping',
-          territory: 'BookOps',
+          territory: 'Product',
         }),
         expect.objectContaining({
           id: 'plan:plans/done/80-reader-audio-and-soundscape-prototype.md',
@@ -334,15 +336,15 @@ Development as shape transformation frames development as changes to system form
         expect.objectContaining({
           from: 'root:planning',
           kind: 'contains',
-          to: 'atlas:bookops',
+          to: 'atlas:product',
         }),
         expect.objectContaining({
-          from: 'atlas:bookops.reader-experience',
+          from: 'atlas:product.reader-experience',
           kind: 'contains',
-          to: 'atlas:bookops.reader-experience.listening',
+          to: 'atlas:product.reader-experience.listening',
         }),
         expect.objectContaining({
-          from: 'atlas:bookops.reader-experience.listening',
+          from: 'atlas:product.reader-experience.listening',
           kind: 'shaped-by',
           to: 'plan:plans/done/80-reader-audio-and-soundscape-prototype.md',
         }),
@@ -354,24 +356,24 @@ Development as shape transformation frames development as changes to system form
         expect.objectContaining({
           from: 'atlas:spec-workstream-atlas',
           kind: 'supports',
-          to: 'atlas:bookops',
+          to: 'atlas:product',
         }),
       ]),
     );
     expect(snapshot.edges).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          from: 'atlas:bookops.reader-experience',
+          from: 'atlas:product.reader-experience',
           kind: 'supports',
-          to: 'atlas:bookops',
+          to: 'atlas:product',
         }),
         expect.objectContaining({
-          from: 'atlas:bookops.reader-experience.listening',
+          from: 'atlas:product.reader-experience.listening',
           kind: 'supports',
-          to: 'atlas:bookops',
+          to: 'atlas:product',
         }),
         expect.objectContaining({
-          from: 'atlas:bookops.reader-experience',
+          from: 'atlas:product.reader-experience',
           kind: 'shaped-by',
           to: 'plan:plans/done/80-reader-audio-and-soundscape-prototype.md',
         }),
@@ -389,38 +391,38 @@ Development as shape transformation frames development as changes to system form
     const snapshot = buildPlanWorkstreamSnapshotFromFiles(
       [
         {
-          path: 'plans/next/128-ontahi-data-graph-execution-bridge.md',
-          content: '# Relocated to Ontahi',
+          path: 'plans/next/128-platform-data-graph-execution-bridge.md',
+          content: '# Relocated to Platform',
         },
         {
-          path: 'plans/next/128-ontahi-data-graph-execution-bridge.md',
-          source: 'ontahi',
-          content: `# 128. Ontahi Data Graph Execution Bridge
+          path: 'plans/next/128-platform-data-graph-execution-bridge.md',
+          source: 'platform',
+          content: `# 128. Platform Data Graph Execution Bridge
 Status: next
 `,
         },
       ],
       [
         {
-          path: 'atlas/items/ontahi.md',
+          path: 'atlas/items/platform.md',
           content: `---
-id: ontahi
+id: platform
 kind: capability
-title: Ontahi external source
+title: Platform external source
 status: shaping
 ---
 `,
         },
         {
-          path: 'atlas/items/ontahi.md',
-          source: 'ontahi',
+          path: 'atlas/items/platform.md',
+          source: 'platform',
           content: `---
-id: ontahi
+id: platform
 kind: project
-title: Ontahi
+title: Platform
 status: in-progress
 relatedPlans:
-  - ontahi://plans/128-ontahi-data-graph-execution-bridge
+  - platform://plans/128-platform-data-graph-execution-bridge
 ---
 
 The independently owned framework model.
@@ -429,29 +431,29 @@ The independently owned framework model.
       ],
     );
 
-    expect(snapshot.nodes.filter(node => node.id === 'atlas:ontahi')).toEqual([
+    expect(snapshot.nodes.filter(node => node.id === 'atlas:platform')).toEqual([
       expect.objectContaining({
         kind: 'project',
         markdown: expect.stringContaining('independently owned'),
-        path: 'ontahi://atlas/ontahi',
-        sourceFilePath: 'ontahi/atlas/items/ontahi.md',
+        path: 'platform://atlas/platform',
+        sourceFilePath: 'platform/atlas/items/platform.md',
       }),
     ]);
     expect(snapshot.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: 'plan:ontahi://plans/128-ontahi-data-graph-execution-bridge',
-          path: 'ontahi://plans/128-ontahi-data-graph-execution-bridge',
-          sourceFilePath: 'ontahi/plans/next/128-ontahi-data-graph-execution-bridge.md',
+          id: 'plan:platform://plans/128-platform-data-graph-execution-bridge',
+          path: 'platform://plans/128-platform-data-graph-execution-bridge',
+          sourceFilePath: 'platform/plans/next/128-platform-data-graph-execution-bridge.md',
         }),
       ]),
     );
     expect(snapshot.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          from: 'atlas:ontahi',
+          from: 'atlas:platform',
           kind: 'shaped-by',
-          to: 'plan:ontahi://plans/128-ontahi-data-graph-execution-bridge',
+          to: 'plan:platform://plans/128-platform-data-graph-execution-bridge',
         }),
       ]),
     );
