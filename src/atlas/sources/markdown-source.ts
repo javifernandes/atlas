@@ -20,7 +20,6 @@ type GithubTree = {
 };
 
 type LoadAtlasSourcesInput = {
-  currentSource: string;
   fetcher?: typeof fetch;
   repoRoot: string;
 };
@@ -105,7 +104,9 @@ const isAtlasSourceMarkdownPath = (filePath: string) =>
 
 const getGithubHeaders = (accept?: string) => ({
   ...(accept ? { Accept: accept } : {}),
-  ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
+  ...(process.env.ATLAS_GITHUB_TOKEN
+    ? { Authorization: `Bearer ${process.env.ATLAS_GITHUB_TOKEN}` }
+    : {}),
 });
 
 const fetchGithubSourceFiles = async (source: AtlasSource, fetcher: typeof fetch) => {
@@ -171,22 +172,31 @@ const loadAtlasSource = async (source: AtlasSource, repoRoot: string, fetcher: t
   return fetchGithubSourceFiles(source, fetcher);
 };
 
-export const loadExternalAtlasSourceFiles = async ({
-  currentSource,
+const readAtlasSourceRegistry = (repoRoot: string) => {
+  if (process.env.ATLAS_SOURCES_YAML) {
+    return process.env.ATLAS_SOURCES_YAML;
+  }
+
+  const registryPath = [
+    path.join(repoRoot, 'atlas.sources.local.yaml'),
+    path.join(repoRoot, 'atlas.sources.yaml'),
+    path.join(repoRoot, 'atlas', 'sources.yaml'),
+  ].find(candidate => fs.existsSync(candidate));
+
+  return registryPath ? fs.readFileSync(registryPath, 'utf8') : undefined;
+};
+
+export const loadAtlasSourceFiles = async ({
   fetcher = fetch,
   repoRoot,
 }: LoadAtlasSourcesInput) => {
-  const registryPath = fs.existsSync(path.join(repoRoot, 'atlas.sources.yaml'))
-    ? path.join(repoRoot, 'atlas.sources.yaml')
-    : path.join(repoRoot, 'atlas', 'sources.yaml');
+  const registry = readAtlasSourceRegistry(repoRoot);
 
-  if (!fs.existsSync(registryPath)) {
+  if (!registry) {
     return [];
   }
 
-  const sources = parseAtlasSources(fs.readFileSync(registryPath, 'utf8')).filter(
-    source => source.id !== currentSource,
-  );
+  const sources = parseAtlasSources(registry);
 
   return (
     await Promise.all(sources.map(source => loadAtlasSource(source, repoRoot, fetcher)))

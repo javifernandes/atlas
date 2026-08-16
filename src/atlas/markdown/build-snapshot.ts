@@ -2,8 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import {
-  loadExternalAtlasSourceFiles,
-  walkLocalAtlasMarkdownFiles,
+  loadAtlasSourceFiles,
   type AtlasMarkdownFile,
 } from '../sources/markdown-source';
 import type {
@@ -99,16 +98,6 @@ const statusGroupOrder: Record<PlanStatusGroup, number> = {
   unmaterialized: 5,
 };
 
-const territoryOrder = [
-  'Semantic Editorial',
-  'Ontahi Framework',
-  'GraphOS And Runtime',
-  'Source And Publishing',
-  'Reader Experience',
-  'Quality And Operations',
-  'Foundation',
-];
-
 const normalizePath = (value: string) => value.replaceAll(path.sep, '/').replace(/^\.\//, '');
 
 const getCanonicalFilePath = (file: PlanMarkdownFile) => {
@@ -141,8 +130,8 @@ const getRepoRoot = () => {
   const cwd = process.cwd();
 
   if (
-    fs.existsSync(path.join(cwd, 'plans')) ||
-    fs.existsSync(path.join(cwd, 'atlas.sources.yaml'))
+    fs.existsSync(path.join(cwd, 'package.json')) ||
+    fs.existsSync(path.join(cwd, 'atlas.sources.local.yaml'))
   ) {
     return cwd;
   }
@@ -306,173 +295,10 @@ const getSummary = (content: string) => {
 const parseSections = (content: string) =>
   [...content.matchAll(/^##\s+(.+)$/gm)].map(match => match[1]?.trim()).filter(Boolean) as string[];
 
-const inferTerritory = (input: {
-  area?: string;
-  codename?: string;
-  key: string;
-  path: string;
-  title: string;
-}) => {
-  const haystack = [input.area, input.codename, input.title, input.path].join(' ').toLowerCase();
-  const keyNumber = Number.parseInt(input.key, 10);
-
-  if (
-    /semantic|editorial|book editing|ontology|targeted content|publication|derived/.test(haystack)
-  ) {
-    return 'Semantic Editorial';
-  }
-
-  if (/ontahi|framework extraction|language kit/.test(haystack) || keyNumber === 100) {
-    return 'Ontahi Framework';
-  }
-
-  if (
-    /graph|runtime|operation|workflow|architecture|authority|authorization|schema|cache/.test(
-      haystack,
-    ) ||
-    (keyNumber >= 46 && keyNumber <= 79) ||
-    keyNumber === 90 ||
-    keyNumber === 91
-  ) {
-    return 'GraphOS And Runtime';
-  }
-
-  if (/github|source|import|extract|storage|publishing|markdown|latex/.test(haystack)) {
-    return 'Source And Publishing';
-  }
-
-  if (/reader|audio|conversation|feedback|chapter cover|style|presentation/.test(haystack)) {
-    return 'Reader Experience';
-  }
-
-  if (/ci|nightly|dependabot|testing|storybook|guardrail|maintenance|release/.test(haystack)) {
-    return 'Quality And Operations';
-  }
-
-  return 'Foundation';
-};
-
-const inferWorkstream = (input: {
-  key: string;
-  path: string;
-  territory: string;
-  title: string;
-}) => {
-  const haystack = [input.key, input.path, input.title].join(' ').toLowerCase();
-  const keyNumber = Number.parseInt(input.key, 10);
-
-  switch (input.territory) {
-    case 'Semantic Editorial':
-      if (input.key === '99') {
-        return 'Semantic Editorial Initiative';
-      }
-
-      if (keyNumber >= 93 && keyNumber <= 97) {
-        return 'Editorial Product Workstreams';
-      }
-
-      if (keyNumber === 98 || /presentation|cover|style/.test(haystack)) {
-        return 'Editorial Presentation';
-      }
-
-      return 'Editorial Discovery';
-
-    case 'Ontahi Framework':
-      if (input.key === '100') {
-        return 'Framework Extraction';
-      }
-
-      if (/language kit|book of style|documentation|docs/.test(haystack)) {
-        return 'Framework Documentation';
-      }
-
-      return 'Framework Readiness';
-
-    case 'GraphOS And Runtime':
-      if (/68[a-z]?/.test(input.key) || /architecture|facade|adapter/.test(haystack)) {
-        return 'Application Architecture Surface';
-      }
-
-      if (/74[a-z]?/.test(input.key) || /cache|unit of work|refs/.test(haystack)) {
-        return 'Unit Of Work And Cache';
-      }
-
-      if (/7[56][a-z]?|79/.test(input.key) || /operation|schema|input|result/.test(haystack)) {
-        return 'Operation Contracts';
-      }
-
-      if (/46[a-z]?|70/.test(input.key) || /workflow|stream|durable/.test(haystack)) {
-        return 'Workflow Runtime';
-      }
-
-      if (/77/.test(input.key) || /topology|layer/.test(haystack)) {
-        return 'Domain Topology';
-      }
-
-      if (/78/.test(input.key) || /authority|authorization|policy|permission/.test(haystack)) {
-        return 'Authority And Policies';
-      }
-
-      if (/90|91/.test(input.key) || /reflective|event/.test(haystack)) {
-        return 'Reflection And Events';
-      }
-
-      return 'Graph Foundations';
-
-    case 'Source And Publishing':
-      if (/69/.test(input.key) || /github/.test(haystack)) {
-        return 'GitHub Book Import';
-      }
-
-      if (/extract|latex|markdown|gdoc|source/.test(haystack)) {
-        return 'Source Adapters';
-      }
-
-      return 'Publication Pipeline';
-
-    case 'Reader Experience':
-      if (/conversation|feedback|comment|mention/.test(haystack)) {
-        return 'Collaboration And Feedback';
-      }
-
-      if (/audio|soundscape|tts|narration/.test(haystack)) {
-        return 'Immersive Reading';
-      }
-
-      if (/style|presentation|cover|visual/.test(haystack)) {
-        return 'Presentation System';
-      }
-
-      if (/search|progress|metrics/.test(haystack)) {
-        return 'Reader Intelligence';
-      }
-
-      return 'Reader Surfaces';
-
-    case 'Quality And Operations':
-      if (/ci|nightly|dependabot|maintenance|release|guardrail/.test(haystack)) {
-        return 'Automation And Safety';
-      }
-
-      if (/test|storybook|visual|lint/.test(haystack)) {
-        return 'Testing Matrix';
-      }
-
-      return 'Operational Hardening';
-
-    case 'Foundation':
-    default:
-      if (/follow-up/.test(input.path)) {
-        return 'Follow-Up Backlog';
-      }
-
-      if (keyNumber <= 30) {
-        return 'Product Foundations';
-      }
-
-      return 'Platform Foundations';
-  }
-};
+const humanizeIdentifier = (value: string) =>
+  value
+    .replaceAll(/[-_]+/g, ' ')
+    .replaceAll(/\b\w/g, character => character.toUpperCase());
 
 const resolvePlanLink = (file: PlanMarkdownFile, href: string) => {
   const cleanHref = href.split('#')[0]?.trim();
@@ -590,19 +416,9 @@ const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
   const planKind = metadata['plan-kind'];
   const area = metadata.area;
   const codename = metadata.codename;
-  const territory = inferTerritory({
-    area,
-    codename,
-    key,
-    path: file.path,
-    title,
-  });
-  const workstream = inferWorkstream({
-    key,
-    path: file.path,
-    territory,
-    title,
-  });
+  const territory =
+    metadata.territory ?? (file.source ? humanizeIdentifier(file.source) : 'Plans');
+  const workstream = metadata.workstream ?? codename ?? humanizeIdentifier(statusGroup);
 
   return {
     id: `plan:${canonicalPath}`,
@@ -790,8 +606,7 @@ const buildMetrics = (nodes: PlanWorkstreamNode[]): PlanWorkstreamMetric[] => {
 
 const sortNodes = (nodes: PlanWorkstreamNode[]) =>
   [...nodes].sort((left, right) => {
-    const territoryDelta =
-      territoryOrder.indexOf(left.territory) - territoryOrder.indexOf(right.territory);
+    const territoryDelta = left.territory.localeCompare(right.territory);
 
     if (territoryDelta !== 0) {
       return territoryDelta;
@@ -939,10 +754,7 @@ const hasDescendantRelatedPlan = (
       hasAtlasContainmentPath(item.id, itemId, itemById),
   );
 
-const getPlanReferences = (plan: ParsedPlan) => [
-  plan.path,
-  ...(plan.path.startsWith('plans/') ? [`bookops://plans/${path.basename(plan.path, '.md')}`] : []),
-];
+const getPlanReferences = (plan: ParsedPlan) => [plan.path];
 
 const buildSemanticSnapshotFromFiles = (
   planFiles: PlanMarkdownFile[],
@@ -1007,7 +819,7 @@ const buildSemanticSnapshotFromFiles = (
   addNode({
     id: rootNodeId,
     kind: 'root',
-    title: 'BookOps / Ontahi Atlas',
+    title: 'Atlas',
     shortTitle: 'Atlas',
     statusGroup: 'current',
     status: 'semantic map',
@@ -1184,11 +996,11 @@ export const buildPlanWorkstreamSnapshotFromFiles = (
     {
       id: rootNodeId,
       kind: 'root',
-      title: 'BookOps / Ontahi Planning',
+      title: 'Planning',
       shortTitle: 'Planning',
       statusGroup: 'current',
       status: 'planning surface',
-      territory: 'Foundation',
+      territory: 'Plans',
       sections: [],
       relatedCount: 0,
       candidateCount: 0,
@@ -1205,7 +1017,7 @@ export const buildPlanWorkstreamSnapshotFromFiles = (
     edges.push(edge);
   };
 
-  for (const territory of territoryOrder.filter(name => territoryNames.has(name))) {
+  for (const territory of [...territoryNames].sort((left, right) => left.localeCompare(right))) {
     const territoryId = `territory:${slugify(territory)}`;
     nodes.push({
       id: territoryId,
@@ -1340,8 +1152,8 @@ export const buildPlanWorkstreamSnapshotFromFiles = (
     ...node,
     ...nodeStats.get(node.id),
   }));
-  const territories: PlanWorkstreamTerritory[] = territoryOrder
-    .filter(name => territoryNames.has(name))
+  const territories: PlanWorkstreamTerritory[] = [...territoryNames]
+    .sort((left, right) => left.localeCompare(right))
     .map(name => {
       const territoryNodes = nodesWithStats.filter(
         node => node.kind === 'plan' && node.territory === name,
@@ -1366,14 +1178,10 @@ export const buildPlanWorkstreamSnapshotFromFiles = (
 
 export const getPlanWorkstreamSnapshot = async (): Promise<PlanWorkstreamSnapshot> => {
   const repoRoot = getRepoRoot();
-  const plansDirectory = path.join(repoRoot, 'plans');
-  const atlasItemsDirectory = path.join(repoRoot, 'atlas', 'items');
-  const localPlanFiles = walkLocalAtlasMarkdownFiles(plansDirectory, repoRoot);
-  const localAtlasFiles = walkLocalAtlasMarkdownFiles(atlasItemsDirectory, repoRoot);
-  let externalFiles: PlanMarkdownFile[] = [];
+  let sourceFiles: PlanMarkdownFile[] = [];
 
   try {
-    externalFiles = await loadExternalAtlasSourceFiles({ currentSource: 'atlas', repoRoot });
+    sourceFiles = await loadAtlasSourceFiles({ repoRoot });
   } catch (error) {
     process.stderr.write(
       `Failed to load external Atlas sources: ${error instanceof Error ? error.message : String(error)}\n`,
@@ -1381,7 +1189,7 @@ export const getPlanWorkstreamSnapshot = async (): Promise<PlanWorkstreamSnapsho
   }
 
   return buildPlanWorkstreamSnapshotFromFiles(
-    [...localPlanFiles, ...externalFiles.filter(file => file.path.startsWith('plans/'))],
-    [...localAtlasFiles, ...externalFiles.filter(file => file.path.startsWith('atlas/items/'))],
+    sourceFiles.filter(file => file.path.startsWith('plans/')),
+    sourceFiles.filter(file => file.path.startsWith('atlas/items/')),
   );
 };

@@ -1,0 +1,10 @@
+version: 1
+sources:
+  product:
+    repository: https://github.com/acme/product
+    localRoot: ../product
+    ref: main
+  platform:
+    repository: https://github.com/acme/platform
+    localRoot: ../platform
+    ref: main
