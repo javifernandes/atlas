@@ -1,0 +1,10 @@
+version: 1
+sources:
+  bookops:
+    repository: https://github.com/javifernandes/bookops
+    localRoot: ../bookops
+    ref: main
+  ontahi:
+    repository: https://github.com/javifernandes/ontahi
+    localRoot: ../ontahi
+    ref: main
