@@ -1,0 +1,38 @@
+name: Refresh sources
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-sources
+  cancel-in-progress: true
+
+jobs:
+  rebuild:
+    name: Trigger hosted rebuild
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger deployment hook
+        env:
+          DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK_URL" ]; then
+            echo '::error::VERCEL_DEPLOY_HOOK_URL is not configured'
+            exit 1
+          fi
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-all-errors \
+            --request POST \
+            "$DEPLOY_HOOK_URL"
