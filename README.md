@@ -31,6 +31,16 @@ the configured GitHub repository. Deployments may provide the same YAML through
 Set `ATLAS_GITHUB_TOKEN` when a hosted build needs read access to private sources. This token is
 used only by the server-side source loader and is not exposed to the browser bundle.
 
+## Hosted source refreshes
+
+Hosted instances materialize their configured sources during deployment. The included
+`Refresh sources` GitHub Actions workflow triggers a rebuild manually or every six hours so source
+updates become visible without changing this repository.
+
+For a Vercel deployment, create a Deploy Hook for the production branch and store its URL as the
+`VERCEL_DEPLOY_HOOK_URL` GitHub Actions repository secret. Treat the hook URL as a credential: anyone
+who has it can trigger a deployment.
+
 ## Development
 
 ```sh
