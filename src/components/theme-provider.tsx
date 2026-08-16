@@ -24,7 +24,7 @@ export const ThemeProvider = ({
       return;
     }
 
-    const stored = globalThis.localStorage?.getItem('workstream-atlas-theme');
+    const stored = globalThis.localStorage?.getItem('atlas-theme');
     const initial =
       stored === 'dark' || stored === 'light'
         ? stored
@@ -38,7 +38,7 @@ export const ThemeProvider = ({
     document.documentElement.classList.toggle('dark', theme === 'dark');
     document.documentElement.style.colorScheme = theme;
     if (!forcedTheme) {
-      globalThis.localStorage?.setItem('workstream-atlas-theme', theme);
+      globalThis.localStorage?.setItem('atlas-theme', theme);
     }
   }, [forcedTheme, theme]);
 

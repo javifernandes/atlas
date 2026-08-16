@@ -1373,7 +1373,7 @@ export const getPlanWorkstreamSnapshot = async (): Promise<PlanWorkstreamSnapsho
   let externalFiles: PlanMarkdownFile[] = [];
 
   try {
-    externalFiles = await loadExternalAtlasSourceFiles({ currentSource: 'workstream-atlas', repoRoot });
+    externalFiles = await loadExternalAtlasSourceFiles({ currentSource: 'atlas', repoRoot });
   } catch (error) {
     process.stderr.write(
       `Failed to load external Atlas sources: ${error instanceof Error ? error.message : String(error)}\n`,
