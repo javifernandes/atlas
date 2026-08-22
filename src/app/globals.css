@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Shiki emits both theme colors as CSS variables when defaultColor is disabled. */
+html:not(.dark) .shiki span {
+  color: var(--shiki-light) !important;
+}
+
+html.dark .shiki span {
+  color: var(--shiki-dark) !important;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
