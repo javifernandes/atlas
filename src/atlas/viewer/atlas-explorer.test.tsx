@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { PlanWorkstreamExplorer } from './atlas-explorer';
 
 import { ThemeProvider } from '@/components/theme-provider';
-import type { AtlasItemContext } from '@/atlas/domain/atlas-application';
 import type {
   PlanWorkstreamNode,
   PlanWorkstreamSnapshot,
@@ -125,15 +124,13 @@ const snapshot: PlanWorkstreamSnapshot = {
 };
 
 const renderExplorer = ({
-  itemContexts,
   value = snapshot,
 }: {
-  itemContexts?: Record<string, AtlasItemContext | null>;
   value?: PlanWorkstreamSnapshot;
 } = {}) =>
   render(
     <ThemeProvider forcedTheme='dark'>
-      <PlanWorkstreamExplorer itemContexts={itemContexts} snapshot={value} />
+      <PlanWorkstreamExplorer snapshot={value} />
     </ThemeProvider>,
   );
 
@@ -196,77 +193,4 @@ describe('PlanWorkstreamExplorer', () => {
     expect(within(dialog).queryByText('compatibility alias.')).not.toBeInTheDocument();
   });
 
-  it('uses the Ontahi item-context projection for selection structure and shaping work', () => {
-    globalThis.history.replaceState({}, '', '/internal/plans?node=item-a');
-    const value = {
-      ...snapshot,
-      edges: snapshot.edges.filter(edge => edge.kind !== 'shaped-by'),
-    };
-
-    renderExplorer({
-      value,
-      itemContexts: {
-        'item-a': {
-          id: 'item-a',
-          semanticId: 'item-a',
-          title: 'Item A',
-          kind: 'system-primitive',
-          status: 'current',
-          parent: null,
-          children: [],
-          shapingBindings: [
-            {
-              plan: {
-                id: 'item-b',
-                path: 'atlas://plans/item-b',
-                title: 'Item B',
-                status: 'next',
-              },
-            },
-          ],
-        },
-      },
-    });
-
-    expect(screen.getByRole('button', { name: /shaped by\s*Item B/ })).toBeInTheDocument();
-  });
-
-  it('uses the Ontahi item-context projection in the full evolution view', async () => {
-    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
-    const user = userEvent.setup();
-    const value = {
-      ...snapshot,
-      edges: snapshot.edges.filter(edge => edge.kind !== 'shaped-by'),
-    };
-
-    renderExplorer({
-      value,
-      itemContexts: {
-        'item-a': {
-          id: 'item-a',
-          semanticId: 'item-a',
-          title: 'Item A',
-          kind: 'system-primitive',
-          status: 'current',
-          parent: null,
-          children: [],
-          shapingBindings: [
-            {
-              plan: {
-                id: 'item-b',
-                path: 'atlas://plans/item-b',
-                title: 'Item B',
-                status: 'next',
-              },
-            },
-          ],
-        },
-      },
-    });
-
-    const dialog = screen.getByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'evolution' }));
-
-    expect(within(dialog).getByRole('button', { name: 'Item B' })).toBeInTheDocument();
-  });
 });

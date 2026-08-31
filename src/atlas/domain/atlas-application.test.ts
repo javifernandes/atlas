@@ -17,6 +17,18 @@ describe('Atlas Ontahi fit pilot', () => {
         source: 'product',
         content: `# Reader Evolution
 Status: next
+
+## Related
+
+[Runtime Foundation](platform://plans/20-runtime-foundation)
+`,
+      },
+      {
+        path: 'plans/next/11-reader-playback.md',
+        source: 'product',
+        content: `# Reader Playback
+Status: next
+Parent plan: [Reader Evolution](product://plans/10-reader-evolution)
 `,
       },
       {
@@ -48,8 +60,11 @@ kind: experience
 title: Reader Experience
 parent: product
 status: shaping
+supports:
+  - platform
 relatedPlans:
   - plans/next/10-reader-evolution.md
+  - plans/next/11-reader-playback.md
 ---
 `,
       },
@@ -109,6 +124,14 @@ relatedPlans:
             status: 'next',
           },
         },
+        {
+          plan: {
+            id: 'plan:product://plans/11-reader-playback',
+            path: 'product://plans/11-reader-playback',
+            title: 'Reader Playback',
+            status: 'next',
+          },
+        },
       ],
     });
     await expect(atlas.getItemContext('product')).resolves.toMatchObject({
@@ -126,10 +149,59 @@ relatedPlans:
       'product.reader.audio': { semanticId: 'product.reader.audio' },
       platform: { semanticId: 'platform' },
     });
+    await expect(atlas.getTopologyEdges()).resolves.toEqual(
+      expect.arrayContaining([
+        {
+          id: 'root:planning->atlas:product:contains',
+          from: 'root:planning',
+          to: 'atlas:product',
+          kind: 'contains',
+        },
+        {
+          id: 'atlas:product->atlas:product.reader:contains',
+          from: 'atlas:product',
+          to: 'atlas:product.reader',
+          kind: 'contains',
+        },
+        {
+          id: 'atlas:product.reader->atlas:platform:supports',
+          from: 'atlas:product.reader',
+          to: 'atlas:platform',
+          kind: 'supports',
+        },
+        {
+          id: 'atlas:product.reader->plan:product://plans/10-reader-evolution:shaped-by',
+          from: 'atlas:product.reader',
+          to: 'plan:product://plans/10-reader-evolution',
+          kind: 'shaped-by',
+        },
+        {
+          id: 'plan:product://plans/10-reader-evolution->plan:product://plans/11-reader-playback:contains',
+          from: 'plan:product://plans/10-reader-evolution',
+          to: 'plan:product://plans/11-reader-playback',
+          kind: 'contains',
+        },
+        {
+          id: 'plan:product://plans/10-reader-evolution->plan:platform://plans/20-runtime-foundation:related',
+          from: 'plan:product://plans/10-reader-evolution',
+          to: 'plan:platform://plans/20-runtime-foundation',
+          kind: 'related',
+        },
+      ]),
+    );
+    expect(await atlas.getTopologyEdges()).not.toContainEqual(
+      expect.objectContaining({
+        from: 'atlas:product',
+        to: 'plan:product://plans/10-reader-evolution',
+        kind: 'shaped-by',
+      }),
+    );
     expect(atlas.application.graph.entities).toMatchObject({
       AtlasItem: expect.objectContaining({ name: 'AtlasItem' }),
       AtlasPlan: expect.objectContaining({ name: 'AtlasPlan' }),
+      AtlasPlanRelationBinding: expect.objectContaining({ name: 'AtlasPlanRelationBinding' }),
       AtlasShapingBinding: expect.objectContaining({ name: 'AtlasShapingBinding' }),
+      AtlasSupportBinding: expect.objectContaining({ name: 'AtlasSupportBinding' }),
     });
   });
 

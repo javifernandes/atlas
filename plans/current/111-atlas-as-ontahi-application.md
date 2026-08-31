@@ -342,6 +342,32 @@ projection still includes supports, related Plan links, status metrics, document
 nodes that are not in the current Ontahi domain model. Rebuilding that same aggregate through graph
 queries would add transport and adapter work without owning more domain behavior.
 
+## Slice 2b Checkpoint — Application-Owned Topology
+
+Ontahi now owns the complete relation topology consumed by every Atlas surface. The domain adds
+`AtlasSupportBinding` for directional Item support, `AtlasPlanRelationBinding` for Plan
+`related/follow-up` links, and Plan parent/children relations alongside the existing containment and
+shaping bindings.
+
+The static build queries those entity sets through `application.graph.read(...)` and projects one
+edge collection for the map, board, selection panel, Context tab, and Evolution tab:
+
+```txt
+normalized source records -> Ontahi entities and relations -> application graph reads
+                                                     -> topology projection -> all viewer surfaces
+```
+
+The projection keeps current product rules explicit: unresolved relationships are omitted,
+containment-relative support links are hidden as redundant, ancestor shaping links yield to the
+same declaration on a descendant, and only Plans reached from curated Item bindings enter the
+visible topology. The declared bindings remain present in the Ontahi dataset even when a
+presentation rule hides an edge.
+
+The compatibility snapshot still owns node cards, Markdown documents, metrics, semantic signals,
+status grouping, and layout inputs. It no longer owns the relation collection shown by the UI. This
+removes the per-selected-item merge path and gives every surface one application-owned topology
+without forcing presentation metadata into domain entities.
+
 ## Slice 3 Checkpoint — Reviewable Plan-Link Proposal
 
 `AtlasItem.proposePlanLink` is the first Atlas domain operation. Its input uses existing Ontahi refs
@@ -405,7 +431,7 @@ the model or stop before broad migration.
 3. [x] Evaluate the map/board projection and retain the compatibility snapshot until the Ontahi
    model owns more than its current aggregate.
 4. [x] Keep parity tests at the viewer projection boundary.
-5. [ ] Remove direct assembly paths only after equivalent behavior is proven.
+5. [x] Remove the direct viewer-edge assembly paths after equivalent behavior is proven.
 
 ### Slice 3: First proposal operation
 
@@ -438,6 +464,8 @@ the model or stop before broad migration.
   explicit cross-source URIs remain stable.
 - [x] The real Atlas selection panel consumes application-bound structure and shaping reads, with
   viewer parity covered by the full test, typecheck, and production-build verification.
+- [x] Map, board, selection, Context, and Evolution consume one Ontahi-backed topology containing
+  Item containment/support/shaping and Plan containment/related/follow-up relations.
 - [x] At least one proposal operation can produce a reviewable Markdown change without applying it.
 
 ## Decisions
@@ -447,7 +475,8 @@ the model or stop before broad migration.
    outcome.
 3. Keep Markdown authoritative for curated semantic declarations.
 4. Start with Ontahi's in-memory runtime; persistence must be earned by observed evidence needs.
-5. Preserve the current snapshot as a compatibility projection during migration.
+5. Preserve the current snapshot as a compatibility projection for node and document presentation
+   while Ontahi takes ownership of graph relations.
 6. Require a real query/relationship benefit; wrapping the existing snapshot is not sufficient.
 7. Separate curated source adapters from observed evidence adapters.
 8. Sequence Plan 102 after the Ontahi boundary is proven.

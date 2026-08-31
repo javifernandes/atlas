@@ -4,9 +4,9 @@ import { getAtlasPageData } from '@/atlas/server/get-atlas-page-data';
 export const revalidate = 300;
 
 const AtlasPage = async () => {
-  const { itemContexts, snapshot } = await getAtlasPageData();
+  const { snapshot } = await getAtlasPageData();
 
-  return <PlanWorkstreamExplorer itemContexts={itemContexts} snapshot={snapshot} />;
+  return <PlanWorkstreamExplorer snapshot={snapshot} />;
 };
 
 export default AtlasPage;
