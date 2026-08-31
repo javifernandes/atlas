@@ -11,7 +11,8 @@ import {
   semanticEntityRef,
 } from '@ontahi/core/runtime/server';
 
-import type { PlanWorkstreamSnapshot } from '../model/snapshot';
+import { parseAtlasSourceRecords } from '../markdown/build-snapshot';
+import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
 
 const atlasItemFields = {
   id: field.id(),
@@ -61,55 +62,42 @@ export const AtlasItem = entity({
   },
 });
 
-const isAtlasItemNode = (
-  node: PlanWorkstreamSnapshot['nodes'][number],
-): node is PlanWorkstreamSnapshot['nodes'][number] & { semanticId: string } =>
-  Boolean(node.semanticId) && node.kind !== 'plan';
-
-const isAtlasPlanNode = (
-  node: PlanWorkstreamSnapshot['nodes'][number],
-): node is PlanWorkstreamSnapshot['nodes'][number] & { path: string } =>
-  node.kind === 'plan' && Boolean(node.path);
-
-export const buildAtlasOntahiDataset = (snapshot: PlanWorkstreamSnapshot): InMemoryDataset => {
-  const atlasItemNodes = snapshot.nodes.filter(isAtlasItemNode);
-  const atlasPlanNodes = snapshot.nodes.filter(isAtlasPlanNode);
-  const atlasItemIds = new Set(atlasItemNodes.map(node => node.id));
-  const atlasPlanIds = new Set(atlasPlanNodes.map(node => node.id));
-  const parentByItemId = new Map(
-    snapshot.edges
-      .filter(
-        edge =>
-          edge.kind === 'contains' &&
-          atlasItemIds.has(edge.from) &&
-          atlasItemIds.has(edge.to),
-      )
-      .map(edge => [edge.to, edge.from]),
-  );
+export const buildAtlasOntahiDataset = (
+  records: NormalizedAtlasSourceRecord[],
+): InMemoryDataset => {
+  const { items, plans } = parseAtlasSourceRecords(records);
+  const planByPath = new Map(plans.map(plan => [plan.path, plan]));
 
   return {
-    AtlasItem: atlasItemNodes.map(node => ({
-      id: node.id,
-      semanticId: node.semanticId,
-      title: node.title,
-      kind: node.kind,
-      status: node.status,
-      parentId: parentByItemId.get(node.id) ?? null,
+    AtlasItem: items.map(item => ({
+      id: item.nodeId,
+      semanticId: item.id,
+      title: item.title,
+      kind: item.kind,
+      status: item.status,
+      parentId: item.parent ? `atlas:${item.parent}` : null,
     })),
-    AtlasPlan: atlasPlanNodes.map(node => ({
-      id: node.id,
-      path: node.path,
-      title: node.title,
-      status: node.status,
+    AtlasPlan: plans.map(plan => ({
+      id: plan.id,
+      path: plan.path,
+      title: plan.title,
+      status: plan.status,
     })),
-    AtlasShapingBinding: snapshot.edges
-      .filter(
-        edge =>
-          edge.kind === 'shaped-by' &&
-          atlasItemIds.has(edge.from) &&
-          atlasPlanIds.has(edge.to),
-      )
-      .map(edge => ({ id: edge.id, itemId: edge.from, planId: edge.to })),
+    AtlasShapingBinding: items.flatMap(item =>
+      item.relatedPlans.flatMap(planPath => {
+        const plan = planByPath.get(planPath);
+
+        return plan
+          ? [
+              {
+                id: `${item.nodeId}->${plan.id}:shaped-by`,
+                itemId: item.nodeId,
+                planId: plan.id,
+              },
+            ]
+          : [];
+      }),
+    ),
   };
 };
 
@@ -160,8 +148,8 @@ export type AtlasItemContext = {
   }>;
 };
 
-export const createAtlasOntahiApplication = (snapshot: PlanWorkstreamSnapshot) => {
-  const storage = createInMemoryDataGraphStorage({ dataset: buildAtlasOntahiDataset(snapshot) });
+export const createAtlasOntahiApplication = (records: NormalizedAtlasSourceRecord[]) => {
+  const storage = createInMemoryDataGraphStorage({ dataset: buildAtlasOntahiDataset(records) });
   const application = ontahi({
     storage,
     entities: [AtlasItem, AtlasPlan, AtlasShapingBinding],

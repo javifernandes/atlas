@@ -273,8 +273,8 @@ This removes the pilot's manual `runServerEffect` and runtime-concern assembly. 
 the semantic `first()` terminal because a missing Atlas Item is a valid `null` result; `one()` is
 now available for reads whose contract requires exact cardinality.
 
-This checkpoint changes the execution boundary only. The next migration slice still moves
-hydration upstream from the compatibility snapshot to normalized source records.
+At this checkpoint the execution boundary changed while hydration still came from the compatibility
+snapshot. Slice 1c below moves that hydration upstream to normalized source records.
 
 The [Ontahi Runtime Protocol](ontahi://plans/146-ontahi-runtime-protocol) is the next distributed
 boundary, not an extra hop inside the static build. Atlas should project it when execution crosses
@@ -290,6 +290,29 @@ browser / GitHub worker / external agent
 Until one of those callers exists, source parsing, in-memory hydration, and build-time projection
 remain direct application calls. This keeps protocol semantics available without turning HTTP into
 the domain boundary prematurely.
+
+## Slice 1c Checkpoint — Direct Source-Record Hydration
+
+The Atlas application facade now accepts `NormalizedAtlasSourceRecord[]` rather than a
+`PlanWorkstreamSnapshot`. One shared semantic parser produces Plan and Atlas Item records for both
+the compatibility snapshot and the Ontahi dataset:
+
+```txt
+Markdown files
+  -> normalized source records
+      -> parsed Plan and Atlas Item records
+          -> Ontahi dataset/application
+          -> compatibility viewer snapshot
+```
+
+The Ontahi dataset materializes containment and shaping bindings directly from declarations. It no
+longer reconstructs domain state from viewer nodes and edges, so presentation rules—such as hiding
+an ancestor's redundant `shaped-by` edge—cannot erase a declared relationship before a domain query
+sees it.
+
+The existing viewer remains snapshot-backed. The next read-projection slice should consume the
+application-bound item-context query from a real Atlas surface, then compare it against the current
+client projection before removing any direct assembly path.
 
 ## Execution Slices
 
@@ -313,7 +336,7 @@ the model or stop before broad migration.
 
 ### Slice 1: Application and source boundary
 
-1. [ ] Introduce the Atlas Ontahi application facade and domain declarations at the normalized
+1. [x] Introduce the Atlas Ontahi application facade and domain declarations at the normalized
    source-record boundary rather than the transitional snapshot boundary.
 2. [x] Keep parsing pure and make Markdown normalization an explicit source adapter.
 3. [x] Preserve stable source identity across repositories and canonical Atlas references.

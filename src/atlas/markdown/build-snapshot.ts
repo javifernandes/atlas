@@ -22,7 +22,7 @@ import type {
 
 type PlanMarkdownFile = NormalizedAtlasSourceRecord;
 
-type ParsedPlan = {
+export type ParsedPlan = {
   id: string;
   key: string;
   title: string;
@@ -68,7 +68,7 @@ type AtlasItemKind = Extract<
   | 'principle'
 >;
 
-type ParsedAtlasItem = {
+export type ParsedAtlasItem = {
   id: string;
   nodeId: string;
   kind: AtlasItemKind;
@@ -511,6 +511,34 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
   };
 };
 
+export type ParsedAtlasSource = {
+  items: ParsedAtlasItem[];
+  plans: ParsedPlan[];
+};
+
+export const parseAtlasSourceRecords = (
+  records: NormalizedAtlasSourceRecord[],
+): ParsedAtlasSource => ({
+  plans: records
+    .filter(
+      record =>
+        record.sourcePath.startsWith('plans/') &&
+        record.sourcePath !== 'plans/README.md' &&
+        record.sourcePath !== 'plans/done/README.md' &&
+        record.sourcePath !== 'plans/research/README.md',
+    )
+    .map(parsePlan),
+  items: [
+    ...new Map(
+      records
+        .filter(record => record.sourcePath.startsWith('atlas/items/'))
+        .map(parseAtlasItem)
+        .filter((item): item is ParsedAtlasItem => Boolean(item))
+        .map(item => [item.id, item] as const),
+    ).values(),
+  ],
+});
+
 const toPlanNode = (plan: ParsedPlan): PlanWorkstreamNode => ({
   id: plan.id,
   kind: 'plan',
@@ -729,25 +757,13 @@ const buildSemanticSnapshotFromFiles = (
   planFiles: PlanMarkdownFile[],
   atlasFiles: PlanMarkdownFile[],
 ): PlanWorkstreamSnapshot => {
-  const plans = planFiles
-    .filter(
-      file =>
-        file.sourcePath !== 'plans/README.md' &&
-        file.sourcePath !== 'plans/done/README.md' &&
-        file.sourcePath !== 'plans/research/README.md',
-    )
-    .map(parsePlan);
+  const { plans, items: rawAtlasItems } = parseAtlasSourceRecords([
+    ...planFiles,
+    ...atlasFiles,
+  ]);
   const planByPath = new Map(
     plans.flatMap(plan => getPlanReferences(plan).map(reference => [reference, plan] as const)),
   );
-  const rawAtlasItems = [
-    ...new Map(
-      (atlasFiles.map(parseAtlasItem).filter(Boolean) as ParsedAtlasItem[]).map(item => [
-        item.id,
-        item,
-      ]),
-    ).values(),
-  ];
   const rawItemById = new Map(rawAtlasItems.map(item => [item.id, item]));
   const atlasItems = rawAtlasItems.map(item => {
     const root = getAtlasRoot(item, rawItemById);

@@ -32,10 +32,11 @@ source, while already canonical URIs keep their explicit cross-source ownership.
 continue writing ordinary `plans/...md` references without losing links once the repository is
 mounted as a federated source.
 
-Inside the Atlas process, the current Ontahi pilot still hydrates from the compatibility snapshot;
-the next migration slice will move that boundary upstream to normalized records. Its headless reads
-already use the application-bound graph API so the exact storage runtime and query terminal remain
-explicit. The Ontahi Runtime Protocol belongs at a later transport boundary—browser, GitHub worker,
-or external agent—not between Markdown parsing and an in-process build projection.
+Inside the Atlas process, normalized records pass through one shared semantic parser contract for
+the Plan and Atlas Item shapes consumed by the compatibility snapshot and the Ontahi dataset. The
+application therefore hydrates before viewer-specific node and edge derivation. Its headless reads
+use the application-bound graph API so the exact storage runtime and query terminal remain explicit.
+The Ontahi Runtime Protocol belongs at a later transport boundary—browser, GitHub worker, or
+external agent—not between Markdown parsing and an in-process build projection.
 
 Its current contract is captured in [`atlas/SOURCE-SHAPE.md`](../../SOURCE-SHAPE.md).
