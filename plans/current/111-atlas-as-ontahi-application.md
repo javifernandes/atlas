@@ -325,10 +325,12 @@ The selection panel uses that Ontahi projection for:
 2. its direct children,
 3. its declared shaping Plans.
 
-Supports, related links, the global map, and full-detail evolution remain on the compatibility
-snapshot. This creates a narrow parity seam instead of replacing the entire viewer at once. A
-viewer regression proves a shaping Plan supplied only by the Ontahi context appears in the panel
-even when the compatibility edge is absent.
+The full-detail context and Evolution tabs use the same relation projection for Atlas Items.
+Supports, related links, semantic signals, temporal grouping, Plan evolution, and the global map
+remain compatibility or presentation concerns. This creates a narrow parity seam instead of
+replacing the entire viewer at once. Viewer regressions prove a shaping Plan supplied only by the
+Ontahi context appears in both the selection panel and Evolution even when the compatibility edge
+is absent.
 
 No Runtime Protocol request is needed yet: these reads execute during the server-side static build
 and cross into the browser as ordinary serialized projection data. A live refresh, proposal
@@ -365,7 +367,7 @@ the model or stop before broad migration.
 ### Slice 2: Read projection migration
 
 1. [x] Move selected-item structure and shaping context behind Ontahi first.
-2. [ ] Move the selected item's evolution reads behind Ontahi.
+2. [x] Move the selected item's evolution reads behind Ontahi.
 3. [ ] Expand to the map/board projection only where graph queries improve the current assembly.
 4. [x] Keep parity tests at the viewer projection boundary.
 5. [ ] Remove direct assembly paths only after equivalent behavior is proven.

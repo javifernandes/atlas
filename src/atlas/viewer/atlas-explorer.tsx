@@ -1218,6 +1218,21 @@ const getItemContextEdges = (context: AtlasItemContext): PlanWorkstreamEdge[] =>
   ),
 ];
 
+const projectItemContextEdges = (
+  edges: PlanWorkstreamEdge[],
+  nodeId: string,
+  context: AtlasItemContext,
+): PlanWorkstreamEdge[] => [
+  ...edges.filter(
+    edge =>
+      !(
+        (edge.from === nodeId || edge.to === nodeId) &&
+        (edge.kind === 'contains' || edge.kind === 'shaped-by')
+      ),
+  ),
+  ...getItemContextEdges(context),
+];
+
 const RelationList = ({
   nodesById,
   onSelect,
@@ -3803,19 +3818,15 @@ export const PlanWorkstreamExplorer = ({
     : undefined;
   const selectionEdges =
     selectedNode && selectedItemContext
-      ? [
-          ...snapshot.edges.filter(
-            edge =>
-              !(
-                (edge.from === selectedNode.id || edge.to === selectedNode.id) &&
-                (edge.kind === 'contains' || edge.kind === 'shaped-by')
-              ),
-          ),
-          ...getItemContextEdges(selectedItemContext),
-        ]
+      ? projectItemContextEdges(snapshot.edges, selectedNode.id, selectedItemContext)
       : snapshot.edges;
   const outgoing = selectedNode ? selectionEdges.filter(edge => edge.from === selectedNode.id) : [];
   const incoming = selectedNode ? selectionEdges.filter(edge => edge.to === selectedNode.id) : [];
+  const fullItemContext = fullNode?.semanticId ? itemContexts[fullNode.semanticId] : undefined;
+  const fullNodeEdges =
+    fullNode && fullItemContext
+      ? projectItemContextEdges(snapshot.edges, fullNode.id, fullItemContext)
+      : snapshot.edges;
 
   const getFitViewport = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -5075,7 +5086,7 @@ export const PlanWorkstreamExplorer = ({
       {fullNode ? (
         <FullMarkdownModal
           activeTab={fullNodeActiveTab}
-          edges={snapshot.edges}
+          edges={fullNodeEdges}
           navigationBackNode={fullNodeNavigationBackNode}
           nodesById={nodesById}
           nodesByPath={nodesByPath}

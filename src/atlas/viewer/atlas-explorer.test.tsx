@@ -230,4 +230,43 @@ describe('PlanWorkstreamExplorer', () => {
 
     expect(screen.getByRole('button', { name: /shaped by\s*Item B/ })).toBeInTheDocument();
   });
+
+  it('uses the Ontahi item-context projection in the full evolution view', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const user = userEvent.setup();
+    const value = {
+      ...snapshot,
+      edges: snapshot.edges.filter(edge => edge.kind !== 'shaped-by'),
+    };
+
+    renderExplorer({
+      value,
+      itemContexts: {
+        'item-a': {
+          id: 'item-a',
+          semanticId: 'item-a',
+          title: 'Item A',
+          kind: 'system-primitive',
+          status: 'current',
+          parent: null,
+          children: [],
+          shapingBindings: [
+            {
+              plan: {
+                id: 'item-b',
+                path: 'atlas://plans/item-b',
+                title: 'Item B',
+                status: 'next',
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'evolution' }));
+
+    expect(within(dialog).getByRole('button', { name: 'Item B' })).toBeInTheDocument();
+  });
 });

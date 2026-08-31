@@ -43,4 +43,7 @@ The first application-backed UI seam is the selection context projection. During
 Atlas queries Ontahi for each item's parent, children, and shaping Plans; the selection panel uses
 that serializable index while the global map remains a compatibility snapshot.
 
+The full-detail context and Evolution tabs use the same application projection for Atlas Items;
+semantic signals and temporal grouping remain viewer-derived lenses over those relations.
+
 Its current contract is captured in [`atlas/SOURCE-SHAPE.md`](../../SOURCE-SHAPE.md).
