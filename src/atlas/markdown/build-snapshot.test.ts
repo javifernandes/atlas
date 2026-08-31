@@ -458,4 +458,56 @@ The independently owned framework model.
       ]),
     );
   });
+
+  it('canonicalizes local plan references within their source and preserves cross-source URIs', () => {
+    const snapshot = buildPlanWorkstreamSnapshotFromFiles(
+      [
+        {
+          path: 'plans/next/10-reader-evolution.md',
+          source: 'product',
+          content: `# Reader Evolution
+Status: next
+`,
+        },
+        {
+          path: 'plans/done/20-runtime-foundation.md',
+          source: 'platform',
+          content: `# Runtime Foundation
+Status: done
+`,
+        },
+      ],
+      [
+        {
+          path: 'atlas/items/product/reader.md',
+          source: 'product',
+          content: `---
+id: product.reader
+kind: experience
+title: Reader Experience
+status: shaping
+relatedPlans:
+  - plans/next/10-reader-evolution.md
+  - platform://plans/20-runtime-foundation
+---
+`,
+        },
+      ],
+    );
+
+    expect(snapshot.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          from: 'atlas:product.reader',
+          kind: 'shaped-by',
+          to: 'plan:product://plans/10-reader-evolution',
+        }),
+        expect.objectContaining({
+          from: 'atlas:product.reader',
+          kind: 'shaped-by',
+          to: 'plan:platform://plans/20-runtime-foundation',
+        }),
+      ]),
+    );
+  });
 });
