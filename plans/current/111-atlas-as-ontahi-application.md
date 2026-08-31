@@ -191,6 +191,8 @@ runtime and relation model, but it is not the target migration boundary.
    run, not a benchmark contract.
 5. Atlas tests, typecheck, and production build accept the published Ontahi package and server-side
    in-memory model.
+6. [Plan 147: Application-Bound Headless Graph Reads](ontahi://plans/147-application-bound-headless-graph-reads)
+   landed in `@ontahi/core@1.0.0-alpha.9` from the host-read feedback discovered by this pilot.
 
 ### Findings and ownership
 
@@ -199,8 +201,8 @@ runtime and relation model, but it is not the target migration boundary.
 | Entities, self-relations, inverse relations, join entities, and nested projections fit the Atlas context model. | Ontahi fit confirmed | Continue to a source-record slice. |
 | The current Markdown parser emits a UI snapshot directly, so the pilot must translate derived nodes and edges back into domain records. | Atlas | Extract normalized source records before production migration. |
 | Source-owned `relatedPlans` values are not consistently canonicalized from relative paths to source URIs before snapshot assembly. | Atlas | Fix normalization at the source-record boundary; otherwise shaping relations disappear before Ontahi sees them. |
-| Application-graph reads outside an entity operation require an explicit `runServerEffect` plus data-graph runtime concern. | Shared documentation/ergonomics | Keep the runtime binding inside the Atlas application facade and document this host pattern in Ontahi if it remains the intended API. |
-| Query `.one()` produces a read-intent expression that does not compose directly with the low-level in-memory `get` executor used by the pilot. | Ontahi API ergonomics | Confirm the intended bound-runtime path or add a focused Ontahi follow-up before relying on exact-one query semantics. |
+| Application-graph reads outside an entity operation required an explicit `runServerEffect` plus data-graph runtime concern. | Resolved in Ontahi alpha.9 | `application.graph.read(...)` now pins the exact application runtime and owns the host Promise boundary. |
+| Query terminals such as `.one()` did not compose directly with the low-level in-memory executor used by the pilot. | Resolved in Ontahi alpha.9 | The application-bound read API interprets `first`, `one`, `count`, and `exists`; Atlas uses `first` where absence is valid. |
 | Typed recursive semantic refs carry field contracts but make cyclic relation typing/order more awkward than acyclic declarations. | Ontahi API ergonomics | Keep the first Atlas graph acyclic around the shaping join and evaluate a framework improvement separately. |
 | Installing core also brings Effect, Typia, and Zod runtime/tooling dependencies. | Shared | Accept for the pilot; measure build/bundle impact before adding browser/runtime packages. |
 
@@ -257,6 +259,37 @@ its product model and historical interventions, including Plan 133.
 This makes the next Ontahi slice repository-local: both the application code and the curated Atlas
 domain declarations now share one owner. Cross-project relationships use `bookops://...` and
 `ontahi://...` references rather than copies.
+
+## Slice 1b Checkpoint — Ontahi alpha.9 Runtime Boundary
+
+Atlas now uses `@ontahi/core@1.0.0-alpha.9` and executes its headless item-context query through the
+application-bound API:
+
+```txt
+snapshot-backed pilot dataset -> in-memory Atlas application -> application.graph.read(...) -> projection
+```
+
+This removes the pilot's manual `runServerEffect` and runtime-concern assembly. The item lookup uses
+the semantic `first()` terminal because a missing Atlas Item is a valid `null` result; `one()` is
+now available for reads whose contract requires exact cardinality.
+
+This checkpoint changes the execution boundary only. The next migration slice still moves
+hydration upstream from the compatibility snapshot to normalized source records.
+
+The [Ontahi Runtime Protocol](ontahi://plans/146-ontahi-runtime-protocol) is the next distributed
+boundary, not an extra hop inside the static build. Atlas should project it when execution crosses
+a process or transport boundary:
+
+```txt
+browser / GitHub worker / external agent
+  -> Ontahi Runtime Protocol
+      -> Atlas application authority
+          -> graph reads, commands, operations, or durable observation
+```
+
+Until one of those callers exists, source parsing, in-memory hydration, and build-time projection
+remain direct application calls. This keeps protocol semantics available without turning HTTP into
+the domain boundary prematurely.
 
 ## Execution Slices
 

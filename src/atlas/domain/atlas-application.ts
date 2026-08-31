@@ -8,7 +8,6 @@ import {
   entity,
   ontahi,
   relation,
-  runServerEffect,
   semanticEntityRef,
 } from '@ontahi/core/runtime/server';
 
@@ -145,7 +144,8 @@ const atlasItemContextQuery = (semanticId: string) =>
           })),
         }))
         .orderBy(binding => binding.id),
-    }));
+    }))
+    .first();
 
 export type AtlasItemContext = {
   id: string;
@@ -156,7 +156,7 @@ export type AtlasItemContext = {
   parent: { id: string; semanticId: string; title: string } | null;
   children: Array<{ id: string; semanticId: string; title: string }>;
   shapingBindings: Array<{
-    plan: { id: string; path: string; title: string; status: string };
+    plan: { id: string; path: string; title: string; status: string } | null;
   }>;
 };
 
@@ -169,13 +169,9 @@ export const createAtlasOntahiApplication = (snapshot: PlanWorkstreamSnapshot) =
 
   return {
     application,
-    getItemContext: (semanticId: string) =>
-      runServerEffect(
-        application.app.graph.getViewEffect(atlasItemContextQuery(semanticId), undefined),
-        {
-          scope: 'atlas.item-context',
-          concerns: [application.app.graph.withRuntime()],
-        },
-      ) as Promise<AtlasItemContext | null>,
+    getItemContext: (semanticId: string): Promise<AtlasItemContext | null> =>
+      application.graph.read(atlasItemContextQuery(semanticId), {
+        scope: 'atlas.item-context',
+      }),
   };
 };
