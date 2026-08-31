@@ -6,6 +6,11 @@ one or many repositories while each document remains owned by its source reposit
 Sources are named once in configuration. Documents can then use portable references such as
 `platform://plans/12-runtime-bridge` without repeating repository URLs.
 
+Atlas is also its own intrinsic source. Repository-local files under `plans/` and `atlas/items/`
+are always loaded with the source id `atlas`; they do not need to register this repository as an
+external dependency. The `atlas` id is therefore reserved and must not appear in source
+configuration.
+
 ## Source configuration
 
 Copy `atlas.sources.example.yaml` to the ignored `atlas.sources.local.yaml` and point each source at
@@ -24,8 +29,8 @@ sources:
     ref: main
 ```
 
-Local checkouts are preferred when they contain `plans/` or `atlas/items/`. Otherwise Atlas reads
-the configured GitHub repository. Deployments may provide the same YAML through
+Configured local checkouts are preferred when they contain `plans/` or `atlas/items/`. Otherwise
+Atlas reads the configured GitHub repository. Deployments may provide the same YAML through
 `ATLAS_SOURCES_YAML`, keeping workspace-specific repositories out of the application repository.
 
 Set `ATLAS_GITHUB_TOKEN` when a hosted build needs read access to private sources. This token is

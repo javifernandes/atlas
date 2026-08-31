@@ -60,6 +60,17 @@ sources:
     ]);
   });
 
+  it('reserves the atlas source id for repository-owned documents', () => {
+    expect(() =>
+      parseAtlasSources(`version: 1
+sources:
+  atlas:
+    repository: https://github.com/acme/atlas-copy
+    ref: main
+`),
+    ).toThrow('The atlas source id is reserved for repository-owned documents');
+  });
+
   it('prefers a sibling checkout over GitHub', async () => {
     const repoRoot = createTemporaryDirectory();
     const sourceRoot = createTemporaryDirectory();
@@ -118,6 +129,34 @@ sources:
 
     await expect(loadAtlasSourceFiles({ repoRoot })).resolves.toEqual([
       { path: 'plans/current/7-index.md', content: '# Index', source: 'knowledge' },
+    ]);
+  });
+
+  it('always loads Atlas-owned plans and items from the application repository', async () => {
+    const repoRoot = createTemporaryDirectory();
+    fs.mkdirSync(path.join(repoRoot, 'atlas', 'items'), { recursive: true });
+    fs.mkdirSync(path.join(repoRoot, 'plans', 'current'), { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, 'atlas', 'items', 'atlas.md'), '# Atlas');
+    fs.writeFileSync(path.join(repoRoot, 'plans', 'current', '1-atlas.md'), '# Atlas Plan');
+
+    await expect(loadAtlasSourceFiles({ repoRoot })).resolves.toEqual([
+      { path: 'plans/current/1-atlas.md', content: '# Atlas Plan', source: 'atlas' },
+      { path: 'atlas/items/atlas.md', content: '# Atlas', source: 'atlas' },
+    ]);
+  });
+
+  it('loads intrinsic Atlas documents after configured sources so they have ownership precedence', async () => {
+    const repoRoot = createTemporaryDirectory();
+    const sourceRoot = createTemporaryDirectory();
+    writeSourceRegistry(repoRoot, sourceRoot);
+    fs.mkdirSync(path.join(repoRoot, 'atlas', 'items'), { recursive: true });
+    fs.mkdirSync(path.join(sourceRoot, 'atlas', 'items'), { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, 'atlas', 'items', 'shared.md'), '# Atlas-owned');
+    fs.writeFileSync(path.join(sourceRoot, 'atlas', 'items', 'shared.md'), '# External copy');
+
+    await expect(loadAtlasSourceFiles({ repoRoot })).resolves.toEqual([
+      { path: 'atlas/items/shared.md', content: '# External copy', source: 'product' },
+      { path: 'atlas/items/shared.md', content: '# Atlas-owned', source: 'atlas' },
     ]);
   });
 });

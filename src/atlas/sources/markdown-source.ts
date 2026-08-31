@@ -33,6 +33,11 @@ export const parseAtlasSources = (content: string): AtlasSource[] => {
 
     if (sourceMatch?.[1]) {
       currentSource = sourceMatch[1];
+
+      if (currentSource === 'atlas') {
+        throw new Error('The atlas source id is reserved for repository-owned documents');
+      }
+
       sources.set(currentSource, { repository: '', ref: 'main' });
       continue;
     }
@@ -186,19 +191,26 @@ const readAtlasSourceRegistry = (repoRoot: string) => {
   return registryPath ? fs.readFileSync(registryPath, 'utf8') : undefined;
 };
 
+const loadAtlasOwnedFiles = (repoRoot: string) => [
+  ...walkMarkdownFiles(path.join(repoRoot, 'plans'), repoRoot, 'atlas'),
+  ...walkMarkdownFiles(path.join(repoRoot, 'atlas', 'items'), repoRoot, 'atlas'),
+];
+
 export const loadAtlasSourceFiles = async ({
   fetcher = fetch,
   repoRoot,
 }: LoadAtlasSourcesInput) => {
   const registry = readAtlasSourceRegistry(repoRoot);
+  const atlasOwnedFiles = loadAtlasOwnedFiles(repoRoot);
 
   if (!registry) {
-    return [];
+    return atlasOwnedFiles;
   }
 
   const sources = parseAtlasSources(registry);
 
-  return (
-    await Promise.all(sources.map(source => loadAtlasSource(source, repoRoot, fetcher)))
-  ).flat();
+  return [
+    ...(await Promise.all(sources.map(source => loadAtlasSource(source, repoRoot, fetcher)))).flat(),
+    ...atlasOwnedFiles,
+  ];
 };

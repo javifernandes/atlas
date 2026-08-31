@@ -1,0 +1,362 @@
+# 111. Atlas As An Ontahi Application
+
+Status: current
+
+Definition level: shaped
+
+## Summary
+
+Evaluate and then migrate Workstream Atlas into a real Ontahi application, using Atlas as a second
+serious product consumer of the framework.
+
+The first slice is deliberately an evaluation rather than a wholesale rewrite. It must prove that
+the existing Markdown graph can be hydrated into Ontahi entities and relations, queried through a
+real Ontahi application boundary, and projected back into the current viewer without losing
+behavior. If that proof succeeds, the migration continues incrementally behind the standalone
+source, snapshot, and viewer seams.
+
+This closes a productive loop:
+
+1. Atlas gains the entity, relation, operation, runtime, reflection, and future persistence work
+   already available in Ontahi.
+2. Ontahi gains a new real application whose model, source ownership, graph navigation, and
+   evidence requirements differ substantially from BookOps.
+
+## Context
+
+Atlas started as a viewer over `plans/` and `atlas/items/`. That was the right first move: it kept
+the source simple, local, readable by agents, and compatible with git.
+
+[Plan 133](bookops://plans/133-atlas-standalone-extraction) has now separated Atlas into a standalone
+repository with stable source, snapshot, and viewer boundaries. The current application still
+assembles one large read model directly from Markdown and passes it to the viewer. This makes the
+map useful, but leaves domain behavior, generated evidence, and future write operations without an
+application model underneath them.
+
+The pressure is now broader than assisted editing. Atlas wants to represent two kinds of state:
+
+1. curated system form owned by Markdown, including Atlas Items, Plans, Implementation Components,
+   and their declared relationships;
+2. observed implementation history owned by external systems, including PRs, commits, Changesets,
+   package releases, deployments, and evidence bindings.
+
+The existing GitHub App already observes repository changes and causes Atlas to rebuild. A later
+slice can use that path to extract implementation and release evidence without copying GitHub data
+into the source repository. Before designing that persistence and projection layer, Atlas should
+first determine whether Ontahi is the right domain and runtime foundation.
+
+Atlas also wants operations that are difficult to keep as UI-only behavior:
+
+1. review a plan's status against the repository,
+2. link a plan or PR to the system items it shaped,
+3. create a plan from an evolution signal,
+4. reconcile historical plans with the current system form,
+5. inspect which released package version materialized a plan or model change,
+6. navigate from a release back to its Changesets, PRs, plans, and Atlas Items.
+
+## Research / Evidence
+
+1. [104. Atlas Source Shape v0](../done/104-atlas-source-shape-v0.md) established Markdown as the
+   curated semantic source.
+2. [Plan 133](bookops://plans/133-atlas-standalone-extraction) extracted the standalone application and
+   preserved `source documents -> snapshot -> viewer` as an explicit seam.
+3. The standalone Atlas page currently renders the result of `getPlanWorkstreamSnapshot()` directly;
+   the viewer already consumes a stable projection rather than reading Markdown itself.
+4. The current snapshot builder parses Atlas Items and Plans, derives containment and semantic
+   relations, and returns a graph-shaped read model. This is a natural adapter boundary, but should
+   not become the Ontahi domain model by copying every snapshot field into one entity.
+5. Ontahi currently provides declared entities and relations, graph reads and commands, operations,
+   in-memory execution, Postgres and Supabase adapters, Next.js transport, and reflected Explorer
+   surfaces.
+6. Ontahi's current Next.js and React peer ranges are compatible with the standalone Atlas runtime.
+7. BookOps already exercises Ontahi as a large existing consumer. Atlas adds different pressure:
+   federated read models, Markdown authority, temporal evidence, external-source identity, and
+   projections over conceptual plus implementation graphs.
+8. [102. Atlas Implementation And Release Evidence](../backlog/102-workstream-atlas-implementation-evidence.md)
+   captures the first major capability to build after this boundary proves itself.
+
+## Scope
+
+1. Evaluate Ontahi against one thin but real Atlas vertical slice before committing to the full
+   migration.
+2. Keep Markdown and git as the authority for curated Atlas declarations.
+3. Define the smallest useful Atlas domain model in Ontahi, beginning with `AtlasItem`, `Plan`, and
+   their containment or shaping relations.
+4. Hydrate that model from the current Markdown/source adapter into an in-memory runtime first.
+5. Execute at least one real Atlas query through Ontahi and project its result into the existing
+   snapshot/viewer contract.
+6. Record framework friction discovered by the pilot as concrete Ontahi feedback rather than
+   working around it invisibly inside Atlas.
+7. If the pilot succeeds, move read-model construction behind the Ontahi application boundary in
+   incremental slices.
+8. Introduce one proposal-style operation only after the read path proves useful.
+9. Leave a clean persistence boundary for later GitHub, Changesets, release, and evidence models.
+
+## Non-Goals
+
+1. Do not move curated Atlas Items or Plans out of Markdown.
+2. Do not add a production database during the evaluation slice.
+3. Do not ingest PRs, commits, Changesets, or releases in this plan; Plan 102 follows this migration.
+4. Do not replace the current viewer or redesign its information architecture.
+5. Do not translate the current snapshot type field-for-field into one decorative Ontahi entity.
+6. Do not make every viewer interaction an Ontahi operation.
+7. Do not force an Ontahi abstraction where the pilot shows that a pure projection is the simpler
+   boundary.
+
+## Proposed Form
+
+The migration should preserve the current adapters while placing an Ontahi model between source
+parsing and UI projection:
+
+```txt
+Markdown repositories
+  -> Atlas source adapter
+      -> parsed source records
+          -> Ontahi Atlas application
+              entities + relations + queries + operations
+                  -> Atlas viewer projection
+                      -> existing snapshot contract
+                          -> existing Atlas UI
+```
+
+Later, observed implementation sources can enter through separate adapters:
+
+```txt
+GitHub App events + GitHub API + Changesets/package metadata
+  -> observed evidence adapters
+      -> Ontahi evidence/release model
+          -> item, plan, component, version, and release projections
+```
+
+The important ownership rule is:
+
+| Information | Authority | Initial runtime form |
+| --- | --- | --- |
+| Atlas Item and Plan declarations | Markdown/git | Parsed into an in-memory Ontahi graph |
+| Implementation Component declarations | Markdown/git | Added after the core migration proves useful |
+| PRs, commits, and merge state | GitHub | Fetched or cached outside Markdown |
+| Changesets | Repository source plus git history | Extracted records |
+| Published package versions | Package registry/release provider | Fetched or cached records |
+| Inferred evidence bindings | Atlas/Ontahi | Persisted with provenance when a DB is introduced |
+
+The first candidate model is intentionally small:
+
+```txt
+AtlasItem
+  contains -> AtlasItem
+
+Plan
+  shapes -> AtlasItem
+  relatedTo -> AtlasItem
+
+SourceDocument
+  declares -> AtlasItem | Plan
+```
+
+The current snapshot remains a UI projection during migration. It should not be treated as the
+canonical domain schema.
+
+## Evaluation Checkpoint — 2026-08-31
+
+### Pilot
+
+The evaluation added a standalone Atlas domain pilot using published `@ontahi/core@1.0.0-alpha.8`:
+
+```txt
+current Atlas snapshot
+  -> transitional dataset adapter
+      -> Ontahi in-memory application
+          AtlasItem
+          AtlasPlan
+          AtlasShapingBinding
+      -> GetItemContext semantic query
+          parent
+          children
+          shaping plans
+```
+
+The pilot deliberately starts from the current snapshot. This is acceptable for comparing Ontahi's
+runtime and relation model, but it is not the target migration boundary.
+
+### Evidence
+
+1. A multi-source fixture hydrates declared `AtlasItem`, `AtlasPlan`, and `AtlasShapingBinding`
+   entities.
+2. `GetItemContext` resolves a self-referential parent, inverse children, and plans through an
+   explicit shaping-binding entity.
+3. Missing items return no context without requiring a database or browser runtime.
+4. A one-off local run over the current BookOps plus Ontahi sources loaded 248 nodes and 949 edges,
+   hydrated the Ontahi application in approximately 1.7 ms, and resolved one application-boundary
+   context query in approximately 2.3 ms. These figures are directional evidence from one local
+   run, not a benchmark contract.
+5. Atlas tests, typecheck, and production build accept the published Ontahi package and server-side
+   in-memory model.
+
+### Findings and ownership
+
+| Finding | Owner | Consequence |
+| --- | --- | --- |
+| Entities, self-relations, inverse relations, join entities, and nested projections fit the Atlas context model. | Ontahi fit confirmed | Continue to a source-record slice. |
+| The current Markdown parser emits a UI snapshot directly, so the pilot must translate derived nodes and edges back into domain records. | Atlas | Extract normalized source records before production migration. |
+| Source-owned `relatedPlans` values are not consistently canonicalized from relative paths to source URIs before snapshot assembly. | Atlas | Fix normalization at the source-record boundary; otherwise shaping relations disappear before Ontahi sees them. |
+| Application-graph reads outside an entity operation require an explicit `runServerEffect` plus data-graph runtime concern. | Shared documentation/ergonomics | Keep the runtime binding inside the Atlas application facade and document this host pattern in Ontahi if it remains the intended API. |
+| Query `.one()` produces a read-intent expression that does not compose directly with the low-level in-memory `get` executor used by the pilot. | Ontahi API ergonomics | Confirm the intended bound-runtime path or add a focused Ontahi follow-up before relying on exact-one query semantics. |
+| Typed recursive semantic refs carry field contracts but make cyclic relation typing/order more awkward than acyclic declarations. | Ontahi API ergonomics | Keep the first Atlas graph acyclic around the shaping join and evaluate a framework improvement separately. |
+| Installing core also brings Effect, Typia, and Zod runtime/tooling dependencies. | Shared | Accept for the pilot; measure build/bundle impact before adding browser/runtime packages. |
+
+### Decision
+
+**Continue, with a revised boundary.** Ontahi owns real relationship materialization and query
+behavior in the pilot, and its in-memory runtime is fast enough for Atlas's current build-sized
+graph. The current snapshot-to-dataset adapter is not clear enough to become production
+architecture, so the viewer should not be rewired yet.
+
+The next slice must first introduce normalized source records:
+
+```txt
+Markdown -> normalized Atlas source records -> Ontahi dataset/application -> viewer snapshot
+```
+
+The migration should stop or be revised again if that pipeline duplicates most snapshot logic or
+if parity requires leaking viewer-only fields into the Ontahi entities.
+
+## Slice 1 Checkpoint — Source Identity Canonicalization
+
+Atlas now normalizes every loaded Markdown file into an explicit source record before parsing:
+
+```txt
+AtlasMarkdownFile
+  -> NormalizedAtlasSourceRecord
+      sourceId
+      sourcePath
+      canonicalPath
+      sourceFilePath
+```
+
+Plan references in Atlas Item frontmatter follow the same identity rule as the plan records they
+target. A repository-local value such as `plans/current/111-atlas-as-ontahi-application.md` from
+the intrinsic `atlas` source becomes `atlas://plans/111-atlas-as-ontahi-application`; an explicit
+value such as `ontahi://plans/...` remains cross-source and unchanged. Markdown does not need a
+bulk rewrite.
+
+The regression fixture covers both forms in one item. A local run against intrinsic Atlas plus the
+configured BookOps and Ontahi sources also confirmed that Plan 111 now materializes a `shaped-by`
+edge from the source-local `relatedPlans` declarations that previously disappeared during snapshot
+assembly.
+
+This closes the source-identity defect found by Slice 0. The next migration step is still to hydrate
+the Ontahi application from these normalized records rather than from the derived viewer snapshot.
+
+### Ownership checkpoint
+
+Atlas now loads repository-local `plans/` and `atlas/items/` as its intrinsic `atlas` source. The
+active and future Atlas plans, the Workstream Atlas item tree, and the source-shape contract moved
+from BookOps into this standalone repository on 2026-08-31. BookOps remains a federated source for
+its product model and historical interventions, including Plan 133.
+
+This makes the next Ontahi slice repository-local: both the application code and the curated Atlas
+domain declarations now share one owner. Cross-project relationships use `bookops://...` and
+`ontahi://...` references rather than copies.
+
+## Execution Slices
+
+### Slice 0: Ontahi fit evaluation
+
+1. [x] Map the minimum current parser output needed for `AtlasItem`, `Plan`, containment, and one shaping
+   relation.
+2. [x] Declare that model with the current released Ontahi packages inside the standalone Atlas
+   repository.
+3. [x] Hydrate a representative multi-repository fixture into Ontahi's in-memory runtime.
+4. [x] Execute one real query, such as selected item plus parent, children, and shaping plans.
+5. [x] Project the query result into the existing snapshot or a compatible detail-view input.
+6. [x] Compare behavior, complexity, build-time compatibility, and performance with the current pure
+   builder.
+7. [x] Record every missing or awkward Ontahi capability and decide whether it belongs in Ontahi,
+   Atlas, or the adapter.
+
+Decision gate: continue only if Ontahi owns real model/query behavior and the adapter is clearer
+than the equivalent direct snapshot construction. If the pilot merely wraps existing arrays, revise
+the model or stop before broad migration.
+
+### Slice 1: Application and source boundary
+
+1. [ ] Introduce the Atlas Ontahi application facade and domain declarations at the normalized
+   source-record boundary rather than the transitional snapshot boundary.
+2. [x] Keep parsing pure and make Markdown normalization an explicit source adapter.
+3. [x] Preserve stable source identity across repositories and canonical Atlas references.
+4. [x] Make the evaluated domain/query layer usable without React or a browser.
+
+### Slice 2: Read projection migration
+
+1. Move selected-item context and evolution reads behind Ontahi first.
+2. Expand to the map/board projection only where the graph queries improve the current assembly.
+3. Keep parity tests at the viewer projection boundary.
+4. Remove direct assembly paths only after equivalent behavior is proven.
+
+### Slice 3: First proposal operation
+
+1. Choose one proposal operation, preferably `LinkPlanToAtlasItem` or
+   `CreatePlanFromEvolutionSignal`.
+2. Return a reviewable Markdown patch rather than mutating the repository directly.
+3. Exercise Ontahi operation contracts, effects, and provenance in a real Atlas workflow.
+
+### Slice 4: Framework feedback and next capability
+
+1. Promote generally useful friction into focused Ontahi issues/plans and package changes.
+2. Keep Atlas-specific projection behavior local to Atlas.
+3. Re-evaluate persistence after the model has both curated and observed data requirements.
+4. Pull [Plan 102](../backlog/102-workstream-atlas-implementation-evidence.md) when the boundary can
+   host Components, Surfaces, Changesets, releases, and evidence without Markdown duplication.
+
+## Verification
+
+- [x] A written fit evaluation records the compared current and Ontahi-backed paths.
+- [x] A representative multi-source Atlas dataset hydrates into an in-memory Ontahi runtime.
+- [x] At least one item-context query uses declared Ontahi entities and relations.
+- [x] The resulting context projection preserves the current data needed for that slice.
+- [x] Atlas still reads the existing `plans/` and `atlas/items/` source files.
+- [x] No production database or GitHub-data duplication is required for the pilot.
+- [x] Framework gaps discovered by Atlas have explicit ownership and follow-up direction.
+- [x] The migration has a `continue with revised boundary` decision before broad replacement.
+- [x] The evaluated Atlas domain module is usable without a browser.
+- [x] Source-local `relatedPlans` values resolve to their source-owned canonical Plan identity while
+  explicit cross-source URIs remain stable.
+- [ ] At least one proposal operation can eventually produce a reviewable Markdown change.
+
+## Decisions
+
+1. Evaluate the Ontahi migration before building the GitHub/Changesets evidence model.
+2. Use Atlas as an Ontahi dogfooding application and treat framework feedback as a first-class
+   outcome.
+3. Keep Markdown authoritative for curated semantic declarations.
+4. Start with Ontahi's in-memory runtime; persistence must be earned by observed evidence needs.
+5. Preserve the current snapshot as a compatibility projection during migration.
+6. Require a real query/relationship benefit; wrapping the existing snapshot is not sufficient.
+7. Separate curated source adapters from observed evidence adapters.
+8. Sequence Plan 102 after the Ontahi boundary is proven.
+
+## Open Questions
+
+1. Should `Plan` be a distinct Ontahi entity or an Atlas Item type expressed through one entity and
+   a discriminated field?
+2. Should containment and semantic relations share one `AtlasRelation` model or use declared Ontahi
+   relations per meaning?
+3. Can the in-memory runtime hydrate the full federated graph efficiently during a static build, or
+   should Atlas produce a serialized Ontahi dataset first?
+4. Which current derived fields belong in domain queries and which should remain viewer projection
+   concerns?
+5. Does the first proposal operation expose gaps in Ontahi's file/patch effect boundaries?
+6. When observed GitHub data arrives, should persistence live in an Atlas-owned Postgres database,
+   a rebuild cache, or a replaceable evidence store?
+
+## Child Plans
+
+1. [112. Ontahi Capability Package Composition v0](bookops://plans/112-ontahi-capability-package-composition-v0)
+
+## Closure / Evolution
+
+Originally shaped as a direct domain migration after standalone extraction. Reshaped on 2026-08-31
+to require an evaluation slice first and to make the two-way Atlas/Ontahi learning loop explicit.
+The GitHub, Changesets, package-version, and release-evidence direction is preserved in
+[Plan 102](../backlog/102-workstream-atlas-implementation-evidence.md) rather than expanding this
+migration into multiple simultaneous risks.
