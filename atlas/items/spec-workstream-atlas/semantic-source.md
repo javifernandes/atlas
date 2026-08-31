@@ -39,4 +39,8 @@ use the application-bound graph API so the exact storage runtime and query termi
 The Ontahi Runtime Protocol belongs at a later transport boundary—browser, GitHub worker, or
 external agent—not between Markdown parsing and an in-process build projection.
 
+The first application-backed UI seam is the selection context projection. During the static build,
+Atlas queries Ontahi for each item's parent, children, and shaping Plans; the selection panel uses
+that serializable index while the global map remains a compatibility snapshot.
+
 Its current contract is captured in [`atlas/SOURCE-SHAPE.md`](../../SOURCE-SHAPE.md).

@@ -314,6 +314,26 @@ The existing viewer remains snapshot-backed. The next read-projection slice shou
 application-bound item-context query from a real Atlas surface, then compare it against the current
 client projection before removing any direct assembly path.
 
+## Slice 2 Checkpoint — Selection Context Projection
+
+The static page build now loads source files once, hydrates the Atlas application from normalized
+records, and obtains a serializable item-context index through `application.graph.read(...)`.
+
+The selection panel uses that Ontahi projection for:
+
+1. the selected item's parent,
+2. its direct children,
+3. its declared shaping Plans.
+
+Supports, related links, the global map, and full-detail evolution remain on the compatibility
+snapshot. This creates a narrow parity seam instead of replacing the entire viewer at once. A
+viewer regression proves a shaping Plan supplied only by the Ontahi context appears in the panel
+even when the compatibility edge is absent.
+
+No Runtime Protocol request is needed yet: these reads execute during the server-side static build
+and cross into the browser as ordinary serialized projection data. A live refresh, proposal
+operation, webhook worker, or external agent call will be the first justified protocol boundary.
+
 ## Execution Slices
 
 ### Slice 0: Ontahi fit evaluation
@@ -344,10 +364,11 @@ the model or stop before broad migration.
 
 ### Slice 2: Read projection migration
 
-1. Move selected-item context and evolution reads behind Ontahi first.
-2. Expand to the map/board projection only where the graph queries improve the current assembly.
-3. Keep parity tests at the viewer projection boundary.
-4. Remove direct assembly paths only after equivalent behavior is proven.
+1. [x] Move selected-item structure and shaping context behind Ontahi first.
+2. [ ] Move the selected item's evolution reads behind Ontahi.
+3. [ ] Expand to the map/board projection only where graph queries improve the current assembly.
+4. [x] Keep parity tests at the viewer projection boundary.
+5. [ ] Remove direct assembly paths only after equivalent behavior is proven.
 
 ### Slice 3: First proposal operation
 
@@ -377,6 +398,8 @@ the model or stop before broad migration.
 - [x] The evaluated Atlas domain module is usable without a browser.
 - [x] Source-local `relatedPlans` values resolve to their source-owned canonical Plan identity while
   explicit cross-source URIs remain stable.
+- [x] The real Atlas selection panel consumes application-bound structure and shaping reads, with
+  viewer parity covered by the full test, typecheck, and production-build verification.
 - [ ] At least one proposal operation can eventually produce a reviewable Markdown change.
 
 ## Decisions

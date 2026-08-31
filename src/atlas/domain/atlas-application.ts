@@ -11,7 +11,10 @@ import {
   semanticEntityRef,
 } from '@ontahi/core/runtime/server';
 
-import { parseAtlasSourceRecords } from '../markdown/build-snapshot';
+import {
+  parseAtlasSourceRecords,
+  type ParsedAtlasSource,
+} from '../markdown/build-snapshot';
 import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
 
 const atlasItemFields = {
@@ -62,10 +65,7 @@ export const AtlasItem = entity({
   },
 });
 
-export const buildAtlasOntahiDataset = (
-  records: NormalizedAtlasSourceRecord[],
-): InMemoryDataset => {
-  const { items, plans } = parseAtlasSourceRecords(records);
+const buildAtlasOntahiDatasetFromSource = ({ items, plans }: ParsedAtlasSource): InMemoryDataset => {
   const planByPath = new Map(plans.map(plan => [plan.path, plan]));
 
   return {
@@ -100,6 +100,10 @@ export const buildAtlasOntahiDataset = (
     ),
   };
 };
+
+export const buildAtlasOntahiDataset = (
+  records: NormalizedAtlasSourceRecord[],
+): InMemoryDataset => buildAtlasOntahiDatasetFromSource(parseAtlasSourceRecords(records));
 
 const atlasItemContextQuery = (semanticId: string) =>
   query(AtlasItem)
@@ -149,7 +153,10 @@ export type AtlasItemContext = {
 };
 
 export const createAtlasOntahiApplication = (records: NormalizedAtlasSourceRecord[]) => {
-  const storage = createInMemoryDataGraphStorage({ dataset: buildAtlasOntahiDataset(records) });
+  const source = parseAtlasSourceRecords(records);
+  const storage = createInMemoryDataGraphStorage({
+    dataset: buildAtlasOntahiDatasetFromSource(source),
+  });
   const application = ontahi({
     storage,
     entities: [AtlasItem, AtlasPlan, AtlasShapingBinding],
@@ -161,5 +168,19 @@ export const createAtlasOntahiApplication = (records: NormalizedAtlasSourceRecor
       application.graph.read(atlasItemContextQuery(semanticId), {
         scope: 'atlas.item-context',
       }),
+    getItemContexts: async (): Promise<Record<string, AtlasItemContext | null>> =>
+      Object.fromEntries(
+        await Promise.all(
+          source.items.map(
+            async item =>
+              [
+                item.id,
+                await application.graph.read(atlasItemContextQuery(item.id), {
+                  scope: 'atlas.item-context-index',
+                }),
+              ] as const,
+          ),
+        ),
+      ),
   };
 };

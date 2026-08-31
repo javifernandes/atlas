@@ -115,6 +115,12 @@ relatedPlans:
         },
       ],
     });
+    await expect(atlas.getItemContexts()).resolves.toMatchObject({
+      product: { semanticId: 'product' },
+      'product.reader': { semanticId: 'product.reader' },
+      'product.reader.audio': { semanticId: 'product.reader.audio' },
+      platform: { semanticId: 'platform' },
+    });
     expect(atlas.application.graph.entities).toMatchObject({
       AtlasItem: expect.objectContaining({ name: 'AtlasItem' }),
       AtlasPlan: expect.objectContaining({ name: 'AtlasPlan' }),
