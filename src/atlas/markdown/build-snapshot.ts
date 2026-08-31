@@ -5,6 +5,11 @@ import {
   loadAtlasSourceFiles,
   type AtlasMarkdownFile,
 } from '../sources/markdown-source';
+import {
+  normalizeAtlasSourceRecord,
+  resolveAtlasPlanReference,
+  type NormalizedAtlasSourceRecord,
+} from '../sources/normalized-source';
 import type {
   PlanRelationKind,
   PlanStatusGroup,
@@ -15,7 +20,7 @@ import type {
   PlanWorkstreamTerritory,
 } from '../model/snapshot';
 
-type PlanMarkdownFile = AtlasMarkdownFile;
+type PlanMarkdownFile = NormalizedAtlasSourceRecord;
 
 type ParsedPlan = {
   id: string;
@@ -97,27 +102,6 @@ const statusGroupOrder: Record<PlanStatusGroup, number> = {
   done: 4,
   unmaterialized: 5,
 };
-
-const normalizePath = (value: string) => value.replaceAll(path.sep, '/').replace(/^\.\//, '');
-
-const getCanonicalFilePath = (file: PlanMarkdownFile) => {
-  if (!file.source) {
-    return file.path;
-  }
-
-  if (file.path.startsWith('plans/')) {
-    return `${file.source}://plans/${path.basename(file.path, '.md')}`;
-  }
-
-  if (file.path.startsWith('atlas/items/')) {
-    return `${file.source}://atlas/${file.path.slice('atlas/items/'.length, -'.md'.length)}`;
-  }
-
-  return `${file.source}://${file.path}`;
-};
-
-const getSourceFilePath = (file: PlanMarkdownFile) =>
-  file.source ? `${file.source}/${file.path}` : undefined;
 
 const slugify = (value: string) =>
   value
@@ -300,26 +284,8 @@ const humanizeIdentifier = (value: string) =>
     .replaceAll(/[-_]+/g, ' ')
     .replaceAll(/\b\w/g, character => character.toUpperCase());
 
-const resolvePlanLink = (file: PlanMarkdownFile, href: string) => {
-  const cleanHref = href.split('#')[0]?.trim();
-
-  if (!cleanHref) {
-    return undefined;
-  }
-
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(cleanHref)) {
-    return cleanHref;
-  }
-
-  if (!cleanHref.endsWith('.md')) {
-    return undefined;
-  }
-
-  return getCanonicalFilePath({
-    ...file,
-    path: normalizePath(path.normalize(path.join(path.dirname(file.path), cleanHref))),
-  });
-};
+const resolvePlanLink = (file: PlanMarkdownFile, href: string) =>
+  resolveAtlasPlanReference(file, href, { relativeTo: 'record' });
 
 const parseRelatedLinks = (file: PlanMarkdownFile) => {
   const lines = file.content.split('\n');
@@ -407,21 +373,20 @@ const parseCandidateChildren = (content: string) => {
 };
 
 const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
-  const canonicalPath = getCanonicalFilePath(file);
-  const title = titleFromHeading(file.content, path.basename(file.path, '.md'));
+  const title = titleFromHeading(file.content, path.basename(file.sourcePath, '.md'));
   const metadata = parseMetadata(file.content);
-  const key = getPlanKey(file.path);
+  const key = getPlanKey(file.sourcePath);
   const shortTitle = shortTitleFromTitle(title);
-  const statusGroup = getStatusGroup(file.path);
+  const statusGroup = getStatusGroup(file.sourcePath);
   const planKind = metadata['plan-kind'];
   const area = metadata.area;
   const codename = metadata.codename;
   const territory =
-    metadata.territory ?? (file.source ? humanizeIdentifier(file.source) : 'Plans');
+    metadata.territory ?? (file.sourceId ? humanizeIdentifier(file.sourceId) : 'Plans');
   const workstream = metadata.workstream ?? codename ?? humanizeIdentifier(statusGroup);
 
   return {
-    id: `plan:${canonicalPath}`,
+    id: `plan:${file.canonicalPath}`,
     key,
     title,
     shortTitle,
@@ -434,8 +399,8 @@ const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
     codename,
     territory,
     workstream,
-    path: canonicalPath,
-    sourceFilePath: getSourceFilePath(file),
+    path: file.canonicalPath,
+    sourceFilePath: file.sourceFilePath,
     href: undefined,
     markdown: file.content,
     summary: getSummary(file.content),
@@ -531,10 +496,14 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
     statusGroup: getAtlasStatusGroup({ horizon, status }),
     horizon,
     supports: getFrontmatterList(metadata, 'supports'),
-    relatedPlans: getFrontmatterList(metadata, 'relatedPlans'),
+    relatedPlans: getFrontmatterList(metadata, 'relatedPlans').flatMap(reference => {
+      const resolvedReference = resolveAtlasPlanReference(file, reference);
+
+      return resolvedReference ? [resolvedReference] : [];
+    }),
     exemplars: getFrontmatterList(metadata, 'exemplars'),
-    path: getCanonicalFilePath(file),
-    sourceFilePath: getSourceFilePath(file),
+    path: file.canonicalPath,
+    sourceFilePath: file.sourceFilePath,
     markdown: file.content,
     summary: getBodySummary(body),
     sections: parseSections(body),
@@ -763,9 +732,9 @@ const buildSemanticSnapshotFromFiles = (
   const plans = planFiles
     .filter(
       file =>
-        file.path !== 'plans/README.md' &&
-        file.path !== 'plans/done/README.md' &&
-        file.path !== 'plans/research/README.md',
+        file.sourcePath !== 'plans/README.md' &&
+        file.sourcePath !== 'plans/done/README.md' &&
+        file.sourcePath !== 'plans/research/README.md',
     )
     .map(parsePlan);
   const planByPath = new Map(
@@ -972,19 +941,22 @@ const buildSemanticSnapshotFromFiles = (
 };
 
 export const buildPlanWorkstreamSnapshotFromFiles = (
-  files: PlanMarkdownFile[],
-  atlasFiles: PlanMarkdownFile[] = [],
+  files: AtlasMarkdownFile[],
+  atlasFiles: AtlasMarkdownFile[] = [],
 ): PlanWorkstreamSnapshot => {
+  const normalizedFiles = files.map(normalizeAtlasSourceRecord);
+  const normalizedAtlasFiles = atlasFiles.map(normalizeAtlasSourceRecord);
+
   if (atlasFiles.length > 0) {
-    return buildSemanticSnapshotFromFiles(files, atlasFiles);
+    return buildSemanticSnapshotFromFiles(normalizedFiles, normalizedAtlasFiles);
   }
 
-  const plans = files
+  const plans = normalizedFiles
     .filter(
       file =>
-        file.path !== 'plans/README.md' &&
-        file.path !== 'plans/done/README.md' &&
-        file.path !== 'plans/research/README.md',
+        file.sourcePath !== 'plans/README.md' &&
+        file.sourcePath !== 'plans/done/README.md' &&
+        file.sourcePath !== 'plans/research/README.md',
     )
     .map(parsePlan);
   const planByPath = new Map(plans.map(plan => [plan.path, plan]));
@@ -1178,7 +1150,7 @@ export const buildPlanWorkstreamSnapshotFromFiles = (
 
 export const getPlanWorkstreamSnapshot = async (): Promise<PlanWorkstreamSnapshot> => {
   const repoRoot = getRepoRoot();
-  let sourceFiles: PlanMarkdownFile[] = [];
+  let sourceFiles: AtlasMarkdownFile[] = [];
 
   try {
     sourceFiles = await loadAtlasSourceFiles({ repoRoot });
