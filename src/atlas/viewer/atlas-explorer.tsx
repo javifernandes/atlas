@@ -32,6 +32,7 @@ import {
 
 import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { useTheme } from '@/components/theme-provider';
+import type { AtlasItemContext } from '@/atlas/domain/atlas-application';
 import type {
   PlanRelationKind,
   PlanStatusGroup,
@@ -42,6 +43,7 @@ import type {
 import { cn } from '@/lib/classes';
 
 type PlanWorkstreamExplorerProps = {
+  itemContexts?: Record<string, AtlasItemContext | null>;
   snapshot: PlanWorkstreamSnapshot;
 };
 
@@ -1184,6 +1186,52 @@ const mergeDrawerRelations = (
     relations: [...relationsByKey.values()],
   };
 };
+
+const getItemContextEdges = (context: AtlasItemContext): PlanWorkstreamEdge[] => [
+  ...(context.parent
+    ? [
+        {
+          id: `${context.parent.id}->${context.id}:contains`,
+          from: context.parent.id,
+          to: context.id,
+          kind: 'contains' as const,
+        },
+      ]
+    : []),
+  ...context.children.map(child => ({
+    id: `${context.id}->${child.id}:contains`,
+    from: context.id,
+    to: child.id,
+    kind: 'contains' as const,
+  })),
+  ...context.shapingBindings.flatMap(binding =>
+    binding.plan
+      ? [
+          {
+            id: `${context.id}->${binding.plan.id}:shaped-by`,
+            from: context.id,
+            to: binding.plan.id,
+            kind: 'shaped-by' as const,
+          },
+        ]
+      : [],
+  ),
+];
+
+const projectItemContextEdges = (
+  edges: PlanWorkstreamEdge[],
+  nodeId: string,
+  context: AtlasItemContext,
+): PlanWorkstreamEdge[] => [
+  ...edges.filter(
+    edge =>
+      !(
+        (edge.from === nodeId || edge.to === nodeId) &&
+        (edge.kind === 'contains' || edge.kind === 'shaped-by')
+      ),
+  ),
+  ...getItemContextEdges(context),
+];
 
 const RelationList = ({
   nodesById,
@@ -3525,7 +3573,10 @@ const SelectionPanel = ({
   );
 };
 
-export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps) => {
+export const PlanWorkstreamExplorer = ({
+  itemContexts = {},
+  snapshot,
+}: PlanWorkstreamExplorerProps) => {
   const { theme, toggleTheme } = useTheme();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
     () => readAtlasRouteState().selectedNodeId,
@@ -3762,8 +3813,20 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
       visibleNodeIds,
     });
   }, [edgeHover, hierarchyIndex, hoveredNodeId, selectedNodeId, visibleEdges, visibleNodeIds]);
-  const outgoing = selectedNode ? snapshot.edges.filter(edge => edge.from === selectedNode.id) : [];
-  const incoming = selectedNode ? snapshot.edges.filter(edge => edge.to === selectedNode.id) : [];
+  const selectedItemContext = selectedNode?.semanticId
+    ? itemContexts[selectedNode.semanticId]
+    : undefined;
+  const selectionEdges =
+    selectedNode && selectedItemContext
+      ? projectItemContextEdges(snapshot.edges, selectedNode.id, selectedItemContext)
+      : snapshot.edges;
+  const outgoing = selectedNode ? selectionEdges.filter(edge => edge.from === selectedNode.id) : [];
+  const incoming = selectedNode ? selectionEdges.filter(edge => edge.to === selectedNode.id) : [];
+  const fullItemContext = fullNode?.semanticId ? itemContexts[fullNode.semanticId] : undefined;
+  const fullNodeEdges =
+    fullNode && fullItemContext
+      ? projectItemContextEdges(snapshot.edges, fullNode.id, fullItemContext)
+      : snapshot.edges;
 
   const getFitViewport = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -5023,7 +5086,7 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
       {fullNode ? (
         <FullMarkdownModal
           activeTab={fullNodeActiveTab}
-          edges={snapshot.edges}
+          edges={fullNodeEdges}
           navigationBackNode={fullNodeNavigationBackNode}
           nodesById={nodesById}
           nodesByPath={nodesByPath}

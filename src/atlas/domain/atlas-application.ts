@@ -1,6 +1,7 @@
 import {
   createInMemoryDataGraphStorage,
   field,
+  graphSchema,
   query,
   type InMemoryDataset,
 } from '@ontahi/core/data-graph';
@@ -8,11 +9,30 @@ import {
   entity,
   ontahi,
   relation,
-  runServerEffect,
   semanticEntityRef,
+  type OntahiCapabilities,
 } from '@ontahi/core/runtime/server';
 
-import type { PlanWorkstreamSnapshot } from '../model/snapshot';
+import {
+  parseAtlasSourceRecords,
+  type ParsedAtlasSource,
+} from '../markdown/build-snapshot';
+import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
+import {
+  proposePlanLink,
+  type AtlasPlanLinkProposal,
+} from './plan-link-proposal';
+
+type AtlasCapabilities = OntahiCapabilities & {
+  runtime: {
+    proposals: {
+      linkPlanToItem(input: {
+        itemSemanticId: string;
+        planPath: string;
+      }): AtlasPlanLinkProposal;
+    };
+  };
+};
 
 const atlasItemFields = {
   id: field.id(),
@@ -36,6 +56,16 @@ const shapingBindingFields = {
   planId: field.id(),
 };
 
+const AtlasPlanLinkProposalSchema = graphSchema.value('AtlasPlanLinkProposal', {
+  itemSemanticId: field.nonEmptyString({ trim: true }),
+  patch: field.string(),
+  planPath: field.nonEmptyString({ trim: true }),
+  planReference: field.nonEmptyString({ trim: true }),
+  sourceId: field.nonEmptyString({ trim: true }),
+  sourcePath: field.nonEmptyString({ trim: true }),
+  status: field.enum(['already-linked', 'proposed']),
+});
+
 const AtlasItemRef = semanticEntityRef('AtlasItem', { fields: atlasItemFields });
 
 export const AtlasPlan = entity({
@@ -55,64 +85,79 @@ export const AtlasShapingBinding = entity({
 export const AtlasItem = entity({
   name: 'AtlasItem',
   fields: atlasItemFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'bridge',
+    layer: 'atlas',
+  },
+  uses: {
+    capabilities: {} as AtlasCapabilities,
+    entities: { AtlasPlan },
+  },
   relations: {
     parent: relation.belongsTo(AtlasItemRef, { via: 'parentId' }),
     children: relation.hasMany(AtlasItemRef, { via: 'parentId' }),
     shapingBindings: relation.hasMany(AtlasShapingBinding, { via: 'itemId' }),
   },
+  operations: ({ self, entities, operation, app }) => ({
+    proposePlanLink: operation({
+      input: graphSchema.object({
+        item: graphSchema.existingRef(self),
+        plan: graphSchema.existingRef(entities.AtlasPlan),
+      }),
+      output: AtlasPlanLinkProposalSchema,
+      *run({ item, plan }) {
+        const { after: _after, before: _before, ...proposal } =
+          app.runtime.proposals.linkPlanToItem({
+            itemSemanticId: item.semanticId,
+            planPath: plan.path,
+          });
+
+        return proposal;
+      },
+    }),
+  }),
 });
 
-const isAtlasItemNode = (
-  node: PlanWorkstreamSnapshot['nodes'][number],
-): node is PlanWorkstreamSnapshot['nodes'][number] & { semanticId: string } =>
-  Boolean(node.semanticId) && node.kind !== 'plan';
-
-const isAtlasPlanNode = (
-  node: PlanWorkstreamSnapshot['nodes'][number],
-): node is PlanWorkstreamSnapshot['nodes'][number] & { path: string } =>
-  node.kind === 'plan' && Boolean(node.path);
-
-export const buildAtlasOntahiDataset = (snapshot: PlanWorkstreamSnapshot): InMemoryDataset => {
-  const atlasItemNodes = snapshot.nodes.filter(isAtlasItemNode);
-  const atlasPlanNodes = snapshot.nodes.filter(isAtlasPlanNode);
-  const atlasItemIds = new Set(atlasItemNodes.map(node => node.id));
-  const atlasPlanIds = new Set(atlasPlanNodes.map(node => node.id));
-  const parentByItemId = new Map(
-    snapshot.edges
-      .filter(
-        edge =>
-          edge.kind === 'contains' &&
-          atlasItemIds.has(edge.from) &&
-          atlasItemIds.has(edge.to),
-      )
-      .map(edge => [edge.to, edge.from]),
-  );
+const buildAtlasOntahiDatasetFromSource = ({ items, plans }: ParsedAtlasSource): InMemoryDataset => {
+  const planByPath = new Map(plans.map(plan => [plan.path, plan]));
 
   return {
-    AtlasItem: atlasItemNodes.map(node => ({
-      id: node.id,
-      semanticId: node.semanticId,
-      title: node.title,
-      kind: node.kind,
-      status: node.status,
-      parentId: parentByItemId.get(node.id) ?? null,
+    AtlasItem: items.map(item => ({
+      id: item.nodeId,
+      semanticId: item.id,
+      title: item.title,
+      kind: item.kind,
+      status: item.status,
+      parentId: item.parent ? `atlas:${item.parent}` : null,
     })),
-    AtlasPlan: atlasPlanNodes.map(node => ({
-      id: node.id,
-      path: node.path,
-      title: node.title,
-      status: node.status,
+    AtlasPlan: plans.map(plan => ({
+      id: plan.id,
+      path: plan.path,
+      title: plan.title,
+      status: plan.status,
     })),
-    AtlasShapingBinding: snapshot.edges
-      .filter(
-        edge =>
-          edge.kind === 'shaped-by' &&
-          atlasItemIds.has(edge.from) &&
-          atlasPlanIds.has(edge.to),
-      )
-      .map(edge => ({ id: edge.id, itemId: edge.from, planId: edge.to })),
+    AtlasShapingBinding: items.flatMap(item =>
+      item.relatedPlans.flatMap(planPath => {
+        const plan = planByPath.get(planPath);
+
+        return plan
+          ? [
+              {
+                id: `${item.nodeId}->${plan.id}:shaped-by`,
+                itemId: item.nodeId,
+                planId: plan.id,
+              },
+            ]
+          : [];
+      }),
+    ),
   };
 };
+
+export const buildAtlasOntahiDataset = (
+  records: NormalizedAtlasSourceRecord[],
+): InMemoryDataset => buildAtlasOntahiDatasetFromSource(parseAtlasSourceRecords(records));
 
 const atlasItemContextQuery = (semanticId: string) =>
   query(AtlasItem)
@@ -145,7 +190,8 @@ const atlasItemContextQuery = (semanticId: string) =>
           })),
         }))
         .orderBy(binding => binding.id),
-    }));
+    }))
+    .first();
 
 export type AtlasItemContext = {
   id: string;
@@ -156,26 +202,47 @@ export type AtlasItemContext = {
   parent: { id: string; semanticId: string; title: string } | null;
   children: Array<{ id: string; semanticId: string; title: string }>;
   shapingBindings: Array<{
-    plan: { id: string; path: string; title: string; status: string };
+    plan: { id: string; path: string; title: string; status: string } | null;
   }>;
 };
 
-export const createAtlasOntahiApplication = (snapshot: PlanWorkstreamSnapshot) => {
-  const storage = createInMemoryDataGraphStorage({ dataset: buildAtlasOntahiDataset(snapshot) });
+export const createAtlasOntahiApplication = (records: NormalizedAtlasSourceRecord[]) => {
+  const source = parseAtlasSourceRecords(records);
+  const storage = createInMemoryDataGraphStorage({
+    dataset: buildAtlasOntahiDatasetFromSource(source),
+  });
   const application = ontahi({
     storage,
+    capabilities: {
+      runtime: {
+        proposals: {
+          linkPlanToItem: (input: { itemSemanticId: string; planPath: string }) =>
+            proposePlanLink(source, input),
+        },
+      },
+    },
     entities: [AtlasItem, AtlasPlan, AtlasShapingBinding],
   });
 
   return {
     application,
-    getItemContext: (semanticId: string) =>
-      runServerEffect(
-        application.app.graph.getViewEffect(atlasItemContextQuery(semanticId), undefined),
-        {
-          scope: 'atlas.item-context',
-          concerns: [application.app.graph.withRuntime()],
-        },
-      ) as Promise<AtlasItemContext | null>,
+    getItemContext: (semanticId: string): Promise<AtlasItemContext | null> =>
+      application.graph.read(atlasItemContextQuery(semanticId), {
+        scope: 'atlas.item-context',
+      }),
+    getItemContexts: async (): Promise<Record<string, AtlasItemContext | null>> =>
+      Object.fromEntries(
+        await Promise.all(
+          source.items.map(
+            async item =>
+              [
+                item.id,
+                await application.graph.read(atlasItemContextQuery(item.id), {
+                  scope: 'atlas.item-context-index',
+                }),
+              ] as const,
+          ),
+        ),
+      ),
   };
 };

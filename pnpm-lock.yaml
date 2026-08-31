@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@ontahi/core':
-        specifier: 1.0.0-alpha.8
-        version: 1.0.0-alpha.8(@types/node@20.19.43)(typescript@5.9.3)
+        specifier: 1.0.0-alpha.9
+        version: 1.0.0-alpha.9(@types/node@20.19.43)(typescript@5.9.3)
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -436,8 +436,8 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@ontahi/core@1.0.0-alpha.8':
-    resolution: {integrity: sha512-r2/a2oP99G5SsBJjswQsIJQMPxYiufNRgldPYdQSo3bv9KLMD7I1Tp1nBPbd7rJbSuPk3BrXvNTRYCr8I1HI+w==}
+  '@ontahi/core@1.0.0-alpha.9':
+    resolution: {integrity: sha512-przmegh4PsLVZAY7Hb7AH9/C5NnZ/YoDYnm1RxZ8q66G7gzT5XdyLOfgzEG9ka36jfS6RSBWFd4H2fit+yl9qA==}
     engines: {node: '>=20.19.0'}
 
   '@rollup/rollup-android-arm-eabi@4.62.4':
@@ -2431,7 +2431,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@ontahi/core@1.0.0-alpha.8(@types/node@20.19.43)(typescript@5.9.3)':
+  '@ontahi/core@1.0.0-alpha.9(@types/node@20.19.43)(typescript@5.9.3)':
     dependencies:
       effect: 3.22.1
       typia: 12.2.0(@types/node@20.19.43)(typescript@5.9.3)
