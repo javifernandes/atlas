@@ -1,10 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import {
-  createAtlasOntahiApplication,
-  type AtlasItemContext,
-} from '../domain/atlas-application';
+import { createAtlasOntahiApplication } from '../domain/atlas-application';
 import { buildPlanWorkstreamSnapshotFromFiles } from '../markdown/build-snapshot';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import {
@@ -14,7 +11,6 @@ import {
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
 
 export type AtlasPageData = {
-  itemContexts: Record<string, AtlasItemContext | null>;
   snapshot: PlanWorkstreamSnapshot;
 };
 
@@ -42,7 +38,6 @@ const getRepoRoot = () => {
 };
 
 const emptyPageData = (): AtlasPageData => ({
-  itemContexts: {},
   snapshot: buildPlanWorkstreamSnapshotFromFiles([]),
 });
 
@@ -62,12 +57,15 @@ export const getAtlasPageData = async (): Promise<AtlasPageData> => {
   }
 
   const { atlas, sourceFiles } = loaded;
+  const compatibilitySnapshot = buildPlanWorkstreamSnapshotFromFiles(
+    sourceFiles.filter(file => file.path.startsWith('plans/')),
+    sourceFiles.filter(file => file.path.startsWith('atlas/items/')),
+  );
 
   return {
-    itemContexts: await atlas.getItemContexts(),
-    snapshot: buildPlanWorkstreamSnapshotFromFiles(
-      sourceFiles.filter(file => file.path.startsWith('plans/')),
-      sourceFiles.filter(file => file.path.startsWith('atlas/items/')),
-    ),
+    snapshot: {
+      ...compatibilitySnapshot,
+      edges: await atlas.getTopologyEdges(),
+    },
   };
 };

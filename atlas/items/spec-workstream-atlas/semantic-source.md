@@ -39,12 +39,12 @@ use the application-bound graph API so the exact storage runtime and query termi
 The Ontahi Runtime Protocol belongs at a later transport boundary—browser, GitHub worker, or
 external agent—not between Markdown parsing and an in-process build projection.
 
-The first application-backed UI seam is the selection context projection. During the static build,
-Atlas queries Ontahi for each item's parent, children, and shaping Plans; the selection panel uses
-that serializable index while the global map remains a compatibility snapshot.
-
-The full-detail context and Evolution tabs use the same application projection for Atlas Items;
-semantic signals and temporal grouping remain viewer-derived lenses over those relations.
+During the static build, Atlas queries Ontahi for Item containment, support and shaping bindings,
+plus Plan containment and lateral relations. One serializable topology projection feeds the global
+map, board, selection panel, and full-detail Context and Evolution tabs. The compatibility snapshot
+still supplies node cards, Markdown documents, metrics, status grouping, and other presentation
+metadata; it no longer supplies a second relation graph. Semantic signals and temporal grouping
+remain viewer-derived lenses over the application-owned relations.
 
 The first source-aware Ontahi operation, `AtlasItem.proposePlanLink`, resolves an existing Item and
 Plan and returns a source-owned unified diff. Source-local links use repository paths and
