@@ -1,6 +1,7 @@
 import {
   createInMemoryDataGraphStorage,
   field,
+  graphSchema,
   query,
   type InMemoryDataset,
 } from '@ontahi/core/data-graph';
@@ -9,6 +10,7 @@ import {
   ontahi,
   relation,
   semanticEntityRef,
+  type OntahiCapabilities,
 } from '@ontahi/core/runtime/server';
 
 import {
@@ -16,6 +18,21 @@ import {
   type ParsedAtlasSource,
 } from '../markdown/build-snapshot';
 import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
+import {
+  proposePlanLink,
+  type AtlasPlanLinkProposal,
+} from './plan-link-proposal';
+
+type AtlasCapabilities = OntahiCapabilities & {
+  runtime: {
+    proposals: {
+      linkPlanToItem(input: {
+        itemSemanticId: string;
+        planPath: string;
+      }): AtlasPlanLinkProposal;
+    };
+  };
+};
 
 const atlasItemFields = {
   id: field.id(),
@@ -39,6 +56,16 @@ const shapingBindingFields = {
   planId: field.id(),
 };
 
+const AtlasPlanLinkProposalSchema = graphSchema.value('AtlasPlanLinkProposal', {
+  itemSemanticId: field.nonEmptyString({ trim: true }),
+  patch: field.string(),
+  planPath: field.nonEmptyString({ trim: true }),
+  planReference: field.nonEmptyString({ trim: true }),
+  sourceId: field.nonEmptyString({ trim: true }),
+  sourcePath: field.nonEmptyString({ trim: true }),
+  status: field.enum(['already-linked', 'proposed']),
+});
+
 const AtlasItemRef = semanticEntityRef('AtlasItem', { fields: atlasItemFields });
 
 export const AtlasPlan = entity({
@@ -58,11 +85,38 @@ export const AtlasShapingBinding = entity({
 export const AtlasItem = entity({
   name: 'AtlasItem',
   fields: atlasItemFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'bridge',
+    layer: 'atlas',
+  },
+  uses: {
+    capabilities: {} as AtlasCapabilities,
+    entities: { AtlasPlan },
+  },
   relations: {
     parent: relation.belongsTo(AtlasItemRef, { via: 'parentId' }),
     children: relation.hasMany(AtlasItemRef, { via: 'parentId' }),
     shapingBindings: relation.hasMany(AtlasShapingBinding, { via: 'itemId' }),
   },
+  operations: ({ self, entities, operation, app }) => ({
+    proposePlanLink: operation({
+      input: graphSchema.object({
+        item: graphSchema.existingRef(self),
+        plan: graphSchema.existingRef(entities.AtlasPlan),
+      }),
+      output: AtlasPlanLinkProposalSchema,
+      *run({ item, plan }) {
+        const { after: _after, before: _before, ...proposal } =
+          app.runtime.proposals.linkPlanToItem({
+            itemSemanticId: item.semanticId,
+            planPath: plan.path,
+          });
+
+        return proposal;
+      },
+    }),
+  }),
 });
 
 const buildAtlasOntahiDatasetFromSource = ({ items, plans }: ParsedAtlasSource): InMemoryDataset => {
@@ -159,6 +213,14 @@ export const createAtlasOntahiApplication = (records: NormalizedAtlasSourceRecor
   });
   const application = ontahi({
     storage,
+    capabilities: {
+      runtime: {
+        proposals: {
+          linkPlanToItem: (input: { itemSemanticId: string; planPath: string }) =>
+            proposePlanLink(source, input),
+        },
+      },
+    },
     entities: [AtlasItem, AtlasPlan, AtlasShapingBinding],
   });
 

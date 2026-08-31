@@ -18,6 +18,16 @@ export type AtlasPageData = {
   snapshot: PlanWorkstreamSnapshot;
 };
 
+export const loadAtlasServerApplication = async () => {
+  const sourceFiles = await loadAtlasSourceFiles({ repoRoot: getRepoRoot() });
+  const records = sourceFiles.map(normalizeAtlasSourceRecord);
+
+  return {
+    atlas: createAtlasOntahiApplication(records),
+    sourceFiles,
+  };
+};
+
 const getRepoRoot = () => {
   const cwd = process.cwd();
 
@@ -37,10 +47,13 @@ const emptyPageData = (): AtlasPageData => ({
 });
 
 export const getAtlasPageData = async (): Promise<AtlasPageData> => {
-  let sourceFiles: AtlasMarkdownFile[];
+  let loaded: {
+    atlas: ReturnType<typeof createAtlasOntahiApplication>;
+    sourceFiles: AtlasMarkdownFile[];
+  };
 
   try {
-    sourceFiles = await loadAtlasSourceFiles({ repoRoot: getRepoRoot() });
+    loaded = await loadAtlasServerApplication();
   } catch (error) {
     process.stderr.write(
       `Failed to load Atlas sources: ${error instanceof Error ? error.message : String(error)}\n`,
@@ -48,8 +61,7 @@ export const getAtlasPageData = async (): Promise<AtlasPageData> => {
     return emptyPageData();
   }
 
-  const records = sourceFiles.map(normalizeAtlasSourceRecord);
-  const atlas = createAtlasOntahiApplication(records);
+  const { atlas, sourceFiles } = loaded;
 
   return {
     itemContexts: await atlas.getItemContexts(),

@@ -205,6 +205,7 @@ runtime and relation model, but it is not the target migration boundary.
 | Query terminals such as `.one()` did not compose directly with the low-level in-memory executor used by the pilot. | Resolved in Ontahi alpha.9 | The application-bound read API interprets `first`, `one`, `count`, and `exists`; Atlas uses `first` where absence is valid. |
 | Typed recursive semantic refs carry field contracts but make cyclic relation typing/order more awkward than acyclic declarations. | Ontahi API ergonomics | Keep the first Atlas graph acyclic around the shaping join and evaluate a framework improvement separately. |
 | Installing core also brings Effect, Typia, and Zod runtime/tooling dependencies. | Shared | Accept for the pilot; measure build/bundle impact before adding browser/runtime packages. |
+| The common Runtime Protocol dispatcher has an Express projection, but `@ontahi/runtime-nextjs@1.0.0-alpha.9` does not yet expose a matching route adapter. | Ontahi adapter ergonomics | Atlas owns a narrow Next route for now; promote it to Ontahi if the next release wants transport parity. |
 
 ### Decision
 
@@ -336,6 +337,39 @@ No Runtime Protocol request is needed yet: these reads execute during the server
 and cross into the browser as ordinary serialized projection data. A live refresh, proposal
 operation, webhook worker, or external agent call will be the first justified protocol boundary.
 
+The global map and board remain on the compatibility snapshot deliberately. Their complete graph
+projection still includes supports, related Plan links, status metrics, documents, and presentation
+nodes that are not in the current Ontahi domain model. Rebuilding that same aggregate through graph
+queries would add transport and adapter work without owning more domain behavior.
+
+## Slice 3 Checkpoint — Reviewable Plan-Link Proposal
+
+`AtlasItem.proposePlanLink` is the first Atlas domain operation. Its input uses existing Ontahi refs
+for both the Atlas Item and Plan, so invocation validates identity and presence before the source
+adapter runs. The application-owned proposal capability then returns a JSON-safe result containing:
+
+1. the owning source and repository-relative target path,
+2. the canonical Plan identity and authoring reference,
+3. `proposed` or idempotent `already-linked` status,
+4. a unified Markdown diff.
+
+Same-source links are authored as ordinary repository paths; cross-source links retain their
+canonical URI. The operation never changes the source record or filesystem and its public result
+does not return the complete Markdown document.
+
+Atlas now exposes the operation family at `POST /runtime` through the Ontahi Runtime Protocol. This
+is the first real distributed boundary in the migration: a browser or external agent can send a
+versioned, correlated operation request while the receiving Atlas runtime owns source loading,
+operation resolution, input hydration, and execution. The process caches its hydrated application
+and discards that cache after a load failure. Because alpha.9 does not yet provide a common Runtime
+Protocol route in `@ontahi/runtime-nextjs`, Atlas supplies the small HTTP/status adapter locally;
+the envelope, family parsing, dispatch, and operation response remain Core-owned.
+
+A focused protocol test covers operation dispatch and a production HTTP smoke test returned an
+`already-linked` result for the real Semantic Source Item and Plan 111. Applying a proposal remains
+a separate future operation: it must add authentication, a repository/file effect, provenance, and
+human review rather than turning this read-only endpoint into an implicit write path.
+
 ## Execution Slices
 
 ### Slice 0: Ontahi fit evaluation
@@ -368,16 +402,18 @@ the model or stop before broad migration.
 
 1. [x] Move selected-item structure and shaping context behind Ontahi first.
 2. [x] Move the selected item's evolution reads behind Ontahi.
-3. [ ] Expand to the map/board projection only where graph queries improve the current assembly.
+3. [x] Evaluate the map/board projection and retain the compatibility snapshot until the Ontahi
+   model owns more than its current aggregate.
 4. [x] Keep parity tests at the viewer projection boundary.
 5. [ ] Remove direct assembly paths only after equivalent behavior is proven.
 
 ### Slice 3: First proposal operation
 
-1. Choose one proposal operation, preferably `LinkPlanToAtlasItem` or
-   `CreatePlanFromEvolutionSignal`.
-2. Return a reviewable Markdown patch rather than mutating the repository directly.
-3. Exercise Ontahi operation contracts, effects, and provenance in a real Atlas workflow.
+1. [x] Choose `AtlasItem.proposePlanLink` as the first proposal operation.
+2. [x] Return a reviewable Markdown patch rather than mutating the repository directly.
+3. [x] Exercise Ontahi operation contracts and the Runtime Protocol in a real Atlas workflow.
+4. [ ] Add an authenticated apply effect and provenance only when Atlas can present a human review
+   checkpoint.
 
 ### Slice 4: Framework feedback and next capability
 
@@ -402,7 +438,7 @@ the model or stop before broad migration.
   explicit cross-source URIs remain stable.
 - [x] The real Atlas selection panel consumes application-bound structure and shaping reads, with
   viewer parity covered by the full test, typecheck, and production-build verification.
-- [ ] At least one proposal operation can eventually produce a reviewable Markdown change.
+- [x] At least one proposal operation can produce a reviewable Markdown change without applying it.
 
 ## Decisions
 

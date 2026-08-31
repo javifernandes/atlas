@@ -1,4 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import {
+  createRuntimeProtocolDispatcher,
+  createRuntimeProtocolRequest,
+} from '@ontahi/core/runtime/protocol';
+import { createOperationInvocationDispatcher } from '@ontahi/core/runtime/server';
 
 import type { AtlasMarkdownFile } from '../sources/markdown-source';
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
@@ -132,5 +137,81 @@ relatedPlans:
     const atlas = createAtlasOntahiApplication([]);
 
     await expect(atlas.getItemContext('missing')).resolves.toBeNull();
+  });
+
+  it('returns a reviewable Markdown proposal through the Runtime Protocol operation family', async () => {
+    const files: AtlasMarkdownFile[] = [
+      {
+        path: 'plans/current/10-runtime.md',
+        source: 'atlas',
+        content: '# Runtime\nStatus: current\n',
+      },
+      {
+        path: 'atlas/items/runtime.md',
+        source: 'atlas',
+        content: `---
+id: runtime
+kind: capability
+title: Runtime
+status: shaping
+relatedPlans: []
+---
+`,
+      },
+    ];
+    const atlas = createAtlasOntahiApplication(files.map(normalizeAtlasSourceRecord));
+    const dispatch = createRuntimeProtocolDispatcher({
+      handlers: {
+        operation: createOperationInvocationDispatcher(atlas.application),
+      },
+    });
+    const request = createRuntimeProtocolRequest({
+      id: 'atlas-proposal-1',
+      family: 'operation',
+      body: {
+        version: 1,
+        kind: 'invoke',
+        operationId: 'AtlasItem.proposePlanLink',
+        input: {
+          item: {
+            kind: 'entity-ref',
+            entityName: 'AtlasItem',
+            locator: { id: 'atlas:runtime' },
+          },
+          plan: {
+            kind: 'entity-ref',
+            entityName: 'AtlasPlan',
+            locator: { id: 'plan:atlas://plans/10-runtime' },
+          },
+        },
+      },
+    });
+
+    const response = await dispatch(request, {});
+
+    expect(response).toMatchObject({
+      protocol: 'ontahi.runtime',
+      version: 1,
+      id: 'atlas-proposal-1',
+      kind: 'response',
+      family: 'operation',
+      body: {
+        kind: 'invocation-result',
+        result: {
+          ok: true,
+          kind: 'success',
+          value: {
+            status: 'proposed',
+            itemSemanticId: 'runtime',
+            planPath: 'atlas://plans/10-runtime',
+            planReference: 'plans/current/10-runtime.md',
+            sourcePath: 'atlas/items/runtime.md',
+          },
+        },
+      },
+    });
+    expect(response).not.toHaveProperty('body.result.value.before');
+    expect(response).not.toHaveProperty('body.result.value.after');
+    expect(files[1]?.content).toContain('relatedPlans: []');
   });
 });

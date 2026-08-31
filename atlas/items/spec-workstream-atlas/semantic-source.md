@@ -46,4 +46,10 @@ that serializable index while the global map remains a compatibility snapshot.
 The full-detail context and Evolution tabs use the same application projection for Atlas Items;
 semantic signals and temporal grouping remain viewer-derived lenses over those relations.
 
+The first source-aware Ontahi operation, `AtlasItem.proposePlanLink`, resolves an existing Item and
+Plan and returns a source-owned unified diff. Source-local links use repository paths and
+cross-source links keep canonical URIs. The operation is available through Atlas's Runtime Protocol
+endpoint, but it does not mutate Markdown; authenticated apply and provenance remain a separate
+reviewed boundary.
+
 Its current contract is captured in [`atlas/SOURCE-SHAPE.md`](../../SOURCE-SHAPE.md).

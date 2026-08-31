@@ -42,6 +42,8 @@ export type ParsedPlan = {
   markdown: string;
   summary?: string;
   sections: string[];
+  sourceId?: string;
+  sourcePath: string;
   relatedLinks: Array<{ path: string; kind: Extract<PlanRelationKind, 'follow-up' | 'related'> }>;
   parentPlanPath?: string;
   candidateChildren: string[];
@@ -86,6 +88,8 @@ export type ParsedAtlasItem = {
   markdown: string;
   summary?: string;
   sections: string[];
+  sourceId?: string;
+  sourcePath: string;
   territory: string;
   workstream?: string;
 };
@@ -405,6 +409,8 @@ const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
     markdown: file.content,
     summary: getSummary(file.content),
     sections: parseSections(file.content),
+    sourceId: file.sourceId,
+    sourcePath: file.sourcePath,
     relatedLinks: parseRelatedLinks(file),
     parentPlanPath: parseParentPlanPath(file),
     candidateChildren: parseCandidateChildren(file.content),
@@ -507,6 +513,8 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
     markdown: file.content,
     summary: getBodySummary(body),
     sections: parseSections(body),
+    sourceId: file.sourceId,
+    sourcePath: file.sourcePath,
     territory: title,
   };
 };
