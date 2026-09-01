@@ -1,10 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createRuntimeProtocolDispatcher,
   createRuntimeProtocolRequest,
 } from '@ontahi/core/runtime/protocol';
 import { createOperationInvocationDispatcher } from '@ontahi/core/runtime/server';
+import {
+  createGraphHttpIngressOperationDispatcher,
+  createGraphHttpIngressRouter,
+} from '@ontahi/core/runtime/server/ingress';
 
+import { createAtlasGitHubWebhookIngressProvider } from '../github/webhook-ingress-provider';
+import { createAtlasGitHubWebhookSignature } from '../github/webhook-signature';
 import type { AtlasMarkdownFile } from '../sources/markdown-source';
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
 import { createAtlasOntahiApplication } from './atlas-application';
@@ -199,16 +205,136 @@ relatedPlans:
     expect(atlas.application.graph.entities).toMatchObject({
       AtlasItem: expect.objectContaining({ name: 'AtlasItem' }),
       AtlasPlan: expect.objectContaining({ name: 'AtlasPlan' }),
+      EvidenceBinding: expect.objectContaining({ name: 'EvidenceBinding' }),
       AtlasPlanRelationBinding: expect.objectContaining({ name: 'AtlasPlanRelationBinding' }),
       AtlasShapingBinding: expect.objectContaining({ name: 'AtlasShapingBinding' }),
       AtlasSupportBinding: expect.objectContaining({ name: 'AtlasSupportBinding' }),
+      PullRequest: expect.objectContaining({ name: 'PullRequest' }),
     });
+  });
+
+  it('hydrates explicit merged PR evidence for both plans and semantic items', async () => {
+    const files: AtlasMarkdownFile[] = [
+      {
+        path: 'plans/current/102-evidence.md',
+        source: 'atlas',
+        content: '# Evidence\nStatus: current\n',
+      },
+      {
+        path: 'atlas/items/evidence.md',
+        source: 'atlas',
+        content: `---
+id: atlas.evidence
+kind: evidence
+title: Evidence
+status: shaping
+relatedPlans:
+  - plans/current/102-evidence.md
+---
+`,
+      },
+    ];
+    const atlas = createAtlasOntahiApplication(files.map(normalizeAtlasSourceRecord), {
+      observedPullRequests: [
+        {
+          id: 'github:javifernandes/atlas#8',
+          sourceId: 'atlas',
+          repositoryFullName: 'javifernandes/atlas',
+          number: 8,
+          title: 'Connect merged PR evidence',
+          url: 'https://github.com/javifernandes/atlas/pull/8',
+          authorLogin: 'javi',
+          mergedAt: '2026-09-01T10:00:00Z',
+          mergeCommitSha: 'abc123',
+          directives: [
+            { kind: 'implements', target: 'plans/current/102-evidence.md' },
+            { kind: 'implements', target: '102' },
+            { kind: 'shapes', target: 'atlas.evidence' },
+            { kind: 'shapes', target: 'missing.item' },
+          ],
+        },
+      ],
+    });
+
+    await expect(atlas.getEvidence()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'shapes',
+        provenance: 'explicit',
+        targetNodeId: 'atlas:atlas.evidence',
+        pullRequest: expect.objectContaining({
+          repositoryFullName: 'javifernandes/atlas',
+          number: 8,
+        }),
+      }),
+      expect.objectContaining({
+        kind: 'implements',
+        provenance: 'explicit',
+        targetNodeId: 'plan:atlas://plans/102-evidence',
+        pullRequest: expect.objectContaining({
+          repositoryFullName: 'javifernandes/atlas',
+          number: 8,
+        }),
+      }),
+    ]);
+    expect(atlas.application.graph.listHttpIngress()).toEqual([
+      expect.objectContaining({
+        operationId: 'PullRequest.refreshAfterMerge',
+        route: '/api/ingress/github/webhook',
+        provider: 'github-webhook',
+        channel: 'source-control.pull-request.merged',
+      }),
+    ]);
   });
 
   it('returns no context when the semantic item is missing', async () => {
     const atlas = createAtlasOntahiApplication([]);
 
     await expect(atlas.getItemContext('missing')).resolves.toBeNull();
+  });
+
+  it('dispatches a signed merged PR webhook through Ontahi ingress', async () => {
+    const invalidateRepository = vi.fn();
+    const atlas = createAtlasOntahiApplication([], { invalidateRepository });
+    const secret = 'atlas-test-secret';
+    const router = createGraphHttpIngressRouter({
+      routes: atlas.application.graph.listHttpIngress(),
+      providers: {
+        'github-webhook': createAtlasGitHubWebhookIngressProvider({ getSecret: () => secret }),
+      },
+      dispatch: createGraphHttpIngressOperationDispatcher({
+        dispatcher: createOperationInvocationDispatcher(atlas.application),
+      }),
+    });
+    const payload = JSON.stringify({
+      action: 'closed',
+      installation: { id: 1234 },
+      repository: { full_name: 'acme/product' },
+      pull_request: {
+        number: 42,
+        title: 'Connect implementation evidence',
+        body: 'Atlas-Shapes: product.reader',
+        html_url: 'https://github.com/acme/product/pull/42',
+        merged: true,
+        merged_at: '2026-09-01T10:00:00Z',
+        merge_commit_sha: 'abc123',
+        user: { login: 'javi' },
+      },
+    });
+    const response = await router.handle(
+      new Request('https://atlas.test/api/ingress/github/webhook', {
+        method: 'POST',
+        headers: {
+          'x-github-delivery': 'delivery-1',
+          'x-github-event': 'pull_request',
+          'x-hub-signature-256': createAtlasGitHubWebhookSignature(payload, secret),
+        },
+        body: payload,
+      }),
+    );
+
+    expect(response.status).toBe(202);
+    expect(invalidateRepository).toHaveBeenCalledOnce();
+    expect(invalidateRepository).toHaveBeenCalledWith('acme/product');
   });
 
   it('returns a reviewable Markdown proposal through the Runtime Protocol operation family', async () => {

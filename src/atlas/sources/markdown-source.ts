@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { getAtlasGitHubRequestHeaders } from '../github/installation-client';
+import {
+  githubRepositoryCacheTag,
+  parseGitHubRepositoryName,
+} from '../github/repository';
+
 export type AtlasMarkdownFile = {
   path: string;
   content: string;
@@ -100,32 +106,28 @@ export const walkLocalAtlasMarkdownFiles = (
   source?: string,
 ) => walkMarkdownFiles(directory, sourceRoot, source);
 
-const getGithubRepositoryName = (repository: string) =>
-  repository.match(/^https:\/\/github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/)?.[1];
-
 const isAtlasSourceMarkdownPath = (filePath: string) =>
   (filePath.startsWith('atlas/items/') || filePath.startsWith('plans/')) &&
   filePath.endsWith('.md');
 
-const getGithubHeaders = (accept?: string) => ({
-  ...(accept ? { Accept: accept } : {}),
-  ...(process.env.ATLAS_GITHUB_TOKEN
-    ? { Authorization: `Bearer ${process.env.ATLAS_GITHUB_TOKEN}` }
-    : {}),
-});
-
 const fetchGithubSourceFiles = async (source: AtlasSource, fetcher: typeof fetch) => {
-  const repositoryName = getGithubRepositoryName(source.repository);
+  const repositoryName = parseGitHubRepositoryName(source.repository);
 
   if (!repositoryName) {
     throw new Error(`Unsupported Atlas source repository: ${source.repository}`);
   }
 
+  const headers = await getAtlasGitHubRequestHeaders({
+    repositoryFullName: repositoryName,
+    fetcher,
+  });
+  const cacheTag = githubRepositoryCacheTag(repositoryName);
+
   const treeResponse = await fetcher(
     `https://api.github.com/repos/${repositoryName}/git/trees/${encodeURIComponent(source.ref)}?recursive=1`,
     {
-      headers: getGithubHeaders('application/vnd.github+json'),
-      next: { revalidate: 300 },
+      headers,
+      next: { revalidate: 300, tags: [cacheTag] },
     },
   );
 
@@ -146,7 +148,7 @@ const fetchGithubSourceFiles = async (source: AtlasSource, fetcher: typeof fetch
     paths.map(async filePath => {
       const response = await fetcher(
         `https://raw.githubusercontent.com/${repositoryName}/${encodeURIComponent(source.ref)}/${filePath}`,
-        { headers: getGithubHeaders(), next: { revalidate: 300 } },
+        { headers, next: { revalidate: 300, tags: [cacheTag] } },
       );
 
       if (!response.ok) {
@@ -177,7 +179,7 @@ const loadAtlasSource = async (source: AtlasSource, repoRoot: string, fetcher: t
   return fetchGithubSourceFiles(source, fetcher);
 };
 
-const readAtlasSourceRegistry = (repoRoot: string) => {
+export const readAtlasSourceRegistry = (repoRoot: string) => {
   if (process.env.ATLAS_SOURCES_YAML) {
     return process.env.ATLAS_SOURCES_YAML;
   }
@@ -191,6 +193,12 @@ const readAtlasSourceRegistry = (repoRoot: string) => {
   return registryPath ? fs.readFileSync(registryPath, 'utf8') : undefined;
 };
 
+export const loadAtlasSourceDefinitions = (repoRoot: string) => {
+  const registry = readAtlasSourceRegistry(repoRoot);
+
+  return registry ? parseAtlasSources(registry) : [];
+};
+
 const loadAtlasOwnedFiles = (repoRoot: string) => [
   ...walkMarkdownFiles(path.join(repoRoot, 'plans'), repoRoot, 'atlas'),
   ...walkMarkdownFiles(path.join(repoRoot, 'atlas', 'items'), repoRoot, 'atlas'),
@@ -200,14 +208,8 @@ export const loadAtlasSourceFiles = async ({
   fetcher = fetch,
   repoRoot,
 }: LoadAtlasSourcesInput) => {
-  const registry = readAtlasSourceRegistry(repoRoot);
   const atlasOwnedFiles = loadAtlasOwnedFiles(repoRoot);
-
-  if (!registry) {
-    return atlasOwnedFiles;
-  }
-
-  const sources = parseAtlasSources(registry);
+  const sources = loadAtlasSourceDefinitions(repoRoot);
 
   return [
     ...(await Promise.all(sources.map(source => loadAtlasSource(source, repoRoot, fetcher)))).flat(),

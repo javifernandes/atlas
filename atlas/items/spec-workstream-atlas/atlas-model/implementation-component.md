@@ -10,7 +10,7 @@ supports:
   - spec-workstream-atlas.implementation-evidence
 relatedPlans:
   - plans/done/111-atlas-as-ontahi-application.md
-  - plans/next/102-workstream-atlas-implementation-evidence.md
+  - plans/current/102-workstream-atlas-implementation-evidence.md
 exemplars:
   - "@bookops/model"
   - "@bookops/translator"

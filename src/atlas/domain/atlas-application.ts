@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import {
   createInMemoryDataGraphStorage,
   field,
@@ -15,8 +17,11 @@ import {
 
 import {
   parseAtlasSourceRecords,
+  type ParsedAtlasItem,
+  type ParsedPlan,
   type ParsedAtlasSource,
 } from '../markdown/build-snapshot';
+import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
 import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
 import {
   proposePlanLink,
@@ -25,6 +30,9 @@ import {
 
 type AtlasCapabilities = OntahiCapabilities & {
   runtime: {
+    evidence: {
+      invalidateRepository(repositoryFullName: string): void;
+    };
     proposals: {
       linkPlanToItem(input: {
         itemSemanticId: string;
@@ -70,6 +78,46 @@ const planRelationBindingFields = {
   kind: field.enum(['follow-up', 'related']),
 };
 
+const pullRequestFields = {
+  id: field.id(),
+  authorLogin: field.nullable(field.string()),
+  mergeCommitSha: field.nullable(field.string()),
+  mergedAt: field.nonEmptyString({ trim: true }),
+  number: field.number(),
+  repositoryFullName: field.nonEmptyString({ trim: true }),
+  title: field.nonEmptyString({ trim: true }),
+  url: field.nonEmptyString({ trim: true }),
+};
+
+const evidenceBindingFields = {
+  id: field.id(),
+  pullRequestId: field.id(),
+  itemId: field.nullable(field.id()),
+  planId: field.nullable(field.id()),
+  targetNodeId: field.nonEmptyString({ trim: true }),
+  targetKind: field.enum(['item', 'plan']),
+  kind: field.enum(['implements', 'shapes']),
+  provenance: field.enum(['explicit']),
+};
+
+const MergedPullRequestInputSchema = graphSchema.object({
+  authorLogin: graphSchema.nullable(field.string()),
+  body: graphSchema.nullable(field.string()),
+  deliveryId: graphSchema.nullable(field.string()),
+  installationId: field.nonEmptyString({ trim: true }),
+  mergeCommitSha: graphSchema.nullable(field.string()),
+  mergedAt: field.nonEmptyString({ trim: true }),
+  number: field.number(),
+  repositoryFullName: field.nonEmptyString({ trim: true }),
+  title: field.nonEmptyString({ trim: true }),
+  url: field.nonEmptyString({ trim: true }),
+});
+
+const MergedPullRequestOutputSchema = graphSchema.value('MergedPullRequestRefresh', {
+  invalidated: field.boolean(),
+  repositoryFullName: field.nonEmptyString({ trim: true }),
+});
+
 const AtlasPlanLinkProposalSchema = graphSchema.value('AtlasPlanLinkProposal', {
   itemSemanticId: field.nonEmptyString({ trim: true }),
   patch: field.string(),
@@ -82,6 +130,7 @@ const AtlasPlanLinkProposalSchema = graphSchema.value('AtlasPlanLinkProposal', {
 
 const AtlasItemRef = semanticEntityRef('AtlasItem', { fields: atlasItemFields });
 const AtlasPlanRef = semanticEntityRef('AtlasPlan', { fields: atlasPlanFields });
+const EvidenceBindingRef = semanticEntityRef('EvidenceBinding', { fields: evidenceBindingFields });
 
 export const AtlasPlan = entity({
   name: 'AtlasPlan',
@@ -116,6 +165,55 @@ export const AtlasPlanRelationBinding = entity({
   relations: {
     source: relation.belongsTo(AtlasPlan, { via: 'sourcePlanId' }),
     target: relation.belongsTo(AtlasPlan, { via: 'targetPlanId' }),
+  },
+});
+
+export const PullRequest = entity({
+  name: 'PullRequest',
+  fields: pullRequestFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.evidence',
+  },
+  uses: {
+    capabilities: {} as AtlasCapabilities,
+  },
+  relations: {
+    evidenceBindings: relation.hasMany(EvidenceBindingRef, { via: 'pullRequestId' }),
+  },
+  operations: ({ operation, ingress, app }) => ({
+    refreshAfterMerge: operation({
+      description: 'Invalidate Atlas source and PR evidence after a merged GitHub pull request',
+      input: MergedPullRequestInputSchema,
+      output: MergedPullRequestOutputSchema,
+      ingress: [
+        ingress.http({
+          method: 'POST',
+          route: '/api/ingress/github/webhook',
+          provider: 'github-webhook',
+          channel: 'source-control.pull-request.merged',
+        }),
+      ],
+      *run(input) {
+        app.runtime.evidence.invalidateRepository(input.repositoryFullName);
+
+        return {
+          invalidated: true,
+          repositoryFullName: input.repositoryFullName,
+        };
+      },
+    }),
+  }),
+});
+
+export const EvidenceBinding = entity({
+  name: 'EvidenceBinding',
+  fields: evidenceBindingFields,
+  relations: {
+    item: relation.belongsTo(AtlasItemRef, { via: 'itemId' }),
+    plan: relation.belongsTo(AtlasPlan, { via: 'planId' }),
+    pullRequest: relation.belongsTo(PullRequest, { via: 'pullRequestId' }),
   },
 });
 
@@ -158,9 +256,98 @@ export const AtlasItem = entity({
   }),
 });
 
-const buildAtlasOntahiDatasetFromSource = ({ items, plans }: ParsedAtlasSource): InMemoryDataset => {
+const resolvePlanTarget = (
+  reference: string,
+  sourceId: string,
+  planByPath: Map<string, ParsedPlan>,
+) => {
+  const cleanReference = reference.trim().replace(/^`|`$/g, '');
+  const sourceRelativePlan = cleanReference.startsWith('plans/')
+    ? `${sourceId}://plans/${path.posix.basename(cleanReference, '.md')}`
+    : !cleanReference.includes('://') && /^\d+[a-z]?(?:-|$)/i.test(cleanReference)
+      ? `${sourceId}://plans/${cleanReference.replace(/\.md$/, '')}`
+      : null;
+  const planBySourceKey = [...planByPath.values()].find(
+    plan => plan.sourceId === sourceId && plan.key.toLowerCase() === cleanReference.toLowerCase(),
+  );
+
+  return planByPath.get(cleanReference) ??
+    (sourceRelativePlan ? planByPath.get(sourceRelativePlan) : undefined) ??
+    planBySourceKey;
+};
+
+const resolveItemTarget = (
+  reference: string,
+  itemByReference: Map<string, ParsedAtlasItem>,
+) => itemByReference.get(reference.trim().replace(/^`|`$/g, ''));
+
+const resolvePullRequestEvidence = (
+  source: ParsedAtlasSource,
+  observedPullRequests: AtlasObservedPullRequest[],
+) => {
+  const planByPath = new Map(source.plans.map(plan => [plan.path, plan]));
+  const itemByReference = new Map(
+    source.items.flatMap(item => [
+      [item.id, item] as const,
+      [item.path, item] as const,
+    ]),
+  );
+  const bindings = [
+    ...new Map(
+      observedPullRequests
+        .flatMap(pullRequest =>
+          pullRequest.directives.flatMap(directive => {
+            const plan = resolvePlanTarget(directive.target, pullRequest.sourceId, planByPath);
+            const item = resolveItemTarget(directive.target, itemByReference);
+            const target = plan
+              ? { nodeId: plan.id, kind: 'plan' as const }
+              : item
+                ? { nodeId: item.nodeId, kind: 'item' as const }
+                : null;
+
+            if (!target) {
+              return [];
+            }
+
+            const id = `${pullRequest.id}->${target.nodeId}:${directive.kind}`;
+
+            return [
+              {
+                id,
+                pullRequestId: pullRequest.id,
+                itemId: target.kind === 'item' ? target.nodeId : null,
+                planId: target.kind === 'plan' ? target.nodeId : null,
+                targetNodeId: target.nodeId,
+                targetKind: target.kind,
+                kind: directive.kind,
+                provenance: 'explicit' as const,
+              },
+            ];
+          }),
+        )
+        .map(binding => [binding.id, binding] as const),
+    ).values(),
+  ];
+  const linkedPullRequestIds = new Set(bindings.map(binding => binding.pullRequestId));
+
+  return {
+    bindings,
+    pullRequests: observedPullRequests.filter(pullRequest =>
+      linkedPullRequestIds.has(pullRequest.id),
+    ),
+  };
+};
+
+const buildAtlasOntahiDatasetFromSource = (
+  { items, plans }: ParsedAtlasSource,
+  observedPullRequests: AtlasObservedPullRequest[] = [],
+): InMemoryDataset => {
   const planByPath = new Map(plans.map(plan => [plan.path, plan]));
   const itemBySemanticId = new Map(items.map(item => [item.id, item]));
+  const resolvedEvidence = resolvePullRequestEvidence(
+    { items, plans },
+    observedPullRequests,
+  );
 
   return {
     AtlasItem: items.map(item => ({
@@ -226,12 +413,25 @@ const buildAtlasOntahiDatasetFromSource = ({ items, plans }: ParsedAtlasSource):
           : [];
       }),
     ),
+    PullRequest: resolvedEvidence.pullRequests.map(pullRequest => ({
+      id: pullRequest.id,
+      authorLogin: pullRequest.authorLogin,
+      mergeCommitSha: pullRequest.mergeCommitSha,
+      mergedAt: pullRequest.mergedAt,
+      number: pullRequest.number,
+      repositoryFullName: pullRequest.repositoryFullName,
+      title: pullRequest.title,
+      url: pullRequest.url,
+    })),
+    EvidenceBinding: resolvedEvidence.bindings,
   };
 };
 
 export const buildAtlasOntahiDataset = (
   records: NormalizedAtlasSourceRecord[],
-): InMemoryDataset => buildAtlasOntahiDatasetFromSource(parseAtlasSourceRecords(records));
+  observedPullRequests: AtlasObservedPullRequest[] = [],
+): InMemoryDataset =>
+  buildAtlasOntahiDatasetFromSource(parseAtlasSourceRecords(records), observedPullRequests);
 
 const atlasItemContextQuery = (semanticId: string) =>
   query(AtlasItem)
@@ -460,15 +660,58 @@ const atlasPlanRelationsTopologyQuery = query(AtlasPlanRelationBinding).select(b
   kind: binding.kind,
 }));
 
-export const createAtlasOntahiApplication = (records: NormalizedAtlasSourceRecord[]) => {
+const atlasEvidenceQuery = query(EvidenceBinding)
+  .select(binding => ({
+    id: binding.id,
+    kind: binding.kind,
+    provenance: binding.provenance,
+    targetNodeId: binding.targetNodeId,
+    pullRequest: binding.pullRequest.select(pullRequest => ({
+      authorLogin: pullRequest.authorLogin,
+      mergeCommitSha: pullRequest.mergeCommitSha,
+      mergedAt: pullRequest.mergedAt,
+      number: pullRequest.number,
+      repositoryFullName: pullRequest.repositoryFullName,
+      title: pullRequest.title,
+      url: pullRequest.url,
+    })),
+  }))
+  .orderBy(binding => binding.id);
+
+export type AtlasEvidenceProjection = {
+  id: string;
+  kind: 'implements' | 'shapes';
+  provenance: 'explicit';
+  targetNodeId: string;
+  pullRequest: {
+    authorLogin: string | null;
+    mergeCommitSha: string | null;
+    mergedAt: string;
+    number: number;
+    repositoryFullName: string;
+    title: string;
+    url: string;
+  };
+};
+
+export const createAtlasOntahiApplication = (
+  records: NormalizedAtlasSourceRecord[],
+  options: {
+    invalidateRepository?: (repositoryFullName: string) => void;
+    observedPullRequests?: AtlasObservedPullRequest[];
+  } = {},
+) => {
   const source = parseAtlasSourceRecords(records);
   const storage = createInMemoryDataGraphStorage({
-    dataset: buildAtlasOntahiDatasetFromSource(source),
+    dataset: buildAtlasOntahiDatasetFromSource(source, options.observedPullRequests),
   });
   const application = ontahi({
     storage,
     capabilities: {
       runtime: {
+        evidence: {
+          invalidateRepository: options.invalidateRepository ?? (() => undefined),
+        },
         proposals: {
           linkPlanToItem: (input: { itemSemanticId: string; planPath: string }) =>
             proposePlanLink(source, input),
@@ -481,6 +724,8 @@ export const createAtlasOntahiApplication = (records: NormalizedAtlasSourceRecor
       AtlasShapingBinding,
       AtlasSupportBinding,
       AtlasPlanRelationBinding,
+      PullRequest,
+      EvidenceBinding,
     ],
   });
 
@@ -528,5 +773,23 @@ export const createAtlasOntahiApplication = (records: NormalizedAtlasSourceRecor
         planRelationBindings,
       });
     },
+    getEvidence: async (): Promise<AtlasEvidenceProjection[]> =>
+      (await application.graph.read(atlasEvidenceQuery, {
+        scope: 'atlas.evidence-bindings',
+      })).flatMap(binding => {
+        if (!binding.pullRequest) {
+          return [];
+        }
+
+        return [
+          {
+            id: binding.id,
+            kind: binding.kind,
+            provenance: binding.provenance,
+            targetNodeId: binding.targetNodeId,
+            pullRequest: binding.pullRequest,
+          },
+        ];
+      }),
   };
 };

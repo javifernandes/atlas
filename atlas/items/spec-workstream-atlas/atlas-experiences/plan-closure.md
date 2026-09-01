@@ -10,7 +10,7 @@ supports:
   - spec-workstream-atlas.atlas-model.plan
 relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
-  - plans/next/102-workstream-atlas-implementation-evidence.md
+  - plans/current/102-workstream-atlas-implementation-evidence.md
   - plans/backlog/103-workstream-atlas-assisted-editing.md
   - plans/done/107-plan-model-research-and-v0.md
 ---

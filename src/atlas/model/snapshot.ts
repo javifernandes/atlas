@@ -82,6 +82,22 @@ export type PlanWorkstreamMetric = {
   value: string;
 };
 
+export type PlanWorkstreamEvidence = {
+  id: string;
+  kind: 'implements' | 'shapes';
+  provenance: 'explicit';
+  targetNodeId: string;
+  pullRequest: {
+    authorLogin: string | null;
+    mergeCommitSha: string | null;
+    mergedAt: string;
+    number: number;
+    repositoryFullName: string;
+    title: string;
+    url: string;
+  };
+};
+
 export type PlanWorkstreamSnapshot = {
   generatedAt: string;
   metrics: PlanWorkstreamMetric[];
@@ -89,4 +105,5 @@ export type PlanWorkstreamSnapshot = {
   nodes: PlanWorkstreamNode[];
   documents?: PlanWorkstreamNode[];
   edges: PlanWorkstreamEdge[];
+  evidence?: PlanWorkstreamEvidence[];
 };

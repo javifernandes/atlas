@@ -221,4 +221,41 @@ describe('PlanWorkstreamExplorer', () => {
     expect(screen.getByRole('button', { name: 'Hide history' })).toBeInTheDocument();
   });
 
+  it('renders explicit merged PR evidence as a navigable evolution entry', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const user = userEvent.setup();
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      evidence: [
+        {
+          id: 'github:acme/product#42->item-a:shapes',
+          kind: 'shapes',
+          provenance: 'explicit',
+          targetNodeId: 'item-a',
+          pullRequest: {
+            authorLogin: 'javi',
+            mergeCommitSha: 'abc123',
+            mergedAt: '2026-09-01T10:00:00Z',
+            number: 42,
+            repositoryFullName: 'acme/product',
+            title: 'Connect implementation evidence',
+            url: 'https://github.com/acme/product/pull/42',
+          },
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+    const dialog = screen.getByRole('dialog');
+
+    await user.click(within(dialog).getByRole('button', { name: 'evolution' }));
+
+    const pullRequest = within(dialog).getByRole('link', {
+      name: /Connect implementation evidence/,
+    });
+    expect(pullRequest).toHaveAttribute('href', 'https://github.com/acme/product/pull/42');
+    expect(within(pullRequest).getByText('acme/product#42')).toBeInTheDocument();
+    expect(within(pullRequest).getByText('shapes')).toBeInTheDocument();
+  });
+
 });
