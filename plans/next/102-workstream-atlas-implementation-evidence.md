@@ -1,8 +1,8 @@
 # 102. Atlas Implementation And Release Evidence
 
-Status: backlog
+Status: next
 
-Depends on: [111. Atlas As An Ontahi Application](../current/111-atlas-as-ontahi-application.md)
+Depends on: [111. Atlas As An Ontahi Application](../done/111-atlas-as-ontahi-application.md)
 
 ## Summary
 
@@ -38,7 +38,7 @@ The GitHub App already observes repository changes and triggers Atlas rebuilds. 
 event and refresh path; it does not require committing a mirrored PR/event log to the source
 repository.
 
-This capability should follow [Plan 111](../current/111-atlas-as-ontahi-application.md). Ontahi gives
+This capability follows [Plan 111](../done/111-atlas-as-ontahi-application.md). Ontahi now gives
 Atlas a model and operation layer in which curated declarations and observed evidence can coexist
 without pretending they have the same authority or storage lifecycle.
 
@@ -54,7 +54,7 @@ without pretending they have the same authority or storage lifecycle.
 6. [[spec-workstream-atlas.atlas-model.implementation-component|Implementation Component]] and
    [[spec-workstream-atlas.atlas-model.implementation-surface|Implementation Surface]] distinguish
    durable declared implementation structure from concrete versioned artifacts.
-7. [109. Work Item Impact Surface](../next/109-work-item-impact-surface.md) provides the `shapes`,
+7. [109. Work Item Impact Surface](./109-work-item-impact-surface.md) provides the `shapes`,
    `affects`, `preserves`, `breaks`, and `restores` vocabulary for relating work to system form.
 
 ## Scope
@@ -79,7 +79,8 @@ without pretending they have the same authority or storage lifecycle.
 4. Do not declare every folder, module, export, or changed file as a first-class Component or
    Surface.
 5. Do not require LLM inference for deterministic package, Changeset, PR, or release relationships.
-6. Do not design this persistence layer before Plan 111 proves the Atlas Ontahi boundary.
+6. Do not introduce persistence before the observed evidence slice establishes its retention and
+   query requirements.
 
 ## Proposed Form
 
@@ -253,5 +254,7 @@ its evidence and confidence separately from author assertions.
 
 Originally proposed as a manual, read-only evidence surface. Reshaped on 2026-08-31 around explicit
 Implementation Component and Surface declarations, Changesets as semantic release metadata, and
-bidirectional Plan/Item/version navigation. It remains backlog until Plan 111 proves the Ontahi
-application boundary that will host curated plus observed data.
+bidirectional Plan/Item/version navigation. Promoted to next on 2026-09-01 after Plan 111 proved the
+Ontahi application and Runtime Protocol boundary that can host curated plus observed data. Slice 0
+is now the actionable starting point; persistence remains deferred until the evidence model earns
+it.

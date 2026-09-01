@@ -10,7 +10,7 @@ supports:
   - spec-workstream-atlas.implementation-evidence
 relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
-  - plans/backlog/102-workstream-atlas-implementation-evidence.md
+  - plans/next/102-workstream-atlas-implementation-evidence.md
 ---
 
 Evidence Binding links a model item to concrete proof: code, tests, migrations, stories, deployments, metrics, docs, or PRs.

@@ -1708,37 +1708,55 @@ const GlobalAtlasBoard = ({
   markdownContext,
   nodesById,
   onOpenFull,
+  onShowHistoryChange,
   registerNode,
   selectedNodeId,
+  showHistory,
   snapshotEdges,
 }: {
   columns: Record<BoardColumnKey, PlanWorkstreamNode[]>;
   markdownContext: MarkdownRenderContext;
   nodesById: Map<string, PlanWorkstreamNode>;
   onOpenFull: (nodeId: string) => void;
+  onShowHistoryChange: (showHistory: boolean) => void;
   registerNode: (nodeId: string, element: HTMLElement | null) => void;
   selectedNodeId: string | null;
+  showHistory: boolean;
   snapshotEdges: PlanWorkstreamEdge[];
 }) => (
   <section className='absolute inset-0 overflow-hidden bg-background/95 bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:24px_24px]'>
+    <button
+      type='button'
+      className='pointer-events-auto absolute right-4 top-4 z-10 h-10 rounded-lg border border-border/70 bg-background/78 px-3 text-xs font-medium text-muted-foreground shadow-lg backdrop-blur-xl transition-colors hover:border-primary/45 hover:text-foreground'
+      onClick={() => onShowHistoryChange(!showHistory)}
+    >
+      {showHistory ? 'Hide history' : 'Show history'}
+    </button>
     <div className='flex h-full min-h-0 flex-col px-4 pb-5 pt-40 sm:pt-36 lg:px-6 lg:pt-28'>
       <div className='min-h-0 flex-1 overflow-y-auto rounded-lg border border-border/60 bg-background/45 p-4 shadow-lg backdrop-blur-sm lg:overflow-hidden'>
-        <div className='grid min-h-full gap-4 lg:h-full lg:min-h-0 lg:grid-cols-4 lg:gap-0'>
-          <EvolutionBoardColumn
-            count={columns.past.length}
-            subtitle='Done plans and materialized shapes.'
-            title='Past'
-          >
-            <GlobalBoardNodeList
-              markdownContext={markdownContext}
-              nodes={columns.past}
-              nodesById={nodesById}
-              onOpenFull={onOpenFull}
-              registerNode={registerNode}
-              selectedNodeId={selectedNodeId}
-              snapshotEdges={snapshotEdges}
-            />
-          </EvolutionBoardColumn>
+        <div
+          className={cn(
+            'grid min-h-full gap-4 lg:h-full lg:min-h-0 lg:gap-0',
+            showHistory ? 'lg:grid-cols-4' : 'lg:grid-cols-3',
+          )}
+        >
+          {showHistory ? (
+            <EvolutionBoardColumn
+              count={columns.past.length}
+              subtitle='Done plans and materialized shapes.'
+              title='Past'
+            >
+              <GlobalBoardNodeList
+                markdownContext={markdownContext}
+                nodes={columns.past}
+                nodesById={nodesById}
+                onOpenFull={onOpenFull}
+                registerNode={registerNode}
+                selectedNodeId={selectedNodeId}
+                snapshotEdges={snapshotEdges}
+              />
+            </EvolutionBoardColumn>
+          ) : null}
 
           <EvolutionBoardColumn
             count={columns.now.length}
@@ -3553,6 +3571,7 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
   const [edgeFocusBackNodeId, setEdgeFocusBackNodeId] = useState<string | null>(null);
   const [edgeHoverHint, setEdgeHoverHint] = useState<EdgeHoverHint | null>(null);
   const [autoFocusEnabled, setAutoFocusEnabled] = useState(true);
+  const [showBoardHistory, setShowBoardHistory] = useState(false);
   const [themeToggleMounted, setThemeToggleMounted] = useState(false);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -4812,8 +4831,10 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
           markdownContext={boardMarkdownContext}
           nodesById={nodesById}
           onOpenFull={openFullNode}
+          onShowHistoryChange={setShowBoardHistory}
           registerNode={registerBoardNode}
           selectedNodeId={selectedNodeId}
+          showHistory={showBoardHistory}
           snapshotEdges={snapshot.edges}
         />
       ) : null}

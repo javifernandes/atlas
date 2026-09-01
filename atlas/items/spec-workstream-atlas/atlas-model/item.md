@@ -10,7 +10,7 @@ supports:
   - spec-workstream-atlas.atlas-experiences.atlas-shaping
 relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
-  - plans/next/105-atlas-shaping.md
+  - plans/backlog/105-atlas-shaping.md
   - plans/next/108-atlas-item-type-model.md
 exemplars:
   - bookops

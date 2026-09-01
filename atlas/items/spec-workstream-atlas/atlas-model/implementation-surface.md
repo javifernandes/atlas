@@ -10,8 +10,8 @@ supports:
   - spec-workstream-atlas.atlas-model.implementation-component
   - spec-workstream-atlas.implementation-evidence
 relatedPlans:
-  - plans/current/111-atlas-as-ontahi-application.md
-  - plans/backlog/102-workstream-atlas-implementation-evidence.md
+  - plans/done/111-atlas-as-ontahi-application.md
+  - plans/next/102-workstream-atlas-implementation-evidence.md
 exemplars:
   - "@bookops/model/content"
   - "@ontahi/core/data-graph"

@@ -11,8 +11,8 @@ supports:
   - spec-workstream-atlas.atlas-model.evidence-binding
   - spec-workstream-atlas.atlas-experiences.atlas-shaping
 relatedPlans:
-  - plans/next/105-atlas-shaping.md
-  - plans/next/107-plan-model-research-and-v0.md
+  - plans/backlog/105-atlas-shaping.md
+  - plans/done/107-plan-model-research-and-v0.md
   - plans/next/109-work-item-impact-surface.md
 ---
 

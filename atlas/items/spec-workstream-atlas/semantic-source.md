@@ -10,7 +10,7 @@ supports:
   - spec-workstream-atlas.atlas-model
 relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
-  - plans/current/111-atlas-as-ontahi-application.md
+  - plans/done/111-atlas-as-ontahi-application.md
   - plans/done/101-workstream-atlas-semantic-source.md
 ---
 
@@ -31,6 +31,12 @@ optional source file path. Repository-local Plan references are resolved inside 
 source, while already canonical URIs keep their explicit cross-source ownership. This lets authors
 continue writing ordinary `plans/...md` references without losing links once the repository is
 mounted as a federated source.
+
+A source repository may retain a small relocation stub after transferring a Plan to another
+authority. Atlas reads `Canonical ID` from that stub as an identity alias: references to the old
+source URI resolve to the canonical Plan, while the stub itself is not materialized as a second
+Plan or document. This keeps historical links navigable without letting source-folder status on a
+redirect override the canonical repository's status.
 
 Inside the Atlas process, normalized records pass through one shared semantic parser contract for
 the Plan and Atlas Item shapes consumed by the compatibility snapshot and the Ontahi dataset. The

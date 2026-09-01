@@ -193,4 +193,32 @@ describe('PlanWorkstreamExplorer', () => {
     expect(within(dialog).queryByText('compatibility alias.')).not.toBeInTheDocument();
   });
 
+  it('keeps completed history out of the board until it is requested', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
+    const value = {
+      ...snapshot,
+      nodes: [
+        ...snapshot.nodes,
+        createNode('completed-plan', {
+          kind: 'plan',
+          semanticId: 'completed-plan',
+          shortTitle: 'Completed historical plan',
+          statusGroup: 'done',
+          markdown: 'Completed historical plan details.',
+        }),
+      ],
+    };
+
+    renderExplorer({ value });
+    await user.click(screen.getByRole('button', { name: 'Board' }));
+
+    expect(screen.queryByRole('button', { name: 'Completed historical plan' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Show history' }));
+
+    expect(screen.getByRole('button', { name: 'Completed historical plan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hide history' })).toBeInTheDocument();
+  });
+
 });

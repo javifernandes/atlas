@@ -1,6 +1,6 @@
 # 110. Plan Backfill And Reconciliation
 
-Status: next
+Status: done
 
 Parent plan: [107. Plan Model Research And v0](./107-plan-model-research-and-v0.md)
 
@@ -49,7 +49,7 @@ The result should make a plan easier to reconcile later. It should not erase the
 
 ## Execution Slices
 
-1. [x] Pick one current or next plan outside the `100*` family: [106. Atlas Plan Reconciliation Operation](./106-atlas-plan-reconciliation-operation.md).
+1. [x] Pick one current or next plan outside the `100*` family: [106. Atlas Plan Reconciliation Operation](../next/106-atlas-plan-reconciliation-operation.md).
 2. [x] Pick one recent done plan that still explains current product or framework behavior: [21. Feedback Conversations And Notifications Cutover](bookops://plans/21-feedback-conversations-no-legacy).
 3. [x] Reshape both with Plan Outline v0.
 4. [x] Record only the follow-ups that are real work: implementation, Atlas item updates, status reconciliation, or duplicate cleanup.
@@ -68,4 +68,7 @@ This work is useful if a human or LLM can quickly read a reshaped plan and answe
 
 First pass complete with plans 106 and 21.
 
-Do not expand this into a broad inventory yet. Continue using the backfill only when a plan becomes relevant to current work or when repeated interpretation cost becomes obvious.
+Closed on 2026-09-01 after a second evidence-led reconciliation pass over Atlas and BookOps. The
+backfill method is now an established part of plan closure rather than a finite open intervention.
+Continue using it only when a plan becomes relevant or repeated interpretation cost becomes
+obvious; do not reopen this plan as a broad inventory.

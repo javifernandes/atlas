@@ -16,7 +16,7 @@ The current status axis says something about time or delivery: done, current, ne
 
 The Atlas/Ontahi application chain makes the gap visible:
 
-1. [111. Atlas As An Ontahi Application](../current/111-atlas-as-ontahi-application.md) is relatively shaped.
+1. [111. Atlas As An Ontahi Application](../done/111-atlas-as-ontahi-application.md) is relatively shaped.
 2. [112. Ontahi Capability Package Composition v0](bookops://plans/112-ontahi-capability-package-composition-v0) is outlined.
 3. [113. BookOps Conversations Capability Extraction](bookops://plans/113-bookops-conversations-capability-extraction) is framed.
 4. [114. Atlas Conversations](./114-atlas-conversations.md) is only a seed.

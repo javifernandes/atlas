@@ -11,8 +11,8 @@ supports:
   - spec-workstream-atlas.atlas-model.plan.outline-v0
   - spec-workstream-atlas.atlas-experiences.plan-closure
 relatedPlans:
-  - plans/next/110-plan-backfill-and-reconciliation.md
-  - plans/next/107-plan-model-research-and-v0.md
+  - plans/done/110-plan-backfill-and-reconciliation.md
+  - plans/done/107-plan-model-research-and-v0.md
   - plans/next/106-atlas-plan-reconciliation-operation.md
 ---
 
