@@ -11,7 +11,7 @@ supports:
 relatedPlans:
   - bookops://plans/99-semantic-editorial-workflows
   - plans/done/101-workstream-atlas-semantic-source.md
-  - plans/next/107-plan-model-research-and-v0.md
+  - plans/done/107-plan-model-research-and-v0.md
 ---
 
 Plan Metadata is the planning projection layer for describing [[spec-workstream-atlas.atlas-model.plan|Plan]] without forcing operational planning fields into the semantic product tree.

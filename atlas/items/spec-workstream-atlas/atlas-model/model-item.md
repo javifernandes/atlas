@@ -9,7 +9,7 @@ supports:
   - spec-workstream-atlas.atlas-model
 relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
-  - plans/next/105-atlas-shaping.md
+  - plans/backlog/105-atlas-shaping.md
 exemplars:
   - spec-workstream-atlas.atlas-model.item
   - spec-workstream-atlas.atlas-model.work-item

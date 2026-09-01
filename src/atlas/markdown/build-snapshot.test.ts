@@ -510,4 +510,67 @@ relatedPlans:
       ]),
     );
   });
+
+  it('resolves relocation stubs as aliases instead of materializing duplicate plans', () => {
+    const snapshot = buildPlanWorkstreamSnapshotFromFiles(
+      [
+        {
+          path: 'plans/next/74a-unit-of-work-runtime-scope.md',
+          source: 'bookops',
+          content: `# 74a. Unit-of-Work Runtime Scope
+
+Relocated to Ontahi.
+
+- Canonical ID: \`ontahi://plans/74a-unit-of-work-runtime-scope\`
+- Canonical file: [74a-unit-of-work-runtime-scope.md](https://example.com/ontahi/plans/done/74a-unit-of-work-runtime-scope.md)
+`,
+        },
+        {
+          path: 'plans/done/74a-unit-of-work-runtime-scope.md',
+          source: 'ontahi',
+          content: `# 74a. Unit-of-Work Runtime Scope
+Status: done
+
+## Summary
+
+Define the canonical Ontahi runtime scope.
+`,
+        },
+      ],
+      [
+        {
+          path: 'atlas/items/runtime.md',
+          content: `---
+id: runtime
+kind: capability
+title: Runtime
+status: shaping
+relatedPlans:
+  - bookops://plans/74a-unit-of-work-runtime-scope
+---
+`,
+        },
+      ],
+    );
+
+    expect(snapshot.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          from: 'atlas:runtime',
+          kind: 'shaped-by',
+          to: 'plan:ontahi://plans/74a-unit-of-work-runtime-scope',
+        }),
+      ]),
+    );
+    expect(snapshot.nodes).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'plan:bookops://plans/74a-unit-of-work-runtime-scope',
+        }),
+      ]),
+    );
+    expect(snapshot.documents?.map(document => document.id)).toEqual([
+      'plan:ontahi://plans/74a-unit-of-work-runtime-scope',
+    ]);
+  });
 });

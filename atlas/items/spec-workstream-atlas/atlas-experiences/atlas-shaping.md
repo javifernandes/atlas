@@ -12,7 +12,7 @@ supports:
   - spec-workstream-atlas.atlas-experiences.history-and-evolution
   - spec-workstream-atlas.operating-practice.archaeological-reading
 relatedPlans:
-  - plans/next/105-atlas-shaping.md
+  - plans/backlog/105-atlas-shaping.md
   - plans/backlog/103-workstream-atlas-assisted-editing.md
   - plans/done/104-atlas-source-shape-v0.md
 ---

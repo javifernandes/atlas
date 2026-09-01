@@ -30,7 +30,7 @@ Atlas can run against projects that do not use Ontahi, but Atlas plus Ontahi sho
 
 ## Research / Evidence
 
-1. Current work on [Plan](./107-plan-model-research-and-v0.md) and [Plan Backfill And Reconciliation](./110-plan-backfill-and-reconciliation.md) keeps returning to the same operational question: which parts of a plan are still true?
+1. Current work on [Plan](../done/107-plan-model-research-and-v0.md) and [Plan Backfill And Reconciliation](../done/110-plan-backfill-and-reconciliation.md) keeps returning to the same operational question: which parts of a plan are still true?
 2. `plans/done/100-ontahi-framework-extraction.md` is the motivating historical case: manual
    reconciliation closed its landed extraction work and split independent distribution into plan
    129. That before/after state is useful regression evidence for an automated review.

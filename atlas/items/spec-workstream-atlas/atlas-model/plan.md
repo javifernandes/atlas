@@ -9,8 +9,8 @@ supports:
   - spec-workstream-atlas.atlas-model
 relatedPlans:
   - plans/next/108-atlas-item-type-model.md
-  - plans/next/107-plan-model-research-and-v0.md
-  - plans/next/110-plan-backfill-and-reconciliation.md
+  - plans/done/107-plan-model-research-and-v0.md
+  - plans/done/110-plan-backfill-and-reconciliation.md
   - plans/next/106-atlas-plan-reconciliation-operation.md
   - plans/next/109-work-item-impact-surface.md
 exemplars:
@@ -19,7 +19,7 @@ exemplars:
   - plans/done/11-book-ownership-permissions.md
   - plans/done/21-feedback-conversations-no-legacy.md
   - plans/done/100-ontahi-framework-extraction.md
-  - plans/next/107-plan-model-research-and-v0.md
+  - plans/done/107-plan-model-research-and-v0.md
 ---
 
 A [[spec-workstream-atlas.atlas-model.plan|Plan]] is a work item that gives bounded, executable form to a possible system change.

@@ -9,8 +9,8 @@ supports:
   - spec-workstream-atlas
   - bookops
 relatedPlans:
-  - plans/backlog/102-workstream-atlas-implementation-evidence.md
-  - plans/current/111-atlas-as-ontahi-application.md
+  - plans/next/102-workstream-atlas-implementation-evidence.md
+  - plans/done/111-atlas-as-ontahi-application.md
   - bookops://plans/18d-web-phase-2plusplus-storybook-information-architecture
   - bookops://plans/23-feedback-ui-hardening-and-storybook
 ---

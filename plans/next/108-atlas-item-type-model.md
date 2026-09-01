@@ -29,7 +29,7 @@ Experience
 
 ## Research / Evidence
 
-1. `plans/next/107-plan-model-research-and-v0.md` defined `Plan` anatomy and exposed the need for type-specific operations.
+1. `plans/done/107-plan-model-research-and-v0.md` defined `Plan` anatomy and exposed the need for type-specific operations.
 2. BookOps concepts such as Book, Paragraph, Collaborator, Conversation, Invitation, and Translation need durable product-level descriptions that sit above code entities.
 3. Ontahi concepts such as Entity, Domain Operation, Authority, Policy, and Durable Operation already pressure Atlas toward a model-centered vocabulary.
 4. The current graph gets visually useful only when nodes carry enough semantics to support filtering, board views, detail panels, and guided operations.
@@ -75,7 +75,7 @@ An item type should describe:
 ## Execution Slices
 
 1. Create a parent plan and atlas item for Atlas Item Type.
-2. Reframe `plans/next/107-plan-model-research-and-v0.md` as the first worked example under this broader plan.
+2. Reframe `plans/done/107-plan-model-research-and-v0.md` as the first worked example under this broader plan.
 3. Define a v0 anatomy for `Plan`, `Book`, and one `Experience` as contrasting examples.
 4. Compare those examples against existing Atlas kinds and remove or demote kinds that do not earn distinct anatomy or operations.
 5. Decide how type anatomy should be represented: markdown sections, frontmatter, structured source, or an Ontahi-backed adapter.
@@ -104,7 +104,7 @@ It should also make assisted editing more concrete: the assistant can choose ope
 
 ## Child Plans
 
-1. [107. Plan Model Research And v0](./107-plan-model-research-and-v0.md)
+1. [107. Plan Model Research And v0](../done/107-plan-model-research-and-v0.md)
 2. [109. Work Item Impact Surface](./109-work-item-impact-surface.md)
 3. [115. Atlas Definition Level Axis](../backlog/115-atlas-definition-level-axis.md)
 

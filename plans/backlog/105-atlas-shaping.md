@@ -1,6 +1,6 @@
 # 105. Atlas Shaping
 
-Status: idea
+Status: backlog
 
 ## Summary
 
@@ -251,4 +251,6 @@ Git can be the underlying version store for now.
 
 ## Closure / Evolution
 
-Not closed. This plan should stay idea-level until one manual shaping run exists. Once that works, the plan can split into concrete child work for proposal storage, repo access, interpretation skills, and GitHub push or PR triggers.
+This remains backlog shaping rather than actionable next work. Promote it only when one manual
+shaping run is ready to be implemented; at that point split concrete work for proposal storage,
+repo access, interpretation skills, and GitHub push or PR triggers.

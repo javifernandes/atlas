@@ -8,7 +8,7 @@ horizon: later
 supports:
   - spec-workstream-atlas.implementation-evidence
 relatedPlans:
-  - plans/backlog/102-workstream-atlas-implementation-evidence.md
+  - plans/next/102-workstream-atlas-implementation-evidence.md
 ---
 
 Coverage And Code Impact connects a workstream to changed files, package boundaries, PR diffs, Codecov-style coverage deltas, and review risk.

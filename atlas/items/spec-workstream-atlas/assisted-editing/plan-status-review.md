@@ -11,9 +11,9 @@ supports:
   - spec-workstream-atlas.implementation-evidence
 relatedPlans:
   - plans/backlog/103-workstream-atlas-assisted-editing.md
-  - plans/backlog/102-workstream-atlas-implementation-evidence.md
+  - plans/next/102-workstream-atlas-implementation-evidence.md
   - plans/next/106-atlas-plan-reconciliation-operation.md
-  - plans/next/107-plan-model-research-and-v0.md
+  - plans/done/107-plan-model-research-and-v0.md
 ---
 
 Plan Status Review lets a user ask whether a plan's current status still matches the repo.

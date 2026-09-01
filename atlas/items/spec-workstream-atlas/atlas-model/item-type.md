@@ -11,7 +11,7 @@ supports:
   - spec-workstream-atlas.assisted-editing
 relatedPlans:
   - plans/next/108-atlas-item-type-model.md
-  - plans/next/107-plan-model-research-and-v0.md
+  - plans/done/107-plan-model-research-and-v0.md
 exemplars:
   - spec-workstream-atlas.atlas-model.plan
   - bookops.model.book

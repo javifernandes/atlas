@@ -235,10 +235,24 @@ sources such as BookOps and Ontahi keep their own source ids and authority. The 
 reserved and cannot be configured as an external source.
 
 Within a source-owned Atlas Item, a repository-local `relatedPlans` value such as
-`plans/current/111-atlas-as-ontahi-application.md` resolves inside the item's `sourceId`. An
+`plans/done/111-atlas-as-ontahi-application.md` resolves inside the item's `sourceId`. An
 explicit URI such as `ontahi://plans/...` keeps its declared source and represents a cross-source
 reference. Authors therefore use ordinary repository paths for local declarations and canonical
 URIs only when ownership crosses a source boundary.
+
+When ownership of a Plan moves between repositories, the old source may keep a minimal relocation
+stub containing a canonical identity:
+
+```md
+Relocated to Ontahi.
+
+- Canonical ID: `ontahi://plans/74a-unit-of-work-runtime-scope`
+```
+
+The extractor treats the old canonical path as an alias to that identity. It resolves item and
+Plan references through the alias, excludes the stub from the Plan/document collection, and uses
+the canonical source's folder and metadata for status. The stub preserves navigation; it does not
+become a second historical Plan.
 
 ## Extraction Boundary
 

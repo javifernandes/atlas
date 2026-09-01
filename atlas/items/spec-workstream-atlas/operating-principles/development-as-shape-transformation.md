@@ -18,8 +18,8 @@ supports:
   - spec-workstream-atlas.operating-practice
 relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
-  - plans/next/105-atlas-shaping.md
-  - plans/next/107-plan-model-research-and-v0.md
+  - plans/backlog/105-atlas-shaping.md
+  - plans/done/107-plan-model-research-and-v0.md
   - plans/next/108-atlas-item-type-model.md
 ---
 

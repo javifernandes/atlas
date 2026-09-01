@@ -11,10 +11,10 @@ supports:
   - spec-workstream-atlas.assisted-editing.plan-status-review
   - spec-workstream-atlas.atlas-experiences.plan-closure
 relatedPlans:
-  - plans/next/107-plan-model-research-and-v0.md
-  - plans/next/110-plan-backfill-and-reconciliation.md
+  - plans/done/107-plan-model-research-and-v0.md
+  - plans/done/110-plan-backfill-and-reconciliation.md
 exemplars:
-  - plans/next/107-plan-model-research-and-v0.md
+  - plans/done/107-plan-model-research-and-v0.md
   - plans/done/104-atlas-source-shape-v0.md
   - plans/done/100-ontahi-framework-extraction.md
   - plans/done/07-translations-scripted.md

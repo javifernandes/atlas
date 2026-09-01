@@ -11,9 +11,9 @@ supports:
   - spec-workstream-atlas.atlas-experiences.atlas-shaping
 relatedPlans:
   - plans/backlog/103-workstream-atlas-assisted-editing.md
-  - plans/next/105-atlas-shaping.md
+  - plans/backlog/105-atlas-shaping.md
   - plans/next/106-atlas-plan-reconciliation-operation.md
-  - plans/current/111-atlas-as-ontahi-application.md
+  - plans/done/111-atlas-as-ontahi-application.md
 ---
 
 The Operation Command Interface lets a user invoke atlas and product operations in ordinary prose while Atlas resolves the request to a typed operation.

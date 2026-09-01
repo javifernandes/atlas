@@ -524,28 +524,88 @@ export type ParsedAtlasSource = {
   plans: ParsedPlan[];
 };
 
+const getRelocationTarget = (record: NormalizedAtlasSourceRecord) => {
+  if (
+    !record.sourcePath.startsWith('plans/') ||
+    !/^Relocated to\s+.+\.?$/im.test(record.content)
+  ) {
+    return undefined;
+  }
+
+  const canonicalId = record.content.match(
+    /^\s*-\s*Canonical ID:\s*(?:`([^`]+)`|([^\s]+))\s*$/im,
+  );
+
+  return canonicalId?.[1]?.trim() ?? canonicalId?.[2]?.trim();
+};
+
+const buildRelocationAliases = (records: NormalizedAtlasSourceRecord[]) =>
+  new Map(
+    records.flatMap(record => {
+      const target = getRelocationTarget(record);
+
+      return target ? [[record.canonicalPath, target] as const] : [];
+    }),
+  );
+
+const resolveRelocationAlias = (reference: string, aliases: Map<string, string>) => {
+  let resolvedReference = reference;
+  const visited = new Set<string>();
+
+  while (!visited.has(resolvedReference)) {
+    visited.add(resolvedReference);
+    const target = aliases.get(resolvedReference);
+
+    if (!target) {
+      break;
+    }
+
+    resolvedReference = target;
+  }
+
+  return resolvedReference;
+};
+
 export const parseAtlasSourceRecords = (
   records: NormalizedAtlasSourceRecord[],
-): ParsedAtlasSource => ({
-  plans: records
+): ParsedAtlasSource => {
+  const relocationAliases = buildRelocationAliases(records);
+  const resolveAlias = (reference: string) =>
+    resolveRelocationAlias(reference, relocationAliases);
+  const plans = records
     .filter(
       record =>
         record.sourcePath.startsWith('plans/') &&
         record.sourcePath !== 'plans/README.md' &&
         record.sourcePath !== 'plans/done/README.md' &&
-        record.sourcePath !== 'plans/research/README.md',
+        record.sourcePath !== 'plans/research/README.md' &&
+        !relocationAliases.has(record.canonicalPath),
     )
-    .map(parsePlan),
-  items: [
+    .map(parsePlan)
+    .map(plan => ({
+      ...plan,
+      relatedLinks: plan.relatedLinks.map(link => ({
+        ...link,
+        path: resolveAlias(link.path),
+      })),
+      parentPlanPath: plan.parentPlanPath ? resolveAlias(plan.parentPlanPath) : undefined,
+    }));
+  const items = [
     ...new Map(
       records
         .filter(record => record.sourcePath.startsWith('atlas/items/'))
         .map(parseAtlasItem)
         .filter((item): item is ParsedAtlasItem => Boolean(item))
+        .map(item => ({
+          ...item,
+          relatedPlans: [...new Set(item.relatedPlans.map(resolveAlias))],
+        }))
         .map(item => [item.id, item] as const),
     ).values(),
-  ],
-});
+  ];
+
+  return { items, plans };
+};
 
 const toPlanNode = (plan: ParsedPlan): PlanWorkstreamNode => ({
   id: plan.id,
@@ -975,14 +1035,7 @@ export const buildPlanWorkstreamSnapshotFromFiles = (
     return buildSemanticSnapshotFromFiles(normalizedFiles, normalizedAtlasFiles);
   }
 
-  const plans = normalizedFiles
-    .filter(
-      file =>
-        file.sourcePath !== 'plans/README.md' &&
-        file.sourcePath !== 'plans/done/README.md' &&
-        file.sourcePath !== 'plans/research/README.md',
-    )
-    .map(parsePlan);
+  const { plans } = parseAtlasSourceRecords(normalizedFiles);
   const planByPath = new Map(plans.map(plan => [plan.path, plan]));
   const territoryNames = new Set(plans.map(plan => plan.territory));
   const workstreams = new Map(

@@ -1,8 +1,8 @@
 # 107. Plan Model Research And v0
 
-Status: next
+Status: done
 
-Parent plan: [108. Atlas Item Type Model](./108-atlas-item-type-model.md)
+Parent plan: [108. Atlas Item Type Model](../next/108-atlas-item-type-model.md)
 
 ## Summary
 
@@ -10,7 +10,7 @@ Define `Plan` as a first-class Workstream Atlas model concept.
 
 The goal is not to rewrite every historical plan. The goal is to understand what a plan is in Atlas, which structural elements are common enough to name, and how plans shape durable atlas items over time.
 
-This is now the first child of the broader [Atlas Item Type Model](./108-atlas-item-type-model.md) work. `Plan` is useful because it makes the type-specific pattern visible: a plan has anatomy, relationships, evidence, and operations that do not apply unchanged to other item types.
+This is now the first child of the broader [Atlas Item Type Model](../next/108-atlas-item-type-model.md) work. `Plan` is useful because it makes the type-specific pattern visible: a plan has anatomy, relationships, evidence, and operations that do not apply unchanged to other item types.
 
 ## Context
 
@@ -184,7 +184,7 @@ Short tactical plans can omit sections. Large plans should make the major elemen
 ## Follow-Up Work
 
 1. [110. Plan Backfill And Reconciliation](./110-plan-backfill-and-reconciliation.md): turn the outline into a real cleanup and interpretation workflow for existing plans.
-2. [106. Atlas Plan Reconciliation Operation](./106-atlas-plan-reconciliation-operation.md): define the repo-aware `ReviewPlanState` operation.
+2. [106. Atlas Plan Reconciliation Operation](../next/106-atlas-plan-reconciliation-operation.md): define the repo-aware `ReviewPlanState` operation.
 3. [103. Workstream Atlas Assisted Editing](../backlog/103-workstream-atlas-assisted-editing.md): expose proposal-based LLM editing in the Atlas UI.
 4. [[spec-workstream-atlas.atlas-experiences.plan-closure|Plan Closure]]: define the post-plan workflow that records what landed, drifted, or became future work.
 
@@ -197,9 +197,12 @@ Short tactical plans can omit sections. Large plans should make the major elemen
 - [x] Use `Plan` itself as the first Evolution/Context modeling pass.
 - [x] Reshape one compact plan as a reversible example.
 - [x] Reshape a second phase-heavy historical plan as a compression example.
-- [ ] Decide whether the v0 outline should become a template, a lintable convention, or only an atlas-rendering lens.
+- [x] Keep Outline v0 as an authoring and rendering lens rather than a mandatory template or lint rule.
 - [x] Capture follow-up work for plan closure, status review, assisted editing, and backfill.
 
 ## Closure / Evolution
 
-Not closed. The research and outline are useful enough to drive backfill work, but the final convention should stay flexible until more current and historical plans are reshaped.
+Closed on 2026-09-01. The research established `Plan` as a first-class Atlas concept and Outline v0
+as a flexible authoring and rendering lens, not a mandatory template or lint rule. Backfill proved
+the lens on historical plans and remains a just-in-time closure practice. The operational
+follow-ups stay independently owned by plans 106 and 103 and the Plan Closure item.

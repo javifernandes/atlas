@@ -1,6 +1,6 @@
 # 111. Atlas As An Ontahi Application
 
-Status: current
+Status: done
 
 Definition level: shaped
 
@@ -72,7 +72,7 @@ Atlas also wants operations that are difficult to keep as UI-only behavior:
 7. BookOps already exercises Ontahi as a large existing consumer. Atlas adds different pressure:
    federated read models, Markdown authority, temporal evidence, external-source identity, and
    projections over conceptual plus implementation graphs.
-8. [102. Atlas Implementation And Release Evidence](../backlog/102-workstream-atlas-implementation-evidence.md)
+8. [102. Atlas Implementation And Release Evidence](../next/102-workstream-atlas-implementation-evidence.md)
    captures the first major capability to build after this boundary proves itself.
 
 ## Scope
@@ -237,7 +237,7 @@ AtlasMarkdownFile
 ```
 
 Plan references in Atlas Item frontmatter follow the same identity rule as the plan records they
-target. A repository-local value such as `plans/current/111-atlas-as-ontahi-application.md` from
+target. A repository-local value such as `plans/done/111-atlas-as-ontahi-application.md` from
 the intrinsic `atlas` source becomes `atlas://plans/111-atlas-as-ontahi-application`; an explicit
 value such as `ontahi://plans/...` remains cross-source and unchanged. Markdown does not need a
 bulk rewrite.
@@ -438,15 +438,16 @@ the model or stop before broad migration.
 1. [x] Choose `AtlasItem.proposePlanLink` as the first proposal operation.
 2. [x] Return a reviewable Markdown patch rather than mutating the repository directly.
 3. [x] Exercise Ontahi operation contracts and the Runtime Protocol in a real Atlas workflow.
-4. [ ] Add an authenticated apply effect and provenance only when Atlas can present a human review
-   checkpoint.
+4. [x] Defer authenticated apply and provenance to the reviewed command boundary in
+   [Plan 103](../backlog/103-workstream-atlas-assisted-editing.md); proposal generation is the
+   completed migration slice here.
 
 ### Slice 4: Framework feedback and next capability
 
 1. Promote generally useful friction into focused Ontahi issues/plans and package changes.
 2. Keep Atlas-specific projection behavior local to Atlas.
 3. Re-evaluate persistence after the model has both curated and observed data requirements.
-4. Pull [Plan 102](../backlog/102-workstream-atlas-implementation-evidence.md) when the boundary can
+4. Pull [Plan 102](../next/102-workstream-atlas-implementation-evidence.md) when the boundary can
    host Components, Surfaces, Changesets, releases, and evidence without Markdown duplication.
 
 ## Verification
@@ -501,8 +502,13 @@ the model or stop before broad migration.
 
 ## Closure / Evolution
 
-Originally shaped as a direct domain migration after standalone extraction. Reshaped on 2026-08-31
-to require an evaluation slice first and to make the two-way Atlas/Ontahi learning loop explicit.
-The GitHub, Changesets, package-version, and release-evidence direction is preserved in
-[Plan 102](../backlog/102-workstream-atlas-implementation-evidence.md) rather than expanding this
-migration into multiple simultaneous risks.
+Closed on 2026-09-01. The evaluation gate succeeded and the migration landed incrementally:
+normalized source records hydrate an Ontahi application, application-bound graph reads own the
+topology used by every viewer surface, and `AtlasItem.proposePlanLink` is available through the
+Runtime Protocol as a reviewable read-only operation.
+
+Authenticated apply and provenance are intentionally deferred to
+[Plan 103](../backlog/103-workstream-atlas-assisted-editing.md). GitHub, Changesets,
+package-version, persistence, and release evidence continue in
+[Plan 102](../next/102-workstream-atlas-implementation-evidence.md). Those are new capabilities,
+not incomplete migration slices.

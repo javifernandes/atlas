@@ -8,7 +8,7 @@ horizon: later
 supports:
   - spec-workstream-atlas.implementation-evidence
 relatedPlans:
-  - plans/backlog/102-workstream-atlas-implementation-evidence.md
+  - plans/next/102-workstream-atlas-implementation-evidence.md
 ---
 
 Preview Environments connect atlas items to staging, preview, or ephemeral deployments where the feature can be tried in something closer to the real product.
