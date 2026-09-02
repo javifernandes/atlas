@@ -6,6 +6,7 @@ const sourceRoots = ['plans', path.join('atlas', 'items')];
 const tracePaths = [
   path.join('.next', 'server', 'app', 'page.js.nft.json'),
   path.join('.next', 'server', 'app', 'runtime', 'route.js.nft.json'),
+  path.join('.next', 'server', 'app', 'api', 'ingress', '[...path]', 'route.js.nft.json'),
 ];
 
 const walkFiles = directory =>

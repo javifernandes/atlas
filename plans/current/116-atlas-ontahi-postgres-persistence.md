@@ -1,6 +1,6 @@
 # 116. Atlas Ontahi PostgreSQL Persistence
 
-Status: next
+Status: current
 
 Depends on: [111. Atlas As An Ontahi Application](../done/111-atlas-as-ontahi-application.md)
 
@@ -49,12 +49,23 @@ throughout loaders and routes.
    application.
 3. The GitHub webhook operation currently invalidates repository cache tags; it does not commit an
    evidence record or remember the delivery.
-4. Ontahi already exposes a PostgreSQL package and application/runtime abstractions intended to
-   keep persistence behind the domain boundary.
+4. `@ontahi/postgres@1.0.0-alpha.10` exposes a Data Graph storage adapter, graph transactions,
+   inferred table mappings, and schema inspection. Atlas can therefore keep reads and writes
+   behind Ontahi while retaining repository-owned, checksum-verified SQL migrations.
 5. Changesets are temporary repository records: release/version operations consume their source
    files while preserving their meaning in versions and changelogs.
 6. The target Neon project is `weathered-rain-59323266`, using branch `production`. Connection
    credentials and generated environment values remain secret and must not be committed.
+7. The alpha.10 adapter recursively traversed a selected cyclic relation while discovering derived
+   fields and overflowed the stack. The focused fix landed in Ontahi PR #120; release PR #121
+   published `@ontahi/postgres@1.0.0-alpha.11`, which Atlas now consumes without a local adapter
+   workaround.
+8. Ontahi intentionally does not provide Atlas-specific reconciliation, source inventory, delivery
+   deduplication, or migration policy. Those remain application concerns, but all operational graph
+   access stays inside one PostgreSQL-backed Ontahi application composition.
+9. Neon Local is a proxy to a cloud Neon branch, not an offline PostgreSQL server. Atlas therefore
+   uses a PostgreSQL 18 Testcontainer for repeatable local integration and an expiring child branch
+   of Neon production for compatibility verification.
 
 ## Scope
 
@@ -218,17 +229,17 @@ the permanent production read path.
 
 ## Verification
 
-- [ ] A clean environment can initialize and migrate the Neon branch without manual SQL.
-- [ ] Atlas can bootstrap an empty database from registered Markdown sources and GitHub evidence.
-- [ ] Repeating the same reconciliation produces no duplicate Items, relations, PRs, or bindings.
-- [ ] Duplicate GitHub deliveries are durably deduplicated across server instances.
-- [ ] Page reads and Runtime Protocol operations observe the same persisted graph.
-- [ ] Atlas-owned and federated sources remain identifiable by canonical provenance.
-- [ ] Removing or moving a source record reconciles only data owned by that source revision.
-- [ ] No Neon credentials, GitHub secrets, or private keys appear in committed files or logs.
-- [ ] Local tests cover the in-memory composition while integration tests prove PostgreSQL behavior.
+- [x] A clean environment can initialize and migrate the Neon branch without manual SQL.
+- [x] Atlas can bootstrap an empty database from registered Markdown sources and GitHub evidence.
+- [x] Repeating the same reconciliation produces no duplicate Items, relations, PRs, or bindings.
+- [x] Duplicate GitHub deliveries are durably deduplicated across server instances.
+- [x] Page reads and Runtime Protocol operations observe the same persisted graph.
+- [x] Atlas-owned and federated sources remain identifiable by canonical provenance.
+- [x] Removing or moving a source record reconciles only data owned by that source revision.
+- [x] No Neon credentials, GitHub secrets, or private keys appear in committed files or logs.
+- [x] Local tests cover the in-memory composition while integration tests prove PostgreSQL behavior.
 - [ ] Production deploy, backfill, rebuild, and rollback paths are documented and exercised.
-- [ ] Plan 102 can add Changesets without introducing another storage architecture.
+- [x] Plan 102 can add Changesets without introducing another storage architecture.
 
 ## Decisions
 
@@ -243,18 +254,30 @@ the permanent production read path.
    the in-memory composition.
 8. Provider setup and generated Neon files are reviewed before `neon deploy` mutates the linked
    branch.
+9. One committed `ProjectionRevision` snapshot is the page-read consistency boundary. Normal page
+   requests do not inspect repositories or call GitHub.
+10. Pull Request and repository push deliveries use independent durable delivery identities and
+    converge through the same serialized reconciliation transaction.
+11. A failed evidence provider marks the new revision `degraded` and retains its previously
+    committed bindings and read-snapshot evidence; a successfully observed provider replaces only
+    its own bindings.
+12. Projection revisions are retained append-only for now. Retention/pruning requires a later plan
+    because they are the reconciliation audit trail.
+13. Hosted PostgreSQL reconciliation reads Atlas and external source content at the Git tree SHA it
+    records. Memory-mode rollback uses the packaged corpus so it remains available when a provider
+    or database is unhealthy.
 
 ## Open Questions
 
-1. Does the currently published Ontahi PostgreSQL package support the full Atlas relation and query
-   topology, or does Atlas first need an Ontahi release?
-2. Which projection revisions should be retained after a successful reconciliation?
-3. Should source reconciliation run on deploy, webhook invalidation, a scheduled worker, or a
-   combination with an explicit operation?
-4. What is the safest production migration order while the current serverless projection remains
-   live?
-5. Should preview deployments receive isolated Neon branches automatically, or use an explicit
-   shared non-production branch initially?
+1. Ontahi alpha.11 supports the required topology after the upstream cyclic relation-query fix.
+2. Reconciliation runs on signed merged-PR and repository-push ingress, with explicit manual and
+   rebuild operations for bootstrap and recovery. The scheduled deployment hook remains a fallback
+   until the hosted cutover is verified.
+3. Production follows an expand-first order: migrate and backfill while the prior deployment is
+   live, configure deployment-scoped database values, deploy the database-read composition, verify
+   both read surfaces and signed ingress, then rehearse rebuild and memory-mode rollback.
+4. Preview deployments should receive isolated Neon branches. Automatic preview provisioning is
+   still a deployment concern and is not required for this production-branch foundation.
 
 ## Closure / Evolution
 
@@ -262,3 +285,44 @@ Created after merged-PR evidence proved the first observed Atlas record and befo
 Changeset ingestion. The decision replaces Plan 102's earlier persistence deferral: stable release
 history now justifies a durable Ontahi application, while Markdown and provider ownership remain
 unchanged.
+
+### 2026-09-02 — execution start
+
+Execution began after confirming PR #14 was merged and refreshing from `origin/main`. Work is
+isolated on `codex/plan-116-postgres-persistence` so the existing Atlas checkout remains untouched.
+The first implementation gate is an architecture and adapter audit: verify the published
+`@ontahi/postgres` contract, map the current read/runtime/ingress compositions, and decide the
+transaction, reconciliation, cutover, and rollback boundaries before deploying a migration to the
+linked Neon production branch.
+
+### 2026-09-02 — persistent composition and verified backfill
+
+The adapter audit found a real cyclic relation-selection defect in `@ontahi/postgres` alpha.10.
+Ontahi PR #120 fixed the traversal boundary, release PR #121 published alpha.11, and Atlas returned
+to the intended nested Ontahi query instead of carrying a local SQL or flattened-query workaround.
+
+Atlas now has one server composition root for page reads, Runtime Protocol, reconciliation, and
+signed GitHub ingress. PostgreSQL stores source revisions and records, Items, Plans, semantic
+relations, Pull Requests, Evidence Bindings, Projection Revisions, reconciliation locks, and
+webhook deliveries. Reconciliation loads authorities outside the transaction, then serializes the
+source-aware inventory update, stale-observation check, delivery deduplication, evidence update,
+and new read snapshot in one transaction. Temporary GitHub evidence failure preserves the prior
+source-owned evidence and produces a diagnosable degraded revision. Hosted source reads pin file
+content to the observed tree SHA, so a push cannot reconcile Atlas from an older deployment image
+or associate branch-moving content with the wrong revision.
+
+The five checksum migrations were applied to the linked Neon production branch. A production
+backfill and recovery rebuild converged on 3 source revisions, 124 Items, 278 Plans, 1,224 topology
+edges, and 21 Evidence Bindings. The same
+five integration cases pass against PostgreSQL 18 in Testcontainers and an expiring Neon child
+branch: clean/repeated migration, repeated bootstrap/rebuild, durable PR and push delivery dedup,
+stale-observation exclusion, and source-inventory removal. The Neon child branch was deleted after
+verification. A read-only authenticated observation also resolved all 3 configured sources through
+GitHub/local adapters while keeping the Atlas revision Git-backed.
+
+The code cutover and operator rollback/rebuild instructions are ready, and the production rebuild
+has been exercised. The memory-mode composition was also exercised locally against the packaged
+authorities and converged on 298 nodes, 1,224 edges, and 21 Evidence Bindings. The hosted Vercel
+environment, deployed page/runtime reads, signed production deliveries, and memory-mode rollback
+have not yet been exercised. Plan 116 therefore remains `current`; its final production verification
+checkbox remains open.

@@ -10,7 +10,7 @@ supports:
   - bookops
 relatedPlans:
   - plans/current/102-workstream-atlas-implementation-evidence.md
-  - plans/next/116-atlas-ontahi-postgres-persistence.md
+  - plans/current/116-atlas-ontahi-postgres-persistence.md
   - plans/done/111-atlas-as-ontahi-application.md
   - bookops://plans/18d-web-phase-2plusplus-storybook-information-architecture
   - bookops://plans/23-feedback-ui-hardening-and-storybook
@@ -26,11 +26,12 @@ in Markdown. PRs, commits, Changesets, package versions, releases, deployments, 
 observed evidence owned by their source systems. Atlas relates and, when useful, caches that data;
 it does not mirror every event into Markdown.
 
-The first persistent projection will use Ontahi with PostgreSQL on Neon. It retains normalized
+The persistent projection uses Ontahi with PostgreSQL on Neon. It retains normalized
 evidence, source provenance, reconciliation state, and Atlas-owned inference while Markdown,
 GitHub, repository history, registries, and release providers remain authoritative. Persistence is
-required before Changeset ingestion because a release may consume the source file whose meaning
-Atlas must continue to navigate.
+the foundation for Changeset ingestion because a release may consume the source file whose meaning
+Atlas must continue to navigate. Temporary GitHub failures produce a degraded Projection Revision
+without deleting the last durable bindings for the unavailable source.
 
 ## Child Items
 

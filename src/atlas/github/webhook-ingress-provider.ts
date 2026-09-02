@@ -72,6 +72,35 @@ const parseMergedPullRequest = (payload: unknown, deliveryId: string | null) => 
   };
 };
 
+const parseRepositoryPush = (payload: unknown, deliveryId: string | null) => {
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  const repository = payload.repository;
+  const installation = payload.installation;
+  if (
+    !isRecord(repository) ||
+    typeof repository.full_name !== 'string' ||
+    !isRecord(installation) ||
+    (typeof installation.id !== 'number' && typeof installation.id !== 'string') ||
+    typeof payload.ref !== 'string' ||
+    typeof payload.before !== 'string' ||
+    typeof payload.after !== 'string'
+  ) {
+    return null;
+  }
+
+  return {
+    after: payload.after,
+    before: payload.before,
+    deliveryId,
+    installationId: String(installation.id),
+    ref: payload.ref,
+    repositoryFullName: repository.full_name,
+  };
+};
+
 export const createAtlasGitHubWebhookIngressProvider = (
   input: AtlasGitHubWebhookIngressProviderInput,
 ): GraphHttpIngressProvider => ({
@@ -109,13 +138,21 @@ export const createAtlasGitHubWebhookIngressProvider = (
       return accepted(event, deliveryId, { ignored: false });
     }
 
-    if (event !== 'pull_request') {
+    if (event !== 'pull_request' && event !== 'push') {
       return {
         kind: 'ignored',
         provider,
         providerKey,
         event,
         deliveryId,
+      };
+    }
+
+    if (!deliveryId) {
+      return {
+        kind: 'rejected',
+        status: 400,
+        error: 'GitHub webhook delivery id is required',
       };
     }
 
@@ -127,7 +164,35 @@ export const createAtlasGitHubWebhookIngressProvider = (
       return {
         kind: 'rejected',
         status: 400,
-        error: 'GitHub pull request payload is invalid',
+        error: 'GitHub webhook payload is invalid',
+      };
+    }
+
+    if (event === 'push') {
+      const repositoryPush = parseRepositoryPush(payload, deliveryId);
+
+      if (!repositoryPush) {
+        return {
+          kind: 'rejected',
+          status: 400,
+          error: 'GitHub push payload is invalid',
+        };
+      }
+
+      return {
+        kind: 'accepted',
+        provider,
+        providerKey,
+        channel: 'source-control.repository.pushed',
+        event,
+        deliveryId,
+        payload: repositoryPush,
+        status: 202,
+        details: {
+          accepted: true,
+          ref: repositoryPush.ref,
+          repositoryFullName: repositoryPush.repositoryFullName,
+        },
       };
     }
 

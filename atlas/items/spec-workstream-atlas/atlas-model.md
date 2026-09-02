@@ -13,6 +13,7 @@ relatedPlans:
   - plans/backlog/105-atlas-shaping.md
   - plans/done/111-atlas-as-ontahi-application.md
   - plans/current/102-workstream-atlas-implementation-evidence.md
+  - plans/current/116-atlas-ontahi-postgres-persistence.md
 ---
 
 Atlas Model defines the language the atlas uses to describe systems: atlas items, item types, system form, work items, transformations, evidence, relations, states, and practices.
@@ -34,3 +35,4 @@ It is not a complete metamodel yet. It is the smallest shared vocabulary needed 
 11. [`State Axis`](./atlas-model/state-axis.md)
 12. [`Implementation Component`](./atlas-model/implementation-component.md)
 13. [`Implementation Surface`](./atlas-model/implementation-surface.md)
+14. [`Projection Revision`](./atlas-model/projection-revision.md)

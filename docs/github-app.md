@@ -13,6 +13,7 @@ Create a GitHub App without a Marketplace listing and configure:
    - Pull requests: read-only
    - Metadata: read-only (implicit)
 2. Subscribe to events:
+   - Push
    - Pull request
 3. Webhook URL:
    - Production: `https://<atlas-host>/api/ingress/github/webhook`
@@ -51,6 +52,10 @@ mutate the target Plan or Item status.
    `http://localhost:3000/api/ingress/github/webhook` with `smee.io`, ngrok, or an equivalent tool.
 3. Temporarily configure the GitHub App webhook URL with the forwarding URL.
 4. Deliver `ping` and verify a successful response.
-5. Merge a PR containing an Atlas directive and reload the linked Item or Plan's Evolution view.
+5. Push a source change or merge a PR containing an Atlas directive, then reload the linked Item or
+   Plan's Evolution view.
 
-The six-hour refresh workflow remains a recovery path until production deliveries are verified.
+Each accepted event reconciles the durable PostgreSQL projection and records its GitHub delivery id.
+Supported source events without GitHub's `X-GitHub-Delivery` header are rejected because they cannot
+provide cross-instance deduplication.
+See [PostgreSQL persistence](./postgres-persistence.md) for rebuild and rollback procedures.

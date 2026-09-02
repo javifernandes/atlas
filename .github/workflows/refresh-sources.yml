@@ -1,4 +1,4 @@
-name: Refresh sources
+name: Redeploy Atlas
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   rebuild:
-    name: Trigger hosted rebuild
+    name: Trigger hosted redeploy
     runs-on: ubuntu-latest
     timeout-minutes: 5
 

@@ -40,20 +40,26 @@ local read fallback and is never exposed to the browser bundle.
 
 ## Hosted source refreshes
 
-GitHub App pull-request webhooks invalidate the affected repository projection so merged evidence
-appears on the next Atlas read. The included `Refresh sources` GitHub Actions workflow still
-triggers a rebuild manually or every six hours as a temporary recovery path.
+Signed GitHub App `push` and merged-pull-request webhooks now reconcile registered authorities into
+PostgreSQL transactionally. Normal page reads consume one durable Projection Revision and never fan
+out to source providers. Duplicate delivery ids converge across server instances.
 
 For a Vercel deployment, create a Deploy Hook for the production branch and store its URL as the
 `VERCEL_DEPLOY_HOOK_URL` GitHub Actions repository secret. Treat the hook URL as a credential: anyone
-who has it can trigger a deployment.
+who has it can trigger a deployment. The scheduled workflow remains a redeploy fallback during the
+database rollout; explicit projection recovery uses `pnpm db:rebuild`.
+
+See [PostgreSQL persistence](docs/postgres-persistence.md) for migrations, reconciliation, Neon
+branch testing, cutover, and rollback.
 
 ## Development
 
 ```sh
 pnpm install
 pnpm dev
+pnpm test:postgres
 ```
 
-The current implementation loads sources while rendering. The next extraction slice will produce a
-deterministic build-time snapshot so normal hosted page requests never fan out to source providers.
+Local development defaults to the focused in-memory Ontahi runtime. Set the documented PostgreSQL
+environment values and storage mode only when exercising the durable composition. Use
+`pnpm test:postgres:neon` for an isolated compatibility proof against an expiring Neon branch.

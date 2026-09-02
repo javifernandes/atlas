@@ -11,7 +11,7 @@ supports:
 relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
   - plans/current/102-workstream-atlas-implementation-evidence.md
-  - plans/next/116-atlas-ontahi-postgres-persistence.md
+  - plans/current/116-atlas-ontahi-postgres-persistence.md
 ---
 
 Evidence Binding links a model item to concrete proof: code, tests, migrations, stories, deployments, metrics, docs, or PRs.
@@ -35,13 +35,14 @@ and the user who merged it, deduplicates one person carrying both roles, and exp
 hover. GitHub's avatar URLs remain observed presentation metadata rather than Atlas-authored
 Markdown.
 
-A GitHub App webhook provides the authenticated merge signal and invalidates the relevant source
-projection. It does not make the webhook payload authoritative, mirror the PR into Markdown, mutate
-the target's curated status, or require persistence. Duplicate invalidations are harmless; durable
-delivery deduplication begins only when Atlas adds an observed evidence index.
+A GitHub App webhook provides an authenticated merge or repository-push signal. It does not make
+the webhook payload authoritative, mirror a PR into Markdown, or mutate the target's curated
+status. The signal invokes source reconciliation, while GitHub remains the authority observed by
+that operation.
 
 Plan 116 introduces that index through Ontahi and PostgreSQL on Neon. The persisted binding keeps
 its evidence id, target id, assertion kind, source authority, and observation revision; it does not
 turn Atlas into the owner of the referenced Pull Request. Durable delivery identity makes repeated
-webhooks converge across server instances, while source reconciliation can still refresh the
-authoritative GitHub record.
+webhooks converge across server instances. Reconciliation is serialized, preserves bindings for a
+temporarily unavailable evidence source, and refreshes the authoritative GitHub record when that
+source recovers.

@@ -288,6 +288,12 @@ relatedPlans:
         provider: 'github-webhook',
         channel: 'source-control.pull-request.merged',
       }),
+      expect.objectContaining({
+        operationId: 'ProjectionRevision.refreshAfterPush',
+        route: '/api/ingress/github/webhook',
+        provider: 'github-webhook',
+        channel: 'source-control.repository.pushed',
+      }),
     ]);
   });
 
