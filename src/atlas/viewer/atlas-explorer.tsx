@@ -605,8 +605,17 @@ const normalizeSearchValue = (value: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 
-const getPlanNumber = (node: PlanWorkstreamNode) =>
-  (node.path ?? node.shortTitle).match(/(?:^|\/)(\d+[a-z]?)[-–]/i)?.[1]?.toLowerCase() ?? null;
+const getPlanNumber = (node: PlanWorkstreamNode) => {
+  if (node.kind !== 'plan') {
+    return null;
+  }
+
+  return (
+    (node.path ?? node.semanticId ?? node.shortTitle)
+      .match(/(?:^|\/)(\d+[a-z]*)[-–]/i)?.[1]
+      ?.toLowerCase() ?? null
+  );
+};
 
 const getPlanNumberAliases = (planNumber: string) => {
   const aliases = new Set([planNumber]);
@@ -834,6 +843,22 @@ const getSearchMatches = (nodes: PlanWorkstreamNode[], query: string) => {
     .slice(0, searchMatchLimit);
 };
 
+const getSearchSourceParts = (node: PlanWorkstreamNode) => {
+  const source = node.path ?? node.semanticId;
+
+  if (!source) {
+    return null;
+  }
+
+  const schemeMatch = source.match(/^([a-z][a-z\d+.-]*:\/\/)(.*)$/i);
+
+  return {
+    location: schemeMatch?.[2] ?? source,
+    scheme: schemeMatch?.[1]?.replace('://', '') ?? null,
+    source,
+  };
+};
+
 const getGraphLayout = (nodes: PlanWorkstreamNode[], edges: PlanWorkstreamEdge[]) => {
   const nodesById = new Map(nodes.map(node => [node.id, node]));
   const orderById = new Map(nodes.map((node, index) => [node.id, index]));
@@ -1004,21 +1029,21 @@ const IconButton = ({
 );
 
 const BranchSproutToggle = ({
-  childNodes,
+  directChildCount,
   expanded,
   focusLevel,
   nodeId,
   onToggle,
+  totalDescendantCount,
 }: {
-  childNodes: PlanWorkstreamNode[];
+  directChildCount: number;
   expanded: boolean;
   focusLevel: NodeFocusLevel;
   nodeId: string;
   onToggle: () => void;
+  totalDescendantCount: number;
 }) => {
-  const childCount = childNodes.length;
-
-  if (childCount === 0) {
+  if (directChildCount === 0) {
     return null;
   }
 
@@ -1053,13 +1078,13 @@ const BranchSproutToggle = ({
   return (
     <button
       type='button'
-      aria-label='Expand branch'
+      aria-label={`Expand branch: ${directChildCount} direct children, ${totalDescendantCount} total descendants`}
       aria-expanded={expanded}
       data-collapse-toggle
       data-collapse-node-id={nodeId}
-      title={`Expand ${childCount} items`}
+      title={`${directChildCount} direct children / ${totalDescendantCount} total descendants`}
       className={cn(
-        'absolute left-[220px] top-1/2 z-30 flex -translate-y-1/2 items-center gap-1 rounded-full px-0.5 py-0.5 text-muted-foreground transition-[opacity,transform,color] hover:scale-110 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/35',
+        'absolute left-[220px] top-1/2 z-30 flex w-max -translate-y-1/2 items-center gap-1 rounded-full px-0.5 py-0.5 text-muted-foreground transition-[opacity,transform,color] hover:scale-110 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/35',
         focusLevel === 'context' && 'opacity-70',
         focusLevel === 'distant' && 'opacity-25 grayscale',
       )}
@@ -1075,8 +1100,11 @@ const BranchSproutToggle = ({
       <span className='grid size-5 place-items-center rounded-full border border-primary/45 bg-background/85 shadow-sm backdrop-blur-sm'>
         <Plus className='size-3.5' />
       </span>
-      <span className='rounded-full bg-background/70 px-1.5 py-0.5 font-mono text-[10px] leading-none shadow-sm backdrop-blur-sm'>
-        {childCount}
+      <span
+        aria-hidden='true'
+        className='whitespace-nowrap rounded-full bg-background/75 px-1.5 py-0.5 font-mono text-[10px] leading-none shadow-sm backdrop-blur-sm'
+      >
+        {directChildCount} / {totalDescendantCount}
       </span>
     </button>
   );
@@ -3711,22 +3739,27 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
       ),
     [expandedNodeIds, hierarchyIndex.parentByChild, snapshot.nodes, statusVisibleNodeIds],
   );
-  const expandableChildrenByParent = useMemo(() => {
-    const childrenByParent = new Map<string, PlanWorkstreamNode[]>();
+  const expandableBranchStatsByParent = useMemo(() => {
+    const branchStatsByParent = new Map<
+      string,
+      { directChildCount: number; totalDescendantCount: number }
+    >();
 
     for (const [parentId, childIds] of hierarchyIndex.primaryChildrenByParent) {
-      const visibleChildren = childIds
-        .filter(childId => statusVisibleNodeIds.has(childId))
-        .map(childId => nodesById.get(childId))
-        .filter((node): node is PlanWorkstreamNode => Boolean(node));
+      const directChildCount = childIds.filter(childId => statusVisibleNodeIds.has(childId)).length;
 
-      if (visibleChildren.length > 0) {
-        childrenByParent.set(parentId, visibleChildren);
+      if (directChildCount > 0) {
+        const totalDescendantCount = getDescendantIds(
+          parentId,
+          hierarchyIndex.primaryChildrenByParent,
+        ).filter(descendantId => statusVisibleNodeIds.has(descendantId)).length;
+
+        branchStatsByParent.set(parentId, { directChildCount, totalDescendantCount });
       }
     }
 
-    return childrenByParent;
-  }, [hierarchyIndex.primaryChildrenByParent, nodesById, statusVisibleNodeIds]);
+    return branchStatsByParent;
+  }, [hierarchyIndex.primaryChildrenByParent, statusVisibleNodeIds]);
   const initialExpandedNodeIds = useMemo(
     () => getInitialExpandedNodeIds(snapshot.nodes, snapshot.edges),
     [snapshot.edges, snapshot.nodes],
@@ -3969,6 +4002,15 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
   }, []);
 
   useEffect(() => {
+    if (!searchOpen) {
+      return;
+    }
+
+    searchInputRef.current?.focus();
+    searchInputRef.current?.select();
+  }, [searchOpen]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() !== 'k' || (!event.metaKey && !event.ctrlKey) || event.altKey) {
         return;
@@ -3976,8 +4018,6 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
 
       event.preventDefault();
       setSearchOpen(true);
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
     };
 
     globalThis.window.addEventListener('keydown', handleKeyDown);
@@ -4458,7 +4498,7 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
   };
 
   const selectSearchMatch = (node: PlanWorkstreamNode) => {
-    setQuery(node.shortTitle);
+    setQuery('');
     setSearchOpen(false);
 
     if (atlasView === 'board') {
@@ -4823,6 +4863,7 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
               const focusLevel = getNodeFocusLevel(node.id, nodeFocusLevels);
               const selected = node.id === selectedNode?.id;
               const sproutIndex = sproutingNodeDelays.get(node.id);
+              const branchStats = expandableBranchStatsByParent.get(node.id);
 
               return (
                 <div
@@ -4863,11 +4904,12 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
                     selected={selected}
                   />
                   <BranchSproutToggle
-                    childNodes={expandableChildrenByParent.get(node.id) ?? []}
+                    directChildCount={branchStats?.directChildCount ?? 0}
                     expanded={expandedNodeIds.has(node.id)}
                     focusLevel={focusLevel}
                     nodeId={node.id}
                     onToggle={() => toggleExpandedNode(node.id)}
+                    totalDescendantCount={branchStats?.totalDescendantCount ?? 0}
                   />
                 </div>
               );
@@ -4955,69 +4997,124 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
         })}
       </div>
 
-      <section className='pointer-events-auto absolute left-4 top-4 z-40 w-[min(300px,calc(100vw-2rem))] rounded-lg border border-border/70 bg-background/78 px-4 py-3 shadow-lg backdrop-blur-xl'>
-        <h1 className='text-xl font-semibold tracking-tight'>Workstream Atlas</h1>
-        <div className='relative mt-3'>
-          <Search className='pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground' />
-          <input
-            ref={searchInputRef}
-            aria-label='Search atlas'
-            className='h-8 w-full rounded-md border border-border/70 bg-background/75 pl-8 pr-3 text-xs outline-none ring-offset-background transition-shadow focus:ring-2 focus:ring-ring'
-            value={query}
-            onBlur={() => {
-              globalThis.setTimeout(() => setSearchOpen(false), 120);
-            }}
-            onChange={event => {
-              setQuery(event.target.value);
-              setSearchOpen(true);
-            }}
-            onFocus={() => setSearchOpen(true)}
-            onKeyDown={event => {
-              if (event.key === 'Escape') {
-                setSearchOpen(false);
-                return;
-              }
+      <button
+        type='button'
+        aria-label='Open Atlas search'
+        title='Search Atlas (⌘K)'
+        className='pointer-events-auto absolute left-4 top-4 z-40 rounded-lg border border-border/70 bg-background/78 px-3 py-2 text-sm font-semibold tracking-tight shadow-lg backdrop-blur-xl transition-colors hover:border-primary/45 hover:bg-background/90 focus:outline-none focus:ring-2 focus:ring-ring'
+        onClick={() => setSearchOpen(true)}
+      >
+        Atlas
+      </button>
 
-              if (event.key === 'Enter' && searchMatches[0]) {
-                event.preventDefault();
-                selectSearchMatch(searchMatches[0]);
-              }
-            }}
-            placeholder='Search'
-          />
-          {searchOpen && query.trim() ? (
-            <div className='absolute left-0 right-0 top-10 z-50 max-h-80 overflow-y-auto rounded-lg border border-border/70 bg-background/95 p-1.5 shadow-2xl backdrop-blur-xl'>
-              {searchMatches.length > 0 ? (
-                searchMatches.map(node => (
-                  <button
-                    key={node.id}
-                    type='button'
-                    className='grid w-full grid-cols-[auto_1fr] items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-muted/70 focus:bg-muted/70 focus:outline-none'
-                    onClick={() => selectSearchMatch(node)}
-                    onMouseDown={event => event.preventDefault()}
-                  >
-                    <span
-                      className={cn('size-2 rounded-full', statusDotClassName(node.statusGroup))}
-                    />
-                    <span className='min-w-0'>
-                      <span className='block truncate text-xs font-medium'>{node.shortTitle}</span>
-                      <span className='mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground'>
-                        <span className='font-mono uppercase'>{node.kind}</span>
-                        <span className='truncate'>{node.path ?? node.semanticId}</span>
-                      </span>
-                    </span>
-                  </button>
-                ))
-              ) : (
-                <div className='px-2.5 py-2 text-xs text-muted-foreground'>No matches</div>
-              )}
+      {searchOpen ? (
+        <div
+          className='pointer-events-auto absolute inset-0 z-[80] flex items-start justify-center bg-background/80 px-4 pt-[min(14vh,120px)] backdrop-blur-md'
+          onMouseDown={event => {
+            if (event.target !== event.currentTarget) {
+              return;
+            }
+
+            setQuery('');
+            setSearchOpen(false);
+          }}
+        >
+          <section
+            role='dialog'
+            aria-label='Search Atlas'
+            aria-modal='true'
+            className='w-[min(680px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border/80 bg-background p-2 shadow-2xl'
+          >
+            <div className='relative'>
+              <Search className='pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
+              <input
+                ref={searchInputRef}
+                aria-label='Search atlas'
+                className='h-11 w-full rounded-lg border border-border/70 bg-background/75 pl-10 pr-16 text-sm outline-none ring-offset-background transition-shadow placeholder:text-muted-foreground focus:ring-2 focus:ring-ring'
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setQuery('');
+                    setSearchOpen(false);
+                    return;
+                  }
+
+                  if (event.key === 'Enter' && searchMatches[0]) {
+                    event.preventDefault();
+                    selectSearchMatch(searchMatches[0]);
+                  }
+                }}
+                placeholder='Search Atlas'
+              />
+              <kbd className='pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-border/80 bg-muted/75 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground'>
+                ⌘K
+              </kbd>
             </div>
-          ) : null}
+
+            {query.trim() ? (
+              <div className='mt-2 max-h-[min(60vh,560px)] overflow-y-auto rounded-lg p-1'>
+                {searchMatches.length > 0 ? (
+                  searchMatches.map(node => {
+                    const sourceParts = getSearchSourceParts(node);
+                    const planNumber = getPlanNumber(node);
+
+                    return (
+                      <button
+                        key={node.id}
+                        type='button'
+                        className='grid w-full grid-cols-[auto_1fr] items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/70 focus:bg-muted/70 focus:outline-none'
+                        title={sourceParts?.source}
+                        onClick={() => selectSearchMatch(node)}
+                      >
+                        <span
+                          className={cn(
+                            'mt-1.5 size-2 rounded-full',
+                            statusDotClassName(node.statusGroup),
+                          )}
+                        />
+                        <span className='min-w-0'>
+                          <span className='flex min-w-0 items-start gap-2'>
+                            {planNumber ? (
+                              <span className='shrink-0 rounded-md border border-primary/35 bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-semibold leading-none text-primary'>
+                                {planNumber}
+                              </span>
+                            ) : null}
+                            <span className='line-clamp-2 text-sm font-medium leading-snug'>
+                              {node.shortTitle}
+                            </span>
+                          </span>
+                          <span className='mt-1.5 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground'>
+                            <span className='shrink-0 font-mono uppercase'>{node.kind}</span>
+                            {sourceParts?.scheme ? (
+                              <span className='shrink-0 rounded border border-border/80 bg-muted/80 px-1.5 py-0.5 font-mono text-[9px] leading-none text-foreground/80'>
+                                {sourceParts.scheme}
+                              </span>
+                            ) : null}
+                            {sourceParts ? (
+                              <span className='truncate font-mono'>{sourceParts.location}</span>
+                            ) : null}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className='px-3 py-3 text-sm text-muted-foreground'>No matches</div>
+                )}
+              </div>
+            ) : (
+              <div className='px-3 py-5 text-center text-xs text-muted-foreground'>
+                Search by title, type, status, or source URI
+              </div>
+            )}
+          </section>
         </div>
-      </section>
+      ) : null}
 
       {atlasView === 'map' ? (
-        <div className='pointer-events-auto absolute right-4 top-4 z-40 flex items-center gap-2 rounded-lg border border-border/70 bg-background/78 p-2 shadow-lg backdrop-blur-xl max-sm:top-[196px] lg:right-[432px]'>
+        <div className='pointer-events-auto absolute right-4 top-4 z-40 flex items-center gap-2 rounded-lg border border-border/70 bg-background/78 p-2 shadow-lg backdrop-blur-xl max-sm:top-[72px] lg:right-[432px]'>
           {edgeFocusBackNode ? (
             <IconButton
               label={`Back to ${edgeFocusBackNode.shortTitle}`}

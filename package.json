@@ -19,7 +19,8 @@
     "verify": "pnpm test && pnpm typecheck && pnpm build"
   },
   "dependencies": {
-    "@ontahi/core": "1.0.0-alpha.9",
+    "@ontahi/core": "1.0.0-alpha.10",
+    "@ontahi/runtime-nextjs": "1.0.0-alpha.10",
     "clsx": "^2.1.1",
     "lucide-react": "^0.576.0",
     "mermaid": "^11.15.0",

@@ -32,3 +32,9 @@ The first concrete command boundary is `AtlasItem.proposePlanLink`. It accepts e
 Plan refs through the Ontahi Runtime Protocol and returns a reviewable Markdown diff without
 applying it. This proves the typed operation path while leaving natural-language routing,
 authentication, approval, and repository mutation for the broader interface.
+
+Atlas exposes that boundary through the shared Next.js Runtime Protocol adapter from
+`@ontahi/runtime-nextjs`. Atlas continues to own its dispatcher, installed family handlers, and
+trusted request-context derivation; the adapter owns only HTTP parsing, protocol error status, and
+response serialization. Legacy family-specific Fetch clients remain outside this server-boundary
+change and continue to use their existing paths until their owning migration lands.

@@ -330,3 +330,19 @@ The correction makes intrinsic source availability an explicit deployment invari
 Runtime Protocol server traces include every Atlas-owned Markdown file, and the production build
 fails if either trace omits one. GitHub App repository selection was not the cause; the installation
 already covered all repositories.
+
+### 2026-09-02 — map scanability and shared Runtime Protocol adapter
+
+A focused maintenance slice improves the Atlas navigation surface and removes a temporary server
+adapter seam:
+
+1. collapsed map branches expose direct-child and total-descendant counts;
+2. persistent search chrome gives way to a `Command-K` / `Control-K` palette with an opaque focus
+   surface, source badges, and visually prominent Plan numbers;
+3. Atlas consumes `@ontahi/core` and `@ontahi/runtime-nextjs` at exact `1.0.0-alpha.10` versions;
+4. `POST /runtime` delegates HTTP parsing, status mapping, and response serialization to the shared
+   Next.js Runtime Protocol adapter while retaining Atlas's dispatcher, handlers, and trusted
+   context derivation.
+
+Legacy family-specific Fetch clients remain unchanged; their migration belongs to the separate
+Ontahi-owned client cutover.
