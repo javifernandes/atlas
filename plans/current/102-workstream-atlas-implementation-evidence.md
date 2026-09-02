@@ -380,3 +380,16 @@ authoring and verification workflow, and the important current limitation that A
 merged PR body rather than commit trailers. Atlas, BookOps, and Ontahi point their agent
 instructions at identical repository-local copies so the convention is present where PRs are
 prepared.
+
+### 2026-09-02 — branded loading boundary and refresh diagnosis
+
+Atlas now exposes server-side source assembly through a full-canvas loading boundary instead of
+leaving a slow refresh visually inert. A standalone, theme-aware Atlas mark is shared by the splash
+and compact canvas chrome; the product name and language remain accessible HTML rather than being
+baked into the artwork.
+
+The refresh delay is not simply an absent upstream cache. Remote repository and PR reads retain
+their bounded Next.js cache, while a page render still reloads local Markdown and rebuilds the
+in-memory application, compatibility snapshot, topology, and evidence projection. This checkpoint
+adds feedback, not a hidden persistence layer. Materializing the assembled projection with explicit
+invalidation remains part of the later persistent evidence-index slice.

@@ -33,6 +33,7 @@ import {
   useState,
 } from 'react';
 
+import { AtlasMark } from '@/components/atlas-mark';
 import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { useTheme } from '@/components/theme-provider';
 import type {
@@ -5362,10 +5363,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
         type='button'
         aria-label='Open Atlas search'
         title='Search Atlas (⌘K)'
-        className='pointer-events-auto absolute left-4 top-4 z-40 rounded-lg border border-border/70 bg-background/78 px-3 py-2 text-sm font-semibold tracking-tight shadow-lg backdrop-blur-xl transition-colors hover:border-primary/45 hover:bg-background/90 focus:outline-none focus:ring-2 focus:ring-ring'
+        className='pointer-events-auto absolute left-4 top-4 z-40 inline-flex items-center gap-2 rounded-lg border border-border/70 bg-background/78 px-3 py-2 text-sm font-semibold tracking-tight shadow-lg backdrop-blur-xl transition-colors hover:border-primary/45 hover:bg-background/90 focus:outline-none focus:ring-2 focus:ring-ring'
         onClick={() => setSearchOpen(true)}
       >
-        Atlas
+        <AtlasMark className='size-7' priority />
+        <span>Atlas</span>
       </button>
 
       {searchOpen ? (
