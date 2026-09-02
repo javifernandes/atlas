@@ -317,3 +317,16 @@ The existing cron remains as a recovery path. Production registration, installat
 BookOps, and Ontahi repositories, and Vercel secret configuration are rollout steps after this PR
 is deployed. Changeset and release correlation remains the next implementation slice; Convex or
 another persistent evidence index remains deliberately deferred.
+
+### 2026-09-02 — production source-tracing correction
+
+Production rollout proved the signed webhook path with a redelivered
+`pull_request.closed` response of `202`, but also exposed a serverless packaging gap. The initial
+static build could read Atlas-owned Markdown from the checkout, while a later incremental page
+regeneration ran from a traced function that omitted `plans/` and `atlas/items/`. Atlas therefore
+lost its intrinsic node and Plans while the GitHub-backed BookOps and Ontahi sources remained.
+
+The correction makes intrinsic source availability an explicit deployment invariant: the page and
+Runtime Protocol server traces include every Atlas-owned Markdown file, and the production build
+fails if either trace omits one. GitHub App repository selection was not the cause; the installation
+already covered all repositories.

@@ -12,7 +12,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node scripts/verify-atlas-source-traces.mjs",
     "start": "next start",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
