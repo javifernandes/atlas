@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -219,6 +219,91 @@ describe('PlanWorkstreamExplorer', () => {
 
     expect(screen.getByRole('button', { name: 'Completed historical plan' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hide history' })).toBeInTheDocument();
+  });
+
+  it('shows direct and total descendant counts on collapsed branches', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      edges: [
+        {
+          id: 'parent-item-to-item-a',
+          from: 'parent-item',
+          to: 'item-a',
+          kind: 'contains',
+        },
+        {
+          id: 'item-a-to-item-b',
+          from: 'item-a',
+          to: 'item-b',
+          kind: 'contains',
+        },
+        {
+          id: 'item-a-to-item-c',
+          from: 'item-a',
+          to: 'item-c',
+          kind: 'contains',
+        },
+        {
+          id: 'item-b-to-item-d',
+          from: 'item-b',
+          to: 'item-d',
+          kind: 'contains',
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+
+    const toggle = screen.getByRole('button', {
+      name: 'Expand branch: 2 direct children, 3 total descendants',
+    });
+
+    expect(toggle).toHaveTextContent('2 / 3');
+    expect(toggle).toHaveAttribute('title', '2 direct children / 3 total descendants');
+  });
+
+  it('opens the search palette with Command-K and renders URI schemes as source badges', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
+    const federatedPlan = {
+      ...createNode('federated-plan', {
+        kind: 'plan',
+        semanticId: 'bookops://plans/68-unified-application-architecture-surface',
+        shortTitle: 'Unified Application Architecture Surface',
+        markdown: 'Federated plan details.',
+      }),
+      path: undefined,
+    };
+
+    renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, federatedPlan] } });
+    expect(screen.getByRole('button', { name: 'Open Atlas search' })).toHaveTextContent('Atlas');
+    expect(screen.queryByRole('textbox', { name: 'Search atlas' })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
+
+    const searchInput = screen.getByRole('textbox', { name: 'Search atlas' });
+    expect(screen.getByRole('dialog', { name: 'Search Atlas' })).toBeInTheDocument();
+    expect(searchInput).toHaveFocus();
+
+    await user.type(searchInput, '68');
+
+    const result = screen.getByTitle(
+      'bookops://plans/68-unified-application-architecture-surface',
+    );
+    expect(within(result).getByText('68')).toBeInTheDocument();
+    expect(within(result).getByText('bookops')).toBeInTheDocument();
+    expect(within(result).queryByText('bookops://')).not.toBeInTheDocument();
+    expect(
+      within(result).getByText('plans/68-unified-application-architecture-surface'),
+    ).toBeInTheDocument();
+    expect(result).toHaveAttribute(
+      'title',
+      'bookops://plans/68-unified-application-architecture-surface',
+    );
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Search Atlas' })).not.toBeInTheDocument();
   });
 
   it('renders explicit merged PR evidence as a navigable evolution entry', async () => {
