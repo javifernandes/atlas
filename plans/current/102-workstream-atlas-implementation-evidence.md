@@ -336,11 +336,11 @@ already covered all repositories.
 ### 2026-09-02 — PR actor presentation checkpoint
 
 PR evidence is now rendered in a dedicated implementation region attached to the target, outside
-the Past / Now / Next / Later semantic evolution columns. The rows keep merge time and
-explicit-assertion provenance textual while representing people with GitHub avatars. Author and
-merger are observed separately, deduplicated when they are the same account, and rendered as a
-stacked group with hover role details. Open PR observation can later add an in-progress evidence
-group, but PRs do not become future evolution nodes.
+the Past / Now / Next / Later semantic evolution columns. The compact row foregrounds the PR title,
+number, and relative merge age; repository and assertion kind remain available to the model but do
+not consume presentation space. Author and merger are observed separately, deduplicated when they
+are the same account, and rendered as a stacked group with hover role details. Open PR observation
+can later add an in-progress evidence group, but PRs do not become future evolution nodes.
 
 ### 2026-09-02 — map scanability and shared Runtime Protocol adapter
 

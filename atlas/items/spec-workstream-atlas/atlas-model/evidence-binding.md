@@ -27,10 +27,12 @@ now, next, or later stages; a Pull Request instead provides observed implementat
 target it binds. Merged PRs are completed evidence, open PRs may later appear as in-progress
 evidence, and PRs never occupy future stages.
 
-The attached evidence row keeps merge time and assertion provenance textual, while GitHub actors
-appear as a compact avatar stack. The current Pull Request projection observes the PR author and the
-user who merged it, deduplicates one person carrying both roles, and exposes role detail on hover.
-GitHub's avatar URLs remain observed presentation metadata rather than Atlas-authored Markdown.
+The attached evidence row foregrounds the Pull Request title, number, and compact relative merge
+age. Repository and assertion provenance stay in the evidence model without occupying the default
+presentation. GitHub actors appear as a compact avatar stack: the projection observes the PR author
+and the user who merged it, deduplicates one person carrying both roles, and exposes role detail on
+hover. GitHub's avatar URLs remain observed presentation metadata rather than Atlas-authored
+Markdown.
 
 A GitHub App webhook provides the authenticated merge signal and invalidates the relevant source
 projection. It does not make the webhook payload authoritative, mirror the PR into Markdown, mutate

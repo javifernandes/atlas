@@ -316,6 +316,7 @@ describe('PlanWorkstreamExplorer', () => {
   it('renders explicit merged PR evidence as an attachment outside evolution stages', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();
+    const mergedAt = new Date(Date.now() - 3 * 60 * 60 * 1_000).toISOString();
     const value: PlanWorkstreamSnapshot = {
       ...snapshot,
       evidence: [
@@ -330,7 +331,7 @@ describe('PlanWorkstreamExplorer', () => {
             mergeCommitSha: 'abc123',
             mergedByAvatarUrl: 'https://avatars.example/maintainer',
             mergedByLogin: 'maintainer',
-            mergedAt: '2026-09-01T10:00:00Z',
+            mergedAt,
             number: 42,
             repositoryFullName: 'acme/product',
             title: 'Connect implementation evidence',
@@ -361,8 +362,11 @@ describe('PlanWorkstreamExplorer', () => {
       }),
     ).not.toBeInTheDocument();
     expect(pullRequest).toHaveAttribute('href', 'https://github.com/acme/product/pull/42');
-    expect(within(pullRequest).getByText('acme/product#42')).toBeInTheDocument();
-    expect(within(pullRequest).getByText('shapes')).toBeInTheDocument();
+    expect(within(pullRequest).getByText('#42')).toBeInTheDocument();
+    expect(within(pullRequest).getByText('3h ago')).toHaveAttribute('title');
+    expect(within(pullRequest).queryByText('acme/product')).not.toBeInTheDocument();
+    expect(within(pullRequest).queryByText('shapes')).not.toBeInTheDocument();
+    expect(within(pullRequest).queryByText(/explicit PR assertion/)).not.toBeInTheDocument();
     expect(within(pullRequest).queryByText(/by javi/)).not.toBeInTheDocument();
     expect(
       within(pullRequest).getByRole('img', { name: '@javi · PR author avatar' }),

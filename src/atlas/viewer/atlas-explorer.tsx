@@ -207,8 +207,53 @@ const focusScale = 0.86;
 const searchMatchLimit = 12;
 const evidenceDateFormatter = new Intl.DateTimeFormat('en', {
   dateStyle: 'medium',
+  timeStyle: 'short',
   timeZone: 'UTC',
 });
+const formatEvidenceRelativeTime = (value: string, now = Date.now()) => {
+  const timestamp = new Date(value).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return value;
+  }
+
+  const elapsedMilliseconds = Math.max(0, now - timestamp);
+  const elapsedMinutes = Math.floor(elapsedMilliseconds / 60_000);
+
+  if (elapsedMinutes < 1) {
+    return 'just now';
+  }
+
+  if (elapsedMinutes < 60) {
+    return `${elapsedMinutes}m ago`;
+  }
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+
+  if (elapsedHours < 24) {
+    return `${elapsedHours}h ago`;
+  }
+
+  const elapsedDays = Math.floor(elapsedHours / 24);
+
+  if (elapsedDays < 7) {
+    return `${elapsedDays}d ago`;
+  }
+
+  const elapsedWeeks = Math.floor(elapsedDays / 7);
+
+  if (elapsedWeeks < 5) {
+    return `${elapsedWeeks}w ago`;
+  }
+
+  const elapsedMonths = Math.floor(elapsedDays / 30);
+
+  if (elapsedMonths < 12) {
+    return `${elapsedMonths}mo ago`;
+  }
+
+  return `${Math.floor(elapsedDays / 365)}y ago`;
+};
 const allStatuses: PlanStatusGroup[] = [
   'current',
   'next',
@@ -1682,20 +1727,19 @@ const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvid
                 <GitPullRequest className='size-3.5 text-emerald-500 dark:text-emerald-300' />
               </span>
               <span className='min-w-0 flex-1'>
-                <span className='flex min-w-0 flex-wrap items-center gap-2'>
-                  <span className='font-mono text-[10px] uppercase text-emerald-700 dark:text-emerald-300'>
-                    {binding.kind}
+                <span className='flex min-w-0 items-baseline gap-1.5'>
+                  <span className='truncate text-xs font-medium text-foreground'>
+                    {binding.pullRequest.title}
                   </span>
-                  <span className='font-mono text-[10px] text-muted-foreground'>
-                    {binding.pullRequest.repositoryFullName}#{binding.pullRequest.number}
+                  <span className='shrink-0 font-mono text-[10px] text-muted-foreground'>
+                    #{binding.pullRequest.number}
                   </span>
                 </span>
-                <span className='mt-0.5 block truncate text-xs font-medium text-foreground'>
-                  {binding.pullRequest.title}
-                </span>
-                <span className='mt-0.5 block truncate text-[10px] text-muted-foreground'>
-                  Merged {evidenceDateFormatter.format(new Date(binding.pullRequest.mergedAt))}
-                  {' · explicit PR assertion'}
+                <span
+                  className='mt-0.5 block truncate text-[10px] text-muted-foreground'
+                  title={evidenceDateFormatter.format(new Date(binding.pullRequest.mergedAt))}
+                >
+                  {formatEvidenceRelativeTime(binding.pullRequest.mergedAt)}
                 </span>
               </span>
               {actors.length > 0 ? (
