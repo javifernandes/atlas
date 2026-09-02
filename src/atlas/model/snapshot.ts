@@ -88,8 +88,11 @@ export type PlanWorkstreamEvidence = {
   provenance: 'explicit';
   targetNodeId: string;
   pullRequest: {
+    authorAvatarUrl: string | null;
     authorLogin: string | null;
     mergeCommitSha: string | null;
+    mergedByAvatarUrl: string | null;
+    mergedByLogin: string | null;
     mergedAt: string;
     number: number;
     repositoryFullName: string;

@@ -142,22 +142,37 @@ describe('PlanWorkstreamExplorer', () => {
     renderExplorer();
 
     let dialog = screen.getByRole('dialog');
+    const detailTitle = within(dialog).getByRole('heading', { name: 'Item A' });
+    const titleRow = detailTitle.parentElement;
+
+    expect(titleRow).not.toBeNull();
+    expect(
+      within(titleRow as HTMLElement).getByRole('navigation', { name: 'Detail sections' }),
+    ).toBeInTheDocument();
     expect(within(dialog).getByText('Item A overview text.')).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: 'evolution' }));
+    const evolutionLink = within(dialog).getByRole('link', { name: 'evolution' });
+    expect(evolutionLink).toHaveAttribute(
+      'href',
+      '/internal/plans?full=item-a&section=evolution',
+    );
+
+    await user.click(evolutionLink);
+    expect(globalThis.location.search).toBe('?full=item-a&section=evolution');
     expect(within(dialog).queryByText('Item A overview text.')).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Item C' })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Item D' })).not.toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: 'context' }));
-    expect(within(dialog).getAllByRole('button', { name: 'Parent Item' })).toHaveLength(2);
+    await user.click(within(dialog).getByRole('link', { name: 'context' }));
+    expect(globalThis.location.search).toBe('?full=item-a&section=context');
+    expect(within(dialog).getAllByRole('button', { name: 'Parent Item' })).toHaveLength(1);
     expect(
       within(dialog).queryByRole('button', { name: /contained by\s*Parent Item/ }),
     ).not.toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /supports\s*Item C/ })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /related\s*Item D/ })).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: 'evolution' }));
+    await user.click(within(dialog).getByRole('link', { name: 'evolution' }));
     await user.click(within(dialog).getByRole('button', { name: 'Item B' }));
 
     dialog = screen.getByRole('dialog');
@@ -168,6 +183,88 @@ describe('PlanWorkstreamExplorer', () => {
     dialog = screen.getByRole('dialog');
     expect(within(dialog).queryByText('Item A overview text.')).not.toBeInTheDocument();
     expect(within(dialog).getByText('Item B summary.')).toBeInTheDocument();
+    expect(new URLSearchParams(globalThis.location.search).get('full')).toBe('item-a');
+    expect(new URLSearchParams(globalThis.location.search).get('section')).toBe('evolution');
+  });
+
+  it('opens a directly linked full-detail section', () => {
+    globalThis.history.replaceState(
+      {},
+      '',
+      '/internal/plans?full=item-a&section=context',
+    );
+
+    renderExplorer();
+
+    const dialog = screen.getByRole('dialog');
+    const contextLink = within(dialog).getByRole('link', { name: 'context' });
+
+    expect(contextLink).toHaveAttribute('aria-current', 'page');
+    expect(within(dialog).queryByText('Item A overview text.')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /supports\s*Item C/ })).toBeInTheDocument();
+  });
+
+  it('navigates to the parent and direct children inside the same modal', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const user = userEvent.setup();
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-a'
+          ? {
+              ...node,
+              markdown: `Item A overview text.
+
+## Child Items
+
+- [[item-c|Item C]]`,
+            }
+          : node,
+      ),
+      edges: [
+        ...snapshot.edges,
+        {
+          id: 'item-a-contains-item-c',
+          from: 'item-a',
+          to: 'item-c',
+          kind: 'contains',
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+
+    const dialog = screen.getByRole('dialog');
+    const parentLink = within(dialog).getByRole('link', {
+      name: 'Parent node: Parent Item',
+    });
+    const childNavigation = within(dialog).getByRole('navigation', { name: 'Child nodes' });
+    const childLink = within(childNavigation).getByRole('link', {
+      name: 'Child node: Item C',
+    });
+
+    expect(within(dialog).queryByRole('heading', { name: 'Child Items' })).not.toBeInTheDocument();
+    expect(
+      new URL(parentLink.getAttribute('href') ?? '', 'http://atlas.local').searchParams.get('full'),
+    ).toBe('parent-item');
+    expect(
+      new URL(childLink.getAttribute('href') ?? '', 'http://atlas.local').searchParams.get('full'),
+    ).toBe('item-c');
+
+    await user.click(childLink);
+
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(within(dialog).getByRole('heading', { name: 'Item C' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Back to Item A' })).not.toBeInTheDocument();
+
+    await user.click(
+      within(dialog).getByRole('link', {
+        name: 'Parent node: Item A',
+      }),
+    );
+
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(within(dialog).getByRole('heading', { name: 'Item A' })).toBeInTheDocument();
   });
 
   it('keeps indented markdown continuations inside their checklist and list items', () => {
@@ -306,9 +403,10 @@ describe('PlanWorkstreamExplorer', () => {
     expect(screen.queryByRole('dialog', { name: 'Search Atlas' })).not.toBeInTheDocument();
   });
 
-  it('renders explicit merged PR evidence as a navigable evolution entry', async () => {
+  it('renders explicit merged PR evidence as an attachment outside evolution stages', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();
+    const mergedAt = new Date(Date.now() - 3 * 60 * 60 * 1_000).toISOString();
     const value: PlanWorkstreamSnapshot = {
       ...snapshot,
       evidence: [
@@ -318,9 +416,12 @@ describe('PlanWorkstreamExplorer', () => {
           provenance: 'explicit',
           targetNodeId: 'item-a',
           pullRequest: {
+            authorAvatarUrl: 'https://avatars.example/javi',
             authorLogin: 'javi',
             mergeCommitSha: 'abc123',
-            mergedAt: '2026-09-01T10:00:00Z',
+            mergedByAvatarUrl: 'https://avatars.example/maintainer',
+            mergedByLogin: 'maintainer',
+            mergedAt,
             number: 42,
             repositoryFullName: 'acme/product',
             title: 'Connect implementation evidence',
@@ -333,14 +434,37 @@ describe('PlanWorkstreamExplorer', () => {
     renderExplorer({ value });
     const dialog = screen.getByRole('dialog');
 
-    await user.click(within(dialog).getByRole('button', { name: 'evolution' }));
+    await user.click(within(dialog).getByRole('link', { name: 'evolution' }));
 
-    const pullRequest = within(dialog).getByRole('link', {
+    const implementationEvidence = within(dialog).getByRole('region', {
+      name: 'Implementation evidence',
+    });
+    const pullRequest = within(implementationEvidence).getByRole('link', {
       name: /Connect implementation evidence/,
     });
+    const pastColumn = within(dialog).getByRole('heading', { name: 'Past' }).closest('section');
+
+    expect(within(implementationEvidence).getByText('1 merged PR')).toBeInTheDocument();
+    expect(pastColumn).not.toBeNull();
+    expect(
+      within(pastColumn as HTMLElement).queryByRole('link', {
+        name: /Connect implementation evidence/,
+      }),
+    ).not.toBeInTheDocument();
     expect(pullRequest).toHaveAttribute('href', 'https://github.com/acme/product/pull/42');
-    expect(within(pullRequest).getByText('acme/product#42')).toBeInTheDocument();
-    expect(within(pullRequest).getByText('shapes')).toBeInTheDocument();
+    expect(within(pullRequest).getByText('#42')).toBeInTheDocument();
+    expect(within(pullRequest).getByText('3h ago')).toHaveAttribute('title');
+    expect(within(pullRequest).queryByText('acme/product')).not.toBeInTheDocument();
+    expect(within(pullRequest).queryByText('shapes')).not.toBeInTheDocument();
+    expect(within(pullRequest).queryByText(/explicit PR assertion/)).not.toBeInTheDocument();
+    expect(within(pullRequest).queryByText(/by javi/)).not.toBeInTheDocument();
+    expect(
+      within(pullRequest).getByRole('img', { name: '@javi · PR author avatar' }),
+    ).toHaveAttribute('src', 'https://avatars.example/javi');
+    expect(
+      within(pullRequest).getByRole('img', { name: '@maintainer · Merged PR avatar' }),
+    ).toHaveAttribute('src', 'https://avatars.example/maintainer');
+    expect(within(pullRequest).getByLabelText('Pull request actors')).toHaveClass('-space-x-2');
   });
 
 });

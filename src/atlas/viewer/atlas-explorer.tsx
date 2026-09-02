@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   BookOpen,
   Check,
   Columns3,
@@ -51,6 +52,15 @@ type PlanWorkstreamExplorerProps = {
 type FullMarkdownModalTab = 'context' | 'evolution' | 'overview' | 'source';
 
 const defaultFullMarkdownModalTab: FullMarkdownModalTab = 'overview';
+const fullMarkdownModalTabs = [
+  'overview',
+  'evolution',
+  'context',
+  'source',
+] satisfies FullMarkdownModalTab[];
+
+const isFullMarkdownModalTab = (value: string | null): value is FullMarkdownModalTab =>
+  fullMarkdownModalTabs.some(tab => tab === value);
 
 type PositionedNode = PlanWorkstreamNode & {
   x: number;
@@ -193,6 +203,7 @@ type EvolutionEntry = {
 
 type AtlasRouteState = {
   fullNodeId: string | null;
+  fullNodeTab: FullMarkdownModalTab;
   selectedNodeId: string | null;
 };
 
@@ -207,8 +218,53 @@ const focusScale = 0.86;
 const searchMatchLimit = 12;
 const evidenceDateFormatter = new Intl.DateTimeFormat('en', {
   dateStyle: 'medium',
+  timeStyle: 'short',
   timeZone: 'UTC',
 });
+const formatEvidenceRelativeTime = (value: string, now = Date.now()) => {
+  const timestamp = new Date(value).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return value;
+  }
+
+  const elapsedMilliseconds = Math.max(0, now - timestamp);
+  const elapsedMinutes = Math.floor(elapsedMilliseconds / 60_000);
+
+  if (elapsedMinutes < 1) {
+    return 'just now';
+  }
+
+  if (elapsedMinutes < 60) {
+    return `${elapsedMinutes}m ago`;
+  }
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+
+  if (elapsedHours < 24) {
+    return `${elapsedHours}h ago`;
+  }
+
+  const elapsedDays = Math.floor(elapsedHours / 24);
+
+  if (elapsedDays < 7) {
+    return `${elapsedDays}d ago`;
+  }
+
+  const elapsedWeeks = Math.floor(elapsedDays / 7);
+
+  if (elapsedWeeks < 5) {
+    return `${elapsedWeeks}w ago`;
+  }
+
+  const elapsedMonths = Math.floor(elapsedDays / 30);
+
+  if (elapsedMonths < 12) {
+    return `${elapsedMonths}mo ago`;
+  }
+
+  return `${Math.floor(elapsedDays / 365)}y ago`;
+};
 const allStatuses: PlanStatusGroup[] = [
   'current',
   'next',
@@ -220,6 +276,7 @@ const allStatuses: PlanStatusGroup[] = [
 
 const emptyRouteState: AtlasRouteState = {
   fullNodeId: null,
+  fullNodeTab: defaultFullMarkdownModalTab,
   selectedNodeId: null,
 };
 
@@ -551,19 +608,23 @@ const readAtlasRouteState = (): AtlasRouteState => {
   }
 
   const searchParams = new URL(globalThis.location.href).searchParams;
+  const fullNodeId = searchParams.get('full');
+  const requestedFullNodeTab = searchParams.get('section');
 
   return {
-    fullNodeId: searchParams.get('full'),
+    fullNodeId,
+    fullNodeTab:
+      fullNodeId && isFullMarkdownModalTab(requestedFullNodeTab)
+        ? requestedFullNodeTab
+        : defaultFullMarkdownModalTab,
     selectedNodeId: searchParams.get('node'),
   };
 };
 
-const writeAtlasRouteState = (state: AtlasRouteState, mode: 'push' | 'replace' = 'push') => {
-  if (typeof globalThis.window === 'undefined') {
-    return;
-  }
-
-  const nextUrl = new URL(globalThis.location.href);
+const getAtlasRouteUrl = (state: AtlasRouteState) => {
+  const nextUrl = new URL(
+    typeof globalThis.window === 'undefined' ? 'http://atlas.local/' : globalThis.location.href,
+  );
 
   if (state.selectedNodeId) {
     nextUrl.searchParams.set('node', state.selectedNodeId);
@@ -576,6 +637,28 @@ const writeAtlasRouteState = (state: AtlasRouteState, mode: 'push' | 'replace' =
   } else {
     nextUrl.searchParams.delete('full');
   }
+
+  if (state.fullNodeId && state.fullNodeTab !== defaultFullMarkdownModalTab) {
+    nextUrl.searchParams.set('section', state.fullNodeTab);
+  } else {
+    nextUrl.searchParams.delete('section');
+  }
+
+  return nextUrl;
+};
+
+const getAtlasRouteHref = (state: AtlasRouteState) => {
+  const nextUrl = getAtlasRouteUrl(state);
+
+  return `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+};
+
+const writeAtlasRouteState = (state: AtlasRouteState, mode: 'push' | 'replace' = 'push') => {
+  if (typeof globalThis.window === 'undefined') {
+    return;
+  }
+
+  const nextUrl = getAtlasRouteUrl(state);
 
   const currentPath = `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}`;
   const nextPath = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
@@ -1619,38 +1702,122 @@ const EvolutionEntryList = ({
     </div>
   );
 
-const PullRequestEvidenceList = ({ evidence }: { evidence: PlanWorkstreamEvidence[] }) =>
+const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvidence[] }) =>
   evidence.length === 0 ? null : (
-    <div className='grid gap-2'>
-      {evidence.map(binding => (
-        <a
-          key={binding.id}
-          className='grid gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5 text-left transition-colors hover:border-emerald-400/55 hover:bg-emerald-500/10'
-          href={binding.pullRequest.url}
-          rel='noreferrer'
-          target='_blank'
-        >
-          <span className='flex min-w-0 flex-wrap items-center gap-2'>
-            <GitPullRequest className='size-3.5 text-emerald-400' />
-            <span className='font-mono text-[10px] uppercase text-emerald-300'>
-              {binding.kind}
-            </span>
-            <span className='font-mono text-[10px] text-muted-foreground'>
-              {binding.pullRequest.repositoryFullName}#{binding.pullRequest.number}
-            </span>
-            <ExternalLink className='ml-auto size-3 text-muted-foreground' />
-          </span>
-          <span className='line-clamp-2 text-sm font-medium text-foreground'>
-            {binding.pullRequest.title}
-          </span>
-          <span className='text-[11px] text-muted-foreground'>
-            Merged {evidenceDateFormatter.format(new Date(binding.pullRequest.mergedAt))}
-            {binding.pullRequest.authorLogin ? ` by ${binding.pullRequest.authorLogin}` : ''}
-            {' · explicit PR assertion'}
-          </span>
-        </a>
-      ))}
-    </div>
+    <section
+      aria-label='Implementation evidence'
+      className='flex shrink-0 flex-col gap-2 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:gap-4'
+    >
+      <header className='flex shrink-0 items-center justify-between gap-3 sm:block sm:w-32'>
+        <h3 className='font-mono text-[11px] uppercase text-foreground'>Implementation</h3>
+        <span className='mt-1 block font-mono text-[10px] uppercase text-emerald-700 dark:text-emerald-300'>
+          {evidence.length} merged {evidence.length === 1 ? 'PR' : 'PRs'}
+        </span>
+      </header>
+      <div className='flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1'>
+        {evidence.map(binding => {
+          const actors = [
+            {
+              avatarUrl: binding.pullRequest.authorAvatarUrl,
+              login: binding.pullRequest.authorLogin,
+              role: 'PR author',
+            },
+            {
+              avatarUrl: binding.pullRequest.mergedByAvatarUrl,
+              login: binding.pullRequest.mergedByLogin,
+              role: 'Merged PR',
+            },
+          ].reduce<Array<{ avatarUrl: string | null; login: string; roles: string[] }>>(
+            (entries, actor) => {
+              if (!actor.login) {
+                return entries;
+              }
+
+              const existing = entries.find(
+                entry => entry.login.toLowerCase() === actor.login?.toLowerCase(),
+              );
+
+              if (existing) {
+                existing.avatarUrl ??= actor.avatarUrl;
+                existing.roles.push(actor.role);
+              } else {
+                entries.push({
+                  avatarUrl: actor.avatarUrl,
+                  login: actor.login,
+                  roles: [actor.role],
+                });
+              }
+
+              return entries;
+            },
+            [],
+          );
+
+          return (
+            <a
+              key={binding.id}
+              className='flex min-w-[min(18rem,78vw)] max-w-sm flex-1 items-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/[0.04] px-2.5 py-2 text-left transition-colors hover:border-emerald-400/55 hover:bg-emerald-500/[0.08]'
+              href={binding.pullRequest.url}
+              rel='noreferrer'
+              target='_blank'
+            >
+              <span className='grid size-7 shrink-0 place-items-center rounded-full border border-emerald-500/25 bg-emerald-500/10'>
+                <GitPullRequest className='size-3.5 text-emerald-500 dark:text-emerald-300' />
+              </span>
+              <span className='min-w-0 flex-1'>
+                <span className='flex min-w-0 items-baseline gap-1.5'>
+                  <span className='truncate text-xs font-medium text-foreground'>
+                    {binding.pullRequest.title}
+                  </span>
+                  <span className='shrink-0 font-mono text-[10px] text-muted-foreground'>
+                    #{binding.pullRequest.number}
+                  </span>
+                </span>
+                <span
+                  className='mt-0.5 block truncate text-[10px] text-muted-foreground'
+                  title={evidenceDateFormatter.format(new Date(binding.pullRequest.mergedAt))}
+                >
+                  {formatEvidenceRelativeTime(binding.pullRequest.mergedAt)}
+                </span>
+              </span>
+              {actors.length > 0 ? (
+                <span aria-label='Pull request actors' className='flex shrink-0 -space-x-2'>
+                  {actors.map(actor => {
+                    const details = `@${actor.login} · ${actor.roles.join(' · ')}`;
+                    const avatarUrl =
+                      actor.avatarUrl ?? `https://github.com/${actor.login}.png?size=64`;
+
+                    return (
+                      <span
+                        key={actor.login}
+                        className='group/actor relative block rounded-full ring-2 ring-background'
+                        title={details}
+                      >
+                        <img
+                          alt={`${details} avatar`}
+                          className='size-5 rounded-full bg-muted object-cover'
+                          height={20}
+                          loading='lazy'
+                          src={avatarUrl}
+                          width={20}
+                        />
+                        <span
+                          role='tooltip'
+                          className='pointer-events-none absolute bottom-full right-0 z-20 mb-2 w-max max-w-52 translate-y-1 rounded-md border border-border/80 bg-popover px-2 py-1 text-[10px] font-medium text-popover-foreground opacity-0 shadow-lg transition-[opacity,transform] group-hover/actor:translate-y-0 group-hover/actor:opacity-100'
+                        >
+                          {details}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </span>
+              ) : null}
+              <ExternalLink className='size-3.5 shrink-0 text-muted-foreground' />
+            </a>
+          );
+        })}
+      </div>
+    </section>
   );
 
 const EvolutionBoardColumn = ({
@@ -2001,6 +2168,52 @@ const getMarkdownHeadingId = (lineIndex: number, content: string) => {
     .replaceAll(/^-|-$/g, '');
 
   return `section-${lineIndex}-${slug || 'heading'}`;
+};
+
+const omitMarkdownSection = (body: string, sectionLabel: string) => {
+  const lines = body.replaceAll('\r\n', '\n').split('\n');
+  const retainedLines: string[] = [];
+  const normalizedSectionLabel = getMarkdownHeadingLabel(sectionLabel).toLowerCase();
+  let insideCodeFence = false;
+  let omittedHeadingLevel: number | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('```')) {
+      insideCodeFence = !insideCodeFence;
+
+      if (omittedHeadingLevel === null) {
+        retainedLines.push(line);
+      }
+
+      continue;
+    }
+
+    if (!insideCodeFence) {
+      const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+
+      if (heading) {
+        const headingLevel = heading[1]?.length ?? 0;
+        const headingLabel = getMarkdownHeadingLabel(heading[2] ?? '').toLowerCase();
+
+        if (omittedHeadingLevel !== null && headingLevel <= omittedHeadingLevel) {
+          omittedHeadingLevel = null;
+        }
+
+        if (omittedHeadingLevel === null && headingLabel === normalizedSectionLabel) {
+          omittedHeadingLevel = headingLevel;
+          continue;
+        }
+      }
+    }
+
+    if (omittedHeadingLevel === null) {
+      retainedLines.push(line);
+    }
+  }
+
+  return retainedLines.join('\n').replaceAll(/\n{3,}/g, '\n\n').trim();
 };
 
 const extractMarkdownSections = (body: string): MarkdownSection[] => {
@@ -3104,6 +3317,8 @@ const FullMarkdownModal = ({
   nodesBySemanticId,
   node,
   navigationBackNode,
+  getNodeHref,
+  getTabHref,
   onActiveTabChange,
   onClose,
   onNavigateBack,
@@ -3118,6 +3333,8 @@ const FullMarkdownModal = ({
   nodesBySemanticId: Map<string, PlanWorkstreamNode>;
   node: PlanWorkstreamNode;
   navigationBackNode: PlanWorkstreamNode | null;
+  getNodeHref: (nodeId: string) => string;
+  getTabHref: (tab: FullMarkdownModalTab) => string;
   onActiveTabChange: (tab: FullMarkdownModalTab) => void;
   onClose: () => void;
   onNavigateBack: () => void;
@@ -3125,14 +3342,6 @@ const FullMarkdownModal = ({
   semanticSignals: SemanticSignal[];
 }) => {
   const parsedDocument = useMemo(() => parseMarkdownDocument(node), [node]);
-  const markdownSections = useMemo(
-    () => extractMarkdownSections(parsedDocument.body),
-    [parsedDocument.body],
-  );
-  const markdownSectionGroups = useMemo(
-    () => getMarkdownSectionGroups(markdownSections, node),
-    [markdownSections, node],
-  );
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
       nodesByPath,
@@ -3167,6 +3376,31 @@ const FullMarkdownModal = ({
   const breadcrumb = useMemo(
     () => getNodeBreadcrumb(node.id, edges, nodesById),
     [edges, node.id, nodesById],
+  );
+  const parentNode = useMemo(() => {
+    const parentEdge = edges.find(edge => edge.kind === 'contains' && edge.to === node.id);
+
+    return parentEdge ? (nodesById.get(parentEdge.from) ?? null) : null;
+  }, [edges, node.id, nodesById]);
+  const childNodes = useMemo(
+    () =>
+      outgoing
+        .filter(edge => edge.kind === 'contains')
+        .map(edge => nodesById.get(edge.to))
+        .filter((child): child is PlanWorkstreamNode => Boolean(child)),
+    [nodesById, outgoing],
+  );
+  const overviewBody = useMemo(
+    () =>
+      childNodes.length > 0
+        ? omitMarkdownSection(parsedDocument.body, 'Child Items')
+        : parsedDocument.body,
+    [childNodes.length, parsedDocument.body],
+  );
+  const markdownSections = useMemo(() => extractMarkdownSections(overviewBody), [overviewBody]);
+  const markdownSectionGroups = useMemo(
+    () => getMarkdownSectionGroups(markdownSections, node),
+    [markdownSections, node],
   );
   const pastEntries = evolutionEntries.filter(entry => entry.stage === 'past');
   const currentEntries = evolutionEntries.filter(entry => entry.stage === 'now');
@@ -3206,71 +3440,96 @@ const FullMarkdownModal = ({
         className='absolute left-1/2 top-1/2 flex h-[min(88vh,920px)] w-[min(1180px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-border/80 bg-card/95 shadow-2xl'
         onClick={event => event.stopPropagation()}
       >
-        <div className='flex items-start gap-4 border-b border-border/70 px-5 py-4'>
-          <div className='min-w-0 flex-1'>
-            <div className='flex flex-wrap items-center gap-2'>
-              <span className={cn('size-2 rounded-full', statusDotClassName(node.statusGroup))} />
-              <span className='font-mono text-xs uppercase text-muted-foreground'>{node.kind}</span>
-              <span className='font-mono text-xs text-muted-foreground'>{node.status}</span>
-            </div>
-            {breadcrumb.length > 0 ? (
-              <div className='mt-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground'>
-                {breadcrumb.map((crumb, crumbIndex) => (
-                  <Fragment key={crumb.id}>
-                    {crumbIndex > 0 ? <span className='text-muted-foreground/60'>/</span> : null}
-                    <button
-                      type='button'
-                      className='max-w-[180px] truncate rounded-sm underline-offset-4 transition-colors hover:text-foreground hover:underline'
-                      title={crumb.path ?? crumb.semanticId}
-                      onClick={() => onOpenFull(crumb.id)}
-                    >
-                      {crumb.shortTitle}
-                    </button>
-                  </Fragment>
-                ))}
-              </div>
-            ) : null}
-            <h2 className='mt-2 max-w-3xl text-2xl font-semibold leading-tight tracking-tight'>
-              {node.shortTitle}
-            </h2>
-          </div>
-          <div className='flex shrink-0 items-center gap-2'>
-            {navigationBackNode ? (
-              <button
-                type='button'
-                className='inline-flex h-9 max-w-[13rem] items-center gap-2 rounded-md border border-border/70 bg-background/55 px-2.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors hover:border-primary/45 hover:bg-primary/10 hover:text-foreground'
-                title={`Back to ${navigationBackNode.shortTitle}`}
+        <header className='relative border-b border-border/70 px-5 pb-4 pt-3'>
+          {parentNode ? (
+            <nav aria-label='Parent node' className='flex min-h-7 justify-center px-20'>
+              <a
+                aria-label={`Parent node: ${parentNode.shortTitle}`}
+                className='group/parent inline-flex max-w-[min(20rem,50vw)] items-center gap-2 rounded-full px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
+                href={getNodeHref(parentNode.id)}
+                title={parentNode.path ?? parentNode.semanticId}
+                onClick={event => {
+                  if (
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  ) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  onOpenFull(parentNode.id);
+                }}
+              >
+                <ArrowUp className='size-3.5 shrink-0 transition-transform group-hover/parent:-translate-y-0.5' />
+                <span className='font-mono text-[9px] uppercase text-muted-foreground/70'>
+                  Parent
+                </span>
+                <span className='truncate font-medium'>{parentNode.shortTitle}</span>
+              </a>
+            </nav>
+          ) : null}
+
+          <div className='absolute right-5 top-3 flex items-center gap-2'>
+            {navigationBackNode && navigationBackNode.id !== parentNode?.id ? (
+              <IconButton
+                label={`Back to ${navigationBackNode.shortTitle}`}
                 onClick={onNavigateBack}
               >
-                <ArrowLeft className='size-4 shrink-0' />
-                <span className='min-w-0 truncate'>{navigationBackNode.shortTitle}</span>
-              </button>
+                <ArrowLeft className='size-4' />
+              </IconButton>
             ) : null}
             <IconButton label='Close full detail' onClick={onClose}>
               <X className='size-4' />
             </IconButton>
           </div>
-        </div>
 
-        <div className='flex gap-1 border-b border-border/70 px-5 py-2'>
-          {(['overview', 'evolution', 'context', 'source'] satisfies FullMarkdownModalTab[]).map(
-            tab => (
-              <button
-                key={tab}
-                type='button'
-                className={cn(
-                  'rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors',
-                  activeTab === tab
-                    ? 'bg-primary/12 text-foreground'
-                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                )}
-                onClick={() => onActiveTabChange(tab)}
-              >
-                {tab}
-              </button>
-            ),
-          )}
-        </div>
+          <div className={cn('min-w-0', parentNode && 'mt-1')}>
+            <div className='flex flex-wrap items-center gap-2'>
+              <span className={cn('size-2 rounded-full', statusDotClassName(node.statusGroup))} />
+              <span className='font-mono text-xs uppercase text-muted-foreground'>{node.kind}</span>
+              <span className='font-mono text-xs text-muted-foreground'>{node.status}</span>
+            </div>
+            <div className='mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2'>
+              <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
+                {node.shortTitle}
+              </h2>
+              <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
+                {fullMarkdownModalTabs.map(tab => (
+                  <a
+                    key={tab}
+                    aria-current={activeTab === tab ? 'page' : undefined}
+                    className={cn(
+                      'rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors',
+                      activeTab === tab
+                        ? 'bg-primary/12 text-foreground'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    )}
+                    href={getTabHref(tab)}
+                    onClick={event => {
+                      if (
+                        event.button !== 0 ||
+                        event.metaKey ||
+                        event.ctrlKey ||
+                        event.shiftKey ||
+                        event.altKey
+                      ) {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      onActiveTabChange(tab);
+                    }}
+                  >
+                    {tab}
+                  </a>
+                ))}
+              </nav>
+            </div>
+          </div>
+        </header>
 
         <div
           className={cn(
@@ -3281,7 +3540,7 @@ const FullMarkdownModal = ({
           {activeTab === 'overview' ? (
             <div className='grid min-w-0 gap-6 px-1 sm:px-2 xl:grid-cols-[minmax(0,1fr)_12rem]'>
               <article className='grid min-w-0 max-w-full gap-5 overflow-hidden break-words xl:pr-2 [&>*]:min-w-0 [&>*]:max-w-full'>
-                {renderMarkdownBody(parsedDocument.body, markdownContext)}
+                {renderMarkdownBody(overviewBody, markdownContext)}
               </article>
               <MarkdownSectionIndex groups={markdownSectionGroups} />
             </div>
@@ -3290,73 +3549,76 @@ const FullMarkdownModal = ({
           {activeTab === 'evolution' ? (
             <div className='min-h-0 px-1 sm:px-2 lg:h-full'>
               {hasEvolutionContent ? (
-                <div className='grid gap-4 lg:h-full lg:min-h-0 lg:grid-cols-4 lg:gap-0'>
-                  <EvolutionBoardColumn
-                    count={pastEntries.length + evolutionSignals.length + nodeEvidence.length}
-                    subtitle='Materialized work, decisions, and evidence that explain how this shape arrived here.'
-                    title='Past'
-                  >
-                    <EvolutionEntryList
-                      entries={pastEntries}
-                      markdownContext={markdownContext}
-                      onOpenFull={onOpenFull}
-                    />
-                    <PullRequestEvidenceList evidence={nodeEvidence} />
-                    <SemanticSignalList
-                      markdownContext={markdownContext}
-                      nodesById={nodesById}
-                      onOpenFull={onOpenFull}
-                      signals={evolutionSignals}
-                    />
-                  </EvolutionBoardColumn>
+                <div className='flex min-h-0 flex-col gap-6 lg:h-full'>
+                  <PullRequestEvidenceSection evidence={nodeEvidence} />
 
-                  <EvolutionBoardColumn
-                    count={currentEntries.length + tensionSignals.length}
-                    subtitle='Active work, live sub-shapes, and current pressure on the shape.'
-                    title='Now'
-                  >
-                    <EvolutionEntryList
-                      entries={currentEntries}
-                      markdownContext={markdownContext}
-                      onOpenFull={onOpenFull}
-                    />
-                    <SemanticSignalList
-                      markdownContext={markdownContext}
-                      nodesById={nodesById}
-                      onOpenFull={onOpenFull}
-                      signals={tensionSignals}
-                    />
-                  </EvolutionBoardColumn>
+                  <div className='grid min-h-0 flex-1 gap-4 lg:grid-cols-4 lg:gap-0'>
+                    <EvolutionBoardColumn
+                      count={pastEntries.length + evolutionSignals.length}
+                      subtitle='Materialized shapes and decisions that explain how this shape arrived here.'
+                      title='Past'
+                    >
+                      <EvolutionEntryList
+                        entries={pastEntries}
+                        markdownContext={markdownContext}
+                        onOpenFull={onOpenFull}
+                      />
+                      <SemanticSignalList
+                        markdownContext={markdownContext}
+                        nodesById={nodesById}
+                        onOpenFull={onOpenFull}
+                        signals={evolutionSignals}
+                      />
+                    </EvolutionBoardColumn>
 
-                  <EvolutionBoardColumn
-                    count={nextEntries.length}
-                    subtitle='Promoted branches that look like the next concrete work.'
-                    title='Next'
-                  >
-                    <EvolutionEntryList
-                      entries={nextEntries}
-                      markdownContext={markdownContext}
-                      onOpenFull={onOpenFull}
-                    />
-                  </EvolutionBoardColumn>
+                    <EvolutionBoardColumn
+                      count={currentEntries.length + tensionSignals.length}
+                      subtitle='Active work, live sub-shapes, and current pressure on the shape.'
+                      title='Now'
+                    >
+                      <EvolutionEntryList
+                        entries={currentEntries}
+                        markdownContext={markdownContext}
+                        onOpenFull={onOpenFull}
+                      />
+                      <SemanticSignalList
+                        markdownContext={markdownContext}
+                        nodesById={nodesById}
+                        onOpenFull={onOpenFull}
+                        signals={tensionSignals}
+                      />
+                    </EvolutionBoardColumn>
 
-                  <EvolutionBoardColumn
-                    count={laterEntries.length + futureSignals.length}
-                    subtitle='Ideas, possibilities, questions, and not-yet-grounded branches.'
-                    title='Later'
-                  >
-                    <EvolutionEntryList
-                      entries={laterEntries}
-                      markdownContext={markdownContext}
-                      onOpenFull={onOpenFull}
-                    />
-                    <SemanticSignalList
-                      markdownContext={markdownContext}
-                      nodesById={nodesById}
-                      onOpenFull={onOpenFull}
-                      signals={futureSignals}
-                    />
-                  </EvolutionBoardColumn>
+                    <EvolutionBoardColumn
+                      count={nextEntries.length}
+                      subtitle='Promoted branches that look like the next concrete work.'
+                      title='Next'
+                    >
+                      <EvolutionEntryList
+                        entries={nextEntries}
+                        markdownContext={markdownContext}
+                        onOpenFull={onOpenFull}
+                      />
+                    </EvolutionBoardColumn>
+
+                    <EvolutionBoardColumn
+                      count={laterEntries.length + futureSignals.length}
+                      subtitle='Ideas, possibilities, questions, and not-yet-grounded branches.'
+                      title='Later'
+                    >
+                      <EvolutionEntryList
+                        entries={laterEntries}
+                        markdownContext={markdownContext}
+                        onOpenFull={onOpenFull}
+                      />
+                      <SemanticSignalList
+                        markdownContext={markdownContext}
+                        nodesById={nodesById}
+                        onOpenFull={onOpenFull}
+                        signals={futureSignals}
+                      />
+                    </EvolutionBoardColumn>
+                  </div>
                 </div>
               ) : (
                 <p className='text-sm leading-6 text-muted-foreground'>
@@ -3470,6 +3732,62 @@ const FullMarkdownModal = ({
             )
           ) : null}
         </div>
+
+        {childNodes.length > 0 ? (
+          <nav
+            aria-label='Child nodes'
+            className='relative shrink-0 bg-gradient-to-t from-card via-card/95 to-transparent px-5 pb-4 pt-4 sm:px-8'
+          >
+            <div className='mb-1.5 text-center font-mono text-[9px] uppercase tracking-wide text-muted-foreground/55'>
+              Children
+            </div>
+            <div className='relative'>
+              <div className='pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-card to-transparent' />
+              <div className='pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-card to-transparent' />
+              <div className='scroll-smooth overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+                <div className='flex w-max min-w-full snap-x snap-mandatory justify-center gap-2 px-3'>
+                  {childNodes.map(child => (
+                    <a
+                      key={child.id}
+                      aria-label={`Child node: ${child.shortTitle}`}
+                      className='group/child grid w-52 shrink-0 snap-start gap-1 rounded-lg bg-muted/25 px-3 py-2 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
+                      href={getNodeHref(child.id)}
+                      title={child.path ?? child.semanticId}
+                      onClick={event => {
+                        if (
+                          event.button !== 0 ||
+                          event.metaKey ||
+                          event.ctrlKey ||
+                          event.shiftKey ||
+                          event.altKey
+                        ) {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        onOpenFull(child.id);
+                      }}
+                    >
+                      <span className='flex min-w-0 items-center gap-2 font-mono text-[9px] uppercase text-muted-foreground/65'>
+                        <span
+                          className={cn(
+                            'size-1.5 shrink-0 rounded-full',
+                            statusDotClassName(child.statusGroup),
+                          )}
+                        />
+                        <span className='truncate'>{child.kind}</span>
+                        <span className='ml-auto shrink-0 normal-case'>{getNodeStatusLabel(child)}</span>
+                      </span>
+                      <span className='truncate text-xs font-medium text-foreground transition-colors group-hover/child:text-primary'>
+                        {child.shortTitle}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </nav>
+        ) : null}
       </div>
     </div>
   );
@@ -3622,9 +3940,7 @@ const SelectionPanel = ({
 
 export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps) => {
   const { theme, toggleTheme } = useTheme();
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
-    () => readAtlasRouteState().selectedNodeId,
-  );
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [atlasView, setAtlasView] = useState<AtlasView>('map');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -3636,10 +3952,8 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
   );
   const [viewport, setViewport] = useState<Viewport>(fallbackViewport);
   const [isPanning, setIsPanning] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(() => Boolean(readAtlasRouteState().selectedNodeId));
-  const [fullNodeId, setFullNodeId] = useState<string | null>(
-    () => readAtlasRouteState().fullNodeId,
-  );
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [fullNodeId, setFullNodeId] = useState<string | null>(null);
   const [fullNodeHistoryIds, setFullNodeHistoryIds] = useState<string[]>([]);
   const [fullNodeTabsById, setFullNodeTabsById] = useState<Map<string, FullMarkdownModalTab>>(
     () => new Map(),
@@ -4061,8 +4375,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
 
     setSelectedNodeId(null);
     setDetailOpen(false);
-    writeAtlasRouteState({ fullNodeId, selectedNodeId: null }, 'replace');
-  }, [fullNodeId, selectedNodeId, visibleNodeIds]);
+    writeAtlasRouteState(
+      { fullNodeId, fullNodeTab: fullNodeActiveTab, selectedNodeId: null },
+      'replace',
+    );
+  }, [fullNodeActiveTab, fullNodeId, selectedNodeId, visibleNodeIds]);
 
   useEffect(() => {
     if (atlasView !== 'map') {
@@ -4315,7 +4632,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
     setHoveredNodeId(null);
 
     if (input.route ?? true) {
-      writeAtlasRouteState({ fullNodeId: null, selectedNodeId: nodeId });
+      writeAtlasRouteState({
+        fullNodeId: null,
+        fullNodeTab: defaultFullMarkdownModalTab,
+        selectedNodeId: nodeId,
+      });
     }
 
     if (input.focus ?? autoFocusEnabled) {
@@ -4330,7 +4651,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
     setHoveredNodeId(null);
 
     if (input.route ?? true) {
-      writeAtlasRouteState({ fullNodeId, selectedNodeId: null });
+      writeAtlasRouteState({
+        fullNodeId,
+        fullNodeTab: fullNodeActiveTab,
+        selectedNodeId: null,
+      });
     }
   };
 
@@ -4353,19 +4678,27 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
         });
       }
 
+      const nextFullNodeTab =
+        fullNodeTabsById.get(nodeId) ?? defaultFullMarkdownModalTab;
+
       setFullNodeId(nodeId);
       writeAtlasRouteState({
         fullNodeId: nodeId,
+        fullNodeTab: nextFullNodeTab,
         selectedNodeId: isCanvasNode ? nodeId : selectedNodeId,
       });
     },
-    [canvasNodeIds, fullNodeId, revealNodePath, selectedNodeId],
+    [canvasNodeIds, fullNodeId, fullNodeTabsById, revealNodePath, selectedNodeId],
   );
 
   const closeFullNode = () => {
     setFullNodeId(null);
     setFullNodeHistoryIds([]);
-    writeAtlasRouteState({ fullNodeId: null, selectedNodeId });
+    writeAtlasRouteState({
+      fullNodeId: null,
+      fullNodeTab: defaultFullMarkdownModalTab,
+      selectedNodeId,
+    });
   };
 
   const navigateFullNodeBack = useCallback(() => {
@@ -4386,10 +4719,14 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
       setHoveredNodeId(null);
     }
 
+    const previousNodeTab =
+      fullNodeTabsById.get(previousNodeId) ?? defaultFullMarkdownModalTab;
+
     setFullNodeId(previousNodeId);
     writeAtlasRouteState(
       {
         fullNodeId: previousNodeId,
+        fullNodeTab: previousNodeTab,
         selectedNodeId: isCanvasNode ? previousNodeId : selectedNodeId,
       },
       'replace',
@@ -4403,22 +4740,30 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
     canvasNodeIds,
     focusNode,
     fullNodeHistoryIds,
+    fullNodeTabsById,
     nodesById,
     revealNodePath,
     selectedNodeId,
   ]);
 
-  const setFullNodeActiveTab = useCallback((nodeId: string, tab: FullMarkdownModalTab) => {
-    setFullNodeTabsById(current => {
-      if (current.get(nodeId) === tab) {
-        return current;
-      }
+  const setFullNodeActiveTab = useCallback(
+    (nodeId: string, tab: FullMarkdownModalTab) => {
+      setFullNodeTabsById(current => {
+        if (current.get(nodeId) === tab) {
+          return current;
+        }
 
-      const next = new Map(current);
-      next.set(nodeId, tab);
-      return next;
-    });
-  }, []);
+        const next = new Map(current);
+        next.set(nodeId, tab);
+        return next;
+      });
+
+      if (fullNodeId === nodeId) {
+        writeAtlasRouteState({ fullNodeId: nodeId, fullNodeTab: tab, selectedNodeId });
+      }
+    },
+    [fullNodeId, selectedNodeId],
+  );
 
   const boardSourceNode = nodesById.get(rootNodeId) ?? snapshot.nodes[0];
   const boardMarkdownContext = useMemo<MarkdownRenderContext | null>(
@@ -4507,7 +4852,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
       setFullNodeId(null);
       setFullNodeHistoryIds([]);
       setHoveredNodeId(null);
-      writeAtlasRouteState({ fullNodeId: null, selectedNodeId: node.id });
+      writeAtlasRouteState({
+        fullNodeId: null,
+        fullNodeTab: defaultFullMarkdownModalTab,
+        selectedNodeId: node.id,
+      });
       scrollBoardNodeIntoView(node.id);
       return;
     }
@@ -4585,6 +4934,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
 
     if (routeFullNodeId) {
       setFullNodeId(routeFullNodeId);
+      setFullNodeTabsById(current => {
+        const next = new Map(current);
+        next.set(routeFullNodeId, routeState.fullNodeTab);
+        return next;
+      });
     }
   }, [canvasNodeIds, focusNode, nodesById, revealNodePath]);
 
@@ -4608,6 +4962,13 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
       setSelectedNodeId(nextSelectedNodeId);
       setDetailOpen(Boolean(nextSelectedNodeId));
       setFullNodeId(nextFullNodeId);
+      if (nextFullNodeId) {
+        setFullNodeTabsById(current => {
+          const next = new Map(current);
+          next.set(nextFullNodeId, routeState.fullNodeTab);
+          return next;
+        });
+      }
       setFullNodeHistoryIds(current => {
         if (!nextFullNodeId) {
           return [];
@@ -5195,6 +5556,21 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
           activeTab={fullNodeActiveTab}
           edges={fullNodeEdges}
           evidence={snapshot.evidence ?? []}
+          getNodeHref={nodeId =>
+            getAtlasRouteHref({
+              fullNodeId: nodeId,
+              fullNodeTab:
+                fullNodeTabsById.get(nodeId) ?? defaultFullMarkdownModalTab,
+              selectedNodeId: canvasNodeIds.has(nodeId) ? nodeId : selectedNodeId,
+            })
+          }
+          getTabHref={tab =>
+            getAtlasRouteHref({
+              fullNodeId: fullNode.id,
+              fullNodeTab: tab,
+              selectedNodeId,
+            })
+          }
           navigationBackNode={fullNodeNavigationBackNode}
           nodesById={nodesById}
           nodesByPath={nodesByPath}

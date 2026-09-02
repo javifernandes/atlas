@@ -80,8 +80,11 @@ const planRelationBindingFields = {
 
 const pullRequestFields = {
   id: field.id(),
+  authorAvatarUrl: field.nullable(field.string()),
   authorLogin: field.nullable(field.string()),
   mergeCommitSha: field.nullable(field.string()),
+  mergedByAvatarUrl: field.nullable(field.string()),
+  mergedByLogin: field.nullable(field.string()),
   mergedAt: field.nonEmptyString({ trim: true }),
   number: field.number(),
   repositoryFullName: field.nonEmptyString({ trim: true }),
@@ -415,8 +418,11 @@ const buildAtlasOntahiDatasetFromSource = (
     ),
     PullRequest: resolvedEvidence.pullRequests.map(pullRequest => ({
       id: pullRequest.id,
+      authorAvatarUrl: pullRequest.authorAvatarUrl,
       authorLogin: pullRequest.authorLogin,
       mergeCommitSha: pullRequest.mergeCommitSha,
+      mergedByAvatarUrl: pullRequest.mergedByAvatarUrl,
+      mergedByLogin: pullRequest.mergedByLogin,
       mergedAt: pullRequest.mergedAt,
       number: pullRequest.number,
       repositoryFullName: pullRequest.repositoryFullName,
@@ -667,8 +673,11 @@ const atlasEvidenceQuery = query(EvidenceBinding)
     provenance: binding.provenance,
     targetNodeId: binding.targetNodeId,
     pullRequest: binding.pullRequest.select(pullRequest => ({
+      authorAvatarUrl: pullRequest.authorAvatarUrl,
       authorLogin: pullRequest.authorLogin,
       mergeCommitSha: pullRequest.mergeCommitSha,
+      mergedByAvatarUrl: pullRequest.mergedByAvatarUrl,
+      mergedByLogin: pullRequest.mergedByLogin,
       mergedAt: pullRequest.mergedAt,
       number: pullRequest.number,
       repositoryFullName: pullRequest.repositoryFullName,
@@ -684,8 +693,11 @@ export type AtlasEvidenceProjection = {
   provenance: 'explicit';
   targetNodeId: string;
   pullRequest: {
+    authorAvatarUrl: string | null;
     authorLogin: string | null;
     mergeCommitSha: string | null;
+    mergedByAvatarUrl: string | null;
+    mergedByLogin: string | null;
     mergedAt: string;
     number: number;
     repositoryFullName: string;

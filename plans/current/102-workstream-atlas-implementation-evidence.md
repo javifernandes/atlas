@@ -212,7 +212,7 @@ persistent delivery-id deduplication belongs with the later evidence index.
 3. Read merged PRs from configured GitHub repositories using installation tokens.
 4. Parse `Atlas-Implements` and `Atlas-Shapes` assertions into explicit Evidence Bindings.
 5. Hydrate `PullRequest` and `EvidenceBinding` entities in the in-memory Atlas application.
-6. Render linked PRs in Item and Plan evolution views.
+6. Render linked PRs as implementation evidence attached to Item and Plan detail.
 7. Keep the existing cron as a temporary recovery path until production webhook delivery is
    verified.
 
@@ -276,6 +276,8 @@ persistent delivery-id deduplication belongs with the later evidence index.
 9. Implementation follows the Atlas-to-Ontahi evaluation and migration in Plan 111.
 10. Build the GitHub App and merged-PR evidence slice before Changesets, releases, or persistence.
 11. Keep the cron refresh temporarily as a recovery mechanism, not the primary event path.
+12. Treat PRs as implementation evidence attached to a Plan or Item, not as semantic evolution
+    nodes; observed evidence may be in progress or merged, but never next or later.
 
 ## Open Questions
 
@@ -309,7 +311,7 @@ The first slice now provides:
 3. repository-tag invalidation that keeps the webhook fast and GitHub authoritative;
 4. deterministic `PullRequest` and `EvidenceBinding` entities for `Atlas-Implements` and
    `Atlas-Shapes` assertions;
-5. linked PR cards in Plan and Item Evolution views;
+5. linked PR evidence regions in Plan and Item detail views;
 6. a local end-to-end signed delivery check returning `202`, plus unit, integration, UI, type, and
    production-build verification.
 
@@ -330,6 +332,29 @@ The correction makes intrinsic source availability an explicit deployment invari
 Runtime Protocol server traces include every Atlas-owned Markdown file, and the production build
 fails if either trace omits one. GitHub App repository selection was not the cause; the installation
 already covered all repositories.
+
+### 2026-09-02 — PR actor presentation checkpoint
+
+PR evidence is now rendered in a dedicated implementation region attached to the target, outside
+the Past / Now / Next / Later semantic evolution columns. The compact row foregrounds the PR title,
+number, and relative merge age; repository and assertion kind remain available to the model but do
+not consume presentation space. Author and merger are observed separately, deduplicated when they
+are the same account, and rendered as a stacked group with hover role details. Open PR observation
+can later add an in-progress evidence group, but PRs do not become future evolution nodes.
+
+### 2026-09-02 — full-detail section links
+
+Full-detail sections are now deep-linkable through `full=<node-id>` plus an optional
+`section=overview|evolution|context|source`. The section controls are real links, ordinary
+navigation updates browser history, and direct loads or Back / Forward restore the addressed node
+and section. Overview remains the canonical default and omits the section parameter.
+
+The same modal now provides structural navigation without closing or reopening its shell. A direct
+parent appears centered above the title, and direct `contains` children appear in a subtle,
+horizontally scrollable rail below the active section. These slots are real links and replace the
+modal's node on ordinary navigation; shaping, support, and related evidence stays in its semantic
+section rather than being mislabeled as a child. The rail replaces the conventional `Child Items`
+list in Overview when both would project the same direct children.
 
 ### 2026-09-02 — map scanability and shared Runtime Protocol adapter
 

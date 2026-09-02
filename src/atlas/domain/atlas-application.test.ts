@@ -243,7 +243,10 @@ relatedPlans:
           number: 8,
           title: 'Connect merged PR evidence',
           url: 'https://github.com/javifernandes/atlas/pull/8',
+          authorAvatarUrl: 'https://avatars.example/javi',
           authorLogin: 'javi',
+          mergedByAvatarUrl: 'https://avatars.example/maintainer',
+          mergedByLogin: 'maintainer',
           mergedAt: '2026-09-01T10:00:00Z',
           mergeCommitSha: 'abc123',
           directives: [
@@ -262,6 +265,8 @@ relatedPlans:
         provenance: 'explicit',
         targetNodeId: 'atlas:atlas.evidence',
         pullRequest: expect.objectContaining({
+          authorAvatarUrl: 'https://avatars.example/javi',
+          mergedByLogin: 'maintainer',
           repositoryFullName: 'javifernandes/atlas',
           number: 8,
         }),
