@@ -25,6 +25,12 @@ a configured sibling checkout during local development and falls back to a cache
 source when that checkout is absent. Semantic IDs remain global across the mounted files, so moving
 ownership does not create a second graph or require UI-specific copies.
 
+Intrinsic ownership is a runtime contract, not only a build-time convenience. A hosted Atlas must
+make its repository-owned `plans/` and `atlas/items/` corpus available to every server render,
+incremental regeneration, and Runtime Protocol hydration. Deployment packaging therefore carries
+those Markdown files with the server traces until extraction moves the same authority into a
+durable observed-data boundary.
+
 Loaded files cross into Atlas through a normalized source record that keeps physical location and
 semantic identity separate: `sourceId`, repository-relative `sourcePath`, canonical URI, and an
 optional source file path. Repository-local Plan references are resolved inside the declaring
