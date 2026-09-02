@@ -7,6 +7,8 @@ import {
   Check,
   Columns3,
   Crosshair,
+  ExternalLink,
+  GitPullRequest,
   Info,
   Minus,
   Moon,
@@ -36,6 +38,7 @@ import type {
   PlanRelationKind,
   PlanStatusGroup,
   PlanWorkstreamEdge,
+  PlanWorkstreamEvidence,
   PlanWorkstreamNode,
   PlanWorkstreamSnapshot,
 } from '@/atlas/model/snapshot';
@@ -202,6 +205,10 @@ const wheelZoomSpeed = 0.0042;
 const zoomButtonStep = 0.18;
 const focusScale = 0.86;
 const searchMatchLimit = 12;
+const evidenceDateFormatter = new Intl.DateTimeFormat('en', {
+  dateStyle: 'medium',
+  timeZone: 'UTC',
+});
 const allStatuses: PlanStatusGroup[] = [
   'current',
   'next',
@@ -1581,6 +1588,40 @@ const EvolutionEntryList = ({
           </div>
         );
       })}
+    </div>
+  );
+
+const PullRequestEvidenceList = ({ evidence }: { evidence: PlanWorkstreamEvidence[] }) =>
+  evidence.length === 0 ? null : (
+    <div className='grid gap-2'>
+      {evidence.map(binding => (
+        <a
+          key={binding.id}
+          className='grid gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5 text-left transition-colors hover:border-emerald-400/55 hover:bg-emerald-500/10'
+          href={binding.pullRequest.url}
+          rel='noreferrer'
+          target='_blank'
+        >
+          <span className='flex min-w-0 flex-wrap items-center gap-2'>
+            <GitPullRequest className='size-3.5 text-emerald-400' />
+            <span className='font-mono text-[10px] uppercase text-emerald-300'>
+              {binding.kind}
+            </span>
+            <span className='font-mono text-[10px] text-muted-foreground'>
+              {binding.pullRequest.repositoryFullName}#{binding.pullRequest.number}
+            </span>
+            <ExternalLink className='ml-auto size-3 text-muted-foreground' />
+          </span>
+          <span className='line-clamp-2 text-sm font-medium text-foreground'>
+            {binding.pullRequest.title}
+          </span>
+          <span className='text-[11px] text-muted-foreground'>
+            Merged {evidenceDateFormatter.format(new Date(binding.pullRequest.mergedAt))}
+            {binding.pullRequest.authorLogin ? ` by ${binding.pullRequest.authorLogin}` : ''}
+            {' · explicit PR assertion'}
+          </span>
+        </a>
+      ))}
     </div>
   );
 
@@ -3029,6 +3070,7 @@ const MarkdownSectionIndex = ({ groups }: { groups: MarkdownSectionGroup[] }) =>
 const FullMarkdownModal = ({
   activeTab,
   edges,
+  evidence,
   nodesById,
   nodesByPath,
   nodesBySemanticId,
@@ -3042,6 +3084,7 @@ const FullMarkdownModal = ({
 }: {
   activeTab: FullMarkdownModalTab;
   edges: PlanWorkstreamEdge[];
+  evidence: PlanWorkstreamEvidence[];
   nodesById: Map<string, PlanWorkstreamNode>;
   nodesByPath: Map<string, PlanWorkstreamNode>;
   nodesBySemanticId: Map<string, PlanWorkstreamNode>;
@@ -3082,6 +3125,10 @@ const FullMarkdownModal = ({
     () => getEvolutionEntries(node.id, edges, nodesById),
     [edges, node.id, nodesById],
   );
+  const nodeEvidence = useMemo(
+    () => evidence.filter(binding => binding.targetNodeId === node.id),
+    [evidence, node.id],
+  );
   const incoming = useMemo(() => edges.filter(edge => edge.to === node.id), [edges, node.id]);
   const outgoing = useMemo(() => edges.filter(edge => edge.from === node.id), [edges, node.id]);
   const { hierarchy, relations } = useMemo(
@@ -3101,6 +3148,7 @@ const FullMarkdownModal = ({
   );
   const hasEvolutionContent =
     evolutionEntries.length > 0 ||
+    nodeEvidence.length > 0 ||
     futureSignals.length > 0 ||
     tensionSignals.length > 0 ||
     evolutionSignals.length > 0;
@@ -3216,7 +3264,7 @@ const FullMarkdownModal = ({
               {hasEvolutionContent ? (
                 <div className='grid gap-4 lg:h-full lg:min-h-0 lg:grid-cols-4 lg:gap-0'>
                   <EvolutionBoardColumn
-                    count={pastEntries.length + evolutionSignals.length}
+                    count={pastEntries.length + evolutionSignals.length + nodeEvidence.length}
                     subtitle='Materialized work, decisions, and evidence that explain how this shape arrived here.'
                     title='Past'
                   >
@@ -3225,6 +3273,7 @@ const FullMarkdownModal = ({
                       markdownContext={markdownContext}
                       onOpenFull={onOpenFull}
                     />
+                    <PullRequestEvidenceList evidence={nodeEvidence} />
                     <SemanticSignalList
                       markdownContext={markdownContext}
                       nodesById={nodesById}
@@ -5048,6 +5097,7 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
         <FullMarkdownModal
           activeTab={fullNodeActiveTab}
           edges={fullNodeEdges}
+          evidence={snapshot.evidence ?? []}
           navigationBackNode={fullNodeNavigationBackNode}
           nodesById={nodesById}
           nodesByPath={nodesByPath}

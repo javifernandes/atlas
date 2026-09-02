@@ -33,14 +33,16 @@ Configured local checkouts are preferred when they contain `plans/` or `atlas/it
 Atlas reads the configured GitHub repository. Deployments may provide the same YAML through
 `ATLAS_SOURCES_YAML`, keeping workspace-specific repositories out of the application repository.
 
-Set `ATLAS_GITHUB_TOKEN` when a hosted build needs read access to private sources. This token is
-used only by the server-side source loader and is not exposed to the browser bundle.
+Hosted environments should use the Atlas GitHub App for private source access and merged-PR
+evidence. The App mints short-lived installation tokens and receives signed events through Ontahi
+HTTP ingress. See [Atlas GitHub App](docs/github-app.md). `ATLAS_GITHUB_TOKEN` remains an optional
+local read fallback and is never exposed to the browser bundle.
 
 ## Hosted source refreshes
 
-Hosted instances materialize their configured sources during deployment. The included
-`Refresh sources` GitHub Actions workflow triggers a rebuild manually or every six hours so source
-updates become visible without changing this repository.
+GitHub App pull-request webhooks invalidate the affected repository projection so merged evidence
+appears on the next Atlas read. The included `Refresh sources` GitHub Actions workflow still
+triggers a rebuild manually or every six hours as a temporary recovery path.
 
 For a Vercel deployment, create a Deploy Hook for the production branch and store its URL as the
 `VERCEL_DEPLOY_HOOK_URL` GitHub Actions repository secret. Treat the hook URL as a credential: anyone

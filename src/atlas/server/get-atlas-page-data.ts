@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { createAtlasOntahiApplication } from '../domain/atlas-application';
+import { loadAtlasPullRequestEvidence } from '../github/pull-request-evidence';
 import { buildPlanWorkstreamSnapshotFromFiles } from '../markdown/build-snapshot';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import {
@@ -15,11 +16,15 @@ export type AtlasPageData = {
 };
 
 export const loadAtlasServerApplication = async () => {
-  const sourceFiles = await loadAtlasSourceFiles({ repoRoot: getRepoRoot() });
+  const repoRoot = getRepoRoot();
+  const [sourceFiles, observedPullRequests] = await Promise.all([
+    loadAtlasSourceFiles({ repoRoot }),
+    loadAtlasPullRequestEvidence({ repoRoot }),
+  ]);
   const records = sourceFiles.map(normalizeAtlasSourceRecord);
 
   return {
-    atlas: createAtlasOntahiApplication(records),
+    atlas: createAtlasOntahiApplication(records, { observedPullRequests }),
     sourceFiles,
   };
 };
@@ -38,7 +43,7 @@ const getRepoRoot = () => {
 };
 
 const emptyPageData = (): AtlasPageData => ({
-  snapshot: buildPlanWorkstreamSnapshotFromFiles([]),
+  snapshot: { ...buildPlanWorkstreamSnapshotFromFiles([]), evidence: [] },
 });
 
 export const getAtlasPageData = async (): Promise<AtlasPageData> => {
@@ -66,6 +71,7 @@ export const getAtlasPageData = async (): Promise<AtlasPageData> => {
     snapshot: {
       ...compatibilitySnapshot,
       edges: await atlas.getTopologyEdges(),
+      evidence: await atlas.getEvidence(),
     },
   };
 };

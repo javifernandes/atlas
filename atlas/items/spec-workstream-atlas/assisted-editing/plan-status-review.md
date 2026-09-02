@@ -11,7 +11,7 @@ supports:
   - spec-workstream-atlas.implementation-evidence
 relatedPlans:
   - plans/backlog/103-workstream-atlas-assisted-editing.md
-  - plans/next/102-workstream-atlas-implementation-evidence.md
+  - plans/current/102-workstream-atlas-implementation-evidence.md
   - plans/next/106-atlas-plan-reconciliation-operation.md
   - plans/done/107-plan-model-research-and-v0.md
 ---

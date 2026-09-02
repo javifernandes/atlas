@@ -12,7 +12,7 @@ relatedPlans:
   - plans/done/101-workstream-atlas-semantic-source.md
   - plans/backlog/105-atlas-shaping.md
   - plans/done/111-atlas-as-ontahi-application.md
-  - plans/next/102-workstream-atlas-implementation-evidence.md
+  - plans/current/102-workstream-atlas-implementation-evidence.md
 ---
 
 Atlas Model defines the language the atlas uses to describe systems: atlas items, item types, system form, work items, transformations, evidence, relations, states, and practices.

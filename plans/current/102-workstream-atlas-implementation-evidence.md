@@ -1,6 +1,6 @@
 # 102. Atlas Implementation And Release Evidence
 
-Status: next
+Status: current
 
 Depends on: [111. Atlas As An Ontahi Application](../done/111-atlas-as-ontahi-application.md)
 
@@ -34,9 +34,15 @@ Atlas currently explains semantic intent while implementation and release histor
 5. Atlas Items describe the current conceptual system but cannot yet show how that form evolved
    across releases.
 
-The GitHub App already observes repository changes and triggers Atlas rebuilds. That gives Atlas an
-event and refresh path; it does not require committing a mirrored PR/event log to the source
-repository.
+Atlas does not yet own a GitHub App or webhook receiver. Hosted data currently becomes fresh through
+five-minute Next.js revalidation plus a six-hour GitHub Actions cron that calls a Vercel deploy hook.
+That polling path proves the federated read model, but it cannot provide a direct, authenticated
+merge signal and was incorrectly described in earlier plans as an existing GitHub App.
+
+BookOps already proves the intended Ontahi-native shape: a GitHub webhook provider verifies and
+normalizes a delivery, the generic graph HTTP ingress router selects a declared channel, and a
+server-only Ontahi operation performs the application work. Atlas can reuse that architecture while
+keeping GitHub authoritative and avoiding a Markdown event mirror.
 
 This capability follows [Plan 111](../done/111-atlas-as-ontahi-application.md). Ontahi now gives
 Atlas a model and operation layer in which curated declarations and observed evidence can coexist
@@ -56,20 +62,24 @@ without pretending they have the same authority or storage lifecycle.
    durable declared implementation structure from concrete versioned artifacts.
 7. [109. Work Item Impact Surface](./109-work-item-impact-surface.md) provides the `shapes`,
    `affects`, `preserves`, `breaks`, and `restores` vocabulary for relating work to system form.
+8. `@ontahi/core@1.0.0-alpha.9`, already consumed by Atlas, exposes graph HTTP ingress routing and
+   operation dispatch. BookOps exercises the same boundary for signed GitHub App webhooks.
 
 ## Scope
 
-1. Define Markdown declarations for durable Implementation Components and important Surfaces.
-2. Validate or reconcile those declarations against package manifests, paths, exports, routes, or
+1. Register and integrate an Atlas GitHub App with minimal repository read permissions and merged
+   pull-request webhook events.
+2. Bind Plans and Atlas Items to merged PRs using explicit, deterministic author assertions.
+3. Define Markdown declarations for durable Implementation Components and important Surfaces.
+4. Validate or reconcile those declarations against package manifests, paths, exports, routes, or
    other repository evidence.
-3. Extract Changeset metadata and preserve its relationship to the PR and merge commit that carried
+5. Extract Changeset metadata and preserve its relationship to the PR and merge commit that carried
    it.
-4. Model package versions, releases, and their included Changesets without treating them as curated
+6. Model package versions, releases, and their included Changesets without treating them as curated
    Markdown Items.
-5. Bind Plans and Atlas Items to PRs, Components, Surfaces, Changesets, versions, and releases.
-6. Support explicit author assertions first and provenance-bearing inferred bindings later.
-7. Render Plan/Item-to-version and version-to-change projections.
-8. Establish data ownership, refresh, idempotency, and historical retention rules.
+7. Support provenance-bearing inferred bindings after explicit and deterministic evidence works.
+8. Render Plan/Item-to-version and version-to-change projections.
+9. Establish data ownership, refresh, idempotency, and historical retention rules.
 
 ## Non-Goals
 
@@ -81,6 +91,8 @@ without pretending they have the same authority or storage lifecycle.
 5. Do not require LLM inference for deterministic package, Changeset, PR, or release relationships.
 6. Do not introduce persistence before the observed evidence slice establishes its retention and
    query requirements.
+7. Do not mutate Plan or Item status from a merged PR.
+8. Do not implement Changeset, release, or database ingestion in the first merged-PR slice.
 
 ## Proposed Form
 
@@ -173,39 +185,61 @@ Deterministic extraction should resolve package names, changed paths, Changeset 
 commits, and published versions first. An LLM may then propose semantic bindings, always recording
 its evidence and confidence separately from author assertions.
 
+### GitHub App ingress
+
+```txt
+GitHub pull_request.closed
+  -> verify X-Hub-Signature-256
+  -> accept only merged pull requests from configured sources
+  -> normalize source-control.pull-request.merged
+  -> dispatch a server-only Ontahi operation
+  -> invalidate repository evidence/source caches
+  -> rebuild the in-memory PullRequest and EvidenceBinding projection on the next read
+```
+
+The webhook is an invalidation signal, not the durable evidence store. GitHub remains authoritative
+for PR content and merge metadata. Duplicate delivery is therefore harmless in the first slice;
+persistent delivery-id deduplication belongs with the later evidence index.
+
 ## Execution Slices
 
-### Slice 0: Vocabulary and declaration pilot
+### Slice 0: GitHub App and merged PR evidence
+
+1. Register an Atlas GitHub App with pull-request metadata read access and
+   `pull_request` webhook subscription.
+2. Reuse Ontahi graph HTTP ingress for signature verification, event normalization, routing, and
+   operation dispatch.
+3. Read merged PRs from configured GitHub repositories using installation tokens.
+4. Parse `Atlas-Implements` and `Atlas-Shapes` assertions into explicit Evidence Bindings.
+5. Hydrate `PullRequest` and `EvidenceBinding` entities in the in-memory Atlas application.
+6. Render linked PRs in Item and Plan evolution views.
+7. Keep the existing cron as a temporary recovery path until production webhook delivery is
+   verified.
+
+### Slice 1: Changesets and declared implementation structure
 
 1. Finalize the distinction between System, Implementation Component, Implementation Surface,
    Artifact, Package Version, and Release.
-2. Declare two real Components and two real Surfaces, preferably one from Atlas and one from Ontahi
-   or BookOps.
-3. Test whether the declarations are stable enough to survive package refactors without becoming a
-   mirror of the filesystem.
+2. Declare two real Components and their important Surfaces.
+3. Read package manifests and exports for declared Components and report drift.
+4. Extract Changeset metadata before release aggregation removes source files.
+5. Link PR, merge commit, changed Component/Surface, Changeset, and explicit Atlas references.
 
-### Slice 1: Repository synchronization
-
-1. Read package manifests and exports for declared package Components.
-2. Report missing paths, renamed packages, and unresolved Surface locators.
-3. Produce reviewable reconciliation proposals rather than silently rewriting declarations.
-4. Keep components without package manifests possible for apps, services, CLIs, and workers.
-
-### Slice 2: Changeset and GitHub evidence
-
-1. Extend the existing GitHub App event handling for merged PR evidence.
-2. Extract Changeset metadata before release aggregation removes source files.
-3. Link PR, merge commit, changed Component/Surface, Changeset, and explicit Atlas references.
-4. Make ingestion idempotent and safe under duplicate webhook delivery or rebuilds.
-5. Persist only the index or history needed for navigation and inference.
-
-### Slice 3: Release projection
+### Slice 2: Release projection
 
 1. Observe published package versions and releases.
 2. Resolve which Changesets and PRs were included in each version.
 3. Render `Plan/Item -> first version / later versions` and
    `Version/Release -> Changesets / PRs / Plans / Items / Surfaces`.
 4. Show uncertainty when a historical relationship cannot be reconstructed exactly.
+
+### Slice 3: Persistent evidence index
+
+1. Introduce a storage adapter behind the Ontahi application boundary.
+2. Persist observed evidence needed for historical navigation and webhook delivery deduplication.
+3. Keep GitHub, registries, and repositories authoritative; persistence is an index plus
+   Atlas-owned provenance.
+4. Evaluate Convex locally before configuring its production deployment and Vercel integration.
 
 ### Slice 4: Semantic inference and wider evidence
 
@@ -217,13 +251,16 @@ its evidence and confidence separately from author assertions.
 
 - [ ] At least two durable Components and their important Surfaces are declared in Markdown.
 - [ ] Atlas detects drift between a declaration and repository/package structure.
-- [ ] No per-PR or per-commit Markdown mirror is required.
+- [x] No per-PR or per-commit Markdown mirror is required.
+- [x] A signed GitHub App webhook dispatches a normalized merged-PR event through Ontahi ingress.
+- [x] `Atlas-Implements` and `Atlas-Shapes` create explicit, provenance-bearing bindings.
+- [x] Linked PRs are visible and navigable from both Plans and Atlas Items.
 - [ ] A merged PR can be linked to its Changeset, merge commit, changed Component, and Atlas intent.
 - [ ] A published version can list its included Changesets, PRs, Plans, Items, and Surfaces.
 - [ ] A Plan or Atlas Item can show the first known released version that materialized it.
 - [ ] Explicit, deterministic, and inferred relationships remain distinguishable by provenance.
-- [ ] Duplicate rebuilds or webhook deliveries do not duplicate evidence.
-- [ ] A merge does not implicitly mutate curated Plan or Item status.
+- [x] Duplicate rebuilds or webhook deliveries do not duplicate evidence.
+- [x] A merge does not implicitly mutate curated Plan or Item status.
 
 ## Decisions
 
@@ -237,6 +274,8 @@ its evidence and confidence separately from author assertions.
 7. Merged evidence does not automatically change curated status.
 8. Deterministic extraction precedes LLM inference.
 9. Implementation follows the Atlas-to-Ontahi evaluation and migration in Plan 111.
+10. Build the GitHub App and merged-PR evidence slice before Changesets, releases, or persistence.
+11. Keep the cron refresh temporarily as a recovery mechanism, not the primary event path.
 
 ## Open Questions
 
@@ -255,6 +294,26 @@ its evidence and confidence separately from author assertions.
 Originally proposed as a manual, read-only evidence surface. Reshaped on 2026-08-31 around explicit
 Implementation Component and Surface declarations, Changesets as semantic release metadata, and
 bidirectional Plan/Item/version navigation. Promoted to next on 2026-09-01 after Plan 111 proved the
-Ontahi application and Runtime Protocol boundary that can host curated plus observed data. Slice 0
-is now the actionable starting point; persistence remains deferred until the evidence model earns
-it.
+Ontahi application and Runtime Protocol boundary that can host curated plus observed data. Pulled to
+current on 2026-09-01 and reordered around a real Atlas GitHub App plus merged-PR evidence as the
+first slice. Changesets/releases follow, while persistence remains deferred until the observed model
+earns it.
+
+### 2026-09-01 — merged PR evidence checkpoint
+
+The first slice now provides:
+
+1. GitHub App JWT and installation-token repository reads with a local token fallback;
+2. signed `pull_request.closed` ingestion normalized as
+   `source-control.pull-request.merged` through Ontahi graph HTTP ingress;
+3. repository-tag invalidation that keeps the webhook fast and GitHub authoritative;
+4. deterministic `PullRequest` and `EvidenceBinding` entities for `Atlas-Implements` and
+   `Atlas-Shapes` assertions;
+5. linked PR cards in Plan and Item Evolution views;
+6. a local end-to-end signed delivery check returning `202`, plus unit, integration, UI, type, and
+   production-build verification.
+
+The existing cron remains as a recovery path. Production registration, installation on the Atlas,
+BookOps, and Ontahi repositories, and Vercel secret configuration are rollout steps after this PR
+is deployed. Changeset and release correlation remains the next implementation slice; Convex or
+another persistent evidence index remains deliberately deferred.

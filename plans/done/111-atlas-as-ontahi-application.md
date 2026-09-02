@@ -40,10 +40,11 @@ The pressure is now broader than assisted editing. Atlas wants to represent two 
 2. observed implementation history owned by external systems, including PRs, commits, Changesets,
    package releases, deployments, and evidence bindings.
 
-The existing GitHub App already observes repository changes and causes Atlas to rebuild. A later
-slice can use that path to extract implementation and release evidence without copying GitHub data
-into the source repository. Before designing that persistence and projection layer, Atlas should
-first determine whether Ontahi is the right domain and runtime foundation.
+At the time this plan was written, the scheduled Vercel rebuild path was mistakenly described as an
+existing Atlas GitHub App. The implemented baseline was five-minute source revalidation plus a
+six-hour deploy-hook cron. Plan 102 now introduces the actual GitHub App and Ontahi HTTP ingress.
+Before designing persistence and wider evidence projection, this plan first determined whether
+Ontahi was the right domain and runtime foundation.
 
 Atlas also wants operations that are difficult to keep as UI-only behavior:
 
@@ -72,7 +73,7 @@ Atlas also wants operations that are difficult to keep as UI-only behavior:
 7. BookOps already exercises Ontahi as a large existing consumer. Atlas adds different pressure:
    federated read models, Markdown authority, temporal evidence, external-source identity, and
    projections over conceptual plus implementation graphs.
-8. [102. Atlas Implementation And Release Evidence](../next/102-workstream-atlas-implementation-evidence.md)
+8. [102. Atlas Implementation And Release Evidence](../current/102-workstream-atlas-implementation-evidence.md)
    captures the first major capability to build after this boundary proves itself.
 
 ## Scope
@@ -447,7 +448,7 @@ the model or stop before broad migration.
 1. Promote generally useful friction into focused Ontahi issues/plans and package changes.
 2. Keep Atlas-specific projection behavior local to Atlas.
 3. Re-evaluate persistence after the model has both curated and observed data requirements.
-4. Pull [Plan 102](../next/102-workstream-atlas-implementation-evidence.md) when the boundary can
+4. Pull [Plan 102](../current/102-workstream-atlas-implementation-evidence.md) when the boundary can
    host Components, Surfaces, Changesets, releases, and evidence without Markdown duplication.
 
 ## Verification
@@ -510,5 +511,5 @@ Runtime Protocol as a reviewable read-only operation.
 Authenticated apply and provenance are intentionally deferred to
 [Plan 103](../backlog/103-workstream-atlas-assisted-editing.md). GitHub, Changesets,
 package-version, persistence, and release evidence continue in
-[Plan 102](../next/102-workstream-atlas-implementation-evidence.md). Those are new capabilities,
+[Plan 102](../current/102-workstream-atlas-implementation-evidence.md). Those are new capabilities,
 not incomplete migration slices.

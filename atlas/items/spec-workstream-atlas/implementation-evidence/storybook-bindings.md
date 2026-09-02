@@ -8,7 +8,7 @@ horizon: later
 supports:
   - spec-workstream-atlas.implementation-evidence
 relatedPlans:
-  - plans/next/102-workstream-atlas-implementation-evidence.md
+  - plans/current/102-workstream-atlas-implementation-evidence.md
   - bookops://plans/18d-web-phase-2plusplus-storybook-information-architecture
   - bookops://plans/23-feedback-ui-hardening-and-storybook
 ---
