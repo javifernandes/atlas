@@ -13,6 +13,9 @@ When working in this repository:
    PR that changes system shape.
 6. Run `pnpm verify` for application changes. For Markdown-only ownership or reference changes, run
    the focused source/snapshot tests plus `git diff --check` at minimum.
+7. Read `docs/atlas-evidence-binding-guidelines.md` before preparing commits or PRs. Put supported
+   Atlas directives in the PR body when the work implements or shapes a registered target; commit
+   trailers alone do not create evidence.
 
 Do not copy external project plans or item trees into Atlas. Federation should preserve the source
 repository as authority.

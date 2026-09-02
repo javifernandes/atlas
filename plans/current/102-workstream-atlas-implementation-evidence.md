@@ -371,3 +371,12 @@ adapter seam:
 
 Legacy family-specific Fetch clients remain unchanged; their migration belongs to the separate
 Ontahi-owned client cutover.
+
+### 2026-09-02 — repository authoring convention
+
+Atlas now owns a canonical, copyable guideline for PR and commit evidence assertions. The contract
+defines `Atlas-Implements` versus `Atlas-Shapes`, stable target forms, supported list syntax,
+authoring and verification workflow, and the important current limitation that Atlas ingests the
+merged PR body rather than commit trailers. Atlas, BookOps, and Ontahi point their agent
+instructions at identical repository-local copies so the convention is present where PRs are
+prepared.
