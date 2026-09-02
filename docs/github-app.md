@@ -38,23 +38,11 @@ GitHub App.
 
 ## Pull Request Convention
 
-Explicit author assertions may be inline:
-
-```md
-Atlas-Implements: atlas://plans/102-workstream-atlas-implementation-evidence
-Atlas-Shapes: spec-workstream-atlas.atlas-model.evidence-binding
-```
-
-or lists:
-
-```md
-Atlas-Shapes:
-- spec-workstream-atlas.implementation-evidence
-- spec-workstream-atlas.atlas-model.evidence-binding
-```
-
-Targets can be canonical plan URIs, source-relative plan paths or keys, or semantic Atlas Item ids.
-A merge does not mutate the target Plan or Item status.
+Follow the canonical
+[`Atlas Evidence Binding Guidelines`](./atlas-evidence-binding-guidelines.md). Explicit author
+assertions use `Atlas-Implements` and `Atlas-Shapes` in the merged PR body. Commit trailers may
+repeat them for traceability but are not currently ingested. A merge records evidence and does not
+mutate the target Plan or Item status.
 
 ## Local Webhook Test
 
