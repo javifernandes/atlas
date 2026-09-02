@@ -20,6 +20,7 @@ Node selection and full detail are URL-addressable. A full-detail URL uses `full
 optional `section=overview|evolution|context|source`; an absent or invalid section resolves to
 Overview. Section tabs are real links, so they can be copied or opened independently, while normal
 clicks update browser history without closing the modal. Back and Forward restore both the focused
-node and its section.
+node and its section. Parent and child navigator slots use the same full-detail URLs, allowing
+modified clicks to open a neighboring structural node directly.
 
 Explicit copy-link controls and URL state for filters or lenses remain later slices.

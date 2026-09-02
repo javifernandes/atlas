@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   BookOpen,
   Check,
   Columns3,
@@ -2169,6 +2170,52 @@ const getMarkdownHeadingId = (lineIndex: number, content: string) => {
   return `section-${lineIndex}-${slug || 'heading'}`;
 };
 
+const omitMarkdownSection = (body: string, sectionLabel: string) => {
+  const lines = body.replaceAll('\r\n', '\n').split('\n');
+  const retainedLines: string[] = [];
+  const normalizedSectionLabel = getMarkdownHeadingLabel(sectionLabel).toLowerCase();
+  let insideCodeFence = false;
+  let omittedHeadingLevel: number | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('```')) {
+      insideCodeFence = !insideCodeFence;
+
+      if (omittedHeadingLevel === null) {
+        retainedLines.push(line);
+      }
+
+      continue;
+    }
+
+    if (!insideCodeFence) {
+      const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+
+      if (heading) {
+        const headingLevel = heading[1]?.length ?? 0;
+        const headingLabel = getMarkdownHeadingLabel(heading[2] ?? '').toLowerCase();
+
+        if (omittedHeadingLevel !== null && headingLevel <= omittedHeadingLevel) {
+          omittedHeadingLevel = null;
+        }
+
+        if (omittedHeadingLevel === null && headingLabel === normalizedSectionLabel) {
+          omittedHeadingLevel = headingLevel;
+          continue;
+        }
+      }
+    }
+
+    if (omittedHeadingLevel === null) {
+      retainedLines.push(line);
+    }
+  }
+
+  return retainedLines.join('\n').replaceAll(/\n{3,}/g, '\n\n').trim();
+};
+
 const extractMarkdownSections = (body: string): MarkdownSection[] => {
   const sections: MarkdownSection[] = [];
   const lines = body.trim().split('\n');
@@ -3270,6 +3317,7 @@ const FullMarkdownModal = ({
   nodesBySemanticId,
   node,
   navigationBackNode,
+  getNodeHref,
   getTabHref,
   onActiveTabChange,
   onClose,
@@ -3285,6 +3333,7 @@ const FullMarkdownModal = ({
   nodesBySemanticId: Map<string, PlanWorkstreamNode>;
   node: PlanWorkstreamNode;
   navigationBackNode: PlanWorkstreamNode | null;
+  getNodeHref: (nodeId: string) => string;
   getTabHref: (tab: FullMarkdownModalTab) => string;
   onActiveTabChange: (tab: FullMarkdownModalTab) => void;
   onClose: () => void;
@@ -3293,14 +3342,6 @@ const FullMarkdownModal = ({
   semanticSignals: SemanticSignal[];
 }) => {
   const parsedDocument = useMemo(() => parseMarkdownDocument(node), [node]);
-  const markdownSections = useMemo(
-    () => extractMarkdownSections(parsedDocument.body),
-    [parsedDocument.body],
-  );
-  const markdownSectionGroups = useMemo(
-    () => getMarkdownSectionGroups(markdownSections, node),
-    [markdownSections, node],
-  );
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
       nodesByPath,
@@ -3335,6 +3376,31 @@ const FullMarkdownModal = ({
   const breadcrumb = useMemo(
     () => getNodeBreadcrumb(node.id, edges, nodesById),
     [edges, node.id, nodesById],
+  );
+  const parentNode = useMemo(() => {
+    const parentEdge = edges.find(edge => edge.kind === 'contains' && edge.to === node.id);
+
+    return parentEdge ? (nodesById.get(parentEdge.from) ?? null) : null;
+  }, [edges, node.id, nodesById]);
+  const childNodes = useMemo(
+    () =>
+      outgoing
+        .filter(edge => edge.kind === 'contains')
+        .map(edge => nodesById.get(edge.to))
+        .filter((child): child is PlanWorkstreamNode => Boolean(child)),
+    [nodesById, outgoing],
+  );
+  const overviewBody = useMemo(
+    () =>
+      childNodes.length > 0
+        ? omitMarkdownSection(parsedDocument.body, 'Child Items')
+        : parsedDocument.body,
+    [childNodes.length, parsedDocument.body],
+  );
+  const markdownSections = useMemo(() => extractMarkdownSections(overviewBody), [overviewBody]);
+  const markdownSectionGroups = useMemo(
+    () => getMarkdownSectionGroups(markdownSections, node),
+    [markdownSections, node],
   );
   const pastEntries = evolutionEntries.filter(entry => entry.stage === 'past');
   const currentEntries = evolutionEntries.filter(entry => entry.stage === 'now');
@@ -3374,30 +3440,58 @@ const FullMarkdownModal = ({
         className='absolute left-1/2 top-1/2 flex h-[min(88vh,920px)] w-[min(1180px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-border/80 bg-card/95 shadow-2xl'
         onClick={event => event.stopPropagation()}
       >
-        <div className='flex items-start gap-4 border-b border-border/70 px-5 py-4'>
-          <div className='min-w-0 flex-1'>
+        <header className='relative border-b border-border/70 px-5 pb-4 pt-3'>
+          {parentNode ? (
+            <nav aria-label='Parent node' className='flex min-h-7 justify-center px-20'>
+              <a
+                aria-label={`Parent node: ${parentNode.shortTitle}`}
+                className='group/parent inline-flex max-w-[min(20rem,50vw)] items-center gap-2 rounded-full px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
+                href={getNodeHref(parentNode.id)}
+                title={parentNode.path ?? parentNode.semanticId}
+                onClick={event => {
+                  if (
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  ) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  onOpenFull(parentNode.id);
+                }}
+              >
+                <ArrowUp className='size-3.5 shrink-0 transition-transform group-hover/parent:-translate-y-0.5' />
+                <span className='font-mono text-[9px] uppercase text-muted-foreground/70'>
+                  Parent
+                </span>
+                <span className='truncate font-medium'>{parentNode.shortTitle}</span>
+              </a>
+            </nav>
+          ) : null}
+
+          <div className='absolute right-5 top-3 flex items-center gap-2'>
+            {navigationBackNode && navigationBackNode.id !== parentNode?.id ? (
+              <IconButton
+                label={`Back to ${navigationBackNode.shortTitle}`}
+                onClick={onNavigateBack}
+              >
+                <ArrowLeft className='size-4' />
+              </IconButton>
+            ) : null}
+            <IconButton label='Close full detail' onClick={onClose}>
+              <X className='size-4' />
+            </IconButton>
+          </div>
+
+          <div className={cn('min-w-0', parentNode && 'mt-1')}>
             <div className='flex flex-wrap items-center gap-2'>
               <span className={cn('size-2 rounded-full', statusDotClassName(node.statusGroup))} />
               <span className='font-mono text-xs uppercase text-muted-foreground'>{node.kind}</span>
               <span className='font-mono text-xs text-muted-foreground'>{node.status}</span>
             </div>
-            {breadcrumb.length > 0 ? (
-              <div className='mt-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground'>
-                {breadcrumb.map((crumb, crumbIndex) => (
-                  <Fragment key={crumb.id}>
-                    {crumbIndex > 0 ? <span className='text-muted-foreground/60'>/</span> : null}
-                    <button
-                      type='button'
-                      className='max-w-[180px] truncate rounded-sm underline-offset-4 transition-colors hover:text-foreground hover:underline'
-                      title={crumb.path ?? crumb.semanticId}
-                      onClick={() => onOpenFull(crumb.id)}
-                    >
-                      {crumb.shortTitle}
-                    </button>
-                  </Fragment>
-                ))}
-              </div>
-            ) : null}
             <div className='mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2'>
               <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
                 {node.shortTitle}
@@ -3435,23 +3529,7 @@ const FullMarkdownModal = ({
               </nav>
             </div>
           </div>
-          <div className='flex shrink-0 items-center gap-2'>
-            {navigationBackNode ? (
-              <button
-                type='button'
-                className='inline-flex h-9 max-w-[13rem] items-center gap-2 rounded-md border border-border/70 bg-background/55 px-2.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors hover:border-primary/45 hover:bg-primary/10 hover:text-foreground'
-                title={`Back to ${navigationBackNode.shortTitle}`}
-                onClick={onNavigateBack}
-              >
-                <ArrowLeft className='size-4 shrink-0' />
-                <span className='min-w-0 truncate'>{navigationBackNode.shortTitle}</span>
-              </button>
-            ) : null}
-            <IconButton label='Close full detail' onClick={onClose}>
-              <X className='size-4' />
-            </IconButton>
-          </div>
-        </div>
+        </header>
 
         <div
           className={cn(
@@ -3462,7 +3540,7 @@ const FullMarkdownModal = ({
           {activeTab === 'overview' ? (
             <div className='grid min-w-0 gap-6 px-1 sm:px-2 xl:grid-cols-[minmax(0,1fr)_12rem]'>
               <article className='grid min-w-0 max-w-full gap-5 overflow-hidden break-words xl:pr-2 [&>*]:min-w-0 [&>*]:max-w-full'>
-                {renderMarkdownBody(parsedDocument.body, markdownContext)}
+                {renderMarkdownBody(overviewBody, markdownContext)}
               </article>
               <MarkdownSectionIndex groups={markdownSectionGroups} />
             </div>
@@ -3654,6 +3732,62 @@ const FullMarkdownModal = ({
             )
           ) : null}
         </div>
+
+        {childNodes.length > 0 ? (
+          <nav
+            aria-label='Child nodes'
+            className='relative shrink-0 bg-gradient-to-t from-card via-card/95 to-transparent px-5 pb-4 pt-4 sm:px-8'
+          >
+            <div className='mb-1.5 text-center font-mono text-[9px] uppercase tracking-wide text-muted-foreground/55'>
+              Children
+            </div>
+            <div className='relative'>
+              <div className='pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-card to-transparent' />
+              <div className='pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-card to-transparent' />
+              <div className='scroll-smooth overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+                <div className='flex w-max min-w-full snap-x snap-mandatory justify-center gap-2 px-3'>
+                  {childNodes.map(child => (
+                    <a
+                      key={child.id}
+                      aria-label={`Child node: ${child.shortTitle}`}
+                      className='group/child grid w-52 shrink-0 snap-start gap-1 rounded-lg bg-muted/25 px-3 py-2 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
+                      href={getNodeHref(child.id)}
+                      title={child.path ?? child.semanticId}
+                      onClick={event => {
+                        if (
+                          event.button !== 0 ||
+                          event.metaKey ||
+                          event.ctrlKey ||
+                          event.shiftKey ||
+                          event.altKey
+                        ) {
+                          return;
+                        }
+
+                        event.preventDefault();
+                        onOpenFull(child.id);
+                      }}
+                    >
+                      <span className='flex min-w-0 items-center gap-2 font-mono text-[9px] uppercase text-muted-foreground/65'>
+                        <span
+                          className={cn(
+                            'size-1.5 shrink-0 rounded-full',
+                            statusDotClassName(child.statusGroup),
+                          )}
+                        />
+                        <span className='truncate'>{child.kind}</span>
+                        <span className='ml-auto shrink-0 normal-case'>{getNodeStatusLabel(child)}</span>
+                      </span>
+                      <span className='truncate text-xs font-medium text-foreground transition-colors group-hover/child:text-primary'>
+                        {child.shortTitle}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </nav>
+        ) : null}
       </div>
     </div>
   );
@@ -5422,6 +5556,14 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
           activeTab={fullNodeActiveTab}
           edges={fullNodeEdges}
           evidence={snapshot.evidence ?? []}
+          getNodeHref={nodeId =>
+            getAtlasRouteHref({
+              fullNodeId: nodeId,
+              fullNodeTab:
+                fullNodeTabsById.get(nodeId) ?? defaultFullMarkdownModalTab,
+              selectedNodeId: canvasNodeIds.has(nodeId) ? nodeId : selectedNodeId,
+            })
+          }
           getTabHref={tab =>
             getAtlasRouteHref({
               fullNodeId: fullNode.id,

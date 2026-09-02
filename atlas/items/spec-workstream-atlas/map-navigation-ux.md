@@ -20,6 +20,14 @@ make plan numbers visually scannable, separate the source name from its canonica
 retain the full URI as secondary detail. A collapsed branch reports `direct children / total
 descendants` so its hidden depth is visible before expansion.
 
+Full detail is also a vertical hierarchy navigator. The direct structural parent occupies a subtle
+centered slot above the node title, while direct children occupy a soft horizontal rail below the
+content. Selecting either keeps the modal shell open and replaces its node; child overflow scrolls
+horizontally with snap points instead of introducing another hard-divided panel. Related, support,
+and shaping edges remain in Context or Evolution rather than pretending to be structural children.
+When the rail projects direct children, Overview suppresses the conventional Markdown `Child
+Items` section so navigation is not rendered twice.
+
 ## Child Items
 
 1. [`Shareable Node Routes`](./map-navigation-ux/shareable-node-routes.md)

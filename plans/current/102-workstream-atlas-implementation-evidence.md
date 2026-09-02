@@ -349,6 +349,13 @@ Full-detail sections are now deep-linkable through `full=<node-id>` plus an opti
 navigation updates browser history, and direct loads or Back / Forward restore the addressed node
 and section. Overview remains the canonical default and omits the section parameter.
 
+The same modal now provides structural navigation without closing or reopening its shell. A direct
+parent appears centered above the title, and direct `contains` children appear in a subtle,
+horizontally scrollable rail below the active section. These slots are real links and replace the
+modal's node on ordinary navigation; shaping, support, and related evidence stays in its semantic
+section rather than being mislabeled as a child. The rail replaces the conventional `Child Items`
+list in Overview when both would project the same direct children.
+
 ### 2026-09-02 — map scanability and shared Runtime Protocol adapter
 
 A focused maintenance slice improves the Atlas navigation surface and removes a temporary server

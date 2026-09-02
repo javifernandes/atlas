@@ -165,7 +165,7 @@ describe('PlanWorkstreamExplorer', () => {
 
     await user.click(within(dialog).getByRole('link', { name: 'context' }));
     expect(globalThis.location.search).toBe('?full=item-a&section=context');
-    expect(within(dialog).getAllByRole('button', { name: 'Parent Item' })).toHaveLength(2);
+    expect(within(dialog).getAllByRole('button', { name: 'Parent Item' })).toHaveLength(1);
     expect(
       within(dialog).queryByRole('button', { name: /contained by\s*Parent Item/ }),
     ).not.toBeInTheDocument();
@@ -202,6 +202,69 @@ describe('PlanWorkstreamExplorer', () => {
     expect(contextLink).toHaveAttribute('aria-current', 'page');
     expect(within(dialog).queryByText('Item A overview text.')).not.toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /supports\s*Item C/ })).toBeInTheDocument();
+  });
+
+  it('navigates to the parent and direct children inside the same modal', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const user = userEvent.setup();
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-a'
+          ? {
+              ...node,
+              markdown: `Item A overview text.
+
+## Child Items
+
+- [[item-c|Item C]]`,
+            }
+          : node,
+      ),
+      edges: [
+        ...snapshot.edges,
+        {
+          id: 'item-a-contains-item-c',
+          from: 'item-a',
+          to: 'item-c',
+          kind: 'contains',
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+
+    const dialog = screen.getByRole('dialog');
+    const parentLink = within(dialog).getByRole('link', {
+      name: 'Parent node: Parent Item',
+    });
+    const childNavigation = within(dialog).getByRole('navigation', { name: 'Child nodes' });
+    const childLink = within(childNavigation).getByRole('link', {
+      name: 'Child node: Item C',
+    });
+
+    expect(within(dialog).queryByRole('heading', { name: 'Child Items' })).not.toBeInTheDocument();
+    expect(
+      new URL(parentLink.getAttribute('href') ?? '', 'http://atlas.local').searchParams.get('full'),
+    ).toBe('parent-item');
+    expect(
+      new URL(childLink.getAttribute('href') ?? '', 'http://atlas.local').searchParams.get('full'),
+    ).toBe('item-c');
+
+    await user.click(childLink);
+
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(within(dialog).getByRole('heading', { name: 'Item C' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Back to Item A' })).not.toBeInTheDocument();
+
+    await user.click(
+      within(dialog).getByRole('link', {
+        name: 'Parent node: Item A',
+      }),
+    );
+
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(within(dialog).getByRole('heading', { name: 'Item A' })).toBeInTheDocument();
   });
 
   it('keeps indented markdown continuations inside their checklist and list items', () => {
