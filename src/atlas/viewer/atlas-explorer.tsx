@@ -51,6 +51,15 @@ type PlanWorkstreamExplorerProps = {
 type FullMarkdownModalTab = 'context' | 'evolution' | 'overview' | 'source';
 
 const defaultFullMarkdownModalTab: FullMarkdownModalTab = 'overview';
+const fullMarkdownModalTabs = [
+  'overview',
+  'evolution',
+  'context',
+  'source',
+] satisfies FullMarkdownModalTab[];
+
+const isFullMarkdownModalTab = (value: string | null): value is FullMarkdownModalTab =>
+  fullMarkdownModalTabs.some(tab => tab === value);
 
 type PositionedNode = PlanWorkstreamNode & {
   x: number;
@@ -193,6 +202,7 @@ type EvolutionEntry = {
 
 type AtlasRouteState = {
   fullNodeId: string | null;
+  fullNodeTab: FullMarkdownModalTab;
   selectedNodeId: string | null;
 };
 
@@ -265,6 +275,7 @@ const allStatuses: PlanStatusGroup[] = [
 
 const emptyRouteState: AtlasRouteState = {
   fullNodeId: null,
+  fullNodeTab: defaultFullMarkdownModalTab,
   selectedNodeId: null,
 };
 
@@ -596,19 +607,23 @@ const readAtlasRouteState = (): AtlasRouteState => {
   }
 
   const searchParams = new URL(globalThis.location.href).searchParams;
+  const fullNodeId = searchParams.get('full');
+  const requestedFullNodeTab = searchParams.get('section');
 
   return {
-    fullNodeId: searchParams.get('full'),
+    fullNodeId,
+    fullNodeTab:
+      fullNodeId && isFullMarkdownModalTab(requestedFullNodeTab)
+        ? requestedFullNodeTab
+        : defaultFullMarkdownModalTab,
     selectedNodeId: searchParams.get('node'),
   };
 };
 
-const writeAtlasRouteState = (state: AtlasRouteState, mode: 'push' | 'replace' = 'push') => {
-  if (typeof globalThis.window === 'undefined') {
-    return;
-  }
-
-  const nextUrl = new URL(globalThis.location.href);
+const getAtlasRouteUrl = (state: AtlasRouteState) => {
+  const nextUrl = new URL(
+    typeof globalThis.window === 'undefined' ? 'http://atlas.local/' : globalThis.location.href,
+  );
 
   if (state.selectedNodeId) {
     nextUrl.searchParams.set('node', state.selectedNodeId);
@@ -621,6 +636,28 @@ const writeAtlasRouteState = (state: AtlasRouteState, mode: 'push' | 'replace' =
   } else {
     nextUrl.searchParams.delete('full');
   }
+
+  if (state.fullNodeId && state.fullNodeTab !== defaultFullMarkdownModalTab) {
+    nextUrl.searchParams.set('section', state.fullNodeTab);
+  } else {
+    nextUrl.searchParams.delete('section');
+  }
+
+  return nextUrl;
+};
+
+const getAtlasRouteHref = (state: AtlasRouteState) => {
+  const nextUrl = getAtlasRouteUrl(state);
+
+  return `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+};
+
+const writeAtlasRouteState = (state: AtlasRouteState, mode: 'push' | 'replace' = 'push') => {
+  if (typeof globalThis.window === 'undefined') {
+    return;
+  }
+
+  const nextUrl = getAtlasRouteUrl(state);
 
   const currentPath = `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}`;
   const nextPath = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
@@ -3233,6 +3270,7 @@ const FullMarkdownModal = ({
   nodesBySemanticId,
   node,
   navigationBackNode,
+  getTabHref,
   onActiveTabChange,
   onClose,
   onNavigateBack,
@@ -3247,6 +3285,7 @@ const FullMarkdownModal = ({
   nodesBySemanticId: Map<string, PlanWorkstreamNode>;
   node: PlanWorkstreamNode;
   navigationBackNode: PlanWorkstreamNode | null;
+  getTabHref: (tab: FullMarkdownModalTab) => string;
   onActiveTabChange: (tab: FullMarkdownModalTab) => void;
   onClose: () => void;
   onNavigateBack: () => void;
@@ -3364,22 +3403,34 @@ const FullMarkdownModal = ({
                 {node.shortTitle}
               </h2>
               <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
-                {(
-                  ['overview', 'evolution', 'context', 'source'] satisfies FullMarkdownModalTab[]
-                ).map(tab => (
-                  <button
+                {fullMarkdownModalTabs.map(tab => (
+                  <a
                     key={tab}
-                    type='button'
+                    aria-current={activeTab === tab ? 'page' : undefined}
                     className={cn(
                       'rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors',
                       activeTab === tab
                         ? 'bg-primary/12 text-foreground'
                         : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                     )}
-                    onClick={() => onActiveTabChange(tab)}
+                    href={getTabHref(tab)}
+                    onClick={event => {
+                      if (
+                        event.button !== 0 ||
+                        event.metaKey ||
+                        event.ctrlKey ||
+                        event.shiftKey ||
+                        event.altKey
+                      ) {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      onActiveTabChange(tab);
+                    }}
                   >
                     {tab}
-                  </button>
+                  </a>
                 ))}
               </nav>
             </div>
@@ -3755,9 +3806,7 @@ const SelectionPanel = ({
 
 export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps) => {
   const { theme, toggleTheme } = useTheme();
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
-    () => readAtlasRouteState().selectedNodeId,
-  );
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [atlasView, setAtlasView] = useState<AtlasView>('map');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -3769,10 +3818,8 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
   );
   const [viewport, setViewport] = useState<Viewport>(fallbackViewport);
   const [isPanning, setIsPanning] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(() => Boolean(readAtlasRouteState().selectedNodeId));
-  const [fullNodeId, setFullNodeId] = useState<string | null>(
-    () => readAtlasRouteState().fullNodeId,
-  );
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [fullNodeId, setFullNodeId] = useState<string | null>(null);
   const [fullNodeHistoryIds, setFullNodeHistoryIds] = useState<string[]>([]);
   const [fullNodeTabsById, setFullNodeTabsById] = useState<Map<string, FullMarkdownModalTab>>(
     () => new Map(),
@@ -4194,8 +4241,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
 
     setSelectedNodeId(null);
     setDetailOpen(false);
-    writeAtlasRouteState({ fullNodeId, selectedNodeId: null }, 'replace');
-  }, [fullNodeId, selectedNodeId, visibleNodeIds]);
+    writeAtlasRouteState(
+      { fullNodeId, fullNodeTab: fullNodeActiveTab, selectedNodeId: null },
+      'replace',
+    );
+  }, [fullNodeActiveTab, fullNodeId, selectedNodeId, visibleNodeIds]);
 
   useEffect(() => {
     if (atlasView !== 'map') {
@@ -4448,7 +4498,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
     setHoveredNodeId(null);
 
     if (input.route ?? true) {
-      writeAtlasRouteState({ fullNodeId: null, selectedNodeId: nodeId });
+      writeAtlasRouteState({
+        fullNodeId: null,
+        fullNodeTab: defaultFullMarkdownModalTab,
+        selectedNodeId: nodeId,
+      });
     }
 
     if (input.focus ?? autoFocusEnabled) {
@@ -4463,7 +4517,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
     setHoveredNodeId(null);
 
     if (input.route ?? true) {
-      writeAtlasRouteState({ fullNodeId, selectedNodeId: null });
+      writeAtlasRouteState({
+        fullNodeId,
+        fullNodeTab: fullNodeActiveTab,
+        selectedNodeId: null,
+      });
     }
   };
 
@@ -4486,19 +4544,27 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
         });
       }
 
+      const nextFullNodeTab =
+        fullNodeTabsById.get(nodeId) ?? defaultFullMarkdownModalTab;
+
       setFullNodeId(nodeId);
       writeAtlasRouteState({
         fullNodeId: nodeId,
+        fullNodeTab: nextFullNodeTab,
         selectedNodeId: isCanvasNode ? nodeId : selectedNodeId,
       });
     },
-    [canvasNodeIds, fullNodeId, revealNodePath, selectedNodeId],
+    [canvasNodeIds, fullNodeId, fullNodeTabsById, revealNodePath, selectedNodeId],
   );
 
   const closeFullNode = () => {
     setFullNodeId(null);
     setFullNodeHistoryIds([]);
-    writeAtlasRouteState({ fullNodeId: null, selectedNodeId });
+    writeAtlasRouteState({
+      fullNodeId: null,
+      fullNodeTab: defaultFullMarkdownModalTab,
+      selectedNodeId,
+    });
   };
 
   const navigateFullNodeBack = useCallback(() => {
@@ -4519,10 +4585,14 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
       setHoveredNodeId(null);
     }
 
+    const previousNodeTab =
+      fullNodeTabsById.get(previousNodeId) ?? defaultFullMarkdownModalTab;
+
     setFullNodeId(previousNodeId);
     writeAtlasRouteState(
       {
         fullNodeId: previousNodeId,
+        fullNodeTab: previousNodeTab,
         selectedNodeId: isCanvasNode ? previousNodeId : selectedNodeId,
       },
       'replace',
@@ -4536,22 +4606,30 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
     canvasNodeIds,
     focusNode,
     fullNodeHistoryIds,
+    fullNodeTabsById,
     nodesById,
     revealNodePath,
     selectedNodeId,
   ]);
 
-  const setFullNodeActiveTab = useCallback((nodeId: string, tab: FullMarkdownModalTab) => {
-    setFullNodeTabsById(current => {
-      if (current.get(nodeId) === tab) {
-        return current;
-      }
+  const setFullNodeActiveTab = useCallback(
+    (nodeId: string, tab: FullMarkdownModalTab) => {
+      setFullNodeTabsById(current => {
+        if (current.get(nodeId) === tab) {
+          return current;
+        }
 
-      const next = new Map(current);
-      next.set(nodeId, tab);
-      return next;
-    });
-  }, []);
+        const next = new Map(current);
+        next.set(nodeId, tab);
+        return next;
+      });
+
+      if (fullNodeId === nodeId) {
+        writeAtlasRouteState({ fullNodeId: nodeId, fullNodeTab: tab, selectedNodeId });
+      }
+    },
+    [fullNodeId, selectedNodeId],
+  );
 
   const boardSourceNode = nodesById.get(rootNodeId) ?? snapshot.nodes[0];
   const boardMarkdownContext = useMemo<MarkdownRenderContext | null>(
@@ -4640,7 +4718,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
       setFullNodeId(null);
       setFullNodeHistoryIds([]);
       setHoveredNodeId(null);
-      writeAtlasRouteState({ fullNodeId: null, selectedNodeId: node.id });
+      writeAtlasRouteState({
+        fullNodeId: null,
+        fullNodeTab: defaultFullMarkdownModalTab,
+        selectedNodeId: node.id,
+      });
       scrollBoardNodeIntoView(node.id);
       return;
     }
@@ -4718,6 +4800,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
 
     if (routeFullNodeId) {
       setFullNodeId(routeFullNodeId);
+      setFullNodeTabsById(current => {
+        const next = new Map(current);
+        next.set(routeFullNodeId, routeState.fullNodeTab);
+        return next;
+      });
     }
   }, [canvasNodeIds, focusNode, nodesById, revealNodePath]);
 
@@ -4741,6 +4828,13 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
       setSelectedNodeId(nextSelectedNodeId);
       setDetailOpen(Boolean(nextSelectedNodeId));
       setFullNodeId(nextFullNodeId);
+      if (nextFullNodeId) {
+        setFullNodeTabsById(current => {
+          const next = new Map(current);
+          next.set(nextFullNodeId, routeState.fullNodeTab);
+          return next;
+        });
+      }
       setFullNodeHistoryIds(current => {
         if (!nextFullNodeId) {
           return [];
@@ -5328,6 +5422,13 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
           activeTab={fullNodeActiveTab}
           edges={fullNodeEdges}
           evidence={snapshot.evidence ?? []}
+          getTabHref={tab =>
+            getAtlasRouteHref({
+              fullNodeId: fullNode.id,
+              fullNodeTab: tab,
+              selectedNodeId,
+            })
+          }
           navigationBackNode={fullNodeNavigationBackNode}
           nodesById={nodesById}
           nodesByPath={nodesByPath}

@@ -342,6 +342,13 @@ not consume presentation space. Author and merger are observed separately, dedup
 are the same account, and rendered as a stacked group with hover role details. Open PR observation
 can later add an in-progress evidence group, but PRs do not become future evolution nodes.
 
+### 2026-09-02 — full-detail section links
+
+Full-detail sections are now deep-linkable through `full=<node-id>` plus an optional
+`section=overview|evolution|context|source`. The section controls are real links, ordinary
+navigation updates browser history, and direct loads or Back / Forward restore the addressed node
+and section. Overview remains the canonical default and omits the section parameter.
+
 ### 2026-09-02 — map scanability and shared Runtime Protocol adapter
 
 A focused maintenance slice improves the Atlas navigation surface and removes a temporary server

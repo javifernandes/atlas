@@ -151,12 +151,20 @@ describe('PlanWorkstreamExplorer', () => {
     ).toBeInTheDocument();
     expect(within(dialog).getByText('Item A overview text.')).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: 'evolution' }));
+    const evolutionLink = within(dialog).getByRole('link', { name: 'evolution' });
+    expect(evolutionLink).toHaveAttribute(
+      'href',
+      '/internal/plans?full=item-a&section=evolution',
+    );
+
+    await user.click(evolutionLink);
+    expect(globalThis.location.search).toBe('?full=item-a&section=evolution');
     expect(within(dialog).queryByText('Item A overview text.')).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Item C' })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Item D' })).not.toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: 'context' }));
+    await user.click(within(dialog).getByRole('link', { name: 'context' }));
+    expect(globalThis.location.search).toBe('?full=item-a&section=context');
     expect(within(dialog).getAllByRole('button', { name: 'Parent Item' })).toHaveLength(2);
     expect(
       within(dialog).queryByRole('button', { name: /contained by\s*Parent Item/ }),
@@ -164,7 +172,7 @@ describe('PlanWorkstreamExplorer', () => {
     expect(within(dialog).getByRole('button', { name: /supports\s*Item C/ })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /related\s*Item D/ })).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: 'evolution' }));
+    await user.click(within(dialog).getByRole('link', { name: 'evolution' }));
     await user.click(within(dialog).getByRole('button', { name: 'Item B' }));
 
     dialog = screen.getByRole('dialog');
@@ -175,6 +183,25 @@ describe('PlanWorkstreamExplorer', () => {
     dialog = screen.getByRole('dialog');
     expect(within(dialog).queryByText('Item A overview text.')).not.toBeInTheDocument();
     expect(within(dialog).getByText('Item B summary.')).toBeInTheDocument();
+    expect(new URLSearchParams(globalThis.location.search).get('full')).toBe('item-a');
+    expect(new URLSearchParams(globalThis.location.search).get('section')).toBe('evolution');
+  });
+
+  it('opens a directly linked full-detail section', () => {
+    globalThis.history.replaceState(
+      {},
+      '',
+      '/internal/plans?full=item-a&section=context',
+    );
+
+    renderExplorer();
+
+    const dialog = screen.getByRole('dialog');
+    const contextLink = within(dialog).getByRole('link', { name: 'context' });
+
+    expect(contextLink).toHaveAttribute('aria-current', 'page');
+    expect(within(dialog).queryByText('Item A overview text.')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /supports\s*Item C/ })).toBeInTheDocument();
   });
 
   it('keeps indented markdown continuations inside their checklist and list items', () => {
@@ -344,7 +371,7 @@ describe('PlanWorkstreamExplorer', () => {
     renderExplorer({ value });
     const dialog = screen.getByRole('dialog');
 
-    await user.click(within(dialog).getByRole('button', { name: 'evolution' }));
+    await user.click(within(dialog).getByRole('link', { name: 'evolution' }));
 
     const implementationEvidence = within(dialog).getByRole('region', {
       name: 'Implementation evidence',
