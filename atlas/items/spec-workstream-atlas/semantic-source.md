@@ -51,6 +51,13 @@ use the application-bound graph API so the exact storage runtime and query termi
 The Ontahi Runtime Protocol belongs at a later transport boundary—browser, GitHub worker, or
 external agent—not between Markdown parsing and an in-process build projection.
 
+The current page read model is assembled on demand. Individual remote repository and pull-request
+reads have bounded Next.js caches, but Atlas still reloads local Markdown and reconstructs the
+application, compatibility snapshot, topology, and evidence projection for a page render. The app
+shell exposes that work through a branded loading boundary. A future materialized projection or
+persistent evidence index should cache the assembled read model behind explicit invalidation; it
+must not displace Markdown, GitHub, or other source systems as authority.
+
 During the static build, Atlas queries Ontahi for Item containment, support and shaping bindings,
 plus Plan containment and lateral relations. One serializable topology projection feeds the global
 map, board, selection panel, and full-detail Context and Evolution tabs. The compatibility snapshot

@@ -17,10 +17,12 @@ export const ThemeProvider = ({
   forcedTheme?: Theme;
 }) => {
   const [theme, setTheme] = useState<Theme>(forcedTheme ?? 'light');
+  const [themeResolved, setThemeResolved] = useState(Boolean(forcedTheme));
 
   useEffect(() => {
     if (forcedTheme) {
       setTheme(forcedTheme);
+      setThemeResolved(true);
       return;
     }
 
@@ -32,15 +34,20 @@ export const ThemeProvider = ({
           ? 'dark'
           : 'light';
     setTheme(initial);
+    setThemeResolved(true);
   }, [forcedTheme]);
 
   useEffect(() => {
+    if (!themeResolved) {
+      return;
+    }
+
     document.documentElement.classList.toggle('dark', theme === 'dark');
     document.documentElement.style.colorScheme = theme;
     if (!forcedTheme) {
       globalThis.localStorage?.setItem('atlas-theme', theme);
     }
-  }, [forcedTheme, theme]);
+  }, [forcedTheme, theme, themeResolved]);
 
   return (
     <ThemeContext.Provider
