@@ -4,13 +4,14 @@ kind: concept
 title: Evidence Binding
 parent: spec-workstream-atlas.atlas-model
 status: shaping
-horizon: next
+horizon: now
 supports:
   - spec-workstream-atlas.atlas-model
   - spec-workstream-atlas.implementation-evidence
 relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
   - plans/current/102-workstream-atlas-implementation-evidence.md
+  - plans/next/116-atlas-ontahi-postgres-persistence.md
 ---
 
 Evidence Binding links a model item to concrete proof: code, tests, migrations, stories, deployments, metrics, docs, or PRs.
@@ -38,3 +39,9 @@ A GitHub App webhook provides the authenticated merge signal and invalidates the
 projection. It does not make the webhook payload authoritative, mirror the PR into Markdown, mutate
 the target's curated status, or require persistence. Duplicate invalidations are harmless; durable
 delivery deduplication begins only when Atlas adds an observed evidence index.
+
+Plan 116 introduces that index through Ontahi and PostgreSQL on Neon. The persisted binding keeps
+its evidence id, target id, assertion kind, source authority, and observation revision; it does not
+turn Atlas into the owner of the referenced Pull Request. Durable delivery identity makes repeated
+webhooks converge across server instances, while source reconciliation can still refresh the
+authoritative GitHub record.

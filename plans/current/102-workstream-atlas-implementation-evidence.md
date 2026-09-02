@@ -4,6 +4,9 @@ Status: current
 
 Depends on: [111. Atlas As An Ontahi Application](../done/111-atlas-as-ontahi-application.md)
 
+Next implementation gate:
+[116. Atlas Ontahi PostgreSQL Persistence](../next/116-atlas-ontahi-postgres-persistence.md)
+
 ## Summary
 
 Connect curated Atlas Items and Plans to the implementation components, public surfaces,
@@ -34,15 +37,11 @@ Atlas currently explains semantic intent while implementation and release histor
 5. Atlas Items describe the current conceptual system but cannot yet show how that form evolved
    across releases.
 
-Atlas does not yet own a GitHub App or webhook receiver. Hosted data currently becomes fresh through
-five-minute Next.js revalidation plus a six-hour GitHub Actions cron that calls a Vercel deploy hook.
-That polling path proves the federated read model, but it cannot provide a direct, authenticated
-merge signal and was incorrectly described in earlier plans as an existing GitHub App.
-
-BookOps already proves the intended Ontahi-native shape: a GitHub webhook provider verifies and
-normalizes a delivery, the generic graph HTTP ingress router selects a declared channel, and a
-server-only Ontahi operation performs the application work. Atlas can reuse that architecture while
-keeping GitHub authoritative and avoiding a Markdown event mirror.
+Atlas now owns a GitHub App and webhook receiver. A GitHub webhook provider verifies and normalizes
+a delivery, the generic graph HTTP ingress router selects a declared channel, and a server-only
+Ontahi operation performs the application work. The first slice deliberately invalidates the
+ephemeral projection instead of storing the event. That was sufficient for merged-PR evidence, but
+Changesets and release correlation need a durable history across serverless instances and deploys.
 
 This capability follows [Plan 111](../done/111-atlas-as-ontahi-application.md). Ontahi now gives
 Atlas a model and operation layer in which curated declarations and observed evidence can coexist
@@ -50,7 +49,8 @@ without pretending they have the same authority or storage lifecycle.
 
 ## Research / Evidence
 
-1. BookOps and Ontahi already use Changesets to describe versioned package changes.
+1. Ontahi uses Changesets to describe versioned package changes and provides the first real pilot;
+   BookOps has package boundaries that can adopt the same model later.
 2. A Changeset names affected packages, semantic version increments, and a human explanation before
    release aggregation removes or transforms the source file.
 3. GitHub remains authoritative for PR identity, merge state, commits, actors, and links.
@@ -62,8 +62,12 @@ without pretending they have the same authority or storage lifecycle.
    durable declared implementation structure from concrete versioned artifacts.
 7. [109. Work Item Impact Surface](./109-work-item-impact-surface.md) provides the `shapes`,
    `affects`, `preserves`, `breaks`, and `restores` vocabulary for relating work to system form.
-8. `@ontahi/core@1.0.0-alpha.9`, already consumed by Atlas, exposes graph HTTP ingress routing and
-   operation dispatch. BookOps exercises the same boundary for signed GitHub App webhooks.
+8. `@ontahi/core@1.0.0-alpha.10`, already consumed by Atlas, exposes graph HTTP ingress routing and
+   operation dispatch. `@ontahi/runtime-nextjs@1.0.0-alpha.10` exposes the shared Next.js Runtime
+   Protocol adapter.
+9. Ontahi's Changesets configuration uses a fixed group for its public packages. A release may
+   therefore publish several Component Versions together without turning the group itself into a
+   Component.
 
 ## Scope
 
@@ -89,8 +93,8 @@ without pretending they have the same authority or storage lifecycle.
 4. Do not declare every folder, module, export, or changed file as a first-class Component or
    Surface.
 5. Do not require LLM inference for deterministic package, Changeset, PR, or release relationships.
-6. Do not introduce persistence before the observed evidence slice establishes its retention and
-   query requirements.
+6. Do not make the persistent Atlas projection replace Markdown, GitHub, repository history, or
+   package registries as semantic authorities.
 7. Do not mutate Plan or Item status from a merged PR.
 8. Do not implement Changeset, release, or database ingestion in the first merged-PR slice.
 
@@ -102,17 +106,20 @@ A developer declares a durable implementation boundary in Markdown:
 
 ```yaml
 ---
-id: bookops.implementation.model-package
+id: ontahi.implementation.core-package
 kind: implementation-component
-title: BookOps Model Package
+title: Ontahi Core Package
 componentType: package
-repository: javifernandes/bookops
-path: model
-package: "@bookops/model"
+repository: javifernandes/ontahi
+path: packages/core
+package: "@ontahi/core"
+versionProvider: npm
+releaseGroup: ontahi-public-packages
+versionPolicy: fixed
 realizes:
-  - bookops.model
+  - ontahi.model.application
 surfaces:
-  - bookops.implementation.model-content-surface
+  - ontahi.implementation.core-runtime-protocol-surface
 ---
 ```
 
@@ -120,19 +127,36 @@ An important consumer boundary can be declared separately:
 
 ```yaml
 ---
-id: bookops.implementation.model-content-surface
+id: ontahi.implementation.core-runtime-protocol-surface
 kind: implementation-surface
-title: BookOps Content Model Surface
-component: bookops.implementation.model-package
-locator: "@bookops/model/content"
+title: Ontahi Core Runtime Protocol Surface
+component: ontahi.implementation.core-package
+locator: "@ontahi/core/runtime/protocol"
 realizes:
-  - bookops.model.book
-  - bookops.model.paragraph
+  - ontahi.runtime-protocol
 ---
 ```
 
 The exact frontmatter keys remain a design output of this plan. The important distinction is that a
-Component is a durable unit with identity, while a Surface is a boundary it exposes to consumers.
+Component is a durable unit with identity and version history, while a Surface is a boundary it
+exposes to consumers. A Surface participates in a Component Version's change set; it does not
+receive an independent version unless it later earns identity as its own Component.
+
+### Intent, realization, and observed delivery
+
+Plans and Atlas Items both relate to Components and Surfaces, but they do not use the same
+relationship:
+
+1. an Atlas Item is `realizedBy` one or more Surfaces, or by a Component when a finer boundary is
+   not useful;
+2. a Plan may declare the Components and Surfaces it intends to `affect` or `target`;
+3. a PR `implements` the Plan, `shapes` durable Atlas Items, and changes implementation boundaries;
+4. a Changeset describes the semantic version impact on named package Components;
+5. the Component Version that materialized a Plan or Item is derived through the observed
+   PR/Changeset/release chain rather than copied into curated Markdown.
+
+These are many-to-many relationships. One Plan may cross several Components, one Component may
+participate in many Plans, and one conceptual Item may be realized across several Surfaces.
 
 ### Observed evidence model
 
@@ -140,7 +164,7 @@ Component is a durable unit with identity, while a Surface is a boundary it expo
 Plan / Atlas Item
   <- shapes / implements / evidences - PR
   <- described by -------------------- Changeset
-  <- materialized in ----------------- Package Version
+  <- materialized in ----------------- Component Version
 
 PR
   -> changes ------ Implementation Component / Surface
@@ -148,14 +172,21 @@ PR
   -> merged as ---- Commit
 
 Release
-  -> publishes ---- Package Version / Artifact
+  -> publishes ---- Component Version
   -> includes ----- Changeset
   -> advances ----- Plan / Atlas Item
 ```
 
-`@bookops/model` is an Implementation Component. `@bookops/model/content` is a Surface.
-`@bookops/model@1.8.0` is a versioned Artifact or Package Version. These are related but not
-interchangeable concepts.
+`@ontahi/core` is an Implementation Component. `@ontahi/core/runtime/protocol` is a Surface.
+`@ontahi/core@1.0.0-alpha.10` is a Component Version. An Ontahi release may aggregate that version
+with versions of other packages governed by the same fixed Changesets group. These are related but
+not interchangeable concepts.
+
+`ComponentVersion` is a first-class observed entity rather than a scalar field or curated Markdown
+Item. It needs identity and relations of its own so Atlas can navigate from one version to its
+Changesets, PRs, Plans, Atlas Items, and affected Surfaces. A `Release` is the provider-observed
+event that publishes one or more Component Versions. Fixed, linked, or independent versioning is a
+durable policy over Components, not a reason to collapse those Components into one.
 
 ### Data ownership
 
@@ -165,12 +196,14 @@ interchangeable concepts.
 | Package manifest and exports | Repository | Sync/validation evidence |
 | Changeset source | Repository and git history | Extracted observed record |
 | PR and commit | GitHub | Fetched or cached record |
-| Published version | Package registry/release provider | Fetched or cached record |
+| Component Version | Package registry/release provider | Persisted observed record |
+| Release and version policy | Release provider/repository configuration | Observed event plus reconciled policy |
 | Explicit Atlas binding in PR/Changeset | Author assertion | Confirmed relationship |
 | LLM-proposed binding | Atlas inference | Relationship with provenance and confidence |
 
-The database, if adopted, stores an index/cache and Atlas-owned inferences. It does not replace
-GitHub or the registry as authority.
+Plan 116 introduces a Neon PostgreSQL projection through Ontahi before this plan adds Changesets.
+The database stores normalized observed history, reconciliation state, and Atlas-owned inferences;
+it does not replace GitHub, repository history, or the registry as authority.
 
 ### Explicit and inferred bindings
 
@@ -184,6 +217,12 @@ Atlas-Implements: bookops.internationalization-and-translations
 Deterministic extraction should resolve package names, changed paths, Changeset membership, PRs,
 commits, and published versions first. An LLM may then propose semantic bindings, always recording
 its evidence and confidence separately from author assertions.
+
+A Changeset's package frontmatter maps deterministically to declared Components through their
+package names and records the requested `patch`, `minor`, or `major` impact. Its containing PR is
+resolved from repository history. Authors should not repeat those mechanical links. Explicit Atlas
+directives may add Plan or Item intent; important Surface impact may be declared when path/export
+evidence is insufficient, with inferred suggestions remaining visibly distinct.
 
 ### GitHub App ingress
 
@@ -216,11 +255,22 @@ persistent delivery-id deduplication belongs with the later evidence index.
 7. Keep the existing cron as a temporary recovery path until production webhook delivery is
    verified.
 
+### Gate 1: Durable Ontahi application
+
+Complete [Plan 116](../next/116-atlas-ontahi-postgres-persistence.md) before adding Changeset and
+release history:
+
+1. persist the normalized Ontahi application in Neon PostgreSQL;
+2. reconcile curated Markdown and observed GitHub records with source provenance;
+3. serve page, Runtime Protocol, and webhook operations through the same storage composition;
+4. prove idempotent backfill and durable webhook delivery handling.
+
 ### Slice 1: Changesets and declared implementation structure
 
-1. Finalize the distinction between System, Implementation Component, Implementation Surface,
-   Artifact, Package Version, and Release.
-2. Declare two real Components and their important Surfaces.
+1. Materialize the decided distinction between Implementation Component, Implementation Surface,
+   Component Version, Release, and versioning policy.
+2. Declare `@ontahi/core` and `@ontahi/runtime-nextjs` as the first Components plus their important
+   public Surfaces.
 3. Read package manifests and exports for declared Components and report drift.
 4. Extract Changeset metadata before release aggregation removes source files.
 5. Link PR, merge commit, changed Component/Surface, Changeset, and explicit Atlas references.
@@ -233,15 +283,7 @@ persistent delivery-id deduplication belongs with the later evidence index.
    `Version/Release -> Changesets / PRs / Plans / Items / Surfaces`.
 4. Show uncertainty when a historical relationship cannot be reconstructed exactly.
 
-### Slice 3: Persistent evidence index
-
-1. Introduce a storage adapter behind the Ontahi application boundary.
-2. Persist observed evidence needed for historical navigation and webhook delivery deduplication.
-3. Keep GitHub, registries, and repositories authoritative; persistence is an index plus
-   Atlas-owned provenance.
-4. Evaluate Convex locally before configuring its production deployment and Vercel integration.
-
-### Slice 4: Semantic inference and wider evidence
+### Slice 3: Semantic inference and wider evidence
 
 1. Let an LLM propose missing Item/Plan bindings from PR text, diff, Components, and Surfaces.
 2. Add coverage, Storybook, preview, and deployment evidence behind the same provenance model.
@@ -251,6 +293,7 @@ persistent delivery-id deduplication belongs with the later evidence index.
 
 - [ ] At least two durable Components and their important Surfaces are declared in Markdown.
 - [ ] Atlas detects drift between a declaration and repository/package structure.
+- [ ] Plan 116 provides one durable Ontahi/PostgreSQL composition for reads, operations, and ingress.
 - [x] No per-PR or per-commit Markdown mirror is required.
 - [x] A signed GitHub App webhook dispatches a normalized merged-PR event through Ontahi ingress.
 - [x] `Atlas-Implements` and `Atlas-Shapes` create explicit, provenance-bearing bindings.
@@ -278,18 +321,24 @@ persistent delivery-id deduplication belongs with the later evidence index.
 11. Keep the cron refresh temporarily as a recovery mechanism, not the primary event path.
 12. Treat PRs as implementation evidence attached to a Plan or Item, not as semantic evolution
     nodes; observed evidence may be in progress or merged, but never next or later.
+13. A Component owns version identity; a Surface is changed within a Component Version and is not
+    independently versioned by default.
+14. `ComponentVersion` is a first-class observed entity. `Release` aggregates one or more Component
+    Versions.
+15. Fixed, linked, and independent package groups are versioning policies over Components, not
+    Components themselves.
+16. Complete Plan 116's Ontahi/PostgreSQL persistence boundary before Changeset ingestion.
 
 ## Open Questions
 
-1. Should `PackageVersion` be a specialized Artifact, a value attached to a Component, or its own
-   observed entity?
-2. How long should Atlas retain deleted Changeset source after a release: indefinitely as extracted
+1. How long should Atlas retain deleted Changeset source after a release: indefinitely as extracted
    provenance, or reconstruct it from git history on demand?
-3. Should release observation use GitHub releases, npm registry metadata, Changesets' release PR,
+2. Should release observation use GitHub releases, npm registry metadata, Changesets' release PR,
    or a provider-neutral combination?
-4. Which Component and Surface declarations deserve explicit Markdown files versus nested metadata?
-5. How should monorepo fixed/linked package groups appear in the release projection?
-6. What confirmation promotes an inferred binding into curated Atlas knowledge?
+3. Which Component and Surface declarations deserve explicit Markdown files versus nested metadata?
+4. Should a fixed or linked group receive a navigable Release Group projection, or remain policy
+   metadata on its Components until the UI needs it?
+5. What confirmation promotes an inferred binding into curated Atlas knowledge?
 
 ## Closure / Evolution
 
@@ -298,8 +347,9 @@ Implementation Component and Surface declarations, Changesets as semantic releas
 bidirectional Plan/Item/version navigation. Promoted to next on 2026-09-01 after Plan 111 proved the
 Ontahi application and Runtime Protocol boundary that can host curated plus observed data. Pulled to
 current on 2026-09-01 and reordered around a real Atlas GitHub App plus merged-PR evidence as the
-first slice. Changesets/releases follow, while persistence remains deferred until the observed model
-earns it.
+first slice. Persistence was initially deferred until the observed model earned it; production PR
+evidence and the retention needs of Changesets later promoted that work ahead of release ingestion
+as Plan 116.
 
 ### 2026-09-01 — merged PR evidence checkpoint
 
@@ -315,10 +365,10 @@ The first slice now provides:
 6. a local end-to-end signed delivery check returning `202`, plus unit, integration, UI, type, and
    production-build verification.
 
-The existing cron remains as a recovery path. Production registration, installation on the Atlas,
-BookOps, and Ontahi repositories, and Vercel secret configuration are rollout steps after this PR
-is deployed. Changeset and release correlation remains the next implementation slice; Convex or
-another persistent evidence index remains deliberately deferred.
+At this checkpoint, the existing cron remained as a recovery path. Production registration,
+installation on the Atlas, BookOps, and Ontahi repositories, and Vercel secret configuration were
+rollout steps after this PR deployed. Changeset and release correlation was the next implementation
+slice; Convex or another persistent evidence index remained deliberately deferred.
 
 ### 2026-09-02 — production source-tracing correction
 
@@ -391,5 +441,30 @@ baked into the artwork.
 The refresh delay is not simply an absent upstream cache. Remote repository and PR reads retain
 their bounded Next.js cache, while a page render still reloads local Markdown and rebuilds the
 in-memory application, compatibility snapshot, topology, and evidence projection. This checkpoint
-adds feedback, not a hidden persistence layer. Materializing the assembled projection with explicit
-invalidation remains part of the later persistent evidence-index slice.
+adds feedback, not a hidden persistence layer. Plan 116 now owns materializing that assembled
+projection with explicit reconciliation and invalidation before Changeset ingestion.
+
+### 2026-09-02 — persistence and version model checkpoint
+
+The next evidence slice now depends on
+[116. Atlas Ontahi PostgreSQL Persistence](../next/116-atlas-ontahi-postgres-persistence.md). Merged
+PR evidence proved the observed model, while upcoming Changesets proved the need to retain records
+that are later consumed by release aggregation. Atlas will therefore establish a durable Ontahi
+application on Neon PostgreSQL before extracting Changesets or package versions.
+
+The release model is also narrowed:
+
+1. an Implementation Component has durable identity and version history;
+2. an Implementation Surface belongs to a Component and may change within a version, but is not
+   independently versioned by default;
+3. `ComponentVersion` is a first-class observed entity;
+4. a `Release` publishes one or more Component Versions;
+5. fixed, linked, and independent package groups describe versioning policy rather than introducing
+   synthetic Components;
+6. Plans may declare intended Component/Surface impact and Atlas Items may declare what realizes
+   them, while the released version relationship is derived through PR and Changeset evidence.
+
+Ontahi is the first pilot. `@ontahi/core` and `@ontahi/runtime-nextjs` provide real Components,
+public Surfaces, package manifests, a fixed Changesets group, and published versions against which
+the model can be verified. BookOps can adopt the same declarations later without blocking the
+first release-evidence slice.

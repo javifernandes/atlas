@@ -26,6 +26,11 @@ A Surface may be a package export, HTTP API, operation bridge, CLI command, even
 UI route, or reusable React entrypoint. It is narrower than the owning Component and more durable
 than an arbitrary file or symbol.
 
+A Surface does not receive an independent version by default. It participates in the change delta
+of its owning Component, so Atlas can say that `@ontahi/core/runtime/protocol` changed in a concrete
+`@ontahi/core` Component Version. If a boundary later needs independent compatibility, ownership,
+or release history, that pressure is evidence that it may deserve promotion to its own Component.
+
 Developers should declare Surfaces when their compatibility, consumers, release impact, or
 relationship to Atlas Items matters. Atlas can then compare the declaration with actual exports,
 routes, schemas, and Changeset metadata.

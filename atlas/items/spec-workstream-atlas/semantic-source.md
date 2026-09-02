@@ -12,6 +12,7 @@ relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
   - plans/done/111-atlas-as-ontahi-application.md
   - plans/done/101-workstream-atlas-semantic-source.md
+  - plans/next/116-atlas-ontahi-postgres-persistence.md
 ---
 
 Semantic Source is the federated Markdown corpus that defines the atlas. Each source remains editable
@@ -72,3 +73,9 @@ endpoint, but it does not mutate Markdown; authenticated apply and provenance re
 reviewed boundary.
 
 Its current contract is captured in [`atlas/SOURCE-SHAPE.md`](../../SOURCE-SHAPE.md).
+
+The next runtime form materializes normalized source records and their provenance in an
+Ontahi-backed PostgreSQL projection. Git and Markdown remain authoring authority; persistence lets
+all server instances query one reconciled graph without rebuilding repository state during normal
+page reads. Source revision identity remains explicit so a rebuild can converge, remove stale
+projection records, and explain which source authored every durable semantic fact.
