@@ -1623,20 +1623,15 @@ const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvid
   evidence.length === 0 ? null : (
     <section
       aria-label='Implementation evidence'
-      className='overflow-visible rounded-lg border border-emerald-500/25 bg-emerald-500/[0.04]'
+      className='flex shrink-0 flex-col gap-2 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:gap-4'
     >
-      <header className='flex flex-wrap items-center justify-between gap-3 border-b border-emerald-500/20 px-4 py-3'>
-        <div>
-          <h3 className='font-mono text-xs uppercase text-foreground'>Implementation evidence</h3>
-          <p className='mt-1 text-[11px] text-muted-foreground'>
-            Pull requests attached to this shape, separate from its semantic evolution.
-          </p>
-        </div>
-        <span className='rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 font-mono text-[10px] uppercase text-emerald-700 dark:text-emerald-300'>
+      <header className='flex shrink-0 items-center justify-between gap-3 sm:block sm:w-32'>
+        <h3 className='font-mono text-[11px] uppercase text-foreground'>Implementation</h3>
+        <span className='mt-1 block font-mono text-[10px] uppercase text-emerald-700 dark:text-emerald-300'>
           {evidence.length} merged {evidence.length === 1 ? 'PR' : 'PRs'}
         </span>
       </header>
-      <div className='divide-y divide-emerald-500/15'>
+      <div className='flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1'>
         {evidence.map(binding => {
           const actors = [
             {
@@ -1678,13 +1673,13 @@ const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvid
           return (
             <a
               key={binding.id}
-              className='flex min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-emerald-500/[0.07]'
+              className='flex min-w-[min(18rem,78vw)] max-w-sm flex-1 items-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/[0.04] px-2.5 py-2 text-left transition-colors hover:border-emerald-400/55 hover:bg-emerald-500/[0.08]'
               href={binding.pullRequest.url}
               rel='noreferrer'
               target='_blank'
             >
-              <span className='grid size-8 shrink-0 place-items-center rounded-full border border-emerald-500/25 bg-emerald-500/10'>
-                <GitPullRequest className='size-4 text-emerald-500 dark:text-emerald-300' />
+              <span className='grid size-7 shrink-0 place-items-center rounded-full border border-emerald-500/25 bg-emerald-500/10'>
+                <GitPullRequest className='size-3.5 text-emerald-500 dark:text-emerald-300' />
               </span>
               <span className='min-w-0 flex-1'>
                 <span className='flex min-w-0 flex-wrap items-center gap-2'>
@@ -1695,10 +1690,10 @@ const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvid
                     {binding.pullRequest.repositoryFullName}#{binding.pullRequest.number}
                   </span>
                 </span>
-                <span className='mt-0.5 block truncate text-sm font-medium text-foreground'>
+                <span className='mt-0.5 block truncate text-xs font-medium text-foreground'>
                   {binding.pullRequest.title}
                 </span>
-                <span className='mt-1 block text-[11px] text-muted-foreground'>
+                <span className='mt-0.5 block truncate text-[10px] text-muted-foreground'>
                   Merged {evidenceDateFormatter.format(new Date(binding.pullRequest.mergedAt))}
                   {' · explicit PR assertion'}
                 </span>
@@ -1718,11 +1713,11 @@ const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvid
                       >
                         <img
                           alt={`${details} avatar`}
-                          className='size-6 rounded-full bg-muted object-cover'
-                          height={24}
+                          className='size-5 rounded-full bg-muted object-cover'
+                          height={20}
                           loading='lazy'
                           src={avatarUrl}
-                          width={24}
+                          width={20}
                         />
                         <span
                           role='tooltip'
