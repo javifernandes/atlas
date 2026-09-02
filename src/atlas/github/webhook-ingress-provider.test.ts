@@ -7,14 +7,18 @@ import { createAtlasGitHubWebhookSignature } from './webhook-signature';
 
 const secret = 'atlas-test-secret';
 
-const requestFor = (payload: unknown, signatureSecret = secret) => {
+const requestFor = (
+  payload: unknown,
+  signatureSecret = secret,
+  event = 'pull_request',
+) => {
   const body = JSON.stringify(payload);
 
   return new Request('https://atlas.test/api/ingress/github/webhook', {
     method: 'POST',
     headers: {
       'x-github-delivery': 'delivery-1',
-      'x-github-event': 'pull_request',
+      'x-github-event': event,
       'x-hub-signature-256': createAtlasGitHubWebhookSignature(body, signatureSecret),
     },
     body,
@@ -67,6 +71,49 @@ describe('Atlas GitHub webhook ingress provider', () => {
       kind: 'rejected',
       status: 401,
       error: 'Invalid GitHub webhook signature',
+    });
+  });
+
+  it('requires a delivery id for durable deduplication', async () => {
+    const provider = createAtlasGitHubWebhookIngressProvider({ getSecret: () => secret });
+    const request = requestFor(mergedPullRequestPayload);
+    request.headers.delete('x-github-delivery');
+
+    await expect(provider.receive(request)).resolves.toEqual({
+      kind: 'rejected',
+      status: 400,
+      error: 'GitHub webhook delivery id is required',
+    });
+  });
+
+  it('normalizes a signed repository push event', async () => {
+    const provider = createAtlasGitHubWebhookIngressProvider({ getSecret: () => secret });
+
+    await expect(
+      provider.receive(
+        requestFor(
+          {
+            after: 'new-revision',
+            before: 'old-revision',
+            installation: { id: 1234 },
+            ref: 'refs/heads/main',
+            repository: { full_name: 'acme/product' },
+          },
+          secret,
+          'push',
+        ),
+      ),
+    ).resolves.toMatchObject({
+      kind: 'accepted',
+      channel: 'source-control.repository.pushed',
+      deliveryId: 'delivery-1',
+      payload: {
+        after: 'new-revision',
+        before: 'old-revision',
+        installationId: '1234',
+        ref: 'refs/heads/main',
+        repositoryFullName: 'acme/product',
+      },
     });
   });
 

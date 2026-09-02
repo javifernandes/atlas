@@ -5,3 +5,4 @@ coverage/
 .env*
 !.env.example
 atlas.sources.local.yaml
+.neon

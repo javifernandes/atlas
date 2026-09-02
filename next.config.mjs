@@ -6,6 +6,7 @@ const nextConfig = {
     outputFileTracingIncludes: {
       '/': atlasSourceFiles,
       '/runtime': atlasSourceFiles,
+      '/api/ingress/*': atlasSourceFiles,
     },
   },
 };

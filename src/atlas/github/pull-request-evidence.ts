@@ -316,7 +316,7 @@ export const fetchAtlasPullRequestEvidence = async (input: {
   return evidence;
 };
 
-export const loadAtlasPullRequestEvidence = async (input: {
+export const loadAtlasPullRequestEvidenceObservation = async (input: {
   fetcher?: typeof fetch;
   repoRoot: string;
 }) => {
@@ -330,15 +330,47 @@ export const loadAtlasPullRequestEvidence = async (input: {
     ),
   );
 
-  return results.flatMap((result, index) => {
-    if (result.status === 'fulfilled') {
-      return result.value;
-    }
-
-    const source = sources[index];
-    process.stderr.write(
-      `Failed to load Atlas PR evidence from ${source?.repositoryFullName ?? 'unknown source'}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}\n`,
+  const failures = results.flatMap((result, index) =>
+      result.status === 'rejected'
+        ? [
+            {
+              repositoryFullName: sources[index]?.repositoryFullName ?? 'unknown source',
+              sourceId: sources[index]?.sourceId ?? 'unknown',
+              message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+            },
+          ]
+        : [],
     );
-    return [];
-  });
+  const successfulSources = results.flatMap((result, index) =>
+    result.status === 'fulfilled' && sources[index] ? [sources[index]] : [],
+  );
+  const pullRequests = results.flatMap(result =>
+    result.status === 'fulfilled' ? result.value : [],
+  );
+
+  return { failures, pullRequests, successfulSources };
+};
+
+export const loadAtlasPullRequestEvidence = async (input: {
+  fetcher?: typeof fetch;
+  repoRoot: string;
+  strict?: boolean;
+}) => {
+  const observation = await loadAtlasPullRequestEvidenceObservation(input);
+
+  if (input.strict && observation.failures.length > 0) {
+    throw new Error(
+      `Atlas PR evidence reconciliation failed (${observation.failures
+        .map(failure => `${failure.repositoryFullName}: ${failure.message}`)
+        .join('; ')}).`,
+    );
+  }
+
+  for (const failure of observation.failures) {
+    process.stderr.write(
+      `Failed to load Atlas PR evidence from ${failure.repositoryFullName}: ${failure.message}\n`,
+    );
+  }
+
+  return observation.pullRequests;
 };

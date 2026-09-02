@@ -5,7 +5,7 @@ Status: current
 Depends on: [111. Atlas As An Ontahi Application](../done/111-atlas-as-ontahi-application.md)
 
 Next implementation gate:
-[116. Atlas Ontahi PostgreSQL Persistence](../next/116-atlas-ontahi-postgres-persistence.md)
+[116. Atlas Ontahi PostgreSQL Persistence](./116-atlas-ontahi-postgres-persistence.md)
 
 ## Summary
 
@@ -62,9 +62,10 @@ without pretending they have the same authority or storage lifecycle.
    durable declared implementation structure from concrete versioned artifacts.
 7. [109. Work Item Impact Surface](./109-work-item-impact-surface.md) provides the `shapes`,
    `affects`, `preserves`, `breaks`, and `restores` vocabulary for relating work to system form.
-8. `@ontahi/core@1.0.0-alpha.10`, already consumed by Atlas, exposes graph HTTP ingress routing and
-   operation dispatch. `@ontahi/runtime-nextjs@1.0.0-alpha.10` exposes the shared Next.js Runtime
-   Protocol adapter.
+8. `@ontahi/core@1.0.0-alpha.11`, consumed by Atlas, exposes graph HTTP ingress routing and operation
+   dispatch. `@ontahi/runtime-nextjs@1.0.0-alpha.11` exposes the shared Next.js Runtime Protocol
+   adapter, while `@ontahi/postgres@1.0.0-alpha.11` supports the selected Relation projections used
+   by the durable evidence read model.
 9. Ontahi's Changesets configuration uses a fixed group for its public packages. A release may
    therefore publish several Component Versions together without turning the group itself into a
    Component.
@@ -232,13 +233,14 @@ GitHub pull_request.closed
   -> accept only merged pull requests from configured sources
   -> normalize source-control.pull-request.merged
   -> dispatch a server-only Ontahi operation
-  -> invalidate repository evidence/source caches
-  -> rebuild the in-memory PullRequest and EvidenceBinding projection on the next read
+  -> reconcile authoritative source and PR observations
+  -> commit PullRequest, EvidenceBinding, delivery id, and Projection Revision atomically
+  -> invalidate only the derived presentation cache
 ```
 
-The webhook is an invalidation signal, not the durable evidence store. GitHub remains authoritative
-for PR content and merge metadata. Duplicate delivery is therefore harmless in the first slice;
-persistent delivery-id deduplication belongs with the later evidence index.
+The webhook is a reconciliation signal, not the evidence authority. GitHub remains authoritative
+for PR content and merge metadata. PostgreSQL durably deduplicates the delivery and retains the
+observed record, provenance, and revision needed for stable navigation.
 
 ## Execution Slices
 
@@ -257,7 +259,7 @@ persistent delivery-id deduplication belongs with the later evidence index.
 
 ### Gate 1: Durable Ontahi application
 
-Complete [Plan 116](../next/116-atlas-ontahi-postgres-persistence.md) before adding Changeset and
+Complete [Plan 116](./116-atlas-ontahi-postgres-persistence.md) before adding Changeset and
 release history:
 
 1. persist the normalized Ontahi application in Neon PostgreSQL;
@@ -447,7 +449,7 @@ projection with explicit reconciliation and invalidation before Changeset ingest
 ### 2026-09-02 — persistence and version model checkpoint
 
 The next evidence slice now depends on
-[116. Atlas Ontahi PostgreSQL Persistence](../next/116-atlas-ontahi-postgres-persistence.md). Merged
+[116. Atlas Ontahi PostgreSQL Persistence](./116-atlas-ontahi-postgres-persistence.md). Merged
 PR evidence proved the observed model, while upcoming Changesets proved the need to retain records
 that are later consumed by release aggregation. Atlas will therefore establish a durable Ontahi
 application on Neon PostgreSQL before extracting Changesets or package versions.
