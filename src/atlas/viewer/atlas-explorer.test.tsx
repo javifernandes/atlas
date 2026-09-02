@@ -306,7 +306,7 @@ describe('PlanWorkstreamExplorer', () => {
     expect(screen.queryByRole('dialog', { name: 'Search Atlas' })).not.toBeInTheDocument();
   });
 
-  it('renders explicit merged PR evidence as a navigable evolution entry', async () => {
+  it('renders explicit merged PR evidence as an attachment outside evolution stages', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();
     const value: PlanWorkstreamSnapshot = {
@@ -318,8 +318,11 @@ describe('PlanWorkstreamExplorer', () => {
           provenance: 'explicit',
           targetNodeId: 'item-a',
           pullRequest: {
+            authorAvatarUrl: 'https://avatars.example/javi',
             authorLogin: 'javi',
             mergeCommitSha: 'abc123',
+            mergedByAvatarUrl: 'https://avatars.example/maintainer',
+            mergedByLogin: 'maintainer',
             mergedAt: '2026-09-01T10:00:00Z',
             number: 42,
             repositoryFullName: 'acme/product',
@@ -335,12 +338,32 @@ describe('PlanWorkstreamExplorer', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'evolution' }));
 
-    const pullRequest = within(dialog).getByRole('link', {
+    const implementationEvidence = within(dialog).getByRole('region', {
+      name: 'Implementation evidence',
+    });
+    const pullRequest = within(implementationEvidence).getByRole('link', {
       name: /Connect implementation evidence/,
     });
+    const pastColumn = within(dialog).getByRole('heading', { name: 'Past' }).closest('section');
+
+    expect(within(implementationEvidence).getByText('1 merged PR')).toBeInTheDocument();
+    expect(pastColumn).not.toBeNull();
+    expect(
+      within(pastColumn as HTMLElement).queryByRole('link', {
+        name: /Connect implementation evidence/,
+      }),
+    ).not.toBeInTheDocument();
     expect(pullRequest).toHaveAttribute('href', 'https://github.com/acme/product/pull/42');
     expect(within(pullRequest).getByText('acme/product#42')).toBeInTheDocument();
     expect(within(pullRequest).getByText('shapes')).toBeInTheDocument();
+    expect(within(pullRequest).queryByText(/by javi/)).not.toBeInTheDocument();
+    expect(
+      within(pullRequest).getByRole('img', { name: '@javi · PR author avatar' }),
+    ).toHaveAttribute('src', 'https://avatars.example/javi');
+    expect(
+      within(pullRequest).getByRole('img', { name: '@maintainer · Merged PR avatar' }),
+    ).toHaveAttribute('src', 'https://avatars.example/maintainer');
+    expect(within(pullRequest).getByLabelText('Pull request actors')).toHaveClass('-space-x-2');
   });
 
 });

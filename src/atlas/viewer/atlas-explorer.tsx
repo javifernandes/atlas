@@ -1619,38 +1619,128 @@ const EvolutionEntryList = ({
     </div>
   );
 
-const PullRequestEvidenceList = ({ evidence }: { evidence: PlanWorkstreamEvidence[] }) =>
+const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvidence[] }) =>
   evidence.length === 0 ? null : (
-    <div className='grid gap-2'>
-      {evidence.map(binding => (
-        <a
-          key={binding.id}
-          className='grid gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5 text-left transition-colors hover:border-emerald-400/55 hover:bg-emerald-500/10'
-          href={binding.pullRequest.url}
-          rel='noreferrer'
-          target='_blank'
-        >
-          <span className='flex min-w-0 flex-wrap items-center gap-2'>
-            <GitPullRequest className='size-3.5 text-emerald-400' />
-            <span className='font-mono text-[10px] uppercase text-emerald-300'>
-              {binding.kind}
-            </span>
-            <span className='font-mono text-[10px] text-muted-foreground'>
-              {binding.pullRequest.repositoryFullName}#{binding.pullRequest.number}
-            </span>
-            <ExternalLink className='ml-auto size-3 text-muted-foreground' />
-          </span>
-          <span className='line-clamp-2 text-sm font-medium text-foreground'>
-            {binding.pullRequest.title}
-          </span>
-          <span className='text-[11px] text-muted-foreground'>
-            Merged {evidenceDateFormatter.format(new Date(binding.pullRequest.mergedAt))}
-            {binding.pullRequest.authorLogin ? ` by ${binding.pullRequest.authorLogin}` : ''}
-            {' · explicit PR assertion'}
-          </span>
-        </a>
-      ))}
-    </div>
+    <section
+      aria-label='Implementation evidence'
+      className='overflow-visible rounded-lg border border-emerald-500/25 bg-emerald-500/[0.04]'
+    >
+      <header className='flex flex-wrap items-center justify-between gap-3 border-b border-emerald-500/20 px-4 py-3'>
+        <div>
+          <h3 className='font-mono text-xs uppercase text-foreground'>Implementation evidence</h3>
+          <p className='mt-1 text-[11px] text-muted-foreground'>
+            Pull requests attached to this shape, separate from its semantic evolution.
+          </p>
+        </div>
+        <span className='rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 font-mono text-[10px] uppercase text-emerald-700 dark:text-emerald-300'>
+          {evidence.length} merged {evidence.length === 1 ? 'PR' : 'PRs'}
+        </span>
+      </header>
+      <div className='divide-y divide-emerald-500/15'>
+        {evidence.map(binding => {
+          const actors = [
+            {
+              avatarUrl: binding.pullRequest.authorAvatarUrl,
+              login: binding.pullRequest.authorLogin,
+              role: 'PR author',
+            },
+            {
+              avatarUrl: binding.pullRequest.mergedByAvatarUrl,
+              login: binding.pullRequest.mergedByLogin,
+              role: 'Merged PR',
+            },
+          ].reduce<Array<{ avatarUrl: string | null; login: string; roles: string[] }>>(
+            (entries, actor) => {
+              if (!actor.login) {
+                return entries;
+              }
+
+              const existing = entries.find(
+                entry => entry.login.toLowerCase() === actor.login?.toLowerCase(),
+              );
+
+              if (existing) {
+                existing.avatarUrl ??= actor.avatarUrl;
+                existing.roles.push(actor.role);
+              } else {
+                entries.push({
+                  avatarUrl: actor.avatarUrl,
+                  login: actor.login,
+                  roles: [actor.role],
+                });
+              }
+
+              return entries;
+            },
+            [],
+          );
+
+          return (
+            <a
+              key={binding.id}
+              className='flex min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-emerald-500/[0.07]'
+              href={binding.pullRequest.url}
+              rel='noreferrer'
+              target='_blank'
+            >
+              <span className='grid size-8 shrink-0 place-items-center rounded-full border border-emerald-500/25 bg-emerald-500/10'>
+                <GitPullRequest className='size-4 text-emerald-500 dark:text-emerald-300' />
+              </span>
+              <span className='min-w-0 flex-1'>
+                <span className='flex min-w-0 flex-wrap items-center gap-2'>
+                  <span className='font-mono text-[10px] uppercase text-emerald-700 dark:text-emerald-300'>
+                    {binding.kind}
+                  </span>
+                  <span className='font-mono text-[10px] text-muted-foreground'>
+                    {binding.pullRequest.repositoryFullName}#{binding.pullRequest.number}
+                  </span>
+                </span>
+                <span className='mt-0.5 block truncate text-sm font-medium text-foreground'>
+                  {binding.pullRequest.title}
+                </span>
+                <span className='mt-1 block text-[11px] text-muted-foreground'>
+                  Merged {evidenceDateFormatter.format(new Date(binding.pullRequest.mergedAt))}
+                  {' · explicit PR assertion'}
+                </span>
+              </span>
+              {actors.length > 0 ? (
+                <span aria-label='Pull request actors' className='flex shrink-0 -space-x-2'>
+                  {actors.map(actor => {
+                    const details = `@${actor.login} · ${actor.roles.join(' · ')}`;
+                    const avatarUrl =
+                      actor.avatarUrl ?? `https://github.com/${actor.login}.png?size=64`;
+
+                    return (
+                      <span
+                        key={actor.login}
+                        className='group/actor relative block rounded-full ring-2 ring-background'
+                        title={details}
+                      >
+                        <img
+                          alt={`${details} avatar`}
+                          className='size-6 rounded-full bg-muted object-cover'
+                          height={24}
+                          loading='lazy'
+                          src={avatarUrl}
+                          width={24}
+                        />
+                        <span
+                          role='tooltip'
+                          className='pointer-events-none absolute bottom-full right-0 z-20 mb-2 w-max max-w-52 translate-y-1 rounded-md border border-border/80 bg-popover px-2 py-1 text-[10px] font-medium text-popover-foreground opacity-0 shadow-lg transition-[opacity,transform] group-hover/actor:translate-y-0 group-hover/actor:opacity-100'
+                        >
+                          {details}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </span>
+              ) : null}
+              <ExternalLink className='size-3.5 shrink-0 text-muted-foreground' />
+            </a>
+          );
+        })}
+      </div>
+    </section>
   );
 
 const EvolutionBoardColumn = ({
@@ -3290,73 +3380,76 @@ const FullMarkdownModal = ({
           {activeTab === 'evolution' ? (
             <div className='min-h-0 px-1 sm:px-2 lg:h-full'>
               {hasEvolutionContent ? (
-                <div className='grid gap-4 lg:h-full lg:min-h-0 lg:grid-cols-4 lg:gap-0'>
-                  <EvolutionBoardColumn
-                    count={pastEntries.length + evolutionSignals.length + nodeEvidence.length}
-                    subtitle='Materialized work, decisions, and evidence that explain how this shape arrived here.'
-                    title='Past'
-                  >
-                    <EvolutionEntryList
-                      entries={pastEntries}
-                      markdownContext={markdownContext}
-                      onOpenFull={onOpenFull}
-                    />
-                    <PullRequestEvidenceList evidence={nodeEvidence} />
-                    <SemanticSignalList
-                      markdownContext={markdownContext}
-                      nodesById={nodesById}
-                      onOpenFull={onOpenFull}
-                      signals={evolutionSignals}
-                    />
-                  </EvolutionBoardColumn>
+                <div className='flex min-h-0 flex-col gap-6 lg:h-full'>
+                  <PullRequestEvidenceSection evidence={nodeEvidence} />
 
-                  <EvolutionBoardColumn
-                    count={currentEntries.length + tensionSignals.length}
-                    subtitle='Active work, live sub-shapes, and current pressure on the shape.'
-                    title='Now'
-                  >
-                    <EvolutionEntryList
-                      entries={currentEntries}
-                      markdownContext={markdownContext}
-                      onOpenFull={onOpenFull}
-                    />
-                    <SemanticSignalList
-                      markdownContext={markdownContext}
-                      nodesById={nodesById}
-                      onOpenFull={onOpenFull}
-                      signals={tensionSignals}
-                    />
-                  </EvolutionBoardColumn>
+                  <div className='grid min-h-0 flex-1 gap-4 lg:grid-cols-4 lg:gap-0'>
+                    <EvolutionBoardColumn
+                      count={pastEntries.length + evolutionSignals.length}
+                      subtitle='Materialized shapes and decisions that explain how this shape arrived here.'
+                      title='Past'
+                    >
+                      <EvolutionEntryList
+                        entries={pastEntries}
+                        markdownContext={markdownContext}
+                        onOpenFull={onOpenFull}
+                      />
+                      <SemanticSignalList
+                        markdownContext={markdownContext}
+                        nodesById={nodesById}
+                        onOpenFull={onOpenFull}
+                        signals={evolutionSignals}
+                      />
+                    </EvolutionBoardColumn>
 
-                  <EvolutionBoardColumn
-                    count={nextEntries.length}
-                    subtitle='Promoted branches that look like the next concrete work.'
-                    title='Next'
-                  >
-                    <EvolutionEntryList
-                      entries={nextEntries}
-                      markdownContext={markdownContext}
-                      onOpenFull={onOpenFull}
-                    />
-                  </EvolutionBoardColumn>
+                    <EvolutionBoardColumn
+                      count={currentEntries.length + tensionSignals.length}
+                      subtitle='Active work, live sub-shapes, and current pressure on the shape.'
+                      title='Now'
+                    >
+                      <EvolutionEntryList
+                        entries={currentEntries}
+                        markdownContext={markdownContext}
+                        onOpenFull={onOpenFull}
+                      />
+                      <SemanticSignalList
+                        markdownContext={markdownContext}
+                        nodesById={nodesById}
+                        onOpenFull={onOpenFull}
+                        signals={tensionSignals}
+                      />
+                    </EvolutionBoardColumn>
 
-                  <EvolutionBoardColumn
-                    count={laterEntries.length + futureSignals.length}
-                    subtitle='Ideas, possibilities, questions, and not-yet-grounded branches.'
-                    title='Later'
-                  >
-                    <EvolutionEntryList
-                      entries={laterEntries}
-                      markdownContext={markdownContext}
-                      onOpenFull={onOpenFull}
-                    />
-                    <SemanticSignalList
-                      markdownContext={markdownContext}
-                      nodesById={nodesById}
-                      onOpenFull={onOpenFull}
-                      signals={futureSignals}
-                    />
-                  </EvolutionBoardColumn>
+                    <EvolutionBoardColumn
+                      count={nextEntries.length}
+                      subtitle='Promoted branches that look like the next concrete work.'
+                      title='Next'
+                    >
+                      <EvolutionEntryList
+                        entries={nextEntries}
+                        markdownContext={markdownContext}
+                        onOpenFull={onOpenFull}
+                      />
+                    </EvolutionBoardColumn>
+
+                    <EvolutionBoardColumn
+                      count={laterEntries.length + futureSignals.length}
+                      subtitle='Ideas, possibilities, questions, and not-yet-grounded branches.'
+                      title='Later'
+                    >
+                      <EvolutionEntryList
+                        entries={laterEntries}
+                        markdownContext={markdownContext}
+                        onOpenFull={onOpenFull}
+                      />
+                      <SemanticSignalList
+                        markdownContext={markdownContext}
+                        nodesById={nodesById}
+                        onOpenFull={onOpenFull}
+                        signals={futureSignals}
+                      />
+                    </EvolutionBoardColumn>
+                  </div>
                 </div>
               ) : (
                 <p className='text-sm leading-6 text-muted-foreground'>

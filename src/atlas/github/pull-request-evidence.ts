@@ -13,10 +13,13 @@ export type AtlasPullRequestDirective = {
 };
 
 export type AtlasObservedPullRequest = {
+  authorAvatarUrl: string | null;
   authorLogin: string | null;
   directives: AtlasPullRequestDirective[];
   id: string;
   mergeCommitSha: string | null;
+  mergedByAvatarUrl: string | null;
+  mergedByLogin: string | null;
   mergedAt: string;
   number: number;
   repositoryFullName: string;
@@ -34,6 +37,7 @@ type GitHubPullRequest = {
   body?: unknown;
   html_url?: unknown;
   merge_commit_sha?: unknown;
+  merged_by?: unknown;
   merged_at?: unknown;
   number?: unknown;
   title?: unknown;
@@ -161,6 +165,17 @@ export const listAtlasGitHubEvidenceSources = (repoRoot: string) => {
 
 const optionalString = (value: unknown) => (typeof value === 'string' ? value : null);
 
+const readGitHubUser = (value: unknown) => {
+  if (!value || typeof value !== 'object') {
+    return { avatarUrl: null, login: null };
+  }
+
+  return {
+    avatarUrl: 'avatar_url' in value ? optionalString(value.avatar_url) : null,
+    login: 'login' in value ? optionalString(value.login) : null,
+  };
+};
+
 const mapPullRequest = (
   pullRequest: GitHubPullRequest,
   source: AtlasGitHubEvidenceSource,
@@ -180,16 +195,17 @@ const mapPullRequest = (
     return null;
   }
 
-  const user =
-    pullRequest.user && typeof pullRequest.user === 'object' && 'login' in pullRequest.user
-      ? optionalString(pullRequest.user.login)
-      : null;
+  const author = readGitHubUser(pullRequest.user);
+  const mergedBy = readGitHubUser(pullRequest.merged_by);
 
   return {
-    authorLogin: user,
+    authorAvatarUrl: author.avatarUrl,
+    authorLogin: author.login,
     directives,
     id: `github:${source.repositoryFullName.toLowerCase()}#${pullRequest.number}`,
     mergeCommitSha: optionalString(pullRequest.merge_commit_sha),
+    mergedByAvatarUrl: mergedBy.avatarUrl,
+    mergedByLogin: mergedBy.login,
     mergedAt: pullRequest.merged_at,
     number: pullRequest.number,
     repositoryFullName: source.repositoryFullName,
@@ -212,6 +228,40 @@ export const fetchAtlasPullRequestEvidence = async (input: {
     repositoryFullName: input.source.repositoryFullName,
   });
   const evidence: AtlasObservedPullRequest[] = [];
+
+  const hydrateMergeActor = async (pullRequest: AtlasObservedPullRequest) => {
+    if (pullRequest.mergedByLogin || pullRequest.mergedByAvatarUrl) {
+      return pullRequest;
+    }
+
+    const url = new URL(
+      `/repos/${input.source.repositoryFullName}/pulls/${pullRequest.number}`,
+      'https://api.github.com',
+    );
+    try {
+      const response = await fetcher(url, {
+        headers,
+        next: {
+          revalidate: 300,
+          tags: [githubRepositoryCacheTag(input.source.repositoryFullName)],
+        },
+      });
+
+      if (!response.ok) {
+        return pullRequest;
+      }
+
+      const body: unknown = await response.json();
+
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        return pullRequest;
+      }
+
+      return mapPullRequest(body, input.source) ?? pullRequest;
+    } catch {
+      return pullRequest;
+    }
+  };
 
   for (let page = 1; page <= maxPages; page += 1) {
     const url = new URL(
@@ -246,17 +296,17 @@ export const fetchAtlasPullRequestEvidence = async (input: {
       );
     }
 
-    evidence.push(
-      ...body.flatMap(pullRequest => {
-        if (!pullRequest || typeof pullRequest !== 'object') {
-          return [];
-        }
+    const pageEvidence = body.flatMap(pullRequest => {
+      if (!pullRequest || typeof pullRequest !== 'object') {
+        return [];
+      }
 
-        const mapped = mapPullRequest(pullRequest, input.source);
+      const mapped = mapPullRequest(pullRequest, input.source);
 
-        return mapped ? [mapped] : [];
-      }),
-    );
+      return mapped ? [mapped] : [];
+    });
+
+    evidence.push(...(await Promise.all(pageEvidence.map(hydrateMergeActor))));
 
     if (body.length < pageSize) {
       break;

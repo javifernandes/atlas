@@ -20,7 +20,17 @@ Evidence is what lets the atlas answer whether an item exists only as intention,
 The first observed binding is a merged GitHub Pull Request explicitly connected to an Atlas Item or
 Plan through `Atlas-Implements` or `Atlas-Shapes`. GitHub owns the PR record; Atlas materializes a
 `PullRequest` plus provenance-bearing `EvidenceBinding` in its Ontahi application and projects the
-link into the target's evolution view.
+link as implementation evidence attached to the target.
+
+An Evidence Binding is not another semantic evolution node. Plans and model forms can occupy past,
+now, next, or later stages; a Pull Request instead provides observed implementation evidence for the
+target it binds. Merged PRs are completed evidence, open PRs may later appear as in-progress
+evidence, and PRs never occupy future stages.
+
+The attached evidence row keeps merge time and assertion provenance textual, while GitHub actors
+appear as a compact avatar stack. The current Pull Request projection observes the PR author and the
+user who merged it, deduplicates one person carrying both roles, and exposes role detail on hover.
+GitHub's avatar URLs remain observed presentation metadata rather than Atlas-authored Markdown.
 
 A GitHub App webhook provides the authenticated merge signal and invalidates the relevant source
 projection. It does not make the webhook payload authoritative, mirror the PR into Markdown, mutate
