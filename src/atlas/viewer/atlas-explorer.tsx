@@ -3315,9 +3315,30 @@ const FullMarkdownModal = ({
                 ))}
               </div>
             ) : null}
-            <h2 className='mt-2 max-w-3xl text-2xl font-semibold leading-tight tracking-tight'>
-              {node.shortTitle}
-            </h2>
+            <div className='mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2'>
+              <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
+                {node.shortTitle}
+              </h2>
+              <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
+                {(
+                  ['overview', 'evolution', 'context', 'source'] satisfies FullMarkdownModalTab[]
+                ).map(tab => (
+                  <button
+                    key={tab}
+                    type='button'
+                    className={cn(
+                      'rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors',
+                      activeTab === tab
+                        ? 'bg-primary/12 text-foreground'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                    )}
+                    onClick={() => onActiveTabChange(tab)}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </nav>
+            </div>
           </div>
           <div className='flex shrink-0 items-center gap-2'>
             {navigationBackNode ? (
@@ -3335,26 +3356,6 @@ const FullMarkdownModal = ({
               <X className='size-4' />
             </IconButton>
           </div>
-        </div>
-
-        <div className='flex gap-1 border-b border-border/70 px-5 py-2'>
-          {(['overview', 'evolution', 'context', 'source'] satisfies FullMarkdownModalTab[]).map(
-            tab => (
-              <button
-                key={tab}
-                type='button'
-                className={cn(
-                  'rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors',
-                  activeTab === tab
-                    ? 'bg-primary/12 text-foreground'
-                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                )}
-                onClick={() => onActiveTabChange(tab)}
-              >
-                {tab}
-              </button>
-            ),
-          )}
         </div>
 
         <div

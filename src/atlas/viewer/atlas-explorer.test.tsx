@@ -142,6 +142,13 @@ describe('PlanWorkstreamExplorer', () => {
     renderExplorer();
 
     let dialog = screen.getByRole('dialog');
+    const detailTitle = within(dialog).getByRole('heading', { name: 'Item A' });
+    const titleRow = detailTitle.parentElement;
+
+    expect(titleRow).not.toBeNull();
+    expect(
+      within(titleRow as HTMLElement).getByRole('navigation', { name: 'Detail sections' }),
+    ).toBeInTheDocument();
     expect(within(dialog).getByText('Item A overview text.')).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('button', { name: 'evolution' }));
