@@ -320,9 +320,10 @@ stale-observation exclusion, and source-inventory removal. The Neon child branch
 verification. A read-only authenticated observation also resolved all 3 configured sources through
 GitHub/local adapters while keeping the Atlas revision Git-backed.
 
-The code cutover and operator rollback/rebuild instructions are ready, and the production rebuild
-has been exercised. The memory-mode composition was also exercised locally against the packaged
-authorities and converged on 298 nodes, 1,224 edges, and 21 Evidence Bindings. The hosted Vercel
-environment, deployed page/runtime reads, signed production deliveries, and memory-mode rollback
-have not yet been exercised. Plan 116 therefore remains `current`; its final production verification
-checkbox remains open.
+The code cutover and operator rollback/rebuild instructions are ready. The deployed Vercel page
+returns successfully from the PostgreSQL-backed read path, and a deployed Runtime Protocol request
+resolved the Plan 116 link from the same persistent composition. An authenticated production
+rebuild completed on Neon with 3 sources, 124 Items, 278 Plans, 1,224 edges, and 28 Evidence
+Bindings. The memory-mode composition was also exercised locally against the packaged authorities
+and converged on 298 nodes, 1,224 edges, and 21 Evidence Bindings. One signed delivery after the
+new deployment remains to be observed durably before moving the plan to `done`.
