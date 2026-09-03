@@ -53,6 +53,8 @@ those Plans shape.
 - [x] `pnpm verify`
 - [x] `git diff --check`
 - [x] Inspect all-project and Ontahi Board states plus Plan styling in Map.
+- [x] Preserve the Plan-only [Board capture](../../docs/evidence/120-board-project-filter/board-ontahi.jpg)
+  and the [distinct Plan layer in Map](../../docs/evidence/122-plan-centered-execution-projection/map-plan-layer.jpg).
 
 ## Closure / Evolution
 
