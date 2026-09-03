@@ -204,6 +204,88 @@ describe('PlanWorkstreamExplorer', () => {
     expect(within(dialog).getByRole('button', { name: /supports\s*Item C/ })).toBeInTheDocument();
   });
 
+  it('shows every project membership in full detail when Atlas has multiple projects', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-b');
+    const ontahiProject = createNode('ontahi-project', {
+      kind: 'project',
+      semanticId: 'ontahi',
+      shortTitle: 'Ontahi',
+      markdown: 'Ontahi project.',
+    });
+    const bookOpsProject = createNode('bookops-project', {
+      kind: 'project',
+      semanticId: 'bookops',
+      shortTitle: 'BookOps',
+      markdown: 'BookOps project.',
+    });
+    const bookOpsArea = createNode('bookops-area', {
+      semanticId: 'bookops.area',
+      shortTitle: 'BookOps Area',
+      markdown: 'BookOps area.',
+    });
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: [...snapshot.nodes, ontahiProject, bookOpsProject, bookOpsArea],
+      edges: [
+        ...snapshot.edges,
+        {
+          id: 'ontahi-project-to-parent-item',
+          from: ontahiProject.id,
+          to: 'parent-item',
+          kind: 'contains',
+        },
+        {
+          id: 'bookops-project-to-area',
+          from: bookOpsProject.id,
+          to: bookOpsArea.id,
+          kind: 'contains',
+        },
+        {
+          id: 'bookops-area-to-item-b',
+          from: bookOpsArea.id,
+          to: 'item-b',
+          kind: 'shaped-by',
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+
+    const dialog = screen.getByRole('dialog');
+
+    expect(within(dialog).getByLabelText('Project: Ontahi')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Project: BookOps')).toBeInTheDocument();
+  });
+
+  it('omits redundant project badges when Atlas has only one project', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const ontahiProject = createNode('ontahi-project', {
+      kind: 'project',
+      semanticId: 'ontahi',
+      shortTitle: 'Ontahi',
+      markdown: 'Ontahi project.',
+    });
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: [...snapshot.nodes, ontahiProject],
+      edges: [
+        ...snapshot.edges,
+        {
+          id: 'ontahi-project-to-parent-item',
+          from: ontahiProject.id,
+          to: 'parent-item',
+          kind: 'contains',
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+
+    expect(
+      within(screen.getByRole('dialog')).queryByLabelText('Project: Ontahi'),
+    ).not.toBeInTheDocument();
+  });
+
   it('navigates to the parent and direct children inside the same modal', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();
@@ -316,6 +398,164 @@ describe('PlanWorkstreamExplorer', () => {
 
     expect(screen.getByRole('button', { name: 'Completed historical plan' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hide history' })).toBeInTheDocument();
+  });
+
+  it('keeps the board plan-only while filtering plans to one project', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
+    const ontahiProject = createNode('ontahi-project', {
+      kind: 'project',
+      semanticId: 'ontahi',
+      shortTitle: 'Ontahi',
+      markdown: 'Ontahi project.',
+    });
+    const ontahiWork = createNode('ontahi-work', {
+      semanticId: 'ontahi.work',
+      shortTitle: 'Continue Ontahi',
+      markdown: 'Ontahi work.',
+    });
+    const ontahiPlan = createNode('ontahi-plan', {
+      kind: 'plan',
+      semanticId: 'ontahi-plan',
+      shortTitle: 'Ontahi next plan',
+      statusGroup: 'next',
+      markdown: 'Ontahi plan.',
+    });
+    const bookOpsProject = createNode('bookops-project', {
+      kind: 'project',
+      semanticId: 'bookops',
+      shortTitle: 'BookOps',
+      markdown: 'BookOps project.',
+    });
+    const bookOpsWork = createNode('bookops-work', {
+      semanticId: 'bookops.work',
+      shortTitle: 'Continue BookOps',
+      markdown: 'BookOps work.',
+    });
+    const bookOpsPlan = createNode('bookops-plan', {
+      kind: 'plan',
+      semanticId: 'bookops-plan',
+      shortTitle: 'BookOps next plan',
+      statusGroup: 'next',
+      markdown: 'BookOps plan.',
+    });
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: [
+        ...snapshot.nodes,
+        ontahiProject,
+        ontahiWork,
+        ontahiPlan,
+        bookOpsProject,
+        bookOpsWork,
+        bookOpsPlan,
+      ],
+      edges: [
+        ...snapshot.edges,
+        {
+          id: 'ontahi-project-to-work',
+          from: ontahiProject.id,
+          to: ontahiWork.id,
+          kind: 'contains',
+        },
+        {
+          id: 'ontahi-work-to-plan',
+          from: ontahiWork.id,
+          to: ontahiPlan.id,
+          kind: 'shaped-by',
+        },
+        {
+          id: 'bookops-project-to-work',
+          from: bookOpsProject.id,
+          to: bookOpsWork.id,
+          kind: 'contains',
+        },
+        {
+          id: 'bookops-work-to-plan',
+          from: bookOpsWork.id,
+          to: bookOpsPlan.id,
+          kind: 'shaped-by',
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+    await user.click(screen.getByRole('button', { name: 'Board' }));
+
+    expect(screen.getByRole('button', { name: 'Ontahi next plan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'BookOps next plan' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue Ontahi' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue BookOps' })).not.toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Filter board by project' }),
+      ontahiProject.id,
+    );
+
+    expect(screen.getByRole('button', { name: 'Ontahi next plan' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'BookOps next plan' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Item A' })).not.toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Filter board by project' }),
+      '',
+    );
+
+    expect(screen.getByRole('button', { name: 'BookOps next plan' })).toBeInTheDocument();
+  });
+
+  it('returns to the map when Board search selects a structural item', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
+
+    renderExplorer();
+    await user.click(screen.getByRole('button', { name: 'Board' }));
+
+    expect(screen.queryByRole('button', { name: 'Item A' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
+
+    await user.type(within(searchDialog).getByRole('textbox', { name: 'Search atlas' }), 'Item A');
+    await user.click(within(searchDialog).getByRole('button', { name: /Item A/ }));
+
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('combobox', { name: 'Filter board by project' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Item A' })).toBeInTheDocument();
+  });
+
+  it('renders Plans as visually distinct temporal nodes in the Map', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const plan = createNode('map-plan', {
+      kind: 'plan',
+      semanticId: 'map-plan',
+      shortTitle: 'Map Plan',
+      markdown: 'Map plan details.',
+    });
+    const root = createNode('root:planning', {
+      kind: 'root',
+      semanticId: 'root',
+      shortTitle: 'Atlas',
+      markdown: 'Atlas root.',
+    });
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: [root, plan],
+      edges: [
+        {
+          id: 'root-to-plan',
+          from: root.id,
+          to: plan.id,
+          kind: 'contains',
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+
+    expect(screen.getByRole('button', { name: 'Map Plan' })).toHaveClass('border-dashed');
   });
 
   it('shows direct and total descendant counts on collapsed branches', () => {

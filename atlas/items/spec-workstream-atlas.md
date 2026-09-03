@@ -12,6 +12,7 @@ relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
   - bookops://plans/133-atlas-standalone-extraction
   - plans/done/101-workstream-atlas-semantic-source.md
+  - plans/current/119-atlas-authentication-and-workspace-visibility-v0.md
 ---
 
 The Workstream Atlas is the emerging tool and language for navigating product, framework, UX, design, management, and implementation concerns as one semantic map.
@@ -33,3 +34,4 @@ federated sources for the plans and items they own.
 3. [`Implementation Evidence`](./spec-workstream-atlas/implementation-evidence.md)
 4. [`Operating Principles`](./spec-workstream-atlas/operating-principles.md)
 5. [`Operating Practice`](./spec-workstream-atlas/operating-practice.md)
+6. [`Access And Identity`](./spec-workstream-atlas/access-and-identity.md)

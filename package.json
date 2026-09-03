@@ -30,6 +30,7 @@
     "@ontahi/core": "1.0.0-alpha.11",
     "@ontahi/postgres": "1.0.0-alpha.11",
     "@ontahi/runtime-nextjs": "1.0.0-alpha.11",
+    "better-auth": "1.7.2",
     "clsx": "^2.1.1",
     "effect": "3.21.0",
     "lucide-react": "^0.576.0",
