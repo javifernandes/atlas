@@ -37,7 +37,7 @@ const mergedPullRequestPayload = {
     merged: true,
     merged_at: '2026-09-01T10:00:00Z',
     merge_commit_sha: 'abc123',
-    user: { login: 'javi' },
+    user: { id: 101, login: 'javi' },
   },
 };
 
@@ -53,6 +53,7 @@ describe('Atlas GitHub webhook ingress provider', () => {
       deliveryId: 'delivery-1',
       status: 202,
       payload: {
+        authorProviderAccountId: '101',
         deliveryId: 'delivery-1',
         installationId: '1234',
         repositoryFullName: 'acme/product',

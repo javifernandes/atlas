@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 import './globals.css';
+import { AtlasClientProvider } from '@/components/atlas-client-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
@@ -12,7 +13,9 @@ export const metadata: Metadata = {
 const RootLayout = ({ children }: { children: ReactNode }) => (
   <html lang='en' suppressHydrationWarning>
     <body>
-      <ThemeProvider>{children}</ThemeProvider>
+      <AtlasClientProvider>
+        <ThemeProvider>{children}</ThemeProvider>
+      </AtlasClientProvider>
     </body>
   </html>
 );

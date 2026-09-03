@@ -3,7 +3,10 @@ import {
   createRuntimeProtocolDispatcher,
   createRuntimeProtocolRequest,
 } from '@ontahi/core/runtime/protocol';
-import { createOperationInvocationDispatcher } from '@ontahi/core/runtime/server';
+import {
+  createOperationInvocationDispatcher,
+  withInvocationContext,
+} from '@ontahi/core/runtime/server';
 import {
   createGraphHttpIngressOperationDispatcher,
   createGraphHttpIngressRouter,
@@ -205,12 +208,38 @@ relatedPlans:
     expect(atlas.application.graph.entities).toMatchObject({
       AtlasItem: expect.objectContaining({ name: 'AtlasItem' }),
       AtlasPlan: expect.objectContaining({ name: 'AtlasPlan' }),
+      AtlasExecutionStream: expect.objectContaining({ name: 'AtlasExecutionStream' }),
+      AtlasExecutionStreamActivity: expect.objectContaining({
+        name: 'AtlasExecutionStreamActivity',
+      }),
+      AtlasExecutionStreamRoot: expect.objectContaining({ name: 'AtlasExecutionStreamRoot' }),
       EvidenceBinding: expect.objectContaining({ name: 'EvidenceBinding' }),
       AtlasPlanRelationBinding: expect.objectContaining({ name: 'AtlasPlanRelationBinding' }),
       AtlasShapingBinding: expect.objectContaining({ name: 'AtlasShapingBinding' }),
       AtlasSupportBinding: expect.objectContaining({ name: 'AtlasSupportBinding' }),
       PullRequest: expect.objectContaining({ name: 'PullRequest' }),
     });
+    const closeStream = atlas.application.graph.entities.AtlasExecutionStream.domain.close;
+    expect(closeStream.id).toBe('AtlasExecutionStream.close');
+    expect(closeStream.authority).toBe('server');
+    expect(closeStream.exposure).toBe('bridge');
+    await expect(
+      withInvocationContext({ principal: null }, () =>
+        atlas.application.checkPermission(closeStream, { id: 'stream-1' }),
+      ),
+    ).resolves.toMatchObject({ allowed: false, reason: 'not_authenticated' });
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'service', subject: 'worker-1' } },
+        () => atlas.application.checkPermission(closeStream, { id: 'stream-1' }),
+      ),
+    ).resolves.toMatchObject({ allowed: false, reason: 'not_authorized' });
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' } },
+        () => atlas.application.checkPermission(closeStream, { id: 'stream-1' }),
+      ),
+    ).resolves.toEqual({ allowed: true });
   });
 
   it('hydrates explicit merged PR evidence for both plans and semantic items', async () => {
@@ -244,6 +273,7 @@ relatedPlans:
           title: 'Connect merged PR evidence',
           url: 'https://github.com/javifernandes/atlas/pull/8',
           authorAvatarUrl: 'https://avatars.example/javi',
+          authorProviderAccountId: '101',
           authorLogin: 'javi',
           mergedByAvatarUrl: 'https://avatars.example/maintainer',
           mergedByLogin: 'maintainer',
@@ -328,7 +358,7 @@ relatedPlans:
         merged: true,
         merged_at: '2026-09-01T10:00:00Z',
         merge_commit_sha: 'abc123',
-        user: { login: 'javi' },
+        user: { id: 101, login: 'javi' },
       },
     });
     const response = await router.handle(

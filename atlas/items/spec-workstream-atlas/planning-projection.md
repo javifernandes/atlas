@@ -20,7 +20,9 @@ GitHub Project compatibility, and eventually atlas-native planning.
 
 This should not force the semantic tree to behave like a kanban board.
 
-The projection may group Plans by Goal, territory, or model area and present those groupings as workstreams. Workstream remains derived in v0; it should not become a declared item unless stable identity or independent planning behavior proves necessary.
+The projection may group Plans by Goal, territory, or model area. Personal execution memory is now
+tested separately as an Atlas-native Execution Stream: stable User-scoped state over shared Plan
+lineage, rather than a declared Markdown item or a grouping inferred again on every read.
 
 The global Board is a Plan-centered execution projection. Now, Next, and Later contain bounded
 interventions rather than concepts, capabilities, entities, or other durable system shapes.

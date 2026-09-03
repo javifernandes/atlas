@@ -1,9 +1,13 @@
 // @vitest-environment node
 
+import { graphSchema } from '@ontahi/core/data-graph';
 import { getCurrentPrincipal } from '@ontahi/core/runtime/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { withAtlasRuntimeRequestContext } from './atlas-runtime';
+import {
+  createAtlasBridgeOperationDispatcher,
+  withAtlasRuntimeRequestContext,
+} from './atlas-runtime';
 
 describe('Atlas Runtime Protocol identity', () => {
   it('makes the request Principal visible to Ontahí execution', async () => {
@@ -22,5 +26,55 @@ describe('Atlas Runtime Protocol identity', () => {
     expect(withAtlasRuntimeRequestContext({ principal: null }, () => getCurrentPrincipal())).toBe(
       null,
     );
+  });
+
+  it('exposes only operations explicitly declared for the bridge', async () => {
+    const invokeOperation = vi.fn().mockResolvedValue({
+      ok: true,
+      kind: 'success',
+      value: { closed: true },
+    });
+    const bridgeOperation = {
+      id: 'AtlasExecutionStream.close',
+      exposure: 'bridge',
+      input: graphSchema.object({}),
+    };
+    const serverOnlyOperation = {
+      id: 'ProjectionRevision.reconcile',
+      exposure: 'server-only',
+      input: undefined,
+    };
+    const dispatch = createAtlasBridgeOperationDispatcher({
+      resolveOperation: operationId =>
+        operationId === bridgeOperation.id
+          ? (bridgeOperation as never)
+          : operationId === serverOnlyOperation.id
+            ? (serverOnlyOperation as never)
+            : undefined,
+      invokeOperation,
+      checkPermission: vi.fn().mockResolvedValue({ allowed: true }),
+    });
+
+    await expect(
+      dispatch({
+        kind: 'invoke',
+        operationId: serverOnlyOperation.id,
+        input: {},
+      }),
+    ).resolves.toMatchObject({
+      kind: 'invocation-result',
+      result: { ok: false, kind: 'rejected', reason: 'unknown_operation' },
+    });
+    await expect(
+      dispatch({
+        kind: 'invoke',
+        operationId: bridgeOperation.id,
+        input: {},
+      }),
+    ).resolves.toMatchObject({
+      kind: 'invocation-result',
+      result: { ok: true, value: { closed: true } },
+    });
+    expect(invokeOperation).toHaveBeenCalledOnce();
   });
 });

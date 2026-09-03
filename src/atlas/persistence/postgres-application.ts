@@ -7,10 +7,15 @@ import type { Pool } from 'pg';
 import {
   buildAtlasOntahiDataset,
   createAtlasOntahiApplicationWithStorage,
+  type AtlasMergedPullRequestInput,
   type AtlasCapabilities,
   type AtlasReconciliationRequest,
   type AtlasReconciliationResult,
 } from '../domain/atlas-application';
+import {
+  parseAtlasPullRequestDirectives,
+  type AtlasObservedPullRequest,
+} from '../github/pull-request-evidence';
 import { parseAtlasSourceRecords } from '../markdown/build-snapshot';
 import { proposePlanLink } from '../domain/plan-link-proposal';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
@@ -21,6 +26,91 @@ const hashRevisionSet = (revisionIds: string[]) =>
   createHash('sha256')
     .update([...revisionIds].sort((left, right) => left.localeCompare(right)).join('\0'))
     .digest('hex');
+
+const executionStreamTitle = (planTitle: string) =>
+  planTitle.replace(/^\d+[a-z]?\.\s+/i, '').trim() || planTitle;
+
+const mergeWebhookPullRequestObservation = (
+  projection: AtlasProjectionInput,
+  request: AtlasReconciliationRequest,
+) => {
+  const webhook = request.webhook;
+
+  if (!webhook || !('number' in webhook)) {
+    return projection.observedPullRequests;
+  }
+
+  const sourceRevision = projection.sourceRevisions.find(
+    revision =>
+      revision.repository?.toLowerCase() === webhook.repositoryFullName.toLowerCase(),
+  );
+
+  if (!sourceRevision) {
+    return projection.observedPullRequests;
+  }
+
+  const id = `github:${webhook.repositoryFullName.toLowerCase()}#${webhook.number}`;
+  const existing = projection.observedPullRequests.find(candidate => candidate.id === id);
+  const directives = parseAtlasPullRequestDirectives(webhook.body);
+  const observation: AtlasObservedPullRequest = {
+    authorAvatarUrl: existing?.authorAvatarUrl ?? null,
+    authorProviderAccountId:
+      webhook.authorProviderAccountId ?? existing?.authorProviderAccountId ?? null,
+    authorLogin: webhook.authorLogin ?? existing?.authorLogin ?? null,
+    directives: directives.length > 0 ? directives : (existing?.directives ?? []),
+    id,
+    mergeCommitSha: webhook.mergeCommitSha,
+    mergedByAvatarUrl: existing?.mergedByAvatarUrl ?? null,
+    mergedByLogin: existing?.mergedByLogin ?? null,
+    mergedAt: webhook.mergedAt,
+    number: webhook.number,
+    repositoryFullName: webhook.repositoryFullName,
+    sourceId: sourceRevision.sourceId,
+    title: webhook.title,
+    url: webhook.url,
+  };
+
+  return [
+    ...projection.observedPullRequests.filter(candidate => candidate.id !== id),
+    observation,
+  ];
+};
+
+const resolveExecutionPlanAttribution = (
+  dataset: ReturnType<typeof buildAtlasOntahiDataset>,
+  webhook: AtlasMergedPullRequestInput,
+) => {
+  const pullRequestId = `github:${webhook.repositoryFullName.toLowerCase()}#${webhook.number}`;
+  const bindings = dataset.EvidenceBinding.filter(
+    binding => binding.pullRequestId === pullRequestId && binding.planId,
+  );
+  const binding =
+    bindings.find(candidate => candidate.kind === 'implements') ?? bindings[0];
+  const focusPlan = binding?.planId
+    ? dataset.AtlasPlan.find(plan => plan.id === binding.planId)
+    : undefined;
+
+  if (!focusPlan) {
+    return null;
+  }
+
+  const plansById = new Map(dataset.AtlasPlan.map(plan => [plan.id, plan] as const));
+  const visited = new Set<string>();
+  let rootPlan = focusPlan;
+
+  while (rootPlan.parentPlanId && !visited.has(rootPlan.id)) {
+    visited.add(rootPlan.id);
+    const parent = plansById.get(rootPlan.parentPlanId);
+
+    if (!parent) {
+      break;
+    }
+
+    rootPlan = parent;
+  }
+
+  return { focusPlan, pullRequestId, rootPlan };
+};
 
 const assertUnique = <TValue>(
   entity: string,
@@ -131,6 +221,102 @@ export const createAtlasPostgresApplication = (input: {
   });
   const entities = atlas.application.graph.entities;
 
+  const recordMergedPullRequestActivity = (
+    webhook: AtlasMergedPullRequestInput,
+    dataset: ReturnType<typeof buildAtlasOntahiDataset>,
+  ) =>
+    Effect.gen(function* () {
+      if (!webhook.authorProviderAccountId) {
+        return;
+      }
+
+      const planAttribution = resolveExecutionPlanAttribution(dataset, webhook);
+
+      if (!planAttribution) {
+        return;
+      }
+
+      const accounts = yield* entities.AtlasAuthAccount.where(account =>
+        account.accountId.eq(webhook.authorProviderAccountId!),
+      ).run();
+      const account = accounts.find(candidate => candidate.providerId === 'github');
+
+      if (!account) {
+        return;
+      }
+
+      const priorActivity = yield* entities.AtlasExecutionStreamActivity.where(activity =>
+        activity.pullRequestId.eq(planAttribution.pullRequestId),
+      )
+        .limit(1)
+        .run();
+
+      if (priorActivity[0]) {
+        return;
+      }
+
+      const streams = yield* entities.AtlasExecutionStream.where(stream =>
+        stream.userId.eq(account.userId),
+      ).run();
+      let stream = streams.find(
+        candidate => candidate.mode === 'implicit' && candidate.status === 'open',
+      );
+      const timestamp = webhook.mergedAt;
+      let streamId: string;
+
+      if (!stream) {
+        stream = {
+          id: randomUUID(),
+          userId: account.userId,
+          mode: 'implicit',
+          status: 'open',
+          title: executionStreamTitle(planAttribution.rootPlan.title),
+          currentFocusPlanId: planAttribution.focusPlan.id,
+          openedAt: timestamp,
+          closedAt: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+        yield* entities.AtlasExecutionStream.insert(stream).run();
+        streamId = stream.id;
+      } else {
+        const currentStream = stream;
+        yield* entities.AtlasExecutionStream.where(candidate =>
+          candidate.id.eq(currentStream.id),
+        )
+          .updateOne({
+            currentFocusPlanId: planAttribution.focusPlan.id,
+            updatedAt: timestamp,
+          })
+          .run();
+        streamId = currentStream.id;
+      }
+
+      yield* entities.AtlasExecutionStreamRoot.upsert(
+        {
+          id: `execution-stream-root:${streamId}:${planAttribution.rootPlan.id}`,
+          streamId,
+          planId: planAttribution.rootPlan.id,
+          addedAt: timestamp,
+        },
+        { conflictOn: ['id'], strategy: 'ignore' },
+      ).run();
+
+      yield* entities.AtlasExecutionStreamActivity.upsert(
+        {
+          id: `execution-stream-activity:${planAttribution.pullRequestId}`,
+          streamId,
+          pullRequestId: planAttribution.pullRequestId,
+          planId: planAttribution.focusPlan.id,
+          kind: 'pull-request-merged',
+          attribution: 'implicit-single-open',
+          occurredAt: timestamp,
+          createdAt: timestamp,
+        },
+        { conflictOn: ['id'], strategy: 'ignore' },
+      ).run();
+    });
+
   proposePersistentPlanLink = request =>
     Effect.promise(async () => {
       const records = await atlas.getSourceRecords();
@@ -140,9 +326,10 @@ export const createAtlasPostgresApplication = (input: {
   reconcileProjection = request =>
     Effect.promise(() => input.loadProjection(request)).pipe(
       Effect.flatMap(projection => {
+        const observedPullRequests = mergeWebhookPullRequestObservation(projection, request);
         const dataset = buildAtlasOntahiDataset(
           projection.records,
-          projection.observedPullRequests,
+          observedPullRequests,
           projection.sourceRevisions,
         );
         assertAtlasProjectionIdentities(dataset);
@@ -347,6 +534,10 @@ export const createAtlasPostgresApplication = (input: {
                 conflictOn: ['id'],
                 strategy: 'merge',
               }).run();
+            }
+
+            if (webhook && 'number' in webhook) {
+              yield* recordMergedPullRequestActivity(webhook, dataset);
             }
 
             const completedAt = new Date().toISOString();

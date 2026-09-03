@@ -4,12 +4,12 @@ kind: experience
 title: Workstream Execution Tree
 parent: spec-workstream-atlas.planning-projection
 status: shaping
-horizon: next
+horizon: now
 supports:
   - spec-workstream-atlas.planning-projection
   - spec-workstream-atlas.atlas-model.plan
 relatedPlans:
-  - plans/next/119-personal-workstream-execution-tree.md
+  - plans/current/124-implicit-personal-execution-streams-mvp.md
 ---
 
 [[spec-workstream-atlas.planning-projection.workstream-execution-tree|Workstream Execution Tree]]
@@ -21,9 +21,16 @@ into the current focus, completed branches, and the sibling or ancestor branches
 resumption. Parent/child lineage supplies the tree; dependencies, shaping, support, and related
 links remain lateral relations in the wider Atlas graph.
 
-A named Workstream may preserve selected roots, participants, current focus, and presentation
-state. Those facts do not own the included Plans, change their canonical lifecycle, assign work, or
-grant authorization. Two people may project different workstreams over the same shared Plan.
+The first product slice is [[spec-workstream-atlas.atlas-model.execution-stream|Execution Stream]]:
+one open implicit Stream per User, bounded by an explicit close action. Attributable merged Pull
+Requests append activity and move focus; when none is open, the next attributable merge starts one.
+The tree is therefore a projection of live Atlas state over shared Plan lineage, not another Plan
+document. Those facts do not own the included Plans, change their canonical lifecycle, assign work,
+or grant authorization.
+
+Parallel Streams remain possible but are not safely inferable from repository activity alone. If
+introduced, they require explicit routing rather than silent guesses. Sessions initially reads the
+current Stream plus bounded recent history instead of reconstructing all work from Git history.
 
 The tree may also show explicitly referenced but unmaterialized targets as empty branch tips. Such
 a target records authorial intent and an incoming relation without pretending that a complete Plan

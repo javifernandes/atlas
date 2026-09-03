@@ -14,6 +14,7 @@ relatedPlans:
   - plans/backlog/105-atlas-shaping.md
   - plans/next/106-atlas-plan-reconciliation-operation.md
   - plans/done/111-atlas-as-ontahi-application.md
+  - plans/current/124-implicit-personal-execution-streams-mvp.md
 ---
 
 The Operation Command Interface lets a user invoke atlas and product operations in ordinary prose while Atlas resolves the request to a typed operation.
@@ -38,3 +39,10 @@ Atlas exposes that boundary through the shared Next.js Runtime Protocol adapter 
 trusted request-context derivation; the adapter owns only HTTP parsing, protocol error status, and
 response serialization. Legacy family-specific Fetch clients remain outside this server-boundary
 change and continue to use their existing paths until their owning migration lands.
+
+The first user-triggered mutation is `AtlasExecutionStream.close`. Its client uses the typed Ontahí
+Operation hook and generic `/operations` adapter; `/operations` and the `operation` family under
+`/runtime` share one Atlas dispatcher. That dispatcher resolves only operations explicitly marked
+`exposure: 'bridge'`, so a `server-only` operation cannot become remotely callable merely because
+its ID is known. Authenticated ownership is derived inside the operation from the invocation
+Principal, never supplied as public input.

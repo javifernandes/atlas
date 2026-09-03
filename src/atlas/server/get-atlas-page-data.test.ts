@@ -25,10 +25,15 @@ describe('Atlas page data', () => {
       territories: [],
     };
     const getProjectionSnapshot = vi.fn().mockResolvedValue(snapshot);
-    getApplication.mockResolvedValue({ getProjectionSnapshot } as never);
+    const getExecutionStreams = vi.fn().mockResolvedValue([]);
+    getApplication.mockResolvedValue({ getExecutionStreams, getProjectionSnapshot } as never);
 
-    await expect(getAtlasPageData()).resolves.toEqual({ snapshot });
+    await expect(getAtlasPageData('user-1')).resolves.toEqual({
+      executionStreams: [],
+      snapshot,
+    });
     expect(getProjectionSnapshot).toHaveBeenCalledOnce();
+    expect(getExecutionStreams).toHaveBeenCalledWith('user-1');
   });
 
   it('returns an empty view before the first bootstrap revision exists', async () => {
@@ -42,6 +47,17 @@ describe('Atlas page data', () => {
         edges: [],
         evidence: [],
       },
+      executionStreams: [],
     });
+  });
+
+  it('preserves a User stream while the shared projection is unavailable', async () => {
+    const executionStreams = [{ id: 'stream-1' }];
+    getApplication.mockResolvedValue({
+      getExecutionStreams: vi.fn().mockResolvedValue(executionStreams),
+      getProjectionSnapshot: vi.fn().mockResolvedValue(null),
+    } as never);
+
+    await expect(getAtlasPageData('user-1')).resolves.toMatchObject({ executionStreams });
   });
 });

@@ -26,6 +26,13 @@ import {
 } from '../markdown/build-snapshot';
 import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
+import type {
+  AtlasExecutionStreamProjection,
+} from '../model/execution-stream';
+import {
+  AtlasExecutionStreamCloseInputSchema,
+  AtlasExecutionStreamCloseOutputSchema,
+} from '../model/execution-stream';
 import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
 import type { AtlasLoadedSourceRevision } from '../sources/markdown-source';
 import {
@@ -48,6 +55,7 @@ export type AtlasCapabilities = OntahiCapabilities & {
 };
 
 export type AtlasMergedPullRequestInput = {
+  authorProviderAccountId: string | null;
   authorLogin: string | null;
   body: string | null;
   deliveryId: string | null;
@@ -163,6 +171,7 @@ const planRelationBindingFields = {
 const pullRequestFields = {
   id: field.id(),
   authorAvatarUrl: field.nullable(field.string()),
+  authorProviderAccountId: field.nullable(field.string()),
   authorLogin: field.nullable(field.string()),
   mergeCommitSha: field.nullable(field.string()),
   mergedByAvatarUrl: field.nullable(field.string()),
@@ -249,7 +258,39 @@ const atlasAuthAccountFields = {
   updatedAt: field.nonEmptyString({ trim: true }),
 };
 
+const atlasExecutionStreamFields = {
+  id: field.id(),
+  userId: field.id(),
+  mode: field.enum(['implicit', 'explicit']),
+  status: field.enum(['open', 'closed']),
+  title: field.nonEmptyString({ trim: true }),
+  currentFocusPlanId: field.nullable(field.id()),
+  openedAt: field.nonEmptyString({ trim: true }),
+  closedAt: field.nullable(field.string()),
+  createdAt: field.nonEmptyString({ trim: true }),
+  updatedAt: field.nonEmptyString({ trim: true }),
+};
+
+const atlasExecutionStreamRootFields = {
+  id: field.id(),
+  streamId: field.id(),
+  planId: field.id(),
+  addedAt: field.nonEmptyString({ trim: true }),
+};
+
+const atlasExecutionStreamActivityFields = {
+  id: field.id(),
+  streamId: field.id(),
+  pullRequestId: field.id(),
+  planId: field.nullable(field.id()),
+  kind: field.enum(['pull-request-merged']),
+  attribution: field.enum(['implicit-single-open']),
+  occurredAt: field.nonEmptyString({ trim: true }),
+  createdAt: field.nonEmptyString({ trim: true }),
+};
+
 const MergedPullRequestInputSchema = graphSchema.object({
+  authorProviderAccountId: graphSchema.nullable(field.string()),
   authorLogin: graphSchema.nullable(field.string()),
   body: graphSchema.nullable(field.string()),
   deliveryId: graphSchema.nullable(field.string()),
@@ -309,6 +350,16 @@ const ProjectionRevisionRef = semanticEntityRef('ProjectionRevision', {
 const AtlasAuthAccountRef = semanticEntityRef('AtlasAuthAccount', {
   fields: atlasAuthAccountFields,
 });
+const AtlasExecutionStreamRef = semanticEntityRef('AtlasExecutionStream', {
+  fields: atlasExecutionStreamFields,
+});
+const AtlasExecutionStreamActivityRef = semanticEntityRef('AtlasExecutionStreamActivity', {
+  fields: atlasExecutionStreamActivityFields,
+});
+const AtlasExecutionStreamRootRef = semanticEntityRef('AtlasExecutionStreamRoot', {
+  fields: atlasExecutionStreamRootFields,
+});
+const PullRequestRef = semanticEntityRef('PullRequest', { fields: pullRequestFields });
 
 export const AtlasUser = entity({
   name: 'AtlasUser',
@@ -320,6 +371,7 @@ export const AtlasUser = entity({
   },
   relations: {
     accounts: relation.hasMany(AtlasAuthAccountRef, { via: 'userId' }),
+    executionStreams: relation.hasMany(AtlasExecutionStreamRef, { via: 'userId' }),
   },
 });
 
@@ -357,6 +409,99 @@ export const AtlasPlan = entity({
     children: relation.hasMany(AtlasPlanRef, { via: 'parentPlanId' }),
     sourceRevision: relation.belongsTo(SourceRevisionRef, { via: 'sourceRevisionId' }),
     sourceRecord: relation.belongsTo(SourceRecordRef, { via: 'sourceRecordId' }),
+  },
+});
+
+export const AtlasExecutionStream = entity({
+  name: 'AtlasExecutionStream',
+  fields: atlasExecutionStreamFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.execution',
+  },
+  relations: {
+    user: relation.belongsTo(AtlasUser, { via: 'userId' }),
+    currentFocusPlan: relation.belongsTo(AtlasPlan, { via: 'currentFocusPlanId' }),
+    activities: relation.hasMany(AtlasExecutionStreamActivityRef, { via: 'streamId' }),
+    roots: relation.hasMany(AtlasExecutionStreamRootRef, { via: 'streamId' }),
+  },
+  operations: ({ operation, commands, app }) => ({
+    close: operation({
+      description: 'Close one User-owned Atlas execution stream',
+      exposure: 'bridge',
+      bridge: {},
+      input: AtlasExecutionStreamCloseInputSchema,
+      output: AtlasExecutionStreamCloseOutputSchema,
+      requires: [
+        {
+          run: () =>
+            app.auth.requirePrincipal().pipe(
+              Effect.flatMap(principal =>
+                principal.kind === 'user' && principal.issuer === 'atlas'
+                  ? Effect.void
+                  : app.operation.fail(
+                      'not_authorized',
+                      'Only an authenticated Atlas User can close an execution stream.',
+                    ),
+              ),
+            ),
+        },
+      ],
+      *run({ id }) {
+        const principal = yield* app.auth.requirePrincipal();
+
+        if (principal.kind !== 'user' || principal.issuer !== 'atlas') {
+          return yield* app.operation.fail(
+            'not_authorized',
+            'Only an authenticated Atlas User can close an execution stream.',
+          );
+        }
+
+        const matches = yield* commands
+          .where(stream => stream.id.eq(id))
+          .limit(1)
+          .run();
+        const stream = matches[0];
+
+        if (!stream || stream.userId !== principal.subject) {
+          return yield* app.operation.fail(
+            'not_found',
+            'Execution stream not found.',
+          );
+        }
+
+        if (stream.status === 'closed') {
+          return { id: stream.id, closed: true, closedAt: stream.closedAt };
+        }
+
+        const closedAt = new Date().toISOString();
+        yield* commands
+          .where(candidate => candidate.id.eq(stream.id))
+          .updateOne({
+            status: 'closed',
+            closedAt,
+            updatedAt: closedAt,
+          })
+          .run();
+
+        return { id: stream.id, closed: true, closedAt };
+      },
+    }),
+  }),
+});
+
+export const AtlasExecutionStreamRoot = entity({
+  name: 'AtlasExecutionStreamRoot',
+  fields: atlasExecutionStreamRootFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.execution',
+  },
+  relations: {
+    stream: relation.belongsTo(AtlasExecutionStream, { via: 'streamId' }),
+    plan: relation.belongsTo(AtlasPlan, { via: 'planId' }),
   },
 });
 
@@ -406,6 +551,9 @@ export const PullRequest = entity({
   },
   relations: {
     evidenceBindings: relation.hasMany(EvidenceBindingRef, { via: 'pullRequestId' }),
+    executionStreamActivities: relation.hasMany(AtlasExecutionStreamActivityRef, {
+      via: 'pullRequestId',
+    }),
   },
   operations: ({ operation, ingress, app }) => ({
     refreshAfterMerge: operation({
@@ -437,6 +585,21 @@ export const EvidenceBinding = entity({
     item: relation.belongsTo(AtlasItemRef, { via: 'itemId' }),
     plan: relation.belongsTo(AtlasPlan, { via: 'planId' }),
     pullRequest: relation.belongsTo(PullRequest, { via: 'pullRequestId' }),
+  },
+});
+
+export const AtlasExecutionStreamActivity = entity({
+  name: 'AtlasExecutionStreamActivity',
+  fields: atlasExecutionStreamActivityFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.execution',
+  },
+  relations: {
+    stream: relation.belongsTo(AtlasExecutionStream, { via: 'streamId' }),
+    pullRequest: relation.belongsTo(PullRequestRef, { via: 'pullRequestId' }),
+    plan: relation.belongsTo(AtlasPlan, { via: 'planId' }),
   },
 });
 
@@ -747,6 +910,9 @@ const buildAtlasOntahiDatasetFromSource = (
   const dataset = {
     AtlasUser: [],
     AtlasAuthAccount: [],
+    AtlasExecutionStream: [],
+    AtlasExecutionStreamActivity: [],
+    AtlasExecutionStreamRoot: [],
     AtlasSourceRevision: sourceRevisions,
     AtlasSourceRecord: sourceRecords,
     AtlasItem: items.map(item => ({
@@ -820,6 +986,7 @@ const buildAtlasOntahiDatasetFromSource = (
     PullRequest: resolvedEvidence.pullRequests.map(pullRequest => ({
       id: pullRequest.id,
       authorAvatarUrl: pullRequest.authorAvatarUrl,
+      authorProviderAccountId: pullRequest.authorProviderAccountId,
       authorLogin: pullRequest.authorLogin,
       mergeCommitSha: pullRequest.mergeCommitSha,
       mergedByAvatarUrl: pullRequest.mergedByAvatarUrl,
@@ -1217,6 +1384,74 @@ const atlasUserIdentityQuery = (id: string) =>
     }))
     .first();
 
+const atlasExecutionStreamsQuery = (userId: string, limit: number) =>
+  query(AtlasExecutionStream)
+    .where(stream => stream.userId.eq(userId))
+    .select(stream => ({
+      id: stream.id,
+      mode: stream.mode,
+      status: stream.status,
+      title: stream.title,
+      openedAt: stream.openedAt,
+      closedAt: stream.closedAt,
+      updatedAt: stream.updatedAt,
+      currentFocusPlanId: stream.currentFocusPlanId,
+    }))
+    .orderBy(stream => stream.openedAt.desc())
+    .limit(limit);
+
+const atlasExecutionStreamRootsQuery = (streamIds: string[]) =>
+  query(AtlasExecutionStreamRoot)
+    .where(root => root.streamId.in(streamIds))
+    .select(root => ({
+      id: root.id,
+      streamId: root.streamId,
+      planId: root.planId,
+      addedAt: root.addedAt,
+    }))
+    .orderBy(root => root.addedAt);
+
+const atlasExecutionStreamActivitiesQuery = (streamIds: string[]) =>
+  query(AtlasExecutionStreamActivity)
+    .where(activity => activity.streamId.in(streamIds))
+    .select(activity => ({
+      id: activity.id,
+      streamId: activity.streamId,
+      pullRequestId: activity.pullRequestId,
+      planId: activity.planId,
+      attribution: activity.attribution,
+      kind: activity.kind,
+      occurredAt: activity.occurredAt,
+    }))
+    .orderBy(activity => activity.occurredAt.desc())
+    .limit(50);
+
+const atlasExecutionStreamPlansQuery = (planIds: string[]) =>
+  query(AtlasPlan)
+    .where(plan => plan.id.in(planIds))
+    .select(plan => ({
+      id: plan.id,
+      path: plan.path,
+      status: plan.status,
+      title: plan.title,
+    }));
+
+const atlasExecutionStreamPullRequestsQuery = (pullRequestIds: string[]) =>
+  query(PullRequest)
+    .where(pullRequest => pullRequest.id.in(pullRequestIds))
+    .select(pullRequest => ({
+      id: pullRequest.id,
+      authorLogin: pullRequest.authorLogin,
+      mergedAt: pullRequest.mergedAt,
+      number: pullRequest.number,
+      repositoryFullName: pullRequest.repositoryFullName,
+      title: pullRequest.title,
+      url: pullRequest.url,
+    }));
+
+const serializeAtlasTimestamp = (value: unknown) =>
+  value instanceof Date ? value.toISOString() : String(value);
+
 export type AtlasEvidenceProjection = {
   id: string;
   kind: 'implements' | 'shapes';
@@ -1239,6 +1474,9 @@ export type AtlasEvidenceProjection = {
 export const atlasEntities = [
   AtlasUser,
   AtlasAuthAccount,
+  AtlasExecutionStream,
+  AtlasExecutionStreamActivity,
+  AtlasExecutionStreamRoot,
   AtlasSourceRevision,
   AtlasSourceRecord,
   AtlasItem,
@@ -1270,6 +1508,91 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
       application.graph.read(atlasUserIdentityQuery(id), {
         scope: 'atlas.identity.user',
       }),
+    getExecutionStreams: async (
+      userId: string,
+      limit = 6,
+    ): Promise<AtlasExecutionStreamProjection[]> => {
+      const streams = await application.graph.read(
+        atlasExecutionStreamsQuery(userId, Math.max(1, Math.min(limit, 20))),
+        {
+          scope: 'atlas.execution-streams',
+        },
+      );
+      const streamIds = streams.map(stream => stream.id);
+
+      if (streamIds.length === 0) {
+        return [];
+      }
+
+      const [roots, activities] = await Promise.all([
+        application.graph.read(atlasExecutionStreamRootsQuery(streamIds), {
+          scope: 'atlas.execution-stream-roots',
+        }),
+        application.graph.read(atlasExecutionStreamActivitiesQuery(streamIds), {
+          scope: 'atlas.execution-stream-activities',
+        }),
+      ]);
+      const planIds = [
+        ...new Set([
+          ...streams.flatMap(stream =>
+            stream.currentFocusPlanId ? [stream.currentFocusPlanId] : [],
+          ),
+          ...roots.map(root => root.planId),
+          ...activities.flatMap(activity => (activity.planId ? [activity.planId] : [])),
+        ]),
+      ];
+      const pullRequestIds = [
+        ...new Set(activities.map(activity => activity.pullRequestId)),
+      ];
+      const [plans, pullRequests] = await Promise.all([
+        planIds.length > 0
+          ? application.graph.read(atlasExecutionStreamPlansQuery(planIds), {
+              scope: 'atlas.execution-stream-plans',
+            })
+          : Promise.resolve([]),
+        pullRequestIds.length > 0
+          ? application.graph.read(
+              atlasExecutionStreamPullRequestsQuery(pullRequestIds),
+              { scope: 'atlas.execution-stream-pull-requests' },
+            )
+          : Promise.resolve([]),
+      ]);
+      const plansById = new Map(plans.map(plan => [plan.id, plan] as const));
+      const pullRequestsById = new Map(
+        pullRequests.map(({ id, mergedAt, ...pullRequest }) => [
+          id,
+          { ...pullRequest, mergedAt: serializeAtlasTimestamp(mergedAt) },
+        ] as const),
+      );
+
+      return streams.map(stream => ({
+        id: stream.id,
+        mode: stream.mode,
+        status: stream.status,
+        title: stream.title,
+        openedAt: serializeAtlasTimestamp(stream.openedAt),
+        closedAt: stream.closedAt ? serializeAtlasTimestamp(stream.closedAt) : null,
+        updatedAt: serializeAtlasTimestamp(stream.updatedAt),
+        currentFocusPlan: stream.currentFocusPlanId
+          ? (plansById.get(stream.currentFocusPlanId) ?? null)
+          : null,
+        roots: roots.flatMap(root =>
+          root.streamId === stream.id && plansById.has(root.planId)
+            ? [plansById.get(root.planId)!]
+            : [],
+        ),
+        activities: activities
+          .filter(activity => activity.streamId === stream.id)
+          .map(activity => ({
+            id: activity.id,
+            attribution: activity.attribution,
+            kind: activity.kind,
+            occurredAt: serializeAtlasTimestamp(activity.occurredAt),
+            plan: activity.planId ? (plansById.get(activity.planId) ?? null) : null,
+            pullRequest: pullRequestsById.get(activity.pullRequestId) ?? null,
+          })),
+      }));
+    },
     getItemContext: (semanticId: string): Promise<AtlasItemContext | null> =>
       application.graph.read(atlasItemContextQuery(semanticId), {
         scope: 'atlas.item-context',
