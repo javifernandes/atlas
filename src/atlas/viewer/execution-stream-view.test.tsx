@@ -167,7 +167,9 @@ describe('ExecutionStreamView', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Current stream' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sessions' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Plan tree' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Merged PRs' })).toBeInTheDocument();
     expect(screen.getByText('PR #24 merged')).toBeInTheDocument();
     expect(screen.getByText('focus')).toBeInTheDocument();
     expect(screen.getByText('Persistent Identity')).toBeInTheDocument();
@@ -176,6 +178,30 @@ describe('ExecutionStreamView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Explicit Routing/ }));
     expect(onOpenPlan).toHaveBeenCalledWith('plan:atlas://plans/125-routing');
+  });
+
+  it('filters done Plans and collapses or expands tree branches locally', () => {
+    render(
+      <ExecutionStreamView
+        executionStreams={[currentStream]}
+        onOpenPlan={vi.fn()}
+        snapshot={snapshot}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Implicit Streams' }));
+    expect(screen.queryByRole('button', { name: /Persistent Identity/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Explicit Routing/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Implicit Streams' }));
+    expect(screen.getByRole('button', { name: /Persistent Identity/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Explicit Routing/ })).toBeInTheDocument();
+
+    const hideDone = screen.getByRole('button', { name: 'Hide done' });
+    fireEvent.click(hideDone);
+    expect(hideDone).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: /Persistent Identity/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Explicit Routing/ })).toBeInTheDocument();
   });
 
   it('confirms and closes the current stream through the bridged operation', async () => {
@@ -187,7 +213,7 @@ describe('ExecutionStreamView', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close stream' }));
+    fireEvent.click(screen.getAllByRole('button', { name: `Close ${currentStream.title}` })[0]);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText(/Plans keep their current status/)).toBeInTheDocument();
 
