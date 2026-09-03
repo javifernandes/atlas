@@ -34,7 +34,10 @@ an `AtlasAuthAccount` to an `AtlasUser`. Login, email, and display name are pres
 not identity keys. A Pull Request without an attributable User or resolved Plan evidence remains in
 the shared evidence projection but does not create or move a Stream.
 
-Closing a Stream is an explicit temporal boundary. It archives the interval while preserving
-unfinished Plans and all activity. Page reads project the current Stream and a bounded recent
-history directly from the database; they do not reconstruct a person's work by replaying repository
-history.
+Closing a Stream is an explicit temporal boundary. It is a bridged Ontahí operation carried by the
+generic Operation adapter and dispatcher also used by Atlas's Runtime Protocol; the operation
+derives the User from the authenticated Principal and never accepts a client-asserted owner
+identity. Its declared requirement admits only an Atlas user Principal, keeping permission checks
+aligned with execution. It archives the interval while preserving unfinished Plans and all activity. Page reads
+project the current Stream and a bounded recent history directly from the database; they do not
+reconstruct a person's work by replaying repository history.

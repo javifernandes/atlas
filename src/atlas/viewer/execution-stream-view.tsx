@@ -9,9 +9,11 @@ import {
   Radio,
   X,
 } from 'lucide-react';
+import { useOperation } from '@ontahi/react/graph';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { AtlasExecutionStreamClient } from '../client/execution-stream';
 import type { AtlasExecutionStreamProjection } from '../model/execution-stream';
 import type {
   PlanWorkstreamNode,
@@ -167,8 +169,9 @@ export const ExecutionStreamView = ({
 }: ExecutionStreamViewProps) => {
   const router = useRouter();
   const [confirmingClose, setConfirmingClose] = useState(false);
-  const [closing, setClosing] = useState(false);
   const [closeError, setCloseError] = useState<string | null>(null);
+  const closeStream = useOperation(AtlasExecutionStreamClient.domain.close);
+  const closing = closeStream.isExecuting;
   const currentStream = executionStreams.find(
     stream => stream.mode === 'implicit' && stream.status === 'open',
   );
@@ -194,25 +197,19 @@ export const ExecutionStreamView = ({
   const closeCurrentStream = async () => {
     if (!currentStream || closing) return;
 
-    setClosing(true);
     setCloseError(null);
 
     try {
-      const response = await fetch(`/api/execution-streams/${currentStream.id}/close`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-      });
+      const result = await closeStream.executeAsync({ id: currentStream.id });
 
-      if (!response.ok) {
-        throw new Error('Atlas could not close this stream.');
+      if (!result.ok) {
+        throw new Error(result.message);
       }
 
       setConfirmingClose(false);
       router.refresh();
     } catch (error) {
       setCloseError(error instanceof Error ? error.message : 'Atlas could not close this stream.');
-    } finally {
-      setClosing(false);
     }
   };
 

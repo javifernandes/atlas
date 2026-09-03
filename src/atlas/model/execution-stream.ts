@@ -41,3 +41,17 @@ export type AtlasExecutionStreamCloseResult = {
   closed: boolean;
   closedAt: string | null;
 };
+
+export const AtlasExecutionStreamCloseInputSchema = graphSchema.object({
+  id: field.id(),
+});
+
+export const AtlasExecutionStreamCloseOutputSchema = graphSchema.value(
+  'CloseExecutionStreamResult',
+  {
+    id: field.id(),
+    closed: field.boolean(),
+    closedAt: graphSchema.nullable(field.string()),
+  },
+);
+import { field, graphSchema } from '@ontahi/core/data-graph';

@@ -1,13 +1,20 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AtlasExecutionStreamProjection } from '../model/execution-stream';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 
 const refreshMock = vi.hoisted(() => vi.fn());
+const closeExecuteAsyncMock = vi.hoisted(() => vi.fn());
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: refreshMock }),
+}));
+vi.mock('@ontahi/react/graph', () => ({
+  useOperation: () => ({
+    executeAsync: closeExecuteAsyncMock,
+    isExecuting: false,
+  }),
 }));
 
 import { ExecutionStreamView } from './execution-stream-view';
@@ -130,10 +137,15 @@ const recentStream: AtlasExecutionStreamProjection = {
 describe('ExecutionStreamView', () => {
   beforeEach(() => {
     refreshMock.mockReset();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
+    closeExecuteAsyncMock.mockReset().mockResolvedValue({
+      ok: true,
+      kind: 'success',
+      value: {
+        id: currentStream.id,
+        closed: true,
+        closedAt: '2026-09-03T02:00:00.000Z',
+      },
+    });
   });
 
   it('renders the waiting state without reconstructing a stream', () => {
@@ -166,9 +178,7 @@ describe('ExecutionStreamView', () => {
     expect(onOpenPlan).toHaveBeenCalledWith('plan:atlas://plans/125-routing');
   });
 
-  it('confirms and closes the current stream through the authenticated boundary', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
-    vi.stubGlobal('fetch', fetchMock);
+  it('confirms and closes the current stream through the bridged operation', async () => {
     render(
       <ExecutionStreamView
         executionStreams={[currentStream]}
@@ -184,10 +194,7 @@ describe('ExecutionStreamView', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close stream' }));
 
     await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        `/api/execution-streams/${currentStream.id}/close`,
-        expect.objectContaining({ method: 'POST' }),
-      ),
+      expect(closeExecuteAsyncMock).toHaveBeenCalledWith({ id: currentStream.id }),
     );
     await waitFor(() => expect(refreshMock).toHaveBeenCalledOnce());
   });

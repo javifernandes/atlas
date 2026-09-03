@@ -72,8 +72,8 @@ proves useful.
 6. If no implicit Stream is open, create one rooted at the highest known ancestor of the focused
    Plan. Otherwise append activity, add another root when work is in a disjoint lineage, and move
    current focus within the existing Stream.
-7. Add a server-only Ontahí close operation that verifies User ownership and closes the current
-   Stream without mutating Plans.
+7. Add a bridged Ontahí close operation that derives the User from the authenticated runtime
+   Principal, verifies ownership, and closes the current Stream without mutating Plans.
 8. Add a Sessions view showing the open Stream tree, current focus, recent activity, and a bounded
    list of recent closed Streams. When no Stream is open, explain that Atlas is waiting for the next
    attributable merge.
@@ -149,7 +149,7 @@ projection changes.
 3. [x] Carry stable GitHub actor identity through API fetch and webhook ingress.
 4. [x] Append or create the implicit Stream transactionally after a non-duplicate merged-PR
        reconciliation.
-5. [x] Add the ownership-checked close operation and authenticated HTTP boundary.
+5. [x] Add the ownership-checked close operation over the shared Ontahí Operation bridge.
 6. [x] Add the Sessions view and bounded current/recent projection.
 7. [x] Verify unit, mapping, UI, webhook, migration, and PostgreSQL integration behavior.
 8. [ ] Dogfood the first real post-deploy merge and record whether the inferred root/focus is useful.
@@ -185,6 +185,8 @@ projection changes.
    query, not a repository-history reconstruction.
 8. No initial backfill keeps the experiment honest and makes deletion straightforward if the model
    proves unhelpful.
+9. User-facing Stream mutations travel through bridged Ontahí operations and the shared operation
+   dispatcher; product-specific Next.js mutation routes are not part of this model.
 
 ## Open Questions
 
@@ -211,8 +213,8 @@ discarded yet; real use of this narrower model will determine whether they remai
 The implementation now captures stable GitHub actor identity during signed merged-PR ingestion,
 resolves it through the User's linked Auth Account, and appends activity to one durable implicit
 Stream inside the projection-reconciliation transaction. The Ontahí model exposes the Stream,
-root membership, activity, User, Plan, and Pull Request relationships; the authenticated close
-operation preserves Plan state and lets the next attributable merge create a new interval.
+root membership, activity, User, Plan, and Pull Request relationships; the authenticated bridged
+close operation preserves Plan state and lets the next attributable merge create a new interval.
 
 Sessions now renders the current Plan forest, focus, adjacent branches, recent PR activity, closed
 history, and the waiting state. Reads are bounded PostgreSQL projections and do not replay GitHub
@@ -220,3 +222,15 @@ history. `pnpm verify` passed with 74 unit/UI tests and the production build/sou
 the opt-in PostgreSQL suite passed all 6 migration and lifecycle tests. The Plan remains current
 only for post-deploy dogfooding: the first real merge must confirm whether the inferred root and
 focus feel useful in practice.
+
+### 2026-09-03 — bridge correction
+
+Review caught that the first implementation placed a Plan-correct Ontahí close operation behind a
+product-specific Next.js route. That boundary duplicated invocation and identity plumbing already
+owned by Atlas's operation bridge. The PR is corrected so the UI invokes the typed client operation
+through the generic `/operations` adapter, which shares Atlas's filtered operation dispatcher with
+`/runtime`; the operation derives ownership from the runtime Principal. The ad hoc close route and
+client-supplied User identity are removed. The dispatcher now rejects every operation not explicitly
+marked `exposure: 'bridge'`, closing the pre-existing possibility of addressing a server-only
+operation by name through either generic transport. The operation requirement itself admits only an
+Atlas user Principal, so permission checks and execution enforce the same identity boundary.

@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { inferPostgresMappings, inspectPostgresDataGraphSchema } from '@ontahi/postgres/data-graph';
+import { withInvocationContext } from '@ontahi/core/runtime/server';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { getMigrations } from 'better-auth/db/migration';
 import { Pool } from 'pg';
@@ -439,20 +440,40 @@ Durable Atlas projection.
         }),
       ],
     });
+    const invokeCloseAs = (userId: string) =>
+      withInvocationContext(
+        {
+          principal: { issuer: 'atlas', kind: 'user', subject: userId },
+        },
+        () =>
+          atlas.application.invokeOperation(
+            atlas.application.graph.entities.AtlasExecutionStream.domain.close,
+            { id: openStream!.id },
+          ),
+      );
     await expect(
-      atlas.closeExecutionStream({
-        id: openStream!.id,
-        userId: randomUUID(),
-        closedAt: '2026-09-02T02:30:00.000Z',
-      }),
-    ).resolves.toMatchObject({ closed: false });
+      withInvocationContext({ principal: null }, () =>
+        atlas.application.invokeOperation(
+          atlas.application.graph.entities.AtlasExecutionStream.domain.close,
+          { id: openStream!.id },
+        ),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      kind: 'failed',
+      failure: { reason: 'not_authenticated' },
+    });
     await expect(
-      atlas.closeExecutionStream({
-        id: openStream!.id,
-        userId: streamOwner.user.id,
-        closedAt: '2026-09-02T02:30:00.000Z',
-      }),
-    ).resolves.toMatchObject({ closed: true });
+      invokeCloseAs(randomUUID()),
+    ).resolves.toMatchObject({
+      ok: false,
+      kind: 'failed',
+      failure: { reason: 'not_found' },
+    });
+    await expect(invokeCloseAs(streamOwner.user.id)).resolves.toMatchObject({
+      ok: true,
+      value: { closed: true },
+    });
 
     const nextWebhook: AtlasMergedPullRequestInput = {
       ...webhook,

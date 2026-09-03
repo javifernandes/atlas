@@ -27,8 +27,11 @@ import {
 import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import type {
-  AtlasExecutionStreamCloseResult,
   AtlasExecutionStreamProjection,
+} from '../model/execution-stream';
+import {
+  AtlasExecutionStreamCloseInputSchema,
+  AtlasExecutionStreamCloseOutputSchema,
 } from '../model/execution-stream';
 import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
 import type { AtlasLoadedSourceRevision } from '../sources/markdown-source';
@@ -334,18 +337,6 @@ const AtlasPlanLinkProposalSchema = graphSchema.value('AtlasPlanLinkProposal', {
   status: field.enum(['already-linked', 'proposed']),
 });
 
-const CloseExecutionStreamInputSchema = graphSchema.object({
-  id: field.id(),
-  userId: field.id(),
-  closedAt: field.nonEmptyString({ trim: true }),
-});
-
-const CloseExecutionStreamOutputSchema = graphSchema.value('CloseExecutionStreamResult', {
-  id: field.id(),
-  closed: field.boolean(),
-  closedAt: graphSchema.nullable(field.string()),
-});
-
 const AtlasItemRef = semanticEntityRef('AtlasItem', { fields: atlasItemFields });
 const AtlasPlanRef = semanticEntityRef('AtlasPlan', { fields: atlasPlanFields });
 const EvidenceBindingRef = semanticEntityRef('EvidenceBinding', { fields: evidenceBindingFields });
@@ -435,36 +426,66 @@ export const AtlasExecutionStream = entity({
     activities: relation.hasMany(AtlasExecutionStreamActivityRef, { via: 'streamId' }),
     roots: relation.hasMany(AtlasExecutionStreamRootRef, { via: 'streamId' }),
   },
-  operations: ({ operation, commands }) => ({
+  operations: ({ operation, commands, app }) => ({
     close: operation({
       description: 'Close one User-owned Atlas execution stream',
-      input: CloseExecutionStreamInputSchema,
-      output: CloseExecutionStreamOutputSchema,
-      *run(input) {
+      exposure: 'bridge',
+      bridge: {},
+      input: AtlasExecutionStreamCloseInputSchema,
+      output: AtlasExecutionStreamCloseOutputSchema,
+      requires: [
+        {
+          run: () =>
+            app.auth.requirePrincipal().pipe(
+              Effect.flatMap(principal =>
+                principal.kind === 'user' && principal.issuer === 'atlas'
+                  ? Effect.void
+                  : app.operation.fail(
+                      'not_authorized',
+                      'Only an authenticated Atlas User can close an execution stream.',
+                    ),
+              ),
+            ),
+        },
+      ],
+      *run({ id }) {
+        const principal = yield* app.auth.requirePrincipal();
+
+        if (principal.kind !== 'user' || principal.issuer !== 'atlas') {
+          return yield* app.operation.fail(
+            'not_authorized',
+            'Only an authenticated Atlas User can close an execution stream.',
+          );
+        }
+
         const matches = yield* commands
-          .where(stream => stream.id.eq(input.id))
+          .where(stream => stream.id.eq(id))
           .limit(1)
           .run();
         const stream = matches[0];
 
-        if (!stream || stream.userId !== input.userId) {
-          return { id: input.id, closed: false, closedAt: null };
+        if (!stream || stream.userId !== principal.subject) {
+          return yield* app.operation.fail(
+            'not_found',
+            'Execution stream not found.',
+          );
         }
 
         if (stream.status === 'closed') {
           return { id: stream.id, closed: true, closedAt: stream.closedAt };
         }
 
+        const closedAt = new Date().toISOString();
         yield* commands
           .where(candidate => candidate.id.eq(stream.id))
           .updateOne({
             status: 'closed',
-            closedAt: input.closedAt,
-            updatedAt: input.closedAt,
+            closedAt,
+            updatedAt: closedAt,
           })
           .run();
 
-        return { id: stream.id, closed: true, closedAt: input.closedAt };
+        return { id: stream.id, closed: true, closedAt };
       },
     }),
   }),
@@ -1571,26 +1592,6 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
             pullRequest: pullRequestsById.get(activity.pullRequestId) ?? null,
           })),
       }));
-    },
-    closeExecutionStream: async (input: {
-      id: string;
-      userId: string;
-      closedAt?: string;
-    }): Promise<AtlasExecutionStreamCloseResult> => {
-      const result = await application.invokeOperation(
-        application.graph.entities.AtlasExecutionStream.domain.close,
-        {
-          id: input.id,
-          userId: input.userId,
-          closedAt: input.closedAt ?? new Date().toISOString(),
-        },
-      );
-
-      if (!result.ok) {
-        throw new Error(`Atlas execution stream close failed: ${result.message}`);
-      }
-
-      return result.value as AtlasExecutionStreamCloseResult;
     },
     getItemContext: (semanticId: string): Promise<AtlasItemContext | null> =>
       application.graph.read(atlasItemContextQuery(semanticId), {

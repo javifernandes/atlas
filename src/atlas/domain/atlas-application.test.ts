@@ -3,7 +3,10 @@ import {
   createRuntimeProtocolDispatcher,
   createRuntimeProtocolRequest,
 } from '@ontahi/core/runtime/protocol';
-import { createOperationInvocationDispatcher } from '@ontahi/core/runtime/server';
+import {
+  createOperationInvocationDispatcher,
+  withInvocationContext,
+} from '@ontahi/core/runtime/server';
 import {
   createGraphHttpIngressOperationDispatcher,
   createGraphHttpIngressRouter,
@@ -216,6 +219,27 @@ relatedPlans:
       AtlasSupportBinding: expect.objectContaining({ name: 'AtlasSupportBinding' }),
       PullRequest: expect.objectContaining({ name: 'PullRequest' }),
     });
+    const closeStream = atlas.application.graph.entities.AtlasExecutionStream.domain.close;
+    expect(closeStream.id).toBe('AtlasExecutionStream.close');
+    expect(closeStream.authority).toBe('server');
+    expect(closeStream.exposure).toBe('bridge');
+    await expect(
+      withInvocationContext({ principal: null }, () =>
+        atlas.application.checkPermission(closeStream, { id: 'stream-1' }),
+      ),
+    ).resolves.toMatchObject({ allowed: false, reason: 'not_authenticated' });
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'service', subject: 'worker-1' } },
+        () => atlas.application.checkPermission(closeStream, { id: 'stream-1' }),
+      ),
+    ).resolves.toMatchObject({ allowed: false, reason: 'not_authorized' });
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' } },
+        () => atlas.application.checkPermission(closeStream, { id: 'stream-1' }),
+      ),
+    ).resolves.toEqual({ allowed: true });
   });
 
   it('hydrates explicit merged PR evidence for both plans and semantic items', async () => {
