@@ -11,6 +11,8 @@ supports:
 relatedPlans:
   - plans/done/101-workstream-atlas-semantic-source.md
   - plans/done/107-plan-model-research-and-v0.md
+  - plans/done/120-board-project-filter.md
+  - plans/done/122-plan-centered-execution-projection.md
 ---
 
 Planning Projection is the operational view over the same source: map, now/next/later board,
@@ -20,9 +22,15 @@ This should not force the semantic tree to behave like a kanban board.
 
 The projection may group Plans by Goal, territory, or model area and present those groupings as workstreams. Workstream remains derived in v0; it should not become a declared item unless stable identity or independent planning behavior proves necessary.
 
-The global board is an active-work projection by default: Now, Next, and Later stay visible while
-completed Plans and materialized shapes remain behind an explicit `Show history` control. History
-is still searchable and navigable; it no longer overwhelms the default planning view.
+The global Board is a Plan-centered execution projection. Now, Next, and Later contain bounded
+interventions rather than concepts, capabilities, entities, or other durable system shapes.
+Completed Plans remain behind an explicit `Show history` control. Durable items may still carry
+status and horizon metadata, but that metadata does not turn them into executable Board cards.
+
+The Board can also scope that projection to one declared project. Project scope follows containment
+and shaping hierarchy from the project Atlas Item, then projects only Plans from that scope. Lateral
+relations do not pull unrelated projects into the focused view. The all-project portfolio remains
+the default.
 
 ## Child Items
 

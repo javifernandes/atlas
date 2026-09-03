@@ -10,9 +10,17 @@ supports:
   - spec-workstream-atlas.atlas-experiences
 relatedPlans:
   - plans/done/101-workstream-atlas-semantic-source.md
+  - plans/done/121-full-item-project-badges.md
+  - plans/done/122-plan-centered-execution-projection.md
 ---
 
 Map Navigation UX covers the full-canvas atlas: pan, zoom, search, selected-node detail, dimming, semantic grouping, and the shift from a flattened plan graph to a navigable product map.
+
+The Map is primarily a structural and ontological lens. Concepts, capabilities, entities, and
+other durable items form its hierarchy. Plans may remain visible because they explain and can be
+created from that structure, but they are temporal interventions rather than structural peers and
+must look visually distinct. A later control may make this Plan layer optional without changing the
+underlying graph.
 
 The default canvas keeps navigation chrome minimal: a compact Atlas wordmark reserves the future
 brand-mark position, while `Command-K` or `Control-K` opens a wide, opaque search palette. The
@@ -31,6 +39,11 @@ horizontally with snap points instead of introducing another hard-divided panel.
 and shaping edges remain in Context or Evolution rather than pretending to be structural children.
 When the rail projects direct children, Overview suppresses the conventional Markdown `Child
 Items` section so navigation is not rendered twice.
+
+When the federated Atlas contains multiple declared projects, the full-detail header identifies the
+project or projects whose containment and shaping hierarchy includes the current item. Project
+items do not repeat their own identity as a badge, and a single-project Atlas avoids redundant
+project chrome.
 
 ## Child Items
 
