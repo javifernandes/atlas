@@ -8,7 +8,7 @@ import { withAtlasRuntimeRequestContext } from './atlas-runtime';
 describe('Atlas Runtime Protocol identity', () => {
   it('makes the request Principal visible to Ontahí execution', async () => {
     const principal = {
-      issuer: 'atlas:better-auth',
+      issuer: 'atlas',
       kind: 'user' as const,
       subject: 'github-user-1',
     };

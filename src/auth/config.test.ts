@@ -18,7 +18,20 @@ describe('Atlas auth configuration', () => {
     expect(readAtlasAuthConfiguration({})).toMatchObject({
       authAvailable: false,
       configurationError: null,
+      persistence: 'stateless',
       visibility: 'public',
+    });
+  });
+
+  it('uses persistent auth when Atlas has a PostgreSQL database', () => {
+    expect(
+      readAtlasAuthConfiguration({
+        ...completeAuthEnvironment,
+        DATABASE_URL: 'postgresql://atlas:secret@localhost:5432/atlas',
+      }),
+    ).toMatchObject({
+      databaseUrl: 'postgresql://atlas:secret@localhost:5432/atlas',
+      persistence: 'postgres',
     });
   });
 

@@ -22,3 +22,4 @@ Practices are not features by themselves. They are agreements that guide modelin
 3. [`Backfill Strategy`](./operating-practice/backfill-strategy.md)
 4. [`Shape Transformation Loop`](./operating-practice/shape-transformation-loop.md)
 5. [`Evidence Binding Conventions`](./operating-practice/evidence-binding-conventions.md)
+6. [`Production Schema Migration`](./operating-practice/production-schema-migration.md)

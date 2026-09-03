@@ -8,6 +8,8 @@ export type AtlasAuthConfiguration = {
   clientId: string | null;
   clientSecret: string | null;
   configurationError: string | null;
+  databaseUrl: string | null;
+  persistence: 'postgres' | 'stateless';
   privateGithubUserIds: ReadonlySet<string>;
   secret: string | null;
   visibility: AtlasVisibility;
@@ -35,6 +37,7 @@ export const readAtlasAuthConfiguration = (
   const clientSecret = readValue(environment.ATLAS_AUTH_GITHUB_CLIENT_SECRET);
   const secret = readValue(environment.BETTER_AUTH_SECRET);
   const baseUrl = readValue(environment.BETTER_AUTH_URL);
+  const databaseUrl = readValue(environment.DATABASE_URL);
   const privateGithubUserIds = parsePrivateGithubUserIds(
     environment.ATLAS_PRIVATE_GITHUB_USER_IDS,
   );
@@ -58,6 +61,8 @@ export const readAtlasAuthConfiguration = (
     clientId,
     clientSecret,
     configurationError,
+    databaseUrl,
+    persistence: databaseUrl ? 'postgres' : 'stateless',
     privateGithubUserIds,
     secret,
     visibility,

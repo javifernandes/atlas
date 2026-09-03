@@ -22,7 +22,7 @@ const privateConfiguration = readAtlasAuthConfiguration({
 describe('Atlas read access', () => {
   it('maps the validated host user to an Ontahí Principal', () => {
     expect(atlasViewerToPrincipal(viewer)).toEqual({
-      issuer: 'atlas:better-auth',
+      issuer: 'atlas',
       kind: 'user',
       subject: 'github-user-1',
     });

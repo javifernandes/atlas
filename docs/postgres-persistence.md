@@ -68,9 +68,37 @@ pnpm db:reconcile
 `rebuild` trigger and is the recovery command when the projection must be reconstructed from its
 authorities. Both commands print identities and counts only, never connection strings.
 
+`db:verify` checks both the Ontahí-backed Atlas projection schema and Better Auth's persistent
+User/Account/Session/Verification schema. A pending Better Auth table, field, index, or unsafe
+change fails the command.
+
 For a clean environment, apply migrations before the first reconcile. An empty database is a valid
 pre-bootstrap state: the page returns an empty Atlas view until the first Projection Revision is
 committed.
+
+### Automated production migrations
+
+`.github/workflows/migrate-production.yml` runs after every push to `main` and may also be started
+manually. Its job is scoped to the GitHub `Production` environment and requires one environment
+secret:
+
+```text
+DATABASE_URL_UNPOOLED=<direct production connection string>
+```
+
+The workflow rejects a Neon `-pooler` hostname, applies all missing checksum migrations, and runs
+`pnpm db:verify`. It has read-only repository permissions, never runs for Pull Request events, uses
+one production concurrency group, and does not cancel an active migration.
+
+Vercel production builds use `scripts/vercel-build.sh` to run the same migrate-and-verify sequence
+before `pnpm build`. Preview and local builds skip it. This makes migration completion a release
+gate rather than racing the automatic production deployment; the GitHub workflow remains the
+auditable post-merge executor and retry path. Both are safe to invoke together because the runner
+uses a PostgreSQL advisory lock and immutable checksums.
+
+All migrations must be expand-first and compatible with the currently deployed application.
+Removing an old table or column is a later contract step after every production reader has stopped
+using it.
 
 ## Neon changes and validation
 
@@ -92,14 +120,17 @@ the branch in cleanup.
 Use this order for production:
 
 1. verify the linked Neon project and branch;
-2. apply migrations through the unpooled connection;
-3. run `pnpm db:reconcile` and inspect the safe counts;
-4. configure Vercel with both database URLs, `ATLAS_STORAGE_MODE=postgres`, the source registry,
+2. configure GitHub's `Production` environment and Vercel Production with the direct unpooled
+   connection;
+3. merge only expand-compatible migrations into `main`; GitHub and the Vercel production build
+   apply and verify them automatically;
+4. run `pnpm db:reconcile` when the migration requires a source backfill and inspect the safe counts;
+5. configure Vercel with both database URLs, `ATLAS_STORAGE_MODE=postgres`, the source registry,
    and GitHub App credentials;
-5. deploy the application;
-6. verify the page, one Runtime Protocol read/operation, a signed `push` delivery, and a signed
+6. deploy the application;
+7. verify the page, one Runtime Protocol read/operation, a signed `push` delivery, and a signed
    merged-PR delivery against the same revision;
-7. run `pnpm db:rebuild` once as the recovery rehearsal and confirm the graph converges.
+8. run `pnpm db:rebuild` once as the recovery rehearsal and confirm the graph converges.
 
 The GitHub App must subscribe to both **Push** and **Pull request** events for every registered
 repository. Pull Request and push deliveries have independent GitHub delivery ids, so receiving

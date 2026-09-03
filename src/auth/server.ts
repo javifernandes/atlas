@@ -1,4 +1,7 @@
-import { betterAuth } from 'better-auth';
+import { betterAuth, type BetterAuthOptions } from 'better-auth';
+import type { Pool } from 'pg';
+
+import { getAtlasPostgresPool } from '../database/postgres-pool';
 
 import { decideAtlasReadAccess, type AtlasReadAccess, type AtlasViewer } from './access';
 import {
@@ -6,6 +9,7 @@ import {
   readAtlasAuthConfiguration,
   type AtlasAuthConfiguration,
 } from './config';
+import { createAtlasAuthPersistenceOptions } from './persistence';
 
 export class AtlasAuthConfigurationError extends Error {
   constructor(message: string) {
@@ -14,7 +18,10 @@ export class AtlasAuthConfigurationError extends Error {
   }
 }
 
-const createAtlasAuth = (configuration: AtlasAuthConfiguration) => {
+export const createAtlasAuthOptions = (
+  configuration: AtlasAuthConfiguration,
+  database?: Pool,
+): BetterAuthOptions => {
   if (
     !configuration.authAvailable ||
     !configuration.baseUrl ||
@@ -25,11 +32,10 @@ const createAtlasAuth = (configuration: AtlasAuthConfiguration) => {
     throw new AtlasAuthConfigurationError('Atlas GitHub authentication is not configured.');
   }
 
-  return betterAuth({
-    account: {
-      // Source access belongs to the GitHub App, so the human OAuth token is not retained.
-      storeAccountCookie: false,
-    },
+  const persistenceOptions = createAtlasAuthPersistenceOptions(database);
+
+  return {
+    ...persistenceOptions,
     appName: 'Atlas',
     baseURL: configuration.baseUrl,
     secret: configuration.secret,
@@ -40,6 +46,7 @@ const createAtlasAuth = (configuration: AtlasAuthConfiguration) => {
       },
     },
     user: {
+      ...persistenceOptions.user,
       validateUserInfo: ({ source }) => {
         if (source.oauth?.providerId !== 'github') {
           return {
@@ -56,8 +63,15 @@ const createAtlasAuth = (configuration: AtlasAuthConfiguration) => {
         }
       },
     },
-  });
+  };
 };
+
+export const createAtlasAuth = (
+  configuration: AtlasAuthConfiguration,
+  database = configuration.databaseUrl
+    ? getAtlasPostgresPool(configuration.databaseUrl)
+    : undefined,
+) => betterAuth(createAtlasAuthOptions(configuration, database));
 
 type AtlasAuth = ReturnType<typeof createAtlasAuth>;
 
@@ -68,6 +82,7 @@ const getConfigurationKey = (configuration: AtlasAuthConfiguration) =>
     baseUrl: configuration.baseUrl,
     clientId: configuration.clientId,
     clientSecret: configuration.clientSecret,
+    databaseUrl: configuration.databaseUrl,
     privateGithubUserIds: [...configuration.privateGithubUserIds].sort(),
     secret: configuration.secret,
     visibility: configuration.visibility,

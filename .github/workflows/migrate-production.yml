@@ -1,0 +1,62 @@
+name: Migrate Production Database
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply and verify production migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: Production
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate direct production connection
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+        run: |
+          if [[ -z "${DATABASE_URL_UNPOOLED:-}" ]]; then
+            echo '::error::Production environment secret DATABASE_URL_UNPOOLED is not configured'
+            exit 1
+          fi
+
+          if [[ "$DATABASE_URL_UNPOOLED" == *"-pooler."* ]]; then
+            echo '::error::DATABASE_URL_UNPOOLED must be a direct, non-pooled PostgreSQL connection'
+            exit 1
+          fi
+
+      - name: Apply checksum migrations
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+        run: pnpm db:migrate
+
+      - name: Verify production schema
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+        run: pnpm db:verify

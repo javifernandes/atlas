@@ -1,6 +1,5 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { Pool } from 'pg';
-
+import { getAtlasPostgresPool } from '../../database/postgres-pool';
 import { createAtlasOntahiApplication } from '../domain/atlas-application';
 import { githubRepositoryCacheTag } from '../github/repository';
 import { createAtlasPostgresComposition, getAtlasRepoRoot } from './atlas-postgres-composition';
@@ -12,7 +11,6 @@ type AtlasServerApplication =
 
 type AtlasCompositionState = {
   application?: Promise<AtlasServerApplication>;
-  pool?: Pool;
 };
 
 const compositionState = globalThis as typeof globalThis & {
@@ -60,10 +58,8 @@ const createPostgresComposition = () => {
     );
   }
 
-  state.pool ??= new Pool({ connectionString, max: 10 });
-
   return createAtlasPostgresComposition({
-    pool: state.pool,
+    pool: getAtlasPostgresPool(connectionString),
     invalidateRepository,
     invalidatePresentation,
   });

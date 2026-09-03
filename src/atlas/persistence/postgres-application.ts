@@ -15,6 +15,7 @@ import { parseAtlasSourceRecords } from '../markdown/build-snapshot';
 import { proposePlanLink } from '../domain/plan-link-proposal';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import type { AtlasProjectionInput } from '../server/load-atlas-projection';
+import { atlasPostgresMappingOverrides } from './postgres-mapping';
 
 const hashRevisionSet = (revisionIds: string[]) =>
   createHash('sha256')
@@ -122,7 +123,10 @@ export const createAtlasPostgresApplication = (input: {
     },
   };
   const atlas = createAtlasOntahiApplicationWithStorage({
-    storage: createPostgresDataGraphStorage({ pool: input.pool }),
+    storage: createPostgresDataGraphStorage({
+      pool: input.pool,
+      overrides: atlasPostgresMappingOverrides,
+    }),
     capabilities,
   });
   const entities = atlas.application.graph.entities;
