@@ -12,13 +12,22 @@ Create a GitHub App without a Marketplace listing and configure:
    - Contents: read-only
    - Pull requests: read-only
    - Metadata: read-only (implicit)
-2. Subscribe to events:
+2. Account permissions:
+   - Email addresses: read-only
+3. Subscribe to events:
    - Push
    - Pull request
-3. Webhook URL:
+4. User authorization redirect URIs:
+   - Production: `https://atlas-ten-ebon.vercel.app/api/auth/callback/github`
+   - Local: `http://localhost:3000/api/auth/callback/github`
+5. Webhook URL:
    - Production: `https://<atlas-host>/api/ingress/github/webhook`
    - Local: the forwarding URL described below
-4. Webhook secret: a generated secret shared only with Atlas.
+6. Webhook secret: a generated secret shared only with Atlas.
+
+Leave wildcard matching, device flow, and OAuth-during-installation disabled. Atlas starts the
+human authorization flow from its own sign-in page; installing the App does not sign a user into
+Atlas.
 
 Install the App only on repositories present in the Atlas source registry, including the Atlas
 repository itself. Atlas resolves the App installation for each configured repository and mints
@@ -33,6 +42,10 @@ Copy `.env.example` to `.env.local` and provide:
 - `ATLAS_GITHUB_APP_WEBHOOK_SECRET`: the webhook signing secret.
 - `ATLAS_GITHUB_REPOSITORY`: intrinsic Atlas repository as `owner/repository`. Vercel repository
   metadata and `package.json` are fallbacks.
+- `ATLAS_AUTH_GITHUB_CLIENT_ID`: the App's OAuth client ID, not its numeric App ID.
+- `ATLAS_AUTH_GITHUB_CLIENT_SECRET`: a client secret generated for the App's human OAuth flow.
+- `BETTER_AUTH_SECRET`: a high-entropy secret used to sign and encrypt Atlas sessions.
+- `BETTER_AUTH_URL`: the exact Atlas origin for the current environment.
 
 `ATLAS_GITHUB_TOKEN` remains an optional local read fallback. Hosted environments should use the
 GitHub App.

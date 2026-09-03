@@ -38,6 +38,10 @@ evidence. The App mints short-lived installation tokens and receives signed even
 HTTP ingress. See [Atlas GitHub App](docs/github-app.md). `ATLAS_GITHUB_TOKEN` remains an optional
 local read fallback and is never exposed to the browser bundle.
 
+Human authentication is a separate boundary. Atlas supports stateless GitHub login through Better
+Auth and can gate the deployment viewer as public or private without using the human OAuth token for
+repository reads. See [Atlas Authentication](docs/authentication.md).
+
 ## Hosted source refreshes
 
 Signed GitHub App `push` and merged-pull-request webhooks now reconcile registered authorities into
