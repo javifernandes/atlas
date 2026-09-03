@@ -162,6 +162,7 @@ const explicitStream: AtlasExecutionStreamProjection = {
         ...currentStream.activities[0]!.pullRequest!,
         number: 25,
         title: 'Route explicit Session work',
+        url: 'https://github.com/javifernandes/atlas/pull/25',
       },
     },
   ],
@@ -218,7 +219,18 @@ describe('ExecutionStreamView', () => {
     expect(screen.getByRole('heading', { name: 'Sessions' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Plan tree' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Merged PRs' })).toBeInTheDocument();
-    expect(screen.getByText('PR #24 merged')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Merged pull request' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Start implicit streams' })).toHaveAttribute(
+      'href',
+      'https://github.com/javifernandes/atlas/pull/24',
+    );
+    expect(screen.getByRole('link', { name: 'javifernandes/atlas' })).toHaveAttribute(
+      'href',
+      'https://github.com/javifernandes/atlas',
+    );
+    expect(screen.getByText(/#24/)).toBeInTheDocument();
+    expect(screen.queryByText('PR #24 merged')).not.toBeInTheDocument();
+    expect(screen.getByText('Close')).toBeInTheDocument();
     expect(screen.getByText('focus')).toBeInTheDocument();
     expect(screen.getByText('Persistent Identity')).toBeInTheDocument();
     expect(screen.getByText('done')).toBeInTheDocument();
@@ -263,7 +275,10 @@ describe('ExecutionStreamView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Secondary lineage/ }));
 
-    expect(screen.getByText('PR #25 merged')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Route explicit Session work' }),
+    ).toHaveAttribute('href', 'https://github.com/javifernandes/atlas/pull/25');
+    expect(screen.getByText(/#25/)).toBeInTheDocument();
     expect(screen.getByText(/Forked from/)).toHaveTextContent('Implicit Streams');
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy for LLM' }));

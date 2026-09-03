@@ -290,3 +290,13 @@ represent simultaneous work.
 Follow-up Plan 125 adds selection-based Session forks, concurrent explicit Sessions, durable
 `forkedFrom` lineage, and deterministic `Atlas-Session` PR routing. The implicit invariant remains
 the compatibility path; chats and LLMs are not promoted into ontology identities.
+
+### 2026-09-03 — activity hierarchy follow-up
+
+Dogfooding the fixed workspace showed that each activity card gave its most prominent line to the
+redundant words `PR` and `merged`, leaving the actual Pull Request title visually secondary. The
+follow-up keeps merge state in the conventional violet glyph, promotes the linked PR title, makes
+the repository independently navigable, and separates repository/number from the right-aligned
+timestamp. The toolbar's close boundary also gains a visible `Close` label so it matches the other
+Session actions instead of presenting an unexplained archive icon. `pnpm verify` passed with 88
+unit/UI tests, typecheck, the production build, and 78 Atlas source traces.

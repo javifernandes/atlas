@@ -47,6 +47,12 @@ boundary. The Plan tree and merged-Pull-Request activity are sibling panels with
 regions. Tree state is a local viewing concern: a User may hide done Plans and collapse or expand
 branches without changing Plan lifecycle, Stream membership, or shared Atlas source.
 
+Merged-Pull-Request activity leads with the Pull Request title and links it to the source PR. A
+violet merge glyph carries the merged-state convention without repeating `PR` and `merged` in the
+primary line; the linked repository and PR number remain secondary metadata, while the activity
+time sits at the opposite edge for quick scanning. Session lifecycle actions keep a visible text
+label, including `Close`, rather than relying on an unexplained icon.
+
 The tree may also show explicitly referenced but unmaterialized targets as empty branch tips. Such
 a target records authorial intent and an incoming relation without pretending that a complete Plan
 or Atlas Item already exists. Materializing it should resolve that existing reference and preserve
