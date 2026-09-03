@@ -15,11 +15,11 @@ const AtlasPage = async () => {
     redirect('/sign-in');
   }
 
-  const { snapshot } = await getAtlasPageData();
+  const { executionStreams, snapshot } = await getAtlasPageData(access.viewer?.id);
 
   return (
     <>
-      <PlanWorkstreamExplorer snapshot={snapshot} />
+      <PlanWorkstreamExplorer executionStreams={executionStreams} snapshot={snapshot} />
       <AuthControl
         authAvailable={access.authAvailable}
         className='fixed right-4 top-4 z-50'

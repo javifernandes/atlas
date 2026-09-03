@@ -205,6 +205,11 @@ relatedPlans:
     expect(atlas.application.graph.entities).toMatchObject({
       AtlasItem: expect.objectContaining({ name: 'AtlasItem' }),
       AtlasPlan: expect.objectContaining({ name: 'AtlasPlan' }),
+      AtlasExecutionStream: expect.objectContaining({ name: 'AtlasExecutionStream' }),
+      AtlasExecutionStreamActivity: expect.objectContaining({
+        name: 'AtlasExecutionStreamActivity',
+      }),
+      AtlasExecutionStreamRoot: expect.objectContaining({ name: 'AtlasExecutionStreamRoot' }),
       EvidenceBinding: expect.objectContaining({ name: 'EvidenceBinding' }),
       AtlasPlanRelationBinding: expect.objectContaining({ name: 'AtlasPlanRelationBinding' }),
       AtlasShapingBinding: expect.objectContaining({ name: 'AtlasShapingBinding' }),
@@ -244,6 +249,7 @@ relatedPlans:
           title: 'Connect merged PR evidence',
           url: 'https://github.com/javifernandes/atlas/pull/8',
           authorAvatarUrl: 'https://avatars.example/javi',
+          authorProviderAccountId: '101',
           authorLogin: 'javi',
           mergedByAvatarUrl: 'https://avatars.example/maintainer',
           mergedByLogin: 'maintainer',
@@ -328,7 +334,7 @@ relatedPlans:
         merged: true,
         merged_at: '2026-09-01T10:00:00Z',
         merge_commit_sha: 'abc123',
-        user: { login: 'javi' },
+        user: { id: 101, login: 'javi' },
       },
     });
     const response = await router.handle(

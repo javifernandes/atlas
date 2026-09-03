@@ -9,6 +9,7 @@ import {
   Columns3,
   Crosshair,
   ExternalLink,
+  GitBranch,
   GitPullRequest,
   Info,
   Minus,
@@ -36,6 +37,7 @@ import {
 import { AtlasMark } from '@/components/atlas-mark';
 import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { useTheme } from '@/components/theme-provider';
+import type { AtlasExecutionStreamProjection } from '@/atlas/model/execution-stream';
 import type {
   PlanRelationKind,
   PlanStatusGroup,
@@ -44,9 +46,11 @@ import type {
   PlanWorkstreamNode,
   PlanWorkstreamSnapshot,
 } from '@/atlas/model/snapshot';
+import { ExecutionStreamView } from '@/atlas/viewer/execution-stream-view';
 import { cn } from '@/lib/classes';
 
 type PlanWorkstreamExplorerProps = {
+  executionStreams?: AtlasExecutionStreamProjection[];
   snapshot: PlanWorkstreamSnapshot;
 };
 
@@ -191,7 +195,7 @@ type EvolutionRole =
 
 type EvolutionStage = 'future' | 'now' | 'past';
 
-type AtlasView = 'board' | 'map';
+type AtlasView = 'board' | 'map' | 'sessions';
 
 type NodeFocusLevel = 'context' | 'distant' | 'normal' | 'primary';
 
@@ -4029,7 +4033,10 @@ const SelectionPanel = ({
   );
 };
 
-export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps) => {
+export const PlanWorkstreamExplorer = ({
+  executionStreams = [],
+  snapshot,
+}: PlanWorkstreamExplorerProps) => {
   const { theme, toggleTheme } = useTheme();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [atlasView, setAtlasView] = useState<AtlasView>('map');
@@ -5405,7 +5412,7 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
             })}
           </div>
         </div>
-      ) : boardMarkdownContext ? (
+      ) : atlasView === 'board' && boardMarkdownContext ? (
         <GlobalAtlasBoard
           columns={globalBoardColumns}
           markdownContext={boardMarkdownContext}
@@ -5419,6 +5426,12 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
           selectedNodeId={selectedNodeId}
           showHistory={showBoardHistory}
           snapshotEdges={snapshot.edges}
+        />
+      ) : atlasView === 'sessions' ? (
+        <ExecutionStreamView
+          executionStreams={executionStreams}
+          onOpenPlan={openFullNode}
+          snapshot={snapshot}
         />
       ) : null}
 
@@ -5456,11 +5469,12 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
 
       <div className='pointer-events-none absolute inset-x-0 top-0 z-20 h-36 bg-gradient-to-b from-background/95 via-background/55 to-transparent' />
 
-      <div className='pointer-events-auto absolute left-1/2 top-4 z-40 grid -translate-x-1/2 grid-cols-2 gap-1 rounded-lg border border-border/70 bg-background/78 p-1.5 shadow-lg backdrop-blur-xl'>
+      <div className='pointer-events-auto absolute left-1/2 top-4 z-40 grid -translate-x-1/2 grid-cols-3 gap-1 rounded-lg border border-border/70 bg-background/78 p-1.5 shadow-lg backdrop-blur-xl'>
         {(
           [
             { icon: Network, label: 'Map', value: 'map' },
             { icon: Columns3, label: 'Board', value: 'board' },
+            { icon: GitBranch, label: 'Sessions', value: 'sessions' },
           ] satisfies Array<{
             icon: typeof Network;
             label: string;
@@ -5475,15 +5489,16 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
               key={item.value}
               type='button'
               className={cn(
-                'inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors',
+                'inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors max-sm:min-w-10 max-sm:px-2',
                 active
                   ? 'bg-primary/12 text-foreground shadow-sm ring-1 ring-primary/45'
                   : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
               )}
+              title={item.label}
               onClick={() => setAtlasView(item.value)}
             >
               <Icon className='size-4' />
-              {item.label}
+              <span className='max-sm:sr-only'>{item.label}</span>
             </button>
           );
         })}

@@ -14,6 +14,7 @@ export type AtlasPullRequestDirective = {
 
 export type AtlasObservedPullRequest = {
   authorAvatarUrl: string | null;
+  authorProviderAccountId: string | null;
   authorLogin: string | null;
   directives: AtlasPullRequestDirective[];
   id: string;
@@ -165,12 +166,16 @@ export const listAtlasGitHubEvidenceSources = (repoRoot: string) => {
 
 const optionalString = (value: unknown) => (typeof value === 'string' ? value : null);
 
+const optionalIdentifier = (value: unknown) =>
+  typeof value === 'string' || typeof value === 'number' ? String(value) : null;
+
 const readGitHubUser = (value: unknown) => {
   if (!value || typeof value !== 'object') {
-    return { avatarUrl: null, login: null };
+    return { accountId: null, avatarUrl: null, login: null };
   }
 
   return {
+    accountId: 'id' in value ? optionalIdentifier(value.id) : null,
     avatarUrl: 'avatar_url' in value ? optionalString(value.avatar_url) : null,
     login: 'login' in value ? optionalString(value.login) : null,
   };
@@ -200,6 +205,7 @@ const mapPullRequest = (
 
   return {
     authorAvatarUrl: author.avatarUrl,
+    authorProviderAccountId: author.accountId,
     authorLogin: author.login,
     directives,
     id: `github:${source.repositoryFullName.toLowerCase()}#${pullRequest.number}`,

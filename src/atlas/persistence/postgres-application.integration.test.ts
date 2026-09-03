@@ -37,6 +37,11 @@ describePostgres('Atlas PostgreSQL persistence', () => {
       content: '# 116. Persistence\n\nStatus: current\n',
     },
     {
+      path: 'plans/current/117-secondary.md',
+      source: 'atlas',
+      content: '# 117. Secondary Lineage\n\nStatus: current\n',
+    },
+    {
       path: 'atlas/items/persistence.md',
       source: 'atlas',
       content: `---
@@ -67,6 +72,7 @@ Durable Atlas projection.
   ];
   const observedPullRequest: AtlasObservedPullRequest = {
     authorAvatarUrl: null,
+    authorProviderAccountId: 'github-user-123',
     authorLogin: 'javi',
     directives: [{ kind: 'implements', target: 'atlas://plans/116-persistence' }],
     id: 'github:javifernandes/atlas#14',
@@ -141,6 +147,7 @@ Durable Atlas projection.
         '004-projection-reconciliation-lock.sql',
         '005-projection-revision-observation-order.sql',
         '006-persistent-users-and-linked-accounts.sql',
+        '007-implicit-execution-streams.sql',
       ],
       skipped: [],
     });
@@ -250,13 +257,13 @@ Durable Atlas projection.
     await expect(atlas.reconcile({ trigger: 'bootstrap' })).resolves.toMatchObject({
       duplicate: false,
       itemCount: 1,
-      planCount: 1,
+      planCount: 2,
       evidenceBindingCount: 1,
     });
     await expect(atlas.reconcile({ trigger: 'rebuild' })).resolves.toMatchObject({
       duplicate: false,
       itemCount: 1,
-      planCount: 1,
+      planCount: 2,
       evidenceBindingCount: 1,
     });
 
@@ -269,7 +276,7 @@ Durable Atlas projection.
     `);
     expect(counts.rows[0]).toEqual({
       items: 1,
-      plans: 1,
+      plans: 2,
       pull_requests: 1,
       evidence_bindings: 1,
     });
@@ -301,7 +308,30 @@ Durable Atlas projection.
   }, 30_000);
 
   it('deduplicates a GitHub delivery durably', async () => {
+    const configuration = readAtlasAuthConfiguration({
+      ATLAS_AUTH_GITHUB_CLIENT_ID: 'github-client',
+      ATLAS_AUTH_GITHUB_CLIENT_SECRET: 'github-secret',
+      BETTER_AUTH_SECRET: 'a-high-entropy-secret-with-at-least-32-characters',
+      BETTER_AUTH_URL: 'http://localhost:3000',
+      DATABASE_URL: connectionString,
+    });
+    const auth = createAtlasAuth(configuration, pool);
+    const context = await auth.$context;
+    const streamOwner = await context.internalAdapter.createOAuthUser(
+      {
+        email: 'stream-owner@example.com',
+        emailVerified: true,
+        image: null,
+        name: 'Stream Owner',
+      },
+      {
+        accountId: 'stream-github-user-456',
+        issuer: 'local:oauth:github',
+        providerId: 'github',
+      },
+    );
     const webhook: AtlasMergedPullRequestInput = {
+      authorProviderAccountId: 'stream-github-user-456',
       authorLogin: 'javi',
       body: 'Atlas-Implements: atlas://plans/116-persistence',
       deliveryId: 'delivery-116',
@@ -327,6 +357,25 @@ Durable Atlas projection.
       ok: true,
       value: { duplicate: true },
     });
+    await expect(atlas.getExecutionStreams(streamOwner.user.id)).resolves.toEqual([
+      expect.objectContaining({
+        mode: 'implicit',
+        status: 'open',
+        title: 'Persistence',
+        currentFocusPlan: expect.objectContaining({
+          id: 'plan:atlas://plans/116-persistence',
+        }),
+        roots: [
+          expect.objectContaining({ id: 'plan:atlas://plans/116-persistence' }),
+        ],
+        activities: [
+          expect.objectContaining({
+            kind: 'pull-request-merged',
+            pullRequest: expect.objectContaining({ number: 14 }),
+          }),
+        ],
+      }),
+    ]);
     const push: AtlasRepositoryPushInput = {
       after: 'push-revision',
       before: 'previous-revision',
@@ -355,6 +404,131 @@ Durable Atlas projection.
         (SELECT count(*)::int FROM projection_revisions) AS projection_revisions
     `);
     expect(counts.rows[0]).toEqual({ deliveries: 2, projection_revisions: 5 });
+
+    const secondLineageWebhook: AtlasMergedPullRequestInput = {
+      ...webhook,
+      body: 'Atlas-Implements: atlas://plans/117-secondary',
+      deliveryId: 'delivery-117',
+      mergeCommitSha: 'merge-15',
+      mergedAt: '2026-09-02T02:00:00.000Z',
+      number: 15,
+      title: 'Implement a second lineage',
+      url: 'https://github.com/javifernandes/atlas/pull/15',
+    };
+    await expect(
+      atlas.application.invokeOperation(
+        atlas.application.graph.entities.PullRequest.domain.refreshAfterMerge,
+        secondLineageWebhook,
+      ),
+    ).resolves.toMatchObject({ ok: true, value: { duplicate: false } });
+
+    const [openStream] = await atlas.getExecutionStreams(streamOwner.user.id);
+    expect(openStream).toBeDefined();
+    expect(openStream).toMatchObject({
+      currentFocusPlan: { id: 'plan:atlas://plans/117-secondary' },
+      roots: [
+        { id: 'plan:atlas://plans/116-persistence' },
+        { id: 'plan:atlas://plans/117-secondary' },
+      ],
+      activities: [
+        expect.objectContaining({
+          pullRequest: expect.objectContaining({ number: 15 }),
+        }),
+        expect.objectContaining({
+          pullRequest: expect.objectContaining({ number: 14 }),
+        }),
+      ],
+    });
+    await expect(
+      atlas.closeExecutionStream({
+        id: openStream!.id,
+        userId: randomUUID(),
+        closedAt: '2026-09-02T02:30:00.000Z',
+      }),
+    ).resolves.toMatchObject({ closed: false });
+    await expect(
+      atlas.closeExecutionStream({
+        id: openStream!.id,
+        userId: streamOwner.user.id,
+        closedAt: '2026-09-02T02:30:00.000Z',
+      }),
+    ).resolves.toMatchObject({ closed: true });
+
+    const nextWebhook: AtlasMergedPullRequestInput = {
+      ...webhook,
+      deliveryId: 'delivery-118',
+      mergeCommitSha: 'merge-16',
+      mergedAt: '2026-09-02T03:00:00.000Z',
+      number: 16,
+      title: 'Continue Atlas persistence',
+      url: 'https://github.com/javifernandes/atlas/pull/16',
+    };
+    await expect(
+      atlas.application.invokeOperation(
+        atlas.application.graph.entities.PullRequest.domain.refreshAfterMerge,
+        nextWebhook,
+      ),
+    ).resolves.toMatchObject({ ok: true, value: { duplicate: false } });
+
+    const streams = await atlas.getExecutionStreams(streamOwner.user.id);
+    expect(streams).toHaveLength(2);
+    expect(streams.filter(stream => stream.status === 'open')).toEqual([
+      expect.objectContaining({
+        activities: [
+          expect.objectContaining({
+            pullRequest: expect.objectContaining({ number: 16 }),
+          }),
+        ],
+      }),
+    ]);
+    expect(streams.filter(stream => stream.status === 'closed')).toEqual([
+      expect.objectContaining({
+        activities: expect.arrayContaining([
+          expect.objectContaining({
+            pullRequest: expect.objectContaining({ number: 14 }),
+          }),
+          expect.objectContaining({
+            pullRequest: expect.objectContaining({ number: 15 }),
+          }),
+        ]),
+      }),
+    ]);
+
+    const unattributedWebhook: AtlasMergedPullRequestInput = {
+      ...webhook,
+      authorProviderAccountId: 'unknown-github-user',
+      deliveryId: 'delivery-119',
+      mergeCommitSha: 'merge-17',
+      mergedAt: '2026-09-02T04:00:00.000Z',
+      number: 17,
+      title: 'Unknown actor work',
+      url: 'https://github.com/javifernandes/atlas/pull/17',
+    };
+    const unresolvedPlanWebhook: AtlasMergedPullRequestInput = {
+      ...webhook,
+      body: 'Atlas-Implements: atlas://plans/999-missing',
+      deliveryId: 'delivery-120',
+      mergeCommitSha: 'merge-18',
+      mergedAt: '2026-09-02T05:00:00.000Z',
+      number: 18,
+      title: 'Unresolved Plan work',
+      url: 'https://github.com/javifernandes/atlas/pull/18',
+    };
+
+    for (const ignoredWebhook of [unattributedWebhook, unresolvedPlanWebhook]) {
+      await expect(
+        atlas.application.invokeOperation(
+          atlas.application.graph.entities.PullRequest.domain.refreshAfterMerge,
+          ignoredWebhook,
+        ),
+      ).resolves.toMatchObject({ ok: true, value: { duplicate: false } });
+    }
+
+    const unchangedStreams = await atlas.getExecutionStreams(streamOwner.user.id);
+    expect(unchangedStreams).toHaveLength(2);
+    expect(
+      unchangedStreams.flatMap(stream => stream.activities).map(activity => activity.id),
+    ).toHaveLength(3);
   }, 30_000);
 
   it('does not let an older observation overwrite a newer projection', async () => {
@@ -485,7 +659,7 @@ Durable Atlas projection.
       ),
     ).resolves.toMatchObject({
       rows: [
-        { source_id: 'atlas', count: 1 },
+        { source_id: 'atlas', count: 2 },
         { source_id: 'product', count: 1 },
       ],
     });
@@ -496,7 +670,7 @@ Durable Atlas projection.
       pool.query(
         'SELECT source_id, count(*)::int AS count FROM atlas_plans GROUP BY source_id ORDER BY source_id',
       ),
-    ).resolves.toMatchObject({ rows: [{ source_id: 'atlas', count: 1 }] });
+    ).resolves.toMatchObject({ rows: [{ source_id: 'atlas', count: 2 }] });
     await expect(
       pool.query(
         "SELECT count(*)::int AS count FROM atlas_source_records WHERE source_id = 'product'",

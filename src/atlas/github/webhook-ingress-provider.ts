@@ -59,6 +59,10 @@ const parseMergedPullRequest = (payload: unknown, deliveryId: string | null) => 
   const user = isRecord(pullRequest.user) ? pullRequest.user : null;
 
   return {
+    authorProviderAccountId:
+      user && (typeof user.id === 'number' || typeof user.id === 'string')
+        ? String(user.id)
+        : null,
     authorLogin: user ? optionalString(user.login) : null,
     body: optionalString(pullRequest.body),
     deliveryId,

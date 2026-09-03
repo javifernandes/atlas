@@ -88,7 +88,9 @@ export const AuthControl = ({
           {viewer.name.slice(0, 1).toUpperCase()}
         </span>
       )}
-      <span className='max-w-32 truncate px-1 text-xs font-medium'>{viewer.name}</span>
+      <span className='max-w-32 truncate px-1 text-xs font-medium max-sm:hidden'>
+        {viewer.name}
+      </span>
       <button
         type='button'
         aria-label='Sign out'
