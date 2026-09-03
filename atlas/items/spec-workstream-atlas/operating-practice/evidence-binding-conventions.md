@@ -23,6 +23,11 @@ The merged PR body is the current authoritative assertion surface. `Atlas-Implem
 implementation to intended work; `Atlas-Shapes` records a change to durable system form. Commit
 trailers may preserve the same language, but remain supplementary until Atlas observes commits.
 
+`Atlas-Session` is adjacent operational routing metadata, not evidence. When Atlas hands a Session
+to an LLM or other agent, the handoff supplies the exact stable ID to preserve once in each PR body.
+Agents must not infer or invent that identity; absence of an explicit handoff retains the compatible
+implicit-Session path.
+
 Repository copies are projections of this Atlas-owned practice, not independent variants. Evolve
-the canonical guideline first, then synchronize the copies. A binding records evidence and
-provenance; it does not mutate curated Plan or Item status.
+the canonical guideline first, then synchronize both the copies and repository agent instructions.
+A binding records evidence and provenance; it does not mutate curated Plan or Item status.

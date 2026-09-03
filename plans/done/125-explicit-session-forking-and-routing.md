@@ -172,6 +172,12 @@ selection, forks checked Plan branches, shows source lineage, and copies a porta
 with a stable URL and exact PR directive. Plan 124's longer-tree dogfood is recorded and that MVP is
 closed.
 
+The repository authoring contract now also tells LLM chats and agents to treat that copied
+instruction as authoritative input: preserve the exact `Atlas-Session` line through PR creation and
+later body edits, never derive an ID from ambient repository context, and omit the directive when no
+explicit Session was provided. Atlas owns the canonical guideline; Atlas, Ontahi, and BookOps carry
+the same concise rule in their repository-local agent instructions.
+
 Verification passed with 88 default unit/UI tests, 7 PostgreSQL integration tests against an
 ephemeral local `postgres:18-alpine` container, typecheck, the production build and lint pass, 78
 Atlas-owned source traces, `git diff --check`, and a browser smoke check of the addressable Sessions
