@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { Effect } from 'effect';
+import { createInMemoryDataGraphStorage } from '@ontahi/core/data-graph';
 import {
   createRuntimeProtocolDispatcher,
   createRuntimeProtocolRequest,
@@ -16,7 +18,11 @@ import { createAtlasGitHubWebhookIngressProvider } from '../github/webhook-ingre
 import { createAtlasGitHubWebhookSignature } from '../github/webhook-signature';
 import type { AtlasMarkdownFile } from '../sources/markdown-source';
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
-import { createAtlasOntahiApplication } from './atlas-application';
+import {
+  buildAtlasOntahiDataset,
+  createAtlasOntahiApplication,
+  createAtlasOntahiApplicationWithStorage,
+} from './atlas-application';
 
 describe('Atlas Ontahi fit pilot', () => {
   it('hydrates normalized records and preserves declared relations before viewer derivation', async () => {
@@ -220,9 +226,13 @@ relatedPlans:
       PullRequest: expect.objectContaining({ name: 'PullRequest' }),
     });
     const closeStream = atlas.application.graph.entities.AtlasExecutionStream.domain.close;
+    const forkStream = atlas.application.graph.entities.AtlasExecutionStream.domain.fork;
     expect(closeStream.id).toBe('AtlasExecutionStream.close');
     expect(closeStream.authority).toBe('server');
     expect(closeStream.exposure).toBe('bridge');
+    expect(forkStream.id).toBe('AtlasExecutionStream.fork');
+    expect(forkStream.authority).toBe('server');
+    expect(forkStream.exposure).toBe('bridge');
     await expect(
       withInvocationContext({ principal: null }, () =>
         atlas.application.checkPermission(closeStream, { id: 'stream-1' }),
@@ -240,6 +250,176 @@ relatedPlans:
         () => atlas.application.checkPermission(closeStream, { id: 'stream-1' }),
       ),
     ).resolves.toEqual({ allowed: true });
+  });
+
+  it('forks selected source-tree Plans transactionally for the authenticated owner', async () => {
+    const files: AtlasMarkdownFile[] = [
+      {
+        path: 'plans/current/124-streams.md',
+        source: 'atlas',
+        content: '# 124. Streams\n\nStatus: current\n',
+      },
+      {
+        path: 'plans/current/125-routing.md',
+        source: 'atlas',
+        content: `# 125. Routing
+
+Status: current
+
+Parent plan: [Streams](124-streams.md)
+`,
+      },
+    ];
+    const userId = '5c388354-c812-469e-b99d-a074ff108263';
+    const sourceStreamId = '43bd10df-f2cf-4f05-8f1d-3666f5614771';
+    const timestamp = '2026-09-03T00:00:00.000Z';
+    const sourceDataset = buildAtlasOntahiDataset(
+      files.map(normalizeAtlasSourceRecord),
+    );
+    const dataset = {
+      ...sourceDataset,
+      AtlasUser: [
+        {
+          id: userId,
+          name: 'Session Owner',
+          email: 'session-owner@example.com',
+          emailVerified: true,
+          image: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+      ],
+      AtlasExecutionStream: [
+        {
+          id: sourceStreamId,
+          userId,
+          mode: 'implicit',
+          status: 'open',
+          title: 'Streams',
+          currentFocusPlanId: 'plan:atlas://plans/124-streams',
+          forkedFromStreamId: null,
+          openedAt: timestamp,
+          closedAt: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+      ],
+      AtlasExecutionStreamRoot: [
+        {
+          id: `execution-stream-root:${sourceStreamId}:plan:atlas://plans/124-streams`,
+          streamId: sourceStreamId,
+          planId: 'plan:atlas://plans/124-streams',
+          addedAt: timestamp,
+        },
+      ],
+    };
+    const atlas = createAtlasOntahiApplicationWithStorage({
+      storage: createInMemoryDataGraphStorage({ dataset }),
+      capabilities: {
+        runtime: {
+          projection: { reconcile: () => Effect.die('unused') },
+          proposals: { linkPlanToItem: () => Effect.die('unused') },
+        },
+      },
+    });
+    const entities = atlas.application.graph.entities;
+
+    await expect(
+      withInvocationContext(
+        {
+          principal: {
+            issuer: 'atlas',
+            kind: 'user',
+            subject: '26a09541-2cc4-4f86-b02d-34b8e8e29a52',
+          },
+        },
+        () =>
+          atlas.application.invokeOperation(
+            entities.AtlasExecutionStream.domain.fork,
+            {
+              sourceStreamId,
+              title: 'Not owned',
+              planIds: ['plan:atlas://plans/125-routing'],
+            },
+          ),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'not_found' },
+    });
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: userId } },
+        () =>
+          atlas.application.invokeOperation(
+            entities.AtlasExecutionStream.domain.fork,
+            { sourceStreamId, title: 'Empty fork', planIds: [] },
+          ),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'invalid_input' },
+    });
+
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: userId } },
+        () =>
+          atlas.application.invokeOperation(
+            entities.AtlasExecutionStream.domain.fork,
+            {
+              sourceStreamId,
+              title: 'Routing',
+              planIds: ['plan:atlas://plans/125-routing'],
+            },
+          ),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        forkedFromStreamId: sourceStreamId,
+        rootPlanIds: ['plan:atlas://plans/125-routing'],
+        title: 'Routing',
+      },
+    });
+
+    await expect(atlas.getExecutionStreams(userId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          mode: 'explicit',
+          title: 'Routing',
+          forkedFromStream: { id: sourceStreamId, title: 'Streams' },
+          roots: [expect.objectContaining({ id: 'plan:atlas://plans/125-routing' })],
+          activities: [],
+        }),
+      ]),
+    );
+
+    await withInvocationContext(
+      { principal: { issuer: 'atlas', kind: 'user', subject: userId } },
+      () =>
+        atlas.application.invokeOperation(
+          entities.AtlasExecutionStream.domain.close,
+          { id: sourceStreamId },
+        ),
+    );
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: userId } },
+        () =>
+          atlas.application.invokeOperation(
+            entities.AtlasExecutionStream.domain.fork,
+            {
+              sourceStreamId,
+              title: 'Closed source',
+              planIds: ['plan:atlas://plans/125-routing'],
+            },
+          ),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'invalid_state' },
+    });
   });
 
   it('hydrates explicit merged PR evidence for both plans and semantic items', async () => {

@@ -627,6 +627,13 @@ const readAtlasRouteState = (): AtlasRouteState => {
   };
 };
 
+const readAtlasView = (): AtlasView => {
+  if (typeof globalThis.window === 'undefined') return 'map';
+
+  const requestedView = new URL(globalThis.location.href).searchParams.get('view');
+  return requestedView === 'board' || requestedView === 'sessions' ? requestedView : 'map';
+};
+
 const getAtlasRouteUrl = (state: AtlasRouteState) => {
   const nextUrl = new URL(
     typeof globalThis.window === 'undefined' ? 'http://atlas.local/' : globalThis.location.href,
@@ -5053,6 +5060,7 @@ export const PlanWorkstreamExplorer = ({
 
     hasAppliedInitialRouteRef.current = true;
     const routeState = readAtlasRouteState();
+    setAtlasView(readAtlasView());
     const routeSelectedNodeId =
       routeState.selectedNodeId && canvasNodeIds.has(routeState.selectedNodeId)
         ? routeState.selectedNodeId
@@ -5080,6 +5088,7 @@ export const PlanWorkstreamExplorer = ({
   useEffect(() => {
     const handlePopState = () => {
       const routeState = readAtlasRouteState();
+      setAtlasView(readAtlasView());
       const nextSelectedNodeId =
         routeState.selectedNodeId && canvasNodeIds.has(routeState.selectedNodeId)
           ? routeState.selectedNodeId
@@ -5495,7 +5504,16 @@ export const PlanWorkstreamExplorer = ({
                   : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
               )}
               title={item.label}
-              onClick={() => setAtlasView(item.value)}
+              onClick={() => {
+                setAtlasView(item.value);
+                if (typeof globalThis.window !== 'undefined') {
+                  const nextUrl = new URL(globalThis.location.href);
+                  if (item.value === 'map') nextUrl.searchParams.delete('view');
+                  else nextUrl.searchParams.set('view', item.value);
+                  if (item.value !== 'sessions') nextUrl.searchParams.delete('session');
+                  globalThis.history.replaceState({}, '', nextUrl);
+                }
+              }}
             >
               <Icon className='size-4' />
               <span className='max-sm:sr-only'>{item.label}</span>

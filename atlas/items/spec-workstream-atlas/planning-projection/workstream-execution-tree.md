@@ -9,7 +9,8 @@ supports:
   - spec-workstream-atlas.planning-projection
   - spec-workstream-atlas.atlas-model.plan
 relatedPlans:
-  - plans/current/124-implicit-personal-execution-streams-mvp.md
+  - plans/done/124-implicit-personal-execution-streams-mvp.md
+  - plans/done/125-explicit-session-forking-and-routing.md
 ---
 
 [[spec-workstream-atlas.planning-projection.workstream-execution-tree|Workstream Execution Tree]]
@@ -28,9 +29,17 @@ The tree is therefore a projection of live Atlas state over shared Plan lineage,
 document. Those facts do not own the included Plans, change their canonical lifecycle, assign work,
 or grant authorization.
 
-Parallel Streams remain possible but are not safely inferable from repository activity alone. If
-introduced, they require explicit routing rather than silent guesses. Sessions initially reads the
-current Stream plus bounded recent history instead of reconstructing all work from Git history.
+Parallel work is represented by selecting one or more visible Plan branches and forking them into
+a new explicit Session. The source Session keeps its activity and remains open; the fork begins
+with the selected Plans as exact roots, a lineage link to its source, and no copied PR history.
+The rail switches among simultaneous open Sessions and bounded recent history without reconstructing
+work from Git history.
+
+Repository activity cannot infer this parallelism safely. Each explicit Session exposes a stable ID,
+addressable URL, and copyable LLM instruction requiring `Atlas-Session: <id>` in future PR bodies.
+Valid directives route activity to exactly that User-owned open Session. Invalid explicit routing
+fails closed rather than guessing an implicit destination; untagged PRs retain the original implicit
+Session behavior.
 
 Sessions uses a fixed workspace shell rather than one vertically scrolling page. The session rail
 owns temporal context: Stream title, open/closed state, recent intervals, and the explicit close

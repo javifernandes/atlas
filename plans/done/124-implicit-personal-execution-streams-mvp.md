@@ -1,6 +1,6 @@
 # 124. Implicit Personal Execution Streams MVP
 
-Status: current
+Status: done
 
 Definition level: shaped
 
@@ -158,7 +158,7 @@ source projection changes.
 8. [x] Dogfood the first real post-deploy merge and record the initial Sessions feedback.
 9. [x] Refine Sessions into a fixed workspace with independent scroll, rail-owned Stream context,
        done filtering, and branch collapse/expand.
-10. [ ] Dogfood the revised workspace with a longer tree and PR history.
+10. [x] Dogfood the revised workspace with a longer tree and PR history.
 
 ## Verification
 
@@ -182,6 +182,8 @@ source projection changes.
       current state/close from the session rail, and supports done filtering plus branch collapse.
 - [x] Page reads do not fetch or rescan repository history for Stream reconstruction.
 - [x] `pnpm verify`, the opt-in PostgreSQL suite, and `git diff --check` pass.
+- [x] Longer-tree dogfood distinguishes one coherent Relation-to-Protocol workstream while exposing
+      simultaneous Atlas Sessions work as a separate front.
 
 ## Decisions
 
@@ -205,8 +207,8 @@ source projection changes.
 1. Does highest known Plan ancestor produce a useful Stream title/root, or should creation stop at
    the first cross-project boundary?
 2. Should a close action optionally name the completed interval or capture a short closure note?
-3. When explicit parallel Streams arrive, is PR annotation sufficient or should Atlas also support
-   a temporary focused Stream?
+3. Explicit parallel Streams begin with PR annotation and fail-closed routing; temporary focused
+   routing remains unnecessary until real use disproves the portable directive.
 4. Should an explicitly closed Stream ever be reopened, or should resumption always create a new
    temporal Stream linked to the previous one?
 5. How much recent history belongs in Sessions before a separate searchable archive is warranted?
@@ -276,3 +278,15 @@ collapse or expand the visible tree as a whole; these are local presentation cho
 Stream or Plan state. The responsive layout keeps the same bounded behavior as stacked tree/activity
 panels. `pnpm verify` passed with 78 unit/UI tests, typecheck, production build, and 77 Atlas source
 traces. Desktop and mobile browser smoke checks found no document-level overflow or console errors.
+
+### 2026-09-03 — longer-tree dogfood and closure
+
+Showing completed branches revealed that the Session had preserved a coherent workstream: Relation
+semantics led through commands and constraints into the Runtime Protocol foundation. At the same
+time, implementing Sessions inside Atlas was plainly a separate active front. That evidence closes
+the implicit MVP and extracts explicit branching rather than stretching one temporal stream to
+represent simultaneous work.
+
+Follow-up Plan 125 adds selection-based Session forks, concurrent explicit Sessions, durable
+`forkedFrom` lineage, and deterministic `Atlas-Session` PR routing. The implicit invariant remains
+the compatibility path; chats and LLMs are not promoted into ontology identities.

@@ -13,6 +13,7 @@ relatedPlans:
   - plans/done/107-plan-model-research-and-v0.md
   - plans/done/120-board-project-filter.md
   - plans/done/122-plan-centered-execution-projection.md
+  - plans/done/125-explicit-session-forking-and-routing.md
 ---
 
 Planning Projection is the operational view over the same source: map, now/next/later board,
@@ -23,6 +24,10 @@ This should not force the semantic tree to behave like a kanban board.
 The projection may group Plans by Goal, territory, or model area. Personal execution memory is now
 tested separately as an Atlas-native Execution Stream: stable User-scoped state over shared Plan
 lineage, rather than a declared Markdown item or a grouping inferred again on every read.
+
+That memory may branch explicitly: selected Plan context can continue in a separately named
+Session while retaining a durable `forkedFrom` lineage to the source interval. Concurrent Sessions
+remain personal projections over shared Plans, not new ownership or assignment semantics.
 
 The global Board is a Plan-centered execution projection. Now, Next, and Later contain bounded
 interventions rather than concepts, capabilities, entities, or other durable system shapes.

@@ -122,7 +122,9 @@ Durable Atlas projection.
               },
             ],
         evidenceSourceIds: evidenceAvailable ? ['atlas'] : [],
-        observedAt: `2026-09-02T00:00:0${observedAtSequence++}.000Z`,
+        observedAt: new Date(
+          Date.UTC(2026, 8, 2, 0, 0, observedAtSequence++),
+        ).toISOString(),
         observedPullRequests: evidenceAvailable ? [observedPullRequest] : [],
         records,
         sourceRevisions,
@@ -149,6 +151,7 @@ Durable Atlas projection.
         '005-projection-revision-observation-order.sql',
         '006-persistent-users-and-linked-accounts.sql',
         '007-implicit-execution-streams.sql',
+        '008-explicit-execution-stream-forks.sql',
       ],
       skipped: [],
     });
@@ -431,8 +434,8 @@ Durable Atlas projection.
     expect(openStream).toMatchObject({
       currentFocusPlan: { id: 'plan:atlas://plans/117-secondary' },
       roots: expect.arrayContaining([
-        { id: 'plan:atlas://plans/116-persistence' },
-        { id: 'plan:atlas://plans/117-secondary' },
+        expect.objectContaining({ id: 'plan:atlas://plans/116-persistence' }),
+        expect.objectContaining({ id: 'plan:atlas://plans/117-secondary' }),
       ]),
       activities: [
         expect.objectContaining({
@@ -553,6 +556,203 @@ Durable Atlas projection.
     expect(
       unchangedStreams.flatMap(stream => stream.activities).map(activity => activity.id),
     ).toHaveLength(3);
+  }, 30_000);
+
+  it('forks exact Plan roots and routes explicit Session activity without fallback', async () => {
+    const configuration = readAtlasAuthConfiguration({
+      ATLAS_AUTH_GITHUB_CLIENT_ID: 'github-client',
+      ATLAS_AUTH_GITHUB_CLIENT_SECRET: 'github-secret',
+      BETTER_AUTH_SECRET: 'a-high-entropy-secret-with-at-least-32-characters',
+      BETTER_AUTH_URL: 'http://localhost:3000',
+      DATABASE_URL: connectionString,
+    });
+    const auth = createAtlasAuth(configuration, pool);
+    const context = await auth.$context;
+    const owner = await context.internalAdapter.createOAuthUser(
+      {
+        email: 'explicit-session-owner@example.com',
+        emailVerified: true,
+        image: null,
+        name: 'Explicit Session Owner',
+      },
+      {
+        accountId: 'explicit-session-github-user',
+        issuer: 'local:oauth:github',
+        providerId: 'github',
+      },
+    );
+    const otherAuthor = await context.internalAdapter.createOAuthUser(
+      {
+        email: 'other-session-author@example.com',
+        emailVerified: true,
+        image: null,
+        name: 'Other Session Author',
+      },
+      {
+        accountId: 'other-session-github-user',
+        issuer: 'local:oauth:github',
+        providerId: 'github',
+      },
+    );
+    const webhook = (input: {
+      authorProviderAccountId?: string;
+      body: string;
+      number: number;
+    }): AtlasMergedPullRequestInput => ({
+      authorProviderAccountId:
+        input.authorProviderAccountId ?? 'explicit-session-github-user',
+      authorLogin: 'session-owner',
+      body: input.body,
+      deliveryId: `delivery-explicit-${input.number}`,
+      installationId: '1234',
+      mergeCommitSha: `merge-explicit-${input.number}`,
+      mergedAt: new Date(Date.UTC(2026, 8, 2, 6, input.number)).toISOString(),
+      number: input.number,
+      repositoryFullName: 'javifernandes/atlas',
+      title: `Explicit Session work ${input.number}`,
+      url: `https://github.com/javifernandes/atlas/pull/${input.number}`,
+    });
+    const merge = (input: AtlasMergedPullRequestInput) =>
+      atlas.application.invokeOperation(
+        atlas.application.graph.entities.PullRequest.domain.refreshAfterMerge,
+        input,
+      );
+
+    await expect(
+      merge(
+        webhook({
+          body: `Atlas-Implements:
+- atlas://plans/116-persistence
+- atlas://plans/117-secondary`,
+          number: 30,
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
+
+    const [sourceStream] = await atlas.getExecutionStreams(owner.user.id);
+    expect(sourceStream).toMatchObject({ mode: 'implicit', status: 'open' });
+
+    const forkResult = await withInvocationContext(
+      { principal: { issuer: 'atlas', kind: 'user', subject: owner.user.id } },
+      () =>
+        atlas.application.invokeOperation(
+          atlas.application.graph.entities.AtlasExecutionStream.domain.fork,
+          {
+            sourceStreamId: sourceStream!.id,
+            title: 'Secondary lineage',
+            planIds: ['plan:atlas://plans/117-secondary'],
+          },
+        ),
+    );
+    if (
+      !forkResult.ok ||
+      !forkResult.value ||
+      typeof forkResult.value !== 'object' ||
+      !('id' in forkResult.value) ||
+      typeof forkResult.value.id !== 'string'
+    ) {
+      throw new Error(`Expected Session fork to succeed: ${JSON.stringify(forkResult)}`);
+    }
+    expect(forkResult).toMatchObject({
+      ok: true,
+      value: {
+        forkedFromStreamId: sourceStream!.id,
+        rootPlanIds: ['plan:atlas://plans/117-secondary'],
+        title: 'Secondary lineage',
+      },
+    });
+
+    const explicitStreamId = forkResult.value.id;
+    await expect(atlas.getExecutionStreams(owner.user.id)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: explicitStreamId,
+          mode: 'explicit',
+          status: 'open',
+          forkedFromStream: {
+            id: sourceStream!.id,
+            title: sourceStream!.title,
+          },
+          roots: [
+            expect.objectContaining({ id: 'plan:atlas://plans/117-secondary' }),
+          ],
+          activities: [],
+        }),
+      ]),
+    );
+
+    await expect(
+      merge(
+        webhook({
+          body: `Atlas-Implements: atlas://plans/117-secondary
+Atlas-Session: ${explicitStreamId}`,
+          number: 31,
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
+
+    const routedStreams = await atlas.getExecutionStreams(owner.user.id);
+    const explicitStream = routedStreams.find(stream => stream.id === explicitStreamId);
+    const implicitStream = routedStreams.find(stream => stream.id === sourceStream!.id);
+    expect(explicitStream).toMatchObject({
+      roots: [expect.objectContaining({ id: 'plan:atlas://plans/117-secondary' })],
+      activities: [
+        expect.objectContaining({
+          attribution: 'explicit-directive',
+          pullRequest: expect.objectContaining({ number: 31 }),
+        }),
+      ],
+    });
+    expect(implicitStream?.activities).toEqual([
+      expect.objectContaining({ pullRequest: expect.objectContaining({ number: 30 }) }),
+    ]);
+
+    const unroutedWebhooks = [
+      webhook({
+        body: `Atlas-Implements: atlas://plans/116-persistence
+Atlas-Session: ${randomUUID()}`,
+        number: 32,
+      }),
+      webhook({
+        body: `Atlas-Implements: atlas://plans/116-persistence
+Atlas-Session: not-a-session`,
+        number: 33,
+      }),
+      webhook({
+        authorProviderAccountId: 'other-session-github-user',
+        body: `Atlas-Implements: atlas://plans/116-persistence
+Atlas-Session: ${explicitStreamId}`,
+        number: 34,
+      }),
+    ];
+
+    for (const unroutedWebhook of unroutedWebhooks) {
+      await expect(merge(unroutedWebhook)).resolves.toMatchObject({ ok: true });
+    }
+
+    await expect(atlas.getExecutionStreams(otherAuthor.user.id)).resolves.toEqual([]);
+    const unchangedStreams = await atlas.getExecutionStreams(owner.user.id);
+    expect(unchangedStreams.flatMap(stream => stream.activities)).toHaveLength(2);
+
+    await withInvocationContext(
+      { principal: { issuer: 'atlas', kind: 'user', subject: owner.user.id } },
+      () =>
+        atlas.application.invokeOperation(
+          atlas.application.graph.entities.AtlasExecutionStream.domain.close,
+          { id: explicitStreamId },
+        ),
+    );
+    await expect(
+      merge(
+        webhook({
+          body: `Atlas-Implements: atlas://plans/117-secondary
+Atlas-Session: ${explicitStreamId}`,
+          number: 35,
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
+    const finalStreams = await atlas.getExecutionStreams(owner.user.id);
+    expect(finalStreams.flatMap(stream => stream.activities)).toHaveLength(2);
   }, 30_000);
 
   it('does not let an older observation overwrite a newer projection', async () => {

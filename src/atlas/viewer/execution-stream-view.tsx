@@ -6,6 +6,8 @@ import {
   ChevronDown,
   ChevronRight,
   Circle,
+  Copy,
+  GitFork,
   GitPullRequest,
   Loader2,
   Radio,
@@ -16,7 +18,10 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 import { AtlasExecutionStreamClient } from '../client/execution-stream';
-import type { AtlasExecutionStreamProjection } from '../model/execution-stream';
+import {
+  buildAtlasSessionInstructions,
+  type AtlasExecutionStreamProjection,
+} from '../model/execution-stream';
 import type {
   PlanWorkstreamNode,
   PlanWorkstreamSnapshot,
@@ -225,17 +230,36 @@ export const ExecutionStreamView = ({
 }: ExecutionStreamViewProps) => {
   const router = useRouter();
   const [confirmingClose, setConfirmingClose] = useState(false);
+  const [confirmingFork, setConfirmingFork] = useState(false);
   const [closeError, setCloseError] = useState<string | null>(null);
+  const [forkError, setForkError] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
+  const [forkTitle, setForkTitle] = useState('');
+  const [forkPlanIds, setForkPlanIds] = useState<Set<string>>(() => new Set());
   const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [hideDone, setHideDone] = useState(false);
   const closeStream = useOperation(AtlasExecutionStreamClient.domain.close);
+  const forkStream = useOperation(AtlasExecutionStreamClient.domain.fork);
   const closing = closeStream.isExecuting;
-  const currentStream = executionStreams.find(
-    stream => stream.mode === 'implicit' && stream.status === 'open',
-  );
+  const forking = forkStream.isExecuting;
+  const openStreams = executionStreams.filter(stream => stream.status === 'open');
   const recentStreams = executionStreams.filter(stream => stream.status === 'closed');
+  const defaultStream =
+    executionStreams.find(stream => {
+      if (typeof globalThis.window === 'undefined') return false;
+      return new URL(globalThis.location.href).searchParams.get('session') === stream.id;
+    }) ??
+    openStreams.find(stream => stream.mode === 'implicit') ??
+    openStreams[0] ??
+    recentStreams[0];
+  const [selectedStreamId, setSelectedStreamId] = useState<string | null>(
+    defaultStream?.id ?? null,
+  );
+  const currentStream =
+    executionStreams.find(stream => stream.id === selectedStreamId) ?? defaultStream;
   const expandedTreeRows = useMemo(
     () =>
       currentStream
@@ -256,6 +280,16 @@ export const ExecutionStreamView = ({
         : [],
     [collapsedNodeIds, currentStream, hideDone, snapshot],
   );
+  const forkTreeRows = useMemo(
+    () =>
+      currentStream
+        ? buildExecutionTreeRows(currentStream, snapshot, {
+            collapsedNodeIds: noCollapsedExecutionTreeNodes,
+            hideDone: false,
+          })
+        : [],
+    [currentStream, snapshot],
+  );
   const collapsibleNodeIds = expandedTreeRows
     .filter(row => row.hasChildren)
     .map(row => row.node.id);
@@ -275,6 +309,117 @@ export const ExecutionStreamView = ({
     globalThis.addEventListener('keydown', closeOnEscape);
     return () => globalThis.removeEventListener('keydown', closeOnEscape);
   }, [closing, confirmingClose]);
+
+  useEffect(() => {
+    if (!confirmingFork) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !forking) {
+        setConfirmingFork(false);
+      }
+    };
+
+    globalThis.addEventListener('keydown', closeOnEscape);
+    return () => globalThis.removeEventListener('keydown', closeOnEscape);
+  }, [confirmingFork, forking]);
+
+  const writeSessionRoute = (sessionId: string) => {
+    if (typeof globalThis.window === 'undefined') return;
+
+    const nextUrl = new URL(globalThis.location.href);
+    nextUrl.searchParams.set('view', 'sessions');
+    nextUrl.searchParams.set('session', sessionId);
+    nextUrl.searchParams.delete('node');
+    nextUrl.searchParams.delete('full');
+    nextUrl.searchParams.delete('section');
+    globalThis.history.replaceState({}, '', nextUrl);
+  };
+
+  const selectStream = (stream: AtlasExecutionStreamProjection) => {
+    setSelectedStreamId(stream.id);
+    setCollapsedNodeIds(new Set());
+    setConfirmingClose(false);
+    setConfirmingFork(false);
+    setCopyError(null);
+    writeSessionRoute(stream.id);
+  };
+
+  const copySessionInstructions = async () => {
+    if (!currentStream || currentStream.status !== 'open') return;
+
+    setCopyError(null);
+    try {
+      if (!globalThis.navigator.clipboard) {
+        throw new Error('Clipboard access is unavailable.');
+      }
+
+      const sessionUrl = new URL(globalThis.location.href);
+      sessionUrl.searchParams.set('view', 'sessions');
+      sessionUrl.searchParams.set('session', currentStream.id);
+      sessionUrl.searchParams.delete('node');
+      sessionUrl.searchParams.delete('full');
+      sessionUrl.searchParams.delete('section');
+      await globalThis.navigator.clipboard.writeText(
+        buildAtlasSessionInstructions({
+          id: currentStream.id,
+          title: currentStream.title,
+          url: sessionUrl.toString(),
+        }),
+      );
+      setCopiedSessionId(currentStream.id);
+    } catch (error) {
+      setCopyError(error instanceof Error ? error.message : 'Atlas could not copy the Session.');
+    }
+  };
+
+  const openForkDialog = () => {
+    if (!currentStream || currentStream.status !== 'open') return;
+
+    setForkError(null);
+    setForkPlanIds(new Set());
+    setForkTitle(`Fork of ${currentStream.title}`);
+    setConfirmingFork(true);
+  };
+
+  const toggleForkPlan = (planId: string) => {
+    setForkPlanIds(current => {
+      const next = new Set(current);
+      if (next.has(planId)) next.delete(planId);
+      else next.add(planId);
+      return next;
+    });
+  };
+
+  const createFork = async () => {
+    if (
+      !currentStream ||
+      currentStream.status !== 'open' ||
+      forking ||
+      forkPlanIds.size === 0
+    ) {
+      return;
+    }
+
+    setForkError(null);
+    try {
+      const result = await forkStream.executeAsync({
+        sourceStreamId: currentStream.id,
+        title: forkTitle,
+        planIds: [...forkPlanIds],
+      });
+
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
+
+      setSelectedStreamId(result.value.id);
+      writeSessionRoute(result.value.id);
+      setConfirmingFork(false);
+      router.refresh();
+    } catch (error) {
+      setForkError(error instanceof Error ? error.message : 'Atlas could not fork this Session.');
+    }
+  };
 
   const closeCurrentStream = async () => {
     if (!currentStream || closing) return;
@@ -324,34 +469,49 @@ export const ExecutionStreamView = ({
           </header>
 
           <div className='min-h-0 flex-1 overflow-y-auto p-3'>
-            {currentStream ? (
-              <div className='rounded-lg border border-sky-500/35 bg-sky-500/10 p-3'>
-                <div className='flex items-center justify-between gap-2'>
-                  <span className='inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-300'>
-                    <span className='size-1.5 rounded-full bg-emerald-500' />
-                    Open
-                  </span>
-                  <button
-                    type='button'
-                    aria-label={`Close ${currentStream.title}`}
-                    title='Close stream'
-                    className='grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-background/75 hover:text-foreground disabled:opacity-50'
-                    disabled={closing}
-                    onClick={() => setConfirmingClose(true)}
-                  >
-                    <Archive aria-hidden='true' className='size-3.5' />
-                  </button>
+            {openStreams.length > 0 ? (
+              <div>
+                <div className='mb-2 px-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground'>
+                  Open
                 </div>
-                <div className='mt-2 line-clamp-2 text-sm font-medium leading-5'>
-                  {currentStream.title}
-                </div>
-                <div className='mt-1 text-[11px] text-muted-foreground'>Implicit session</div>
+                <ul className='grid gap-1.5'>
+                  {openStreams.map(stream => {
+                    const selected = stream.id === currentStream?.id;
+
+                    return (
+                      <li key={stream.id}>
+                        <button
+                          type='button'
+                          aria-current={selected ? 'true' : undefined}
+                          className={cn(
+                            'w-full rounded-lg border p-3 text-left transition-colors',
+                            selected
+                              ? 'border-sky-500/35 bg-sky-500/10'
+                              : 'border-transparent hover:border-border hover:bg-muted/45',
+                          )}
+                          onClick={() => selectStream(stream)}
+                        >
+                          <span className='inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-300'>
+                            <span className='size-1.5 rounded-full bg-emerald-500' />
+                            Open
+                          </span>
+                          <span className='mt-2 block line-clamp-2 text-sm font-medium leading-5'>
+                            {stream.title}
+                          </span>
+                          <span className='mt-1 block text-[11px] text-muted-foreground'>
+                            {stream.mode === 'explicit' ? 'Explicit session' : 'Implicit session'}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             ) : (
               <div className='rounded-lg border border-dashed border-border px-3 py-4'>
-                <div className='text-xs font-medium'>No active stream</div>
+                <div className='text-xs font-medium'>No open Session</div>
                 <div className='mt-1 text-[11px] leading-4 text-muted-foreground'>
-                  The next attributable merge opens one.
+                  The next attributable untagged merge opens one.
                 </div>
               </div>
             )}
@@ -363,12 +523,24 @@ export const ExecutionStreamView = ({
                 </div>
                 <ul className='grid gap-1'>
                   {recentStreams.map(stream => (
-                    <li key={stream.id} className='rounded-md px-2 py-2.5 hover:bg-muted/45'>
-                      <div className='truncate text-xs font-medium'>{stream.title}</div>
-                      <div className='mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground'>
-                        <span className='size-1.5 rounded-full bg-muted-foreground/45' />
-                        Closed {formatRelativeTime(stream.closedAt ?? stream.updatedAt)}
-                      </div>
+                    <li key={stream.id}>
+                      <button
+                        type='button'
+                        aria-current={stream.id === currentStream?.id ? 'true' : undefined}
+                        className={cn(
+                          'w-full rounded-md border px-2 py-2.5 text-left transition-colors hover:bg-muted/45',
+                          stream.id === currentStream?.id
+                            ? 'border-border bg-muted/45'
+                            : 'border-transparent',
+                        )}
+                        onClick={() => selectStream(stream)}
+                      >
+                        <span className='block truncate text-xs font-medium'>{stream.title}</span>
+                        <span className='mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground'>
+                          <span className='size-1.5 rounded-full bg-muted-foreground/45' />
+                          Closed {formatRelativeTime(stream.closedAt ?? stream.updatedAt)}
+                        </span>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -380,23 +552,60 @@ export const ExecutionStreamView = ({
         <div className='flex min-h-0 min-w-0 flex-col'>
           {currentStream ? (
             <div className='flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border/70 px-3 lg:hidden'>
-              <div className='min-w-0'>
-                <div className='truncate text-sm font-medium'>{currentStream.title}</div>
-                <div className='inline-flex items-center gap-1.5 text-[10px] text-emerald-600 dark:text-emerald-300'>
-                  <span className='size-1.5 rounded-full bg-emerald-500' />
-                  Open
+              <div className='min-w-0 flex-1'>
+                {executionStreams.length > 1 ? (
+                  <label className='block'>
+                    <span className='sr-only'>Selected Session</span>
+                    <select
+                      aria-label='Selected Session'
+                      className='h-7 w-full truncate rounded-md border border-border bg-background px-2 text-xs font-medium'
+                      value={currentStream.id}
+                      onChange={event => {
+                        const stream = executionStreams.find(
+                          candidate => candidate.id === event.target.value,
+                        );
+                        if (stream) selectStream(stream);
+                      }}
+                    >
+                      {openStreams.map(stream => (
+                        <option key={stream.id} value={stream.id}>
+                          {stream.title}
+                        </option>
+                      ))}
+                      {recentStreams.map(stream => (
+                        <option key={stream.id} value={stream.id}>
+                          {stream.title} (closed)
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <div className='truncate text-sm font-medium'>{currentStream.title}</div>
+                )}
+                <div className='inline-flex items-center gap-1.5 text-[10px] text-muted-foreground'>
+                  <span
+                    className={cn(
+                      'size-1.5 rounded-full',
+                      currentStream.status === 'open'
+                        ? 'bg-emerald-500'
+                        : 'bg-muted-foreground/45',
+                    )}
+                  />
+                  {currentStream.status === 'open' ? 'Open' : 'Closed'}
                 </div>
               </div>
-              <button
-                type='button'
-                aria-label={`Close ${currentStream.title}`}
-                title='Close stream'
-                className='grid size-8 shrink-0 place-items-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-                disabled={closing}
-                onClick={() => setConfirmingClose(true)}
-              >
-                <Archive aria-hidden='true' className='size-4' />
-              </button>
+              {currentStream.status === 'open' ? (
+                <button
+                  type='button'
+                  aria-label={`Close ${currentStream.title}`}
+                  title='Close stream'
+                  className='grid size-8 shrink-0 place-items-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                  disabled={closing}
+                  onClick={() => setConfirmingClose(true)}
+                >
+                  <Archive aria-hidden='true' className='size-4' />
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -406,6 +615,39 @@ export const ExecutionStreamView = ({
                 <h2 className='text-sm font-semibold'>Plan tree</h2>
                 {currentStream ? (
                   <div className='flex items-center gap-1.5'>
+                    {currentStream.status === 'open' ? (
+                      <>
+                        <button
+                          type='button'
+                          className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+                          onClick={openForkDialog}
+                        >
+                          <GitFork aria-hidden='true' className='size-3.5' />
+                          Fork session
+                        </button>
+                        <button
+                          type='button'
+                          className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+                          onClick={copySessionInstructions}
+                        >
+                          {copiedSessionId === currentStream.id ? (
+                            <Check aria-hidden='true' className='size-3.5 text-emerald-500' />
+                          ) : (
+                            <Copy aria-hidden='true' className='size-3.5' />
+                          )}
+                          {copiedSessionId === currentStream.id ? 'Copied' : 'Copy for LLM'}
+                        </button>
+                        <button
+                          type='button'
+                          aria-label={`Close ${currentStream.title}`}
+                          className='grid size-7 place-items-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                          disabled={closing}
+                          onClick={() => setConfirmingClose(true)}
+                        >
+                          <Archive aria-hidden='true' className='size-3.5' />
+                        </button>
+                      </>
+                    ) : null}
                     <button
                       type='button'
                       aria-pressed={hideDone}
@@ -431,6 +673,23 @@ export const ExecutionStreamView = ({
                   </div>
                 ) : null}
               </header>
+
+              {currentStream?.forkedFromStream ? (
+                <div className='border-b border-border/70 px-4 py-2 text-[11px] text-muted-foreground'>
+                  Forked from{' '}
+                  <span className='font-medium text-foreground'>
+                    {currentStream.forkedFromStream.title}
+                  </span>
+                </div>
+              ) : null}
+              {copyError ? (
+                <p
+                  className='border-b border-border/70 px-4 py-2 text-xs text-destructive'
+                  role='alert'
+                >
+                  {copyError}
+                </p>
+              ) : null}
 
               <div className='min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-3'>
                 {currentStream ? (
@@ -503,7 +762,7 @@ export const ExecutionStreamView = ({
                       <span className='mx-auto grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground'>
                         <Archive aria-hidden='true' className='size-4' />
                       </span>
-                      <h2 className='mt-4 text-base font-semibold'>No open stream</h2>
+                      <h2 className='mt-4 text-base font-semibold'>No Session yet</h2>
                       <p className='mt-2 text-sm leading-6 text-muted-foreground'>
                         Atlas is waiting for your next attributable merged Pull Request.
                       </p>
@@ -560,7 +819,107 @@ export const ExecutionStreamView = ({
         </div>
       </div>
 
-      {confirmingClose && currentStream ? (
+      {confirmingFork && currentStream ? (
+        <div
+          className='fixed inset-0 z-[90] grid place-items-center bg-background/75 px-4 backdrop-blur-sm'
+          onMouseDown={event => {
+            if (event.target === event.currentTarget && !forking) {
+              setConfirmingFork(false);
+            }
+          }}
+        >
+          <section
+            role='dialog'
+            aria-modal='true'
+            aria-labelledby='fork-execution-stream-title'
+            className='flex max-h-[min(760px,calc(100vh-2rem))] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl'
+          >
+            <div className='flex items-start justify-between gap-3 border-b border-border p-5'>
+              <div>
+                <h2 id='fork-execution-stream-title' className='text-lg font-semibold'>
+                  Fork “{currentStream.title}”
+                </h2>
+                <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                  Select the Plan branches that continue in a separate Session. Existing PR
+                  history stays here.
+                </p>
+              </div>
+              <button
+                type='button'
+                aria-label='Cancel fork'
+                className='grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground'
+                disabled={forking}
+                onClick={() => setConfirmingFork(false)}
+              >
+                <X aria-hidden='true' className='size-4' />
+              </button>
+            </div>
+
+            <div className='min-h-0 flex-1 overflow-y-auto p-5'>
+              <label className='grid gap-1.5 text-sm font-medium'>
+                Session name
+                <input
+                  className='h-10 rounded-lg border border-border bg-background px-3 font-normal outline-none focus:border-sky-500'
+                  value={forkTitle}
+                  onChange={event => setForkTitle(event.target.value)}
+                />
+              </label>
+              <fieldset className='mt-5'>
+                <legend className='text-sm font-medium'>Plans to continue</legend>
+                <div className='mt-2 grid gap-1 rounded-lg border border-border p-2'>
+                  {forkTreeRows.map(({ depth, node }) => (
+                    <label
+                      key={node.id}
+                      className='flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 hover:bg-muted/55'
+                      style={{ paddingLeft: `${8 + Math.min(depth, 6) * 18}px` }}
+                    >
+                      <input
+                        type='checkbox'
+                        checked={forkPlanIds.has(node.id)}
+                        onChange={() => toggleForkPlan(node.id)}
+                      />
+                      <span className='min-w-0 flex-1 truncate text-sm'>{node.shortTitle}</span>
+                      <span className='text-[11px] text-muted-foreground'>{node.statusGroup}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              {forkError ? (
+                <p className='mt-3 text-sm text-destructive' role='alert'>
+                  {forkError}
+                </p>
+              ) : null}
+            </div>
+
+            <div className='flex justify-end gap-2 border-t border-border p-4'>
+              <button
+                type='button'
+                className='rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-muted'
+                disabled={forking}
+                onClick={() => setConfirmingFork(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type='button'
+                className='inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60'
+                disabled={forking || forkPlanIds.size === 0 || forkTitle.trim().length === 0}
+                onClick={createFork}
+              >
+                {forking ? (
+                  <Loader2 aria-hidden='true' className='size-4 animate-spin' />
+                ) : (
+                  <GitFork aria-hidden='true' className='size-4' />
+                )}
+                Create Session
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {confirmingClose && currentStream?.status === 'open' ? (
         <div
           className='fixed inset-0 z-[90] grid place-items-center bg-background/75 px-4 backdrop-blur-sm'
           onMouseDown={event => {
@@ -581,8 +940,9 @@ export const ExecutionStreamView = ({
                   Close “{currentStream.title}”?
                 </h2>
                 <p className='mt-2 text-sm leading-6 text-muted-foreground'>
-                  Plans keep their current status. Your next attributable merge starts a new
-                  implicit stream automatically.
+                  {currentStream.mode === 'implicit'
+                    ? 'Plans keep their current status. The next attributable untagged merge starts a new implicit Session automatically.'
+                    : 'Plans keep their current status. Future PRs naming this Session no longer route to another Session automatically.'}
                 </p>
               </div>
               <button

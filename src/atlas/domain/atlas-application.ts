@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 
 import {
@@ -32,6 +32,9 @@ import type {
 import {
   AtlasExecutionStreamCloseInputSchema,
   AtlasExecutionStreamCloseOutputSchema,
+  AtlasExecutionStreamForkInputSchema,
+  AtlasExecutionStreamForkOutputSchema,
+  resolveExecutionStreamForkPlans,
 } from '../model/execution-stream';
 import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
 import type { AtlasLoadedSourceRevision } from '../sources/markdown-source';
@@ -265,6 +268,7 @@ const atlasExecutionStreamFields = {
   status: field.enum(['open', 'closed']),
   title: field.nonEmptyString({ trim: true }),
   currentFocusPlanId: field.nullable(field.id()),
+  forkedFromStreamId: field.nullable(field.id()),
   openedAt: field.nonEmptyString({ trim: true }),
   closedAt: field.nullable(field.string()),
   createdAt: field.nonEmptyString({ trim: true }),
@@ -284,7 +288,7 @@ const atlasExecutionStreamActivityFields = {
   pullRequestId: field.id(),
   planId: field.nullable(field.id()),
   kind: field.enum(['pull-request-merged']),
-  attribution: field.enum(['implicit-single-open']),
+  attribution: field.enum(['implicit-single-open', 'explicit-directive']),
   occurredAt: field.nonEmptyString({ trim: true }),
   createdAt: field.nonEmptyString({ trim: true }),
 };
@@ -423,10 +427,20 @@ export const AtlasExecutionStream = entity({
   relations: {
     user: relation.belongsTo(AtlasUser, { via: 'userId' }),
     currentFocusPlan: relation.belongsTo(AtlasPlan, { via: 'currentFocusPlanId' }),
+    forkedFrom: relation.belongsTo(AtlasExecutionStreamRef, {
+      via: 'forkedFromStreamId',
+    }),
+    forks: relation.hasMany(AtlasExecutionStreamRef, { via: 'forkedFromStreamId' }),
     activities: relation.hasMany(AtlasExecutionStreamActivityRef, { via: 'streamId' }),
     roots: relation.hasMany(AtlasExecutionStreamRootRef, { via: 'streamId' }),
   },
-  operations: ({ operation, commands, app }) => ({
+  uses: {
+    entities: {
+      AtlasPlan,
+      AtlasExecutionStreamRoot: AtlasExecutionStreamRootRef,
+    },
+  },
+  operations: ({ operation, commands, entities, app }) => ({
     close: operation({
       description: 'Close one User-owned Atlas execution stream',
       exposure: 'bridge',
@@ -486,6 +500,111 @@ export const AtlasExecutionStream = entity({
           .run();
 
         return { id: stream.id, closed: true, closedAt };
+      },
+    }),
+    fork: operation({
+      description: 'Fork selected Plans into a new explicit User-owned Atlas Session',
+      exposure: 'bridge',
+      bridge: {},
+      input: AtlasExecutionStreamForkInputSchema,
+      output: AtlasExecutionStreamForkOutputSchema,
+      requires: [
+        {
+          run: () =>
+            app.auth.requirePrincipal().pipe(
+              Effect.flatMap(principal =>
+                principal.kind === 'user' && principal.issuer === 'atlas'
+                  ? Effect.void
+                  : app.operation.fail(
+                      'not_authorized',
+                      'Only an authenticated Atlas User can fork an execution stream.',
+                    ),
+              ),
+            ),
+        },
+      ],
+      *run({ sourceStreamId, title, planIds }) {
+        const principal = yield* app.auth.requirePrincipal();
+
+        if (principal.kind !== 'user' || principal.issuer !== 'atlas') {
+          return yield* app.operation.fail(
+            'not_authorized',
+            'Only an authenticated Atlas User can fork an execution stream.',
+          );
+        }
+
+        const matches = yield* commands
+          .where(stream => stream.id.eq(sourceStreamId))
+          .limit(1)
+          .run();
+        const sourceStream = matches[0];
+
+        if (!sourceStream || sourceStream.userId !== principal.subject) {
+          return yield* app.operation.fail('not_found', 'Execution stream not found.');
+        }
+
+        if (sourceStream.status !== 'open') {
+          return yield* app.operation.fail(
+            'invalid_state',
+            'Only an open execution stream can be forked.',
+          );
+        }
+
+        const [sourceRoots, plans] = yield* Effect.all([
+          entities.AtlasExecutionStreamRoot.where(root =>
+            root.streamId.eq(sourceStream.id),
+          ).run(),
+          entities.AtlasPlan.all().run(),
+        ]);
+        const forkPlans = resolveExecutionStreamForkPlans({
+          plans,
+          selectedPlanIds: planIds,
+          sourceRootPlanIds: sourceRoots.map(root => root.planId),
+        });
+
+        if (!forkPlans) {
+          return yield* app.operation.fail(
+            'invalid_input',
+            'Select at least one Plan from the source execution stream.',
+          );
+        }
+
+        const timestamp = new Date().toISOString();
+        const id = randomUUID();
+        yield* app.graph.transaction(
+          Effect.gen(function* () {
+            yield* commands
+              .insert({
+                id,
+                userId: principal.subject,
+                mode: 'explicit',
+                status: 'open',
+                title,
+                currentFocusPlanId: forkPlans[0].id,
+                forkedFromStreamId: sourceStream.id,
+                openedAt: timestamp,
+                closedAt: null,
+                createdAt: timestamp,
+                updatedAt: timestamp,
+              })
+              .run();
+            yield* entities.AtlasExecutionStreamRoot.insertMany(
+              forkPlans.map(plan => ({
+                id: `execution-stream-root:${id}:${plan.id}`,
+                streamId: id,
+                planId: plan.id,
+                addedAt: timestamp,
+              })),
+            ).run();
+          }),
+        );
+
+        return {
+          forkedFromStreamId: sourceStream.id,
+          id,
+          rootPlanIds: forkPlans.map(plan => plan.id),
+          title,
+        };
       },
     }),
   }),
@@ -1384,9 +1503,13 @@ const atlasUserIdentityQuery = (id: string) =>
     }))
     .first();
 
-const atlasExecutionStreamsQuery = (userId: string, limit: number) =>
+const atlasExecutionStreamsQuery = (
+  userId: string,
+  status: 'closed' | 'open',
+) =>
   query(AtlasExecutionStream)
     .where(stream => stream.userId.eq(userId))
+    .where(stream => stream.status.eq(status))
     .select(stream => ({
       id: stream.id,
       mode: stream.mode,
@@ -1396,9 +1519,12 @@ const atlasExecutionStreamsQuery = (userId: string, limit: number) =>
       closedAt: stream.closedAt,
       updatedAt: stream.updatedAt,
       currentFocusPlanId: stream.currentFocusPlanId,
+      forkedFromStream: stream.forkedFrom.select(source => ({
+        id: source.id,
+        title: source.title,
+      })),
     }))
-    .orderBy(stream => stream.openedAt.desc())
-    .limit(limit);
+    .orderBy(stream => stream.openedAt.desc());
 
 const atlasExecutionStreamRootsQuery = (streamIds: string[]) =>
   query(AtlasExecutionStreamRoot)
@@ -1512,12 +1638,20 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
       userId: string,
       limit = 6,
     ): Promise<AtlasExecutionStreamProjection[]> => {
-      const streams = await application.graph.read(
-        atlasExecutionStreamsQuery(userId, Math.max(1, Math.min(limit, 20))),
-        {
-          scope: 'atlas.execution-streams',
-        },
-      );
+      const [openStreams, recentStreams] = await Promise.all([
+        application.graph.read(atlasExecutionStreamsQuery(userId, 'open'), {
+          scope: 'atlas.execution-streams.open',
+        }),
+        application.graph.read(
+          atlasExecutionStreamsQuery(userId, 'closed').limit(
+            Math.max(1, Math.min(limit, 20)),
+          ),
+          {
+            scope: 'atlas.execution-streams.recent',
+          },
+        ),
+      ]);
+      const streams = [...openStreams, ...recentStreams];
       const streamIds = streams.map(stream => stream.id);
 
       if (streamIds.length === 0) {
@@ -1576,6 +1710,7 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
         currentFocusPlan: stream.currentFocusPlanId
           ? (plansById.get(stream.currentFocusPlanId) ?? null)
           : null,
+        forkedFromStream: stream.forkedFromStream,
         roots: roots.flatMap(root =>
           root.streamId === stream.id && plansById.has(root.planId)
             ? [plansById.get(root.planId)!]

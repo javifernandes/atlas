@@ -6,13 +6,17 @@ import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 
 const refreshMock = vi.hoisted(() => vi.fn());
 const closeExecuteAsyncMock = vi.hoisted(() => vi.fn());
+const forkExecuteAsyncMock = vi.hoisted(() => vi.fn());
+const clipboardWriteTextMock = vi.hoisted(() => vi.fn());
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: refreshMock }),
 }));
 vi.mock('@ontahi/react/graph', () => ({
-  useOperation: () => ({
-    executeAsync: closeExecuteAsyncMock,
+  useOperation: (operation: { id: string }) => ({
+    executeAsync: operation.id.endsWith('.fork')
+      ? forkExecuteAsyncMock
+      : closeExecuteAsyncMock,
     isExecuting: false,
   }),
 }));
@@ -87,6 +91,7 @@ const currentStream: AtlasExecutionStreamProjection = {
   title: 'Implicit Streams',
   openedAt: '2026-09-03T00:00:00.000Z',
   closedAt: null,
+  forkedFromStream: null,
   updatedAt: '2026-09-03T01:00:00.000Z',
   roots: [
     {
@@ -134,9 +139,42 @@ const recentStream: AtlasExecutionStreamProjection = {
   closedAt: '2026-09-02T23:00:00.000Z',
 };
 
+const explicitStream: AtlasExecutionStreamProjection = {
+  ...currentStream,
+  id: '0df587f3-130f-454a-9b48-f985beb26de7',
+  mode: 'explicit',
+  title: 'Secondary lineage',
+  forkedFromStream: { id: currentStream.id, title: currentStream.title },
+  roots: [
+    {
+      id: 'plan:atlas://plans/125-routing',
+      path: 'atlas://plans/125-routing',
+      status: 'next',
+      title: 'Explicit Routing',
+    },
+  ],
+  activities: [
+    {
+      ...currentStream.activities[0]!,
+      id: 'activity-2',
+      attribution: 'explicit-directive',
+      pullRequest: {
+        ...currentStream.activities[0]!.pullRequest!,
+        number: 25,
+        title: 'Route explicit Session work',
+      },
+    },
+  ],
+};
+
 describe('ExecutionStreamView', () => {
   beforeEach(() => {
     refreshMock.mockReset();
+    clipboardWriteTextMock.mockReset().mockResolvedValue(undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteTextMock },
+    });
     closeExecuteAsyncMock.mockReset().mockResolvedValue({
       ok: true,
       kind: 'success',
@@ -146,6 +184,16 @@ describe('ExecutionStreamView', () => {
         closedAt: '2026-09-03T02:00:00.000Z',
       },
     });
+    forkExecuteAsyncMock.mockReset().mockResolvedValue({
+      ok: true,
+      kind: 'success',
+      value: {
+        id: explicitStream.id,
+        forkedFromStreamId: currentStream.id,
+        rootPlanIds: ['plan:atlas://plans/125-routing'],
+        title: explicitStream.title,
+      },
+    });
   });
 
   it('renders the waiting state without reconstructing a stream', () => {
@@ -153,7 +201,7 @@ describe('ExecutionStreamView', () => {
       <ExecutionStreamView executionStreams={[]} onOpenPlan={vi.fn()} snapshot={snapshot} />,
     );
 
-    expect(screen.getByRole('heading', { name: 'No open stream' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No Session yet' })).toBeInTheDocument();
     expect(screen.getByText(/next attributable merged Pull Request/i)).toBeInTheDocument();
   });
 
@@ -202,6 +250,57 @@ describe('ExecutionStreamView', () => {
     expect(hideDone).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByRole('button', { name: /Persistent Identity/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Explicit Routing/ })).toBeInTheDocument();
+  });
+
+  it('switches simultaneous Sessions and copies the selected Session instructions', async () => {
+    render(
+      <ExecutionStreamView
+        executionStreams={[currentStream, explicitStream, recentStream]}
+        onOpenPlan={vi.fn()}
+        snapshot={snapshot}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Secondary lineage/ }));
+
+    expect(screen.getByText('PR #25 merged')).toBeInTheDocument();
+    expect(screen.getByText(/Forked from/)).toHaveTextContent('Implicit Streams');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy for LLM' }));
+    await waitFor(() => expect(clipboardWriteTextMock).toHaveBeenCalledOnce());
+    expect(clipboardWriteTextMock.mock.calls[0]?.[0]).toContain(
+      `Atlas-Session: ${explicitStream.id}`,
+    );
+    expect(clipboardWriteTextMock.mock.calls[0]?.[0]).toContain(
+      `session=${explicitStream.id}`,
+    );
+  });
+
+  it('forks selected Plans without copying activity in the client request', async () => {
+    render(
+      <ExecutionStreamView
+        executionStreams={[currentStream]}
+        onOpenPlan={vi.fn()}
+        snapshot={snapshot}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fork session' }));
+    const dialog = screen.getByRole('dialog', { name: /Fork “Implicit Streams”/ });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Session name' }), {
+      target: { value: 'Protocol follow-up' },
+    });
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /Explicit Routing/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create Session' }));
+
+    await waitFor(() =>
+      expect(forkExecuteAsyncMock).toHaveBeenCalledWith({
+        sourceStreamId: currentStream.id,
+        title: 'Protocol follow-up',
+        planIds: ['plan:atlas://plans/125-routing'],
+      }),
+    );
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledOnce());
   });
 
   it('confirms and closes the current stream through the bridged operation', async () => {

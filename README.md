@@ -42,6 +42,24 @@ Human authentication is a separate boundary. Atlas supports stateless GitHub log
 Auth and can gate the deployment viewer as public or private without using the human OAuth token for
 repository reads. See [Atlas Authentication](docs/authentication.md).
 
+## Sessions
+
+Sessions are personal execution views over the shared Plan tree. Untagged attributable merges keep
+the default implicit Session behavior. A User can select Plan branches from an open Session and fork
+them into separately named explicit Sessions without moving source history or copying prior PR
+activity.
+
+Each open Session has a stable URL and a **Copy for LLM** action. Future PRs from that chat route to
+the Session by retaining this line in the PR body:
+
+```text
+Atlas-Session: <session-uuid>
+```
+
+This directive routes activity only; PRs still use `Atlas-Implements` and `Atlas-Shapes` for
+semantic evidence. Invalid explicit Session routing never falls back automatically. See
+[Atlas Evidence Binding Guidelines](docs/atlas-evidence-binding-guidelines.md#session-routing).
+
 ## Hosted source refreshes
 
 Signed GitHub App `push` and merged-pull-request webhooks now reconcile registered authorities into

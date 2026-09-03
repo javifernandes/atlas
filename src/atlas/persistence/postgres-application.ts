@@ -18,7 +18,11 @@ import {
 } from '../github/pull-request-evidence';
 import { parseAtlasSourceRecords } from '../markdown/build-snapshot';
 import { proposePlanLink } from '../domain/plan-link-proposal';
-import { resolveExecutionStreamPlanContext } from '../model/execution-stream';
+import {
+  parseAtlasSessionDirective,
+  resolveExecutionStreamActivityTarget,
+  resolveExecutionStreamPlanContext,
+} from '../model/execution-stream';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import type { AtlasProjectionInput } from '../server/load-atlas-projection';
 import { atlasPostgresMappingOverrides } from './postgres-mapping';
@@ -210,6 +214,7 @@ export const createAtlasPostgresApplication = (input: {
       }
 
       const planAttribution = resolveExecutionPlanAttribution(dataset, webhook);
+      const sessionDirective = parseAtlasSessionDirective(webhook.body);
 
       if (!planAttribution) {
         return;
@@ -237,9 +242,17 @@ export const createAtlasPostgresApplication = (input: {
       const streams = yield* entities.AtlasExecutionStream.where(stream =>
         stream.userId.eq(account.userId),
       ).run();
-      let stream = streams.find(
-        candidate => candidate.mode === 'implicit' && candidate.status === 'open',
-      );
+      const activityTarget = resolveExecutionStreamActivityTarget({
+        directive: sessionDirective,
+        streams,
+        userId: account.userId,
+      });
+
+      if (activityTarget.kind === 'unrouted') {
+        return;
+      }
+
+      let stream = activityTarget.kind === 'existing' ? activityTarget.stream : undefined;
       const timestamp = webhook.mergedAt;
       let streamId: string;
 
@@ -251,6 +264,7 @@ export const createAtlasPostgresApplication = (input: {
           status: 'open',
           title: executionStreamTitle(planAttribution.rootPlans[0].title),
           currentFocusPlanId: planAttribution.focusPlan.id,
+          forkedFromStreamId: null,
           openedAt: timestamp,
           closedAt: null,
           createdAt: timestamp,
@@ -271,16 +285,18 @@ export const createAtlasPostgresApplication = (input: {
         streamId = currentStream.id;
       }
 
-      for (const rootPlan of planAttribution.rootPlans) {
-        yield* entities.AtlasExecutionStreamRoot.upsert(
-          {
-            id: `execution-stream-root:${streamId}:${rootPlan.id}`,
-            streamId,
-            planId: rootPlan.id,
-            addedAt: timestamp,
-          },
-          { conflictOn: ['id'], strategy: 'ignore' },
-        ).run();
+      if (sessionDirective.kind === 'absent') {
+        for (const rootPlan of planAttribution.rootPlans) {
+          yield* entities.AtlasExecutionStreamRoot.upsert(
+            {
+              id: `execution-stream-root:${streamId}:${rootPlan.id}`,
+              streamId,
+              planId: rootPlan.id,
+              addedAt: timestamp,
+            },
+            { conflictOn: ['id'], strategy: 'ignore' },
+          ).run();
+        }
       }
 
       yield* entities.AtlasExecutionStreamActivity.upsert(
@@ -290,7 +306,10 @@ export const createAtlasPostgresApplication = (input: {
           pullRequestId: planAttribution.pullRequestId,
           planId: planAttribution.focusPlan.id,
           kind: 'pull-request-merged',
-          attribution: 'implicit-single-open',
+          attribution:
+            activityTarget.kind === 'existing'
+              ? activityTarget.attribution
+              : 'implicit-single-open',
           occurredAt: timestamp,
           createdAt: timestamp,
         },

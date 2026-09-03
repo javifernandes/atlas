@@ -8,6 +8,8 @@ import {
 import {
   AtlasExecutionStreamCloseInputSchema,
   AtlasExecutionStreamCloseOutputSchema,
+  AtlasExecutionStreamForkInputSchema,
+  AtlasExecutionStreamForkOutputSchema,
 } from '../model/execution-stream';
 
 export const AtlasExecutionStreamClient = defineClientEntity('AtlasExecutionStream', {
@@ -18,6 +20,13 @@ export const AtlasExecutionStreamClient = defineClientEntity('AtlasExecutionStre
       bridge: {},
       input: AtlasExecutionStreamCloseInputSchema,
       output: AtlasExecutionStreamCloseOutputSchema,
+    }),
+    fork: defineClientDomainOperation({
+      authority: 'server',
+      exposure: 'bridge',
+      bridge: {},
+      input: AtlasExecutionStreamForkInputSchema,
+      output: AtlasExecutionStreamForkOutputSchema,
     }),
   },
 });

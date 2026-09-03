@@ -16,6 +16,9 @@ When working in this repository:
 7. Read `docs/atlas-evidence-binding-guidelines.md` before preparing commits or PRs. Put supported
    Atlas directives in the PR body when the work implements or shapes a registered target; commit
    trailers alone do not create evidence.
+8. When work is handed off with an Atlas Session instruction, preserve its exact
+   `Atlas-Session: <uuid>` line once in every PR body for that work, including later PR edits.
+   Never invent or infer a Session ID; omit the directive when no exact ID was provided.
 
 Do not copy external project plans or item trees into Atlas. Federation should preserve the source
 repository as authority.
