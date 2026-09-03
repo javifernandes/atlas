@@ -107,6 +107,12 @@ Entities onto the same User and Account tables, so later Atlas Entities can rela
 without a second identity store. The Ontahí Account shape excludes passwords and every provider
 token; Session and Verification remain Better Auth infrastructure.
 
+Atlas keeps Better Auth's `session_data` codec pinned to encrypted JWE in both persistence modes.
+PostgreSQL mode disables cookie-cache authorization, but retaining the codec lets it safely read and
+discard a cookie issued by the earlier stateless deployment. That browser is signed out because its
+old session has no database record; it must not turn the first refresh after rollout into a server
+error.
+
 Atlas configures account linking with these invariants:
 
 1. implicit same-email linking is disabled;

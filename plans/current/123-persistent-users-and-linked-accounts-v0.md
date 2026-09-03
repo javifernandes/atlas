@@ -127,6 +127,8 @@ work. Session and Verification remain infrastructure records outside the Ontahí
        production build using the same gate before publication.
 7. [x] Reflect User and Account as related Ontahí Entities over their Better Auth tables.
 8. [ ] Run a real persisted GitHub sign-in/session/sign-out smoke after the production migration.
+9. [x] Preserve the stateless JWE cookie codec across the PostgreSQL cutover so existing browsers
+       fall back to signed-out state rather than failing during session decoding.
 
 ## Verification
 
@@ -243,3 +245,19 @@ rows through Ontahí as one related identity graph. All six PostgreSQL integrati
 schema migration or duplicated identity row was required. The final `pnpm verify` run has 66
 passing tests, six opt-in database tests skipped, successful typechecking and build, and verified
 76 Atlas-owned Markdown files; `git diff --check` passes.
+
+### 2026-09-03 — stateless session cutover repair
+
+The first production refresh after enabling PostgreSQL exposed a Better Auth transition edge:
+existing browsers still carried the stateless encrypted `session_data` JWE, while database mode
+defaulted its decoder to the compact Base64 codec. Better Auth attempted to decode the old cookie
+before observing that database mode had disabled cookie-cache authorization, so the JWE separator
+produced `Invalid Base64 character: .` and failed the server render.
+
+Atlas now pins the cookie codec to JWE in both modes while enabling cookie-cache authority only for
+the database-less fallback. A legacy stateless session can therefore be decoded and rejected as
+non-persistent; the user signs in again and receives a database-backed session. Focused regression
+coverage proves the stateless and PostgreSQL options cannot silently diverge on this boundary.
+`pnpm verify` passes with 67 tests, typechecking, the production build, and 76 verified Atlas-owned
+Markdown traces. All six opt-in PostgreSQL integration tests pass against PostgreSQL 18, and
+`git diff --check` is clean.

@@ -99,7 +99,16 @@ export const createAtlasAuthPersistenceOptions = (
   },
   database,
   databaseHooks: atlasAuthDatabaseHooks,
-  session: atlasAuthDatabaseModels.session,
+  session: {
+    ...atlasAuthDatabaseModels.session,
+    cookieCache: {
+      // Better Auth decodes an existing session_data cookie before checking enabled. Keep the
+      // stateless JWE codec during the PostgreSQL rollout so prior cookies expire as sessions
+      // instead of being parsed as compact Base64 and crashing the request.
+      enabled: !database,
+      strategy: 'jwe',
+    },
+  },
   user: atlasAuthDatabaseModels.user,
   verification: atlasAuthDatabaseModels.verification,
 });

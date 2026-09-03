@@ -30,6 +30,11 @@ Atlas's shared PostgreSQL Pool. Ontahí reflects the same User and Account rows 
 workspace ownership and membership can use real Entity relations without duplicating identity
 state. Session and Verification remain authentication infrastructure rather than domain Entities.
 
+The transition from stateless to persistent sessions preserves the encrypted `session_data` cookie
+codec while disabling cookie-cache authority in PostgreSQL mode. A browser carrying a stateless
+session therefore falls back to an unauthenticated state instead of failing while Better Auth reads
+the legacy cookie; only a new session backed by the Session table establishes persistent identity.
+
 The Ontahí Account shape contains only its internal ID, stable provider identity, User reference,
 and lifecycle timestamps. Passwords and provider tokens are outside the Entity entirely. Atlas
 owns the repository migration, linking policy, and projection from the stable User ID into an
