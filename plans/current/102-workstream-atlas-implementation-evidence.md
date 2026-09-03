@@ -4,8 +4,8 @@ Status: current
 
 Depends on: [111. Atlas As An Ontahi Application](../done/111-atlas-as-ontahi-application.md)
 
-Next implementation gate:
-[116. Atlas Ontahi PostgreSQL Persistence](./116-atlas-ontahi-postgres-persistence.md)
+Persistence foundation:
+[116. Atlas Ontahi PostgreSQL Persistence](../done/116-atlas-ontahi-postgres-persistence.md)
 
 ## Summary
 
@@ -257,10 +257,10 @@ observed record, provenance, and revision needed for stable navigation.
 7. Keep the existing cron as a temporary recovery path until production webhook delivery is
    verified.
 
-### Gate 1: Durable Ontahi application
+### Gate 1: Durable Ontahi application (completed)
 
-Complete [Plan 116](./116-atlas-ontahi-postgres-persistence.md) before adding Changeset and
-release history:
+[Plan 116](../done/116-atlas-ontahi-postgres-persistence.md) established the durable foundation for
+Changeset and release history:
 
 1. persist the normalized Ontahi application in Neon PostgreSQL;
 2. reconcile curated Markdown and observed GitHub records with source provenance;
@@ -295,7 +295,7 @@ release history:
 
 - [ ] At least two durable Components and their important Surfaces are declared in Markdown.
 - [ ] Atlas detects drift between a declaration and repository/package structure.
-- [ ] Plan 116 provides one durable Ontahi/PostgreSQL composition for reads, operations, and ingress.
+- [x] Plan 116 provides one durable Ontahi/PostgreSQL composition for reads, operations, and ingress.
 - [x] No per-PR or per-commit Markdown mirror is required.
 - [x] A signed GitHub App webhook dispatches a normalized merged-PR event through Ontahi ingress.
 - [x] `Atlas-Implements` and `Atlas-Shapes` create explicit, provenance-bearing bindings.
@@ -449,7 +449,7 @@ projection with explicit reconciliation and invalidation before Changeset ingest
 ### 2026-09-02 — persistence and version model checkpoint
 
 The next evidence slice now depends on
-[116. Atlas Ontahi PostgreSQL Persistence](./116-atlas-ontahi-postgres-persistence.md). Merged
+[116. Atlas Ontahi PostgreSQL Persistence](../done/116-atlas-ontahi-postgres-persistence.md). Merged
 PR evidence proved the observed model, while upcoming Changesets proved the need to retain records
 that are later consumed by release aggregation. Atlas will therefore establish a durable Ontahi
 application on Neon PostgreSQL before extracting Changesets or package versions.
@@ -470,3 +470,9 @@ Ontahi is the first pilot. `@ontahi/core` and `@ontahi/runtime-nextjs` provide r
 public Surfaces, package manifests, a fixed Changesets group, and published versions against which
 the model can be verified. BookOps can adopt the same declarations later without blocking the
 first release-evidence slice.
+
+### 2026-09-03 — persistence gate completed
+
+Plan 116 completed the Neon-backed Ontahi composition for page reads, Runtime Protocol operations,
+source reconciliation, and durable GitHub ingress. Plan 102 may now proceed with Changesets,
+Component Versions, and Releases on that shared persistence boundary.

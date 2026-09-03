@@ -1,6 +1,6 @@
 # 116. Atlas Ontahi PostgreSQL Persistence
 
-Status: current
+Status: done
 
 Depends on: [111. Atlas As An Ontahi Application](../done/111-atlas-as-ontahi-application.md)
 
@@ -238,7 +238,7 @@ the permanent production read path.
 - [x] Removing or moving a source record reconciles only data owned by that source revision.
 - [x] No Neon credentials, GitHub secrets, or private keys appear in committed files or logs.
 - [x] Local tests cover the in-memory composition while integration tests prove PostgreSQL behavior.
-- [ ] Production deploy, backfill, rebuild, and rollback paths are documented and exercised.
+- [x] Production deploy, backfill, rebuild, and rollback paths are documented and exercised.
 - [x] Plan 102 can add Changesets without introducing another storage architecture.
 
 ## Decisions
@@ -267,7 +267,7 @@ the permanent production read path.
     records. Memory-mode rollback uses the packaged corpus so it remains available when a provider
     or database is unhealthy.
 
-## Open Questions
+## Resolved Questions
 
 1. Ontahi alpha.11 supports the required topology after the upstream cyclic relation-query fix.
 2. Reconciliation runs on signed merged-PR and repository-push ingress, with explicit manual and
@@ -325,5 +325,13 @@ returns successfully from the PostgreSQL-backed read path, and a deployed Runtim
 resolved the Plan 116 link from the same persistent composition. An authenticated production
 rebuild completed on Neon with 3 sources, 124 Items, 278 Plans, 1,224 edges, and 28 Evidence
 Bindings. The memory-mode composition was also exercised locally against the packaged authorities
-and converged on 298 nodes, 1,224 edges, and 21 Evidence Bindings. One signed delivery after the
-new deployment remains to be observed durably before moving the plan to `done`.
+and converged on 298 nodes, 1,224 edges, and 21 Evidence Bindings.
+
+### 2026-09-03 — production cutover and closure
+
+Atlas PR #15 merged the persistent Ontahi/PostgreSQL composition and the corresponding Ontahi fix
+and alpha.11 release are available to consumers. The production page and Runtime Protocol both
+read through the persisted composition, the Neon production rebuild completed with the expected
+source, graph, and evidence counts, and the documented memory-mode rollback remains available.
+Plan 102 is unblocked to add Changesets, Component Versions, and Releases without introducing a
+second persistence architecture. Plan 116 is complete.

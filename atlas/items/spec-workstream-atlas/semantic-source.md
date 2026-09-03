@@ -12,7 +12,7 @@ relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
   - plans/done/111-atlas-as-ontahi-application.md
   - plans/done/101-workstream-atlas-semantic-source.md
-  - plans/current/116-atlas-ontahi-postgres-persistence.md
+  - plans/done/116-atlas-ontahi-postgres-persistence.md
 ---
 
 Semantic Source is the federated Markdown corpus that defines the atlas. Each source remains editable

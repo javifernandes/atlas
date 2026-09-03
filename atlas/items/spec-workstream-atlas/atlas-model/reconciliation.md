@@ -12,7 +12,7 @@ supports:
   - spec-workstream-atlas.atlas-experiences.history-and-evolution
   - spec-workstream-atlas.assisted-editing.plan-status-review
 relatedPlans:
-  - plans/current/116-atlas-ontahi-postgres-persistence.md
+  - plans/done/116-atlas-ontahi-postgres-persistence.md
   - plans/next/106-atlas-plan-reconciliation-operation.md
   - plans/done/104-atlas-source-shape-v0.md
 ---

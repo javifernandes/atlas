@@ -10,7 +10,7 @@ supports:
   - spec-workstream-atlas.atlas-model.evidence-binding
   - spec-workstream-atlas.atlas-model.reconciliation
 relatedPlans:
-  - plans/current/116-atlas-ontahi-postgres-persistence.md
+  - plans/done/116-atlas-ontahi-postgres-persistence.md
   - plans/current/102-workstream-atlas-implementation-evidence.md
 ---
 
@@ -27,3 +27,7 @@ Only a committed revision is visible to normal page reads. Reconciliation serial
 durable PostgreSQL lock, rejects an observation older than the latest committed revision, and marks
 the result `degraded` when one evidence provider is unavailable without deleting that provider's
 last successful bindings.
+
+The first production cutover was completed through Plan 116: deployed page and Runtime Protocol
+reads use the same Neon-backed composition, and an explicit production rebuild verified recovery
+against the persisted source, topology, and evidence projection.
