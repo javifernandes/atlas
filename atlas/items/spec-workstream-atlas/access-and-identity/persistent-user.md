@@ -24,7 +24,14 @@ Account resolves its existing User. Atlas disables implicit same-email linking. 
 may explicitly link another provider after proving control of that identity, even when it presents
 a different email, and may not unlink the final Account.
 
-Better Auth owns the physical User, Account, Session, and Verification records. Atlas owns their
-repository migration, the linking policy, and the projection from the stable User ID into Ontahí.
-Human OAuth tokens are not source credentials and are discarded before Account persistence;
-GitHub App installation tokens remain authoritative for repository reads.
+Better Auth owns writes to the physical User, Account, Session, and Verification records through
+Atlas's shared PostgreSQL Pool. Ontahí reflects the same User and Account rows as the server-only
+`AtlasUser` and `AtlasAuthAccount` Entities, including their one-to-many relation, so later
+workspace ownership and membership can use real Entity relations without duplicating identity
+state. Session and Verification remain authentication infrastructure rather than domain Entities.
+
+The Ontahí Account shape contains only its internal ID, stable provider identity, User reference,
+and lifecycle timestamps. Passwords and provider tokens are outside the Entity entirely. Atlas
+owns the repository migration, linking policy, and projection from the stable User ID into an
+Ontahí Principal. Human OAuth tokens are discarded before Account persistence; GitHub App
+installation tokens remain authoritative for repository reads.

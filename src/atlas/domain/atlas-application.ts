@@ -229,6 +229,26 @@ const webhookDeliveryFields = {
   projectionRevisionId: field.nullable(field.id()),
 };
 
+const atlasUserFields = {
+  id: field.id(),
+  name: field.nonEmptyString({ trim: true }),
+  email: field.nonEmptyString({ trim: true }),
+  emailVerified: field.boolean(),
+  image: field.nullable(field.string()),
+  createdAt: field.nonEmptyString({ trim: true }),
+  updatedAt: field.nonEmptyString({ trim: true }),
+};
+
+const atlasAuthAccountFields = {
+  id: field.id(),
+  issuer: field.nonEmptyString({ trim: true }),
+  accountId: field.nonEmptyString({ trim: true }),
+  providerId: field.nonEmptyString({ trim: true }),
+  userId: field.id(),
+  createdAt: field.nonEmptyString({ trim: true }),
+  updatedAt: field.nonEmptyString({ trim: true }),
+};
+
 const MergedPullRequestInputSchema = graphSchema.object({
   authorLogin: graphSchema.nullable(field.string()),
   body: graphSchema.nullable(field.string()),
@@ -285,6 +305,35 @@ const SourceRevisionRef = semanticEntityRef('AtlasSourceRevision', {
 const SourceRecordRef = semanticEntityRef('AtlasSourceRecord', { fields: sourceRecordFields });
 const ProjectionRevisionRef = semanticEntityRef('ProjectionRevision', {
   fields: projectionRevisionFields,
+});
+const AtlasAuthAccountRef = semanticEntityRef('AtlasAuthAccount', {
+  fields: atlasAuthAccountFields,
+});
+
+export const AtlasUser = entity({
+  name: 'AtlasUser',
+  fields: atlasUserFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.identity',
+  },
+  relations: {
+    accounts: relation.hasMany(AtlasAuthAccountRef, { via: 'userId' }),
+  },
+});
+
+export const AtlasAuthAccount = entity({
+  name: 'AtlasAuthAccount',
+  fields: atlasAuthAccountFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.identity',
+  },
+  relations: {
+    user: relation.belongsTo(AtlasUser, { via: 'userId' }),
+  },
 });
 
 export const AtlasSourceRevision = entity({
@@ -696,6 +745,8 @@ const buildAtlasOntahiDatasetFromSource = (
   const projectionRevisionId = `projection:in-memory:${sourceRevisionSetHash}`;
 
   const dataset = {
+    AtlasUser: [],
+    AtlasAuthAccount: [],
     AtlasSourceRevision: sourceRevisions,
     AtlasSourceRecord: sourceRecords,
     AtlasItem: items.map(item => ({
@@ -1146,6 +1197,26 @@ const atlasSourceRecordsQuery = query(AtlasSourceRecord)
   }))
   .orderBy(record => record.canonicalPath);
 
+const atlasUserIdentityQuery = (id: string) =>
+  query(AtlasUser)
+    .where(user => user.id.eq(id))
+    .select(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      image: user.image,
+      accounts: user.accounts
+        .select(account => ({
+          id: account.id,
+          issuer: account.issuer,
+          accountId: account.accountId,
+          providerId: account.providerId,
+        }))
+        .orderBy(account => account.providerId),
+    }))
+    .first();
+
 export type AtlasEvidenceProjection = {
   id: string;
   kind: 'implements' | 'shapes';
@@ -1166,6 +1237,8 @@ export type AtlasEvidenceProjection = {
 };
 
 export const atlasEntities = [
+  AtlasUser,
+  AtlasAuthAccount,
   AtlasSourceRevision,
   AtlasSourceRecord,
   AtlasItem,
@@ -1193,6 +1266,10 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
 
   return {
     application,
+    getUserIdentity: (id: string) =>
+      application.graph.read(atlasUserIdentityQuery(id), {
+        scope: 'atlas.identity.user',
+      }),
     getItemContext: (semanticId: string): Promise<AtlasItemContext | null> =>
       application.graph.read(atlasItemContextQuery(semanticId), {
         scope: 'atlas.item-context',

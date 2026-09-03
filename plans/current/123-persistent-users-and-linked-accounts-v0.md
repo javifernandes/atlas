@@ -24,9 +24,9 @@ private allowlist. Its database-less session ID is adequate for that proof but c
 durable ownership, multiple identity providers, account linking, or per-session revocation.
 
 Atlas already owns a PostgreSQL migration runner and production composition through
-[`Atlas Ontahí PostgreSQL Persistence`](116-atlas-ontahi-postgres-persistence.md). This slice should
-reuse that operational boundary rather than introduce a second data service or duplicate Better
-Auth's core user model in an Atlas-specific table.
+[`Atlas Ontahí PostgreSQL Persistence`](../done/116-atlas-ontahi-postgres-persistence.md). This
+slice should reuse that operational boundary rather than introduce a second data service or
+duplicate Better Auth's core user model in an Atlas-specific table.
 
 The pressure is not merely to persist the GitHub profile. Atlas needs to separate:
 
@@ -58,17 +58,19 @@ The pressure is not merely to persist the GitHub profile. Atlas needs to separat
    Atlas migration runner.
 2. Configure Better Auth to use Atlas PostgreSQL whenever `DATABASE_URL` is present, while retaining
    the stateless mode as a transitional local/preview fallback.
-3. Use a generated internal User ID as the stable identity and project it as an `atlas` user
+3. Reflect the Better Auth User and Account rows as server-only Ontahí Entities over the same
+   physical tables, with Account-to-User relations and no credential or token fields.
+4. Use a generated internal User ID as the stable identity and project it as an `atlas` user
    Principal.
-4. Make provider identity resolution issuer-plus-provider-account-ID based and enforce the pair
+5. Make provider identity resolution issuer-plus-provider-account-ID based and enforce the pair
    through a unique database index.
-5. Disable implicit same-email account linking and permit explicit linking after an authenticated
+6. Disable implicit same-email account linking and permit explicit linking after an authenticated
    user proves control of another provider, including providers that return another email.
-6. Prevent unlinking the last Account and prevent a newly linked provider from overwriting the
+7. Prevent unlinking the last Account and prevent a newly linked provider from overwriting the
    existing User profile automatically.
-7. Discard human OAuth access, refresh, and ID tokens before durable Account writes.
-8. Add migration, configuration, policy, and integration coverage plus deployment documentation.
-9. Apply and verify production migrations automatically after changes enter `main`, and gate Vercel
+8. Discard human OAuth access, refresh, and ID tokens before durable Account writes.
+9. Add migration, configuration, policy, and integration coverage plus deployment documentation.
+10. Apply and verify production migrations automatically after changes enter `main`, and gate Vercel
    production builds on the same idempotent migration contract.
 
 ## Non-Goals
@@ -107,10 +109,11 @@ same email alone                -> never silently merge Users
 unlink last Account             -> reject
 ```
 
-Better Auth's four core records are the persistence model for authentication. Atlas should not add
-a redundant `atlas_users` domain table merely to mirror them. Future workspace ownership will
-reference the durable Better Auth User ID; Atlas-owned profile or policy concepts can be introduced
-only when they carry domain information beyond authentication.
+Better Auth's four core records are the persistence model for authentication. Atlas does not add a
+redundant `atlas_users` domain table merely to mirror them. Instead, `AtlasUser` and
+`AtlasAuthAccount` are Ontahí Entities mapped directly over Better Auth's existing tables. Better
+Auth remains the write authority; Ontahí supplies semantic queries and relations for Atlas domain
+work. Session and Verification remain infrastructure records outside the Ontahí graph.
 
 ## Execution Slices
 
@@ -122,7 +125,8 @@ only when they carry domain information beyond authentication.
 5. [x] Document local and Vercel rollout and verify the complete application.
 6. [x] Automate serialized production migration and schema verification on merge, with the Vercel
        production build using the same gate before publication.
-7. [ ] Run a real persisted GitHub sign-in/session/sign-out smoke after the production migration.
+7. [x] Reflect User and Account as related Ontahí Entities over their Better Auth tables.
+8. [ ] Run a real persisted GitHub sign-in/session/sign-out smoke after the production migration.
 
 ## Verification
 
@@ -139,6 +143,8 @@ only when they carry domain information beyond authentication.
 7. `pnpm verify`, the opt-in PostgreSQL suite, and `git diff --check` pass.
 8. GitHub Actions syntax validation passes, Pull Requests cannot access the production database,
    and a non-production Vercel build skips migrations.
+9. A User and Account written through Better Auth are readable through Ontahí as one `AtlasUser`
+   with its related `AtlasAuthAccount`, without exposing credential fields.
 
 ## Decisions
 
@@ -146,20 +152,22 @@ only when they carry domain information beyond authentication.
    for display or verified communication, never as the primary key or silent merge key.
 2. Better Auth owns the authentication User/Account/Session/Verification records; Atlas migrations
    own their physical PostgreSQL schema and rollout.
-3. Provider identity uses `provider-id`, whose stable lookup is `(issuer, accountId)`.
-4. Implicit account linking is disabled. Linking is explicit from an authenticated session and may
+3. Ontahí maps `AtlasUser` and `AtlasAuthAccount` onto the same physical Better Auth tables. Better
+   Auth owns writes; Ontahí owns the server-only semantic relation used by later Atlas Entities.
+4. Provider identity uses `provider-id`, whose stable lookup is `(issuer, accountId)`.
+5. Implicit account linking is disabled. Linking is explicit from an authenticated session and may
    join a provider account with a different email because control of both sessions is the proof.
-5. The final Account cannot be unlinked. Newly linked providers do not silently replace the User's
+6. The final Account cannot be unlinked. Newly linked providers do not silently replace the User's
    profile.
-6. Human OAuth tokens are discarded because source access remains the GitHub App installation
+7. Human OAuth tokens are discarded because source access remains the GitHub App installation
    flow's responsibility.
-7. Database presence selects persistent auth during this transition. Requiring durable auth in
+8. Database presence selects persistent auth during this transition. Requiring durable auth in
    production can become a fail-closed rollout step after the persisted OAuth smoke.
-8. Production migrations run on every push to `main`, not only when a path filter notices a new SQL
+9. Production migrations run on every push to `main`, not only when a path filter notices a new SQL
    file. Idempotent retries repair a previously failed run and verify accumulated schema state.
-9. The GitHub `Production` environment owns the direct `DATABASE_URL_UNPOOLED` secret. Migration
+10. The GitHub `Production` environment owns the direct `DATABASE_URL_UNPOOLED` secret. Migration
    jobs have read-only repository permissions and never run for Pull Request events.
-10. Vercel production builds apply and verify migrations before compiling. The database runner's
+11. Vercel production builds apply and verify migrations before compiling. The database runner's
     advisory lock and checksums make overlap with GitHub Actions safe.
 
 ## Open Questions
@@ -220,3 +228,18 @@ while a production-mode build against disposable PostgreSQL 18 applied all six m
 verified both schemas, and compiled successfully. The final `pnpm verify` run has 65 passing tests,
 six opt-in database tests skipped, successful typechecking and build, and verified 76 Atlas-owned
 Markdown files; `git diff --check` also passes.
+
+### 2026-09-03 — Ontahí identity reflection
+
+Review exposed an important distinction: avoiding a duplicate `atlas_users` table does not mean
+leaving User outside the domain graph. Atlas now registers server-only `AtlasUser` and
+`AtlasAuthAccount` Entities and maps them directly to `atlas_auth_users` and
+`atlas_auth_accounts`. The relation is semantic and physical: an Account belongs to one User and a
+User has many Accounts. Better Auth remains the only runtime writer for both records.
+
+The Account Entity deliberately omits password, access-token, refresh-token, and ID-token columns.
+An isolated PostgreSQL 18 test created User and Account through Better Auth and then read the same
+rows through Ontahí as one related identity graph. All six PostgreSQL integration tests pass; no
+schema migration or duplicated identity row was required. The final `pnpm verify` run has 66
+passing tests, six opt-in database tests skipped, successful typechecking and build, and verified
+76 Atlas-owned Markdown files; `git diff --check` passes.

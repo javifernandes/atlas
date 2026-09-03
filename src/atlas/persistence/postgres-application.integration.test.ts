@@ -19,6 +19,7 @@ import { readAtlasAuthConfiguration } from '../../auth/config';
 import { createAtlasAuth, createAtlasAuthOptions } from '../../auth/server';
 import { runAtlasMigrations } from './migrations';
 import { createAtlasPostgresApplication } from './postgres-application';
+import { atlasPostgresMappingOverrides } from './postgres-mapping';
 
 const externalConnectionString =
   process.env.ATLAS_POSTGRES_TEST_URL ??
@@ -148,7 +149,7 @@ Durable Atlas projection.
       skipped: expect.arrayContaining(['001-atlas-postgres-projection.sql']),
     });
 
-    inferPostgresMappings(atlasEntities);
+    inferPostgresMappings(atlasEntities, { overrides: atlasPostgresMappingOverrides });
     await expect(
       inspectPostgresDataGraphSchema({ entities: atlasEntities, pool, schema }),
     ).resolves.toMatchObject({ ok: true, issues: [] });
@@ -227,6 +228,21 @@ Durable Atlas projection.
       ),
     ).resolves.toMatchObject({
       rows: [{ access_token: null, id_token: null, refresh_token: null }],
+    });
+    await expect(atlas.getUserIdentity(created.user.id)).resolves.toEqual({
+      id: created.user.id,
+      name: 'Persistent User',
+      email: 'persistent-user@example.com',
+      emailVerified: true,
+      image: null,
+      accounts: [
+        {
+          id: created.account.id,
+          issuer: 'local:oauth:github',
+          accountId: 'github-user-123',
+          providerId: 'github',
+        },
+      ],
     });
   }, 30_000);
 

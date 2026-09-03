@@ -10,7 +10,7 @@ supports:
   - spec-workstream-atlas.atlas-model.reconciliation
 relatedPlans:
   - plans/current/123-persistent-users-and-linked-accounts-v0.md
-  - plans/current/116-atlas-ontahi-postgres-persistence.md
+  - plans/done/116-atlas-ontahi-postgres-persistence.md
 ---
 
 Production Schema Migration makes every committed Atlas migration converge automatically after a

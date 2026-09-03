@@ -7,6 +7,7 @@ import { Pool } from 'pg';
 
 import { atlasEntities } from '../src/atlas/domain/atlas-application';
 import { runAtlasMigrations } from '../src/atlas/persistence/migrations';
+import { atlasPostgresMappingOverrides } from '../src/atlas/persistence/postgres-mapping';
 import { createAtlasAuthPersistenceOptions } from '../src/auth/persistence';
 
 const connectionString =
@@ -26,7 +27,7 @@ try {
       `Atlas migrations: ${result.applied.length} applied, ${result.skipped.length} unchanged.\n`,
     );
   } else if (command === 'verify') {
-    inferPostgresMappings(atlasEntities);
+    inferPostgresMappings(atlasEntities, { overrides: atlasPostgresMappingOverrides });
     const inspection = await inspectPostgresDataGraphSchema({
       entities: atlasEntities,
       pool,

@@ -101,6 +101,12 @@ All record IDs are UUIDs. `atlas_auth_accounts` uniquely identifies a provider l
 `(issuer, account_id)` and points to the stable internal User ID. Email is required profile/contact
 data but is not the identity key and never silently links independently authenticated accounts.
 
+Better Auth and Atlas share the same `pg.Pool`. Better Auth uses it directly for User, Account,
+Session, and Verification writes. Ontahí maps the server-only `AtlasUser` and `AtlasAuthAccount`
+Entities onto the same User and Account tables, so later Atlas Entities can relate to durable users
+without a second identity store. The Ontahí Account shape excludes passwords and every provider
+token; Session and Verification remain Better Auth infrastructure.
+
 Atlas configures account linking with these invariants:
 
 1. implicit same-email linking is disabled;
