@@ -68,6 +68,8 @@ The pressure is not merely to persist the GitHub profile. Atlas needs to separat
    existing User profile automatically.
 7. Discard human OAuth access, refresh, and ID tokens before durable Account writes.
 8. Add migration, configuration, policy, and integration coverage plus deployment documentation.
+9. Apply and verify production migrations automatically after changes enter `main`, and gate Vercel
+   production builds on the same idempotent migration contract.
 
 ## Non-Goals
 
@@ -118,7 +120,9 @@ only when they carry domain information beyond authentication.
 4. [x] Configure provider-ID identity, explicit linking, last-account protection, stable Atlas
        Principals, and provider-token redaction.
 5. [x] Document local and Vercel rollout and verify the complete application.
-6. [ ] Run a real persisted GitHub sign-in/session/sign-out smoke before merging.
+6. [x] Automate serialized production migration and schema verification on merge, with the Vercel
+       production build using the same gate before publication.
+7. [ ] Run a real persisted GitHub sign-in/session/sign-out smoke after the production migration.
 
 ## Verification
 
@@ -133,6 +137,8 @@ only when they carry domain information beyond authentication.
 6. Authenticated Runtime Protocol operations observe an `atlas` Principal whose subject is the
    internal User ID.
 7. `pnpm verify`, the opt-in PostgreSQL suite, and `git diff --check` pass.
+8. GitHub Actions syntax validation passes, Pull Requests cannot access the production database,
+   and a non-production Vercel build skips migrations.
 
 ## Decisions
 
@@ -149,6 +155,12 @@ only when they carry domain information beyond authentication.
    flow's responsibility.
 7. Database presence selects persistent auth during this transition. Requiring durable auth in
    production can become a fail-closed rollout step after the persisted OAuth smoke.
+8. Production migrations run on every push to `main`, not only when a path filter notices a new SQL
+   file. Idempotent retries repair a previously failed run and verify accumulated schema state.
+9. The GitHub `Production` environment owns the direct `DATABASE_URL_UNPOOLED` secret. Migration
+   jobs have read-only repository permissions and never run for Pull Request events.
+10. Vercel production builds apply and verify migrations before compiling. The database runner's
+    advisory lock and checksums make overlap with GitHub Actions safe.
 
 ## Open Questions
 
@@ -183,6 +195,28 @@ token-redaction assertions. The normal suite has 65 passing tests with the six o
 skipped; typechecking, the production build, source-trace verification across 75 Markdown files,
 and `git diff --check` pass.
 
-The PR boundary is ready, but the plan remains current. Before merge, the production or an isolated
-non-production database must receive migration 006 and a real GitHub callback/session/sign-out smoke
-must confirm that the existing OAuth registration now returns the same persisted Atlas User.
+The PR boundary is ready, but the plan remains current. A real GitHub callback/session/sign-out
+smoke after the automated production migration must confirm that the existing OAuth registration
+now returns the same persisted Atlas User.
+
+### 2026-09-03 — production migration automation
+
+Production schema rollout is no longer a remembered operator step. Every push to `main` runs a
+serialized GitHub Actions job in the `Production` environment using only its direct database secret;
+the job applies checksum migrations and verifies both Ontahí and Better Auth schema compatibility.
+It can also be dispatched manually as a recovery path and never receives production credentials on
+Pull Request events.
+
+Vercel's automatic production build runs the same migration and verification before compilation,
+closing the race between deployment and the post-merge workflow. Preview builds skip this gate.
+Both invocations can overlap safely because the database migration runner already serializes with
+an advisory lock and records immutable checksums. Future schema changes must remain expand-first so
+the migration is compatible with the previously deployed application.
+
+The repository `Production` environment now contains the direct `DATABASE_URL_UNPOOLED` secret;
+its value was transferred directly from the Neon CLI without printing or storing it locally.
+Workflow syntax validation passes. A preview-mode Vercel build skipped migrations and completed,
+while a production-mode build against disposable PostgreSQL 18 applied all six migrations,
+verified both schemas, and compiled successfully. The final `pnpm verify` run has 65 passing tests,
+six opt-in database tests skipped, successful typechecking and build, and verified 76 Atlas-owned
+Markdown files; `git diff --check` also passes.

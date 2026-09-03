@@ -335,3 +335,17 @@ read through the persisted composition, the Neon production rebuild completed wi
 source, graph, and evidence counts, and the documented memory-mode rollback remains available.
 Plan 102 is unblocked to add Changesets, Component Versions, and Releases without introducing a
 second persistence architecture. Plan 116 is complete.
+
+### 2026-09-03 — automatic production migration gate
+
+Plan 123 closes the remembered-migration gap with
+[[spec-workstream-atlas.operating-practice.production-schema-migration|Production Schema Migration]].
+Every push to `main` now applies and verifies repository migrations through the GitHub `Production`
+environment's direct database secret. Vercel production builds execute the same idempotent gate
+before compilation, so newly deployed code cannot race ahead of its schema. Pull Request and preview
+builds never receive the production connection.
+
+The migration runner's existing advisory lock and immutable checksums make the two automatic paths
+safe when they overlap. Schema changes must remain expand-first while the prior application version
+is live. This follow-up strengthens the completed persistence architecture without reopening Plan
+116 or making production migration depend on a developer command.

@@ -113,10 +113,11 @@ Atlas configures account linking with these invariants:
 The token policy is intentional: Atlas source reads use GitHub App installation tokens. A human
 OAuth token grants no source authority and need not become a durable secret.
 
-Production and any persistent preview must run `pnpm db:migrate` against
-`DATABASE_URL_UNPOOLED` (preferred) or `DATABASE_URL` before deploying code that enables persistent
-auth. Vercel already needs the pooled `DATABASE_URL` for Atlas application reads; no additional auth
-database variable is required.
+Production migration is automatic. GitHub's post-merge workflow and the Vercel production build
+both run the checksum migrator through `DATABASE_URL_UNPOOLED`; the Vercel build verifies the schema
+before it can publish the new application. Vercel still uses the pooled `DATABASE_URL` for normal
+Atlas and auth reads. Persistent previews need their own isolated database branch and migration;
+they must never receive either production connection string.
 
 ## Ontahí Boundary
 
