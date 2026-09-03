@@ -334,7 +334,9 @@ Durable Atlas projection.
     const webhook: AtlasMergedPullRequestInput = {
       authorProviderAccountId: 'stream-github-user-456',
       authorLogin: 'javi',
-      body: 'Atlas-Implements: atlas://plans/116-persistence',
+      body: `Atlas-Implements:
+- atlas://plans/116-persistence
+- atlas://plans/117-secondary`,
       deliveryId: 'delivery-116',
       installationId: '1234',
       mergeCommitSha: 'merge-14',
@@ -366,9 +368,10 @@ Durable Atlas projection.
         currentFocusPlan: expect.objectContaining({
           id: 'plan:atlas://plans/116-persistence',
         }),
-        roots: [
+        roots: expect.arrayContaining([
           expect.objectContaining({ id: 'plan:atlas://plans/116-persistence' }),
-        ],
+          expect.objectContaining({ id: 'plan:atlas://plans/117-secondary' }),
+        ]),
         activities: [
           expect.objectContaining({
             kind: 'pull-request-merged',
@@ -427,10 +430,10 @@ Durable Atlas projection.
     expect(openStream).toBeDefined();
     expect(openStream).toMatchObject({
       currentFocusPlan: { id: 'plan:atlas://plans/117-secondary' },
-      roots: [
+      roots: expect.arrayContaining([
         { id: 'plan:atlas://plans/116-persistence' },
         { id: 'plan:atlas://plans/117-secondary' },
-      ],
+      ]),
       activities: [
         expect.objectContaining({
           pullRequest: expect.objectContaining({ number: 15 }),
