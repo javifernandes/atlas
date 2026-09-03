@@ -16,6 +16,10 @@ When working in this repository:
 7. Read `docs/atlas-evidence-binding-guidelines.md` before preparing commits or PRs. Put supported
    Atlas directives in the PR body when the work implements or shapes a registered target; commit
    trailers alone do not create evidence.
+8. For user-visible UI changes verified in a browser, save focused final-state screenshots under
+   `docs/evidence/<plan-number>-<plan-slug>/` and embed the review-relevant captures in the PR body
+   under `## Visual evidence`. Capture only the states, themes, and breakpoints that materially
+   demonstrate the change, and exclude secrets or personal data.
 
 Do not copy external project plans or item trees into Atlas. Federation should preserve the source
 repository as authority.

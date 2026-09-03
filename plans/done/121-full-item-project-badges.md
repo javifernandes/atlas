@@ -25,6 +25,7 @@ Show project membership in the full-item header when Atlas contains more than on
 - [x] `pnpm verify`
 - [x] `git diff --check`
 - [x] Inspect the full-item header in the running application in light and dark themes.
+- [x] Preserve the [multi-project header capture](../../docs/evidence/121-full-item-project-badges/full-item-project-badges.jpg).
 
 ## Closure / Evolution
 

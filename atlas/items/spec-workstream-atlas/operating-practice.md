@@ -9,6 +9,7 @@ supports:
   - spec-workstream-atlas
 relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
+  - plans/done/123-visual-verification-evidence.md
 ---
 
 Operating Practice captures how we work on the atlas before every practice is automated by the product.
@@ -22,3 +23,4 @@ Practices are not features by themselves. They are agreements that guide modelin
 3. [`Backfill Strategy`](./operating-practice/backfill-strategy.md)
 4. [`Shape Transformation Loop`](./operating-practice/shape-transformation-loop.md)
 5. [`Evidence Binding Conventions`](./operating-practice/evidence-binding-conventions.md)
+6. [`Visual Verification Evidence`](./operating-practice/visual-verification-evidence.md)

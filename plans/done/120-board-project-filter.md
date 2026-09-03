@@ -37,6 +37,7 @@ but it created noise when choosing what to continue inside one project.
 - [x] `pnpm verify`
 - [x] `git diff --check`
 - [x] Confirm the all-project and Ontahi-scoped states in the running application.
+- [x] Preserve the [Ontahi-scoped Board capture](../../docs/evidence/120-board-project-filter/board-ontahi.jpg).
 
 ## Closure / Evolution
 
