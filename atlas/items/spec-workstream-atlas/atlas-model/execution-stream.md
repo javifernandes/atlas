@@ -25,9 +25,11 @@ will require explicit routing.
 
 A Stream stores its owning User, mode, lifecycle status, title, inferred root Plan memberships,
 current-focus Plan, and lifecycle timestamps. It may accumulate several roots when one temporal
-interval touches disjoint Plan families. Its activities are append-only observations such as a
-merged Pull Request and its primary Plan target. Roots and focus are navigation state scoped to the
-Stream; they neither own the referenced Plans nor mutate Plan lifecycle.
+interval touches disjoint Plan families. A merged Pull Request retains one primary Plan as focus and
+activity, while every resolved Plan evidence target contributes its highest known ancestor as
+Stream context. Its activities remain append-only observations rather than one synthetic activity
+per target. Roots and focus are navigation state scoped to the Stream; they neither own the
+referenced Plans nor mutate Plan lifecycle.
 
 GitHub activity is attributable only when the event's stable provider account ID resolves through
 an `AtlasAuthAccount` to an `AtlasUser`. Login, email, and display name are presentation attributes,

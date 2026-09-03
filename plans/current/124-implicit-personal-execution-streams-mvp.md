@@ -68,10 +68,11 @@ proves useful.
    explicit parallel Streams later.
 4. Include GitHub's stable provider account ID in merged-PR ingestion and persisted Pull Requests.
 5. Attribute only a merged PR whose provider account resolves to an Atlas User and whose directives
-   resolve to at least one Plan. Prefer an `implements` Plan as current focus.
-6. If no implicit Stream is open, create one rooted at the highest known ancestor of the focused
-   Plan. Otherwise append activity, add another root when work is in a disjoint lineage, and move
-   current focus within the existing Stream.
+   resolve to at least one Plan. Prefer the first `implements` Plan as current focus while retaining
+   every resolved Plan target as Stream context.
+6. If no implicit Stream is open, create one rooted at the highest known ancestor of every resolved
+   Plan target. Otherwise append activity, add roots for newly referenced lineages, and move current
+   focus within the existing Stream.
 7. Add a bridged Ontahí close operation that derives the User from the authenticated runtime
    Principal, verifies ownership, and closes the current Stream without mutating Plans.
 8. Add a Sessions view showing the open Stream tree, current focus, recent activity, and a bounded
@@ -132,14 +133,15 @@ Attribution uses `(providerId = github, accountId = GitHub user.id)` to resolve 
 therefore its Atlas User. GitHub login, display name, and email are not attribution keys.
 
 When one PR references several targets, the first resolved `Atlas-Implements` Plan is the primary
-focus; a resolved Plan from another directive is the fallback. All evidence remains available in
-the shared graph even though the Stream records one primary navigation node.
+focus; a resolved Plan from another directive is the fallback. The Stream records one activity and
+one primary navigation node for that merge, while every resolved Plan target contributes its
+highest known ancestor as Stream context. All evidence remains available in the shared graph.
 
-An inferred root is the highest currently known `parentPlanId` ancestor of a primary Plan. A Stream
-may accumulate several roots when the User works on disjoint Plan families without closing it; the
-Sessions view is therefore a small forest even though the personal interval remains one Stream.
-The Stream persists its initial title and references so it remains intelligible if source
-projection changes.
+An inferred root is the highest currently known `parentPlanId` ancestor of a resolved contextual
+Plan. A Stream may accumulate several roots when the User works on disjoint Plan families without
+closing it; the Sessions view is therefore a small forest even though the personal interval remains
+one Stream. The Stream persists its initial title and references so it remains intelligible if
+source projection changes.
 
 ## Execution Slices
 
@@ -164,6 +166,8 @@ projection changes.
       Stream when none is open.
 - [x] Another attributable merge appends to the same Stream and updates focus without changing its
       root.
+- [x] One attributable merge with several resolved Plan targets retains one focus and adds every
+      distinct Plan lineage as Stream context.
 - [x] A replayed GitHub delivery does not duplicate Stream activity.
 - [x] An unknown GitHub actor or PR without resolved Plan evidence creates no Stream.
 - [x] Only the owning authenticated User can close a Stream.
@@ -234,3 +238,13 @@ client-supplied User identity are removed. The dispatcher now rejects every oper
 marked `exposure: 'bridge'`, closing the pre-existing possibility of addressing a server-only
 operation by name through either generic transport. The operation requirement itself admits only an
 Atlas user Principal, so permission checks and execution enforce the same identity boundary.
+
+### 2026-09-03 — multi-Plan checkpoint correction
+
+The first dogfood checkpoint exposed that Atlas persisted every PR Evidence Binding but projected
+only the primary Plan into the Execution Stream. A PR used to reconstruct a cross-cutting workstream
+would therefore appear as one isolated branch even though its other Plan targets resolved
+successfully. Stream attribution now keeps the first implemented Plan as the sole focus and
+activity Plan while adding the highest known ancestor of every resolved Plan target as a root. This
+preserves one activity per merge, avoids pretending the checkpoint is historical activity, and
+makes all explicitly declared workstream lineages navigable.
