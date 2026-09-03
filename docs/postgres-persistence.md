@@ -29,6 +29,13 @@ evidence source is temporarily unavailable, its previous bindings remain intact 
 revision is marked `degraded`. A PostgreSQL row lock serializes reconcilers, and an observation
 older than the latest committed revision cannot overwrite it.
 
+Personal Sessions are durable operational state beside that source projection. Migration 007
+introduced the implicit Execution Stream, roots, and merged-PR activity. Migration 008 adds the
+self-referencing `forked_from_stream_id` lineage and the `explicit-directive` attribution mode.
+The ownership-checked fork operation inserts an explicit Stream and its exact selected roots in one
+transaction. Merged-PR reconciliation resolves `Atlas-Session` after stable GitHub-account identity;
+an invalid explicit target writes no Stream activity and cannot fall through to implicit creation.
+
 ## Environment ownership
 
 | Environment | Database policy | Configuration |

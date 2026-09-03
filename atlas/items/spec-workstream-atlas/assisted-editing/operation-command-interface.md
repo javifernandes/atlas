@@ -14,7 +14,7 @@ relatedPlans:
   - plans/backlog/105-atlas-shaping.md
   - plans/next/106-atlas-plan-reconciliation-operation.md
   - plans/done/111-atlas-as-ontahi-application.md
-  - plans/current/124-implicit-personal-execution-streams-mvp.md
+  - plans/done/124-implicit-personal-execution-streams-mvp.md
 ---
 
 The Operation Command Interface lets a user invoke atlas and product operations in ordinary prose while Atlas resolves the request to a typed operation.

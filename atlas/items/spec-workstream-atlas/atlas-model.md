@@ -14,7 +14,7 @@ relatedPlans:
   - plans/done/111-atlas-as-ontahi-application.md
   - plans/current/102-workstream-atlas-implementation-evidence.md
   - plans/done/116-atlas-ontahi-postgres-persistence.md
-  - plans/current/124-implicit-personal-execution-streams-mvp.md
+  - plans/done/124-implicit-personal-execution-streams-mvp.md
 ---
 
 Atlas Model defines the language the atlas uses to describe systems: atlas items, item types, system form, work items, transformations, evidence, relations, states, and practices.

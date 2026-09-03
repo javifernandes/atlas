@@ -80,6 +80,27 @@ items adjacent to their directive; a blank line ends the list.
 
 `COMPLETES`, `Closes`, issue references, PR titles, labels, and ordinary prose do not bind Atlas.
 
+## Session routing
+
+`Atlas-Session` is a separate operational directive. It does not create evidence and does not
+replace `Atlas-Implements` or `Atlas-Shapes`:
+
+```text
+Atlas-Implements: atlas://plans/125-explicit-session-forking-and-routing
+Atlas-Shapes: spec-workstream-atlas.atlas-model.execution-stream
+Atlas-Session: 43bd10df-f2cf-4f05-8f1d-3666f5614771
+```
+
+The value is the stable UUID shown by the Atlas Sessions workspace. A merged PR carrying one valid
+directive is appended only to that open Session when the PR author's linked GitHub account owns it.
+Atlas does not route a malformed, duplicate, unknown, closed, or differently owned target to an
+implicit Session instead. A PR without `Atlas-Session` keeps the compatible implicit-Session
+behavior.
+
+Use **Copy for LLM** in the Sessions workspace when handing work to a chat. The copied block includes
+the Session title, stable ID, addressable Atlas URL, and the exact line the chat must preserve in
+every PR body. The Session identifies the line of work; the LLM or chat is not modeled as its owner.
+
 ## Author workflow
 
 Before coding:
@@ -131,6 +152,9 @@ Atlas-Implements:
 
 Atlas-Shapes:
 - <atlas-item-frontmatter-id>
+
+Atlas-Session: <session-uuid>
 ```
 
-Never submit the literal placeholders.
+Remove `Atlas-Session` when the PR belongs to the implicit Session. Never submit literal
+placeholders.
