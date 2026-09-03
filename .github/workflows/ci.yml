@@ -15,7 +15,9 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify change
+    # Branch protection requires this exact check name. Keep the contract stable and describe
+    # scoped behavior in step names instead of renaming the job.
+    name: Test, typecheck, and build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
