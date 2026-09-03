@@ -460,6 +460,7 @@ const nodeClassName = (node: PlanWorkstreamNode, selected: boolean, focusLevel: 
     node.kind === 'operation' && 'bg-card/90',
     node.kind === 'artifact' && 'bg-muted/60',
     node.kind === 'policy' && 'bg-muted/60',
+    node.kind === 'plan' && 'border-dashed bg-primary/5',
     node.kind === 'state' && 'bg-muted/60',
     node.kind === 'relation' && 'bg-muted/55',
     node.kind === 'system-primitive' && 'bg-muted/65',
@@ -1498,6 +1499,44 @@ const sortBoardNodes = (nodes: PlanWorkstreamNode[]) =>
     return left.shortTitle.localeCompare(right.shortTitle);
   });
 
+const getProjectScopeNodeIds = (
+  projectId: string,
+  nodes: PlanWorkstreamNode[],
+  edges: PlanWorkstreamEdge[],
+) => {
+  const nodeIds = new Set(nodes.map(node => node.id));
+  const childrenByParent = new Map<string, string[]>();
+
+  for (const edge of edges) {
+    if (!isHierarchyRelation(edge.kind) || !nodeIds.has(edge.from) || !nodeIds.has(edge.to)) {
+      continue;
+    }
+
+    childrenByParent.set(edge.from, [...(childrenByParent.get(edge.from) ?? []), edge.to]);
+  }
+
+  return new Set([projectId, ...getDescendantIds(projectId, childrenByParent)]);
+};
+
+const getProjectMembershipsByNodeId = (
+  projects: PlanWorkstreamNode[],
+  nodes: PlanWorkstreamNode[],
+  edges: PlanWorkstreamEdge[],
+) => {
+  const membershipsByNodeId = new Map<string, PlanWorkstreamNode[]>();
+
+  for (const project of projects) {
+    for (const nodeId of getProjectScopeNodeIds(project.id, nodes, edges)) {
+      membershipsByNodeId.set(nodeId, [
+        ...(membershipsByNodeId.get(nodeId) ?? []),
+        project,
+      ]);
+    }
+  }
+
+  return membershipsByNodeId;
+};
+
 const evolutionRoleLabel = (role: EvolutionRole) => {
   switch (role) {
     case 'child':
@@ -1824,24 +1863,30 @@ const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvid
 const EvolutionBoardColumn = ({
   children,
   count,
+  countNoun = 'item',
   subtitle,
   title,
 }: {
   children: ReactNode;
   count: number;
+  countNoun?: string;
   subtitle: string;
   title: string;
-}) => (
-  <section className='flex min-h-[220px] flex-col border-border/70 lg:min-h-0 lg:border-l lg:pl-4 lg:first:border-l-0 lg:first:pl-0'>
-    <header className='shrink-0 pb-3 text-center' title={`${subtitle} ${count} item(s).`}>
-      <h3 className='font-mono text-xs uppercase text-foreground'>{title}</h3>
-      <div className='mx-auto mt-2 h-px w-12 bg-border/80' />
-    </header>
-    <div className='min-h-0 flex-1 lg:overflow-y-auto lg:pr-2'>
-      {count > 0 ? <div className='grid gap-2'>{children}</div> : null}
-    </div>
-  </section>
-);
+}) => {
+  const countLabel = `${count} ${count === 1 ? countNoun : `${countNoun}s`}`;
+
+  return (
+    <section className='flex min-h-[220px] flex-col border-border/70 lg:min-h-0 lg:border-l lg:pl-4 lg:first:border-l-0 lg:first:pl-0'>
+      <header className='shrink-0 pb-3 text-center' title={`${subtitle} ${countLabel}.`}>
+        <h3 className='font-mono text-xs uppercase text-foreground'>{title}</h3>
+        <div className='mx-auto mt-2 h-px w-12 bg-border/80' />
+      </header>
+      <div className='min-h-0 flex-1 lg:overflow-y-auto lg:pr-2'>
+        {count > 0 ? <div className='grid gap-2'>{children}</div> : null}
+      </div>
+    </section>
+  );
+};
 
 const GlobalBoardNodeCard = ({
   breadcrumb,
@@ -1945,8 +1990,11 @@ const GlobalAtlasBoard = ({
   markdownContext,
   nodesById,
   onOpenFull,
+  onProjectChange,
   onShowHistoryChange,
+  projects,
   registerNode,
+  selectedProjectId,
   selectedNodeId,
   showHistory,
   snapshotEdges,
@@ -1955,20 +2003,43 @@ const GlobalAtlasBoard = ({
   markdownContext: MarkdownRenderContext;
   nodesById: Map<string, PlanWorkstreamNode>;
   onOpenFull: (nodeId: string) => void;
+  onProjectChange: (projectId: string) => void;
   onShowHistoryChange: (showHistory: boolean) => void;
+  projects: PlanWorkstreamNode[];
   registerNode: (nodeId: string, element: HTMLElement | null) => void;
+  selectedProjectId: string;
   selectedNodeId: string | null;
   showHistory: boolean;
   snapshotEdges: PlanWorkstreamEdge[];
 }) => (
   <section className='absolute inset-0 overflow-hidden bg-background/95 bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:24px_24px]'>
-    <button
-      type='button'
-      className='pointer-events-auto absolute right-4 top-4 z-10 h-10 rounded-lg border border-border/70 bg-background/78 px-3 text-xs font-medium text-muted-foreground shadow-lg backdrop-blur-xl transition-colors hover:border-primary/45 hover:text-foreground'
-      onClick={() => onShowHistoryChange(!showHistory)}
-    >
-      {showHistory ? 'Hide history' : 'Show history'}
-    </button>
+    <div className='pointer-events-auto absolute right-4 top-[72px] z-30 flex items-center gap-2 lg:top-4'>
+      {projects.length > 0 ? (
+        <label className='flex h-10 items-center gap-2 rounded-lg border border-border/70 bg-background/78 px-3 text-xs shadow-lg backdrop-blur-xl transition-colors focus-within:border-primary/45'>
+          <span className='font-medium text-muted-foreground'>Project</span>
+          <select
+            aria-label='Filter board by project'
+            className='max-w-44 bg-transparent font-medium text-foreground outline-none'
+            value={selectedProjectId}
+            onChange={event => onProjectChange(event.target.value)}
+          >
+            <option value=''>All projects</option>
+            {projects.map(project => (
+              <option key={project.id} value={project.id}>
+                {project.shortTitle}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      <button
+        type='button'
+        className='h-10 rounded-lg border border-border/70 bg-background/78 px-3 text-xs font-medium text-muted-foreground shadow-lg backdrop-blur-xl transition-colors hover:border-primary/45 hover:text-foreground'
+        onClick={() => onShowHistoryChange(!showHistory)}
+      >
+        {showHistory ? 'Hide history' : 'Show history'}
+      </button>
+    </div>
     <div className='flex h-full min-h-0 flex-col px-4 pb-5 pt-40 sm:pt-36 lg:px-6 lg:pt-28'>
       <div className='min-h-0 flex-1 overflow-y-auto rounded-lg border border-border/60 bg-background/45 p-4 shadow-lg backdrop-blur-sm lg:overflow-hidden'>
         <div
@@ -1980,7 +2051,8 @@ const GlobalAtlasBoard = ({
           {showHistory ? (
             <EvolutionBoardColumn
               count={columns.past.length}
-              subtitle='Done plans and materialized shapes.'
+              countNoun='plan'
+              subtitle='Completed plans.'
               title='Past'
             >
               <GlobalBoardNodeList
@@ -1997,7 +2069,8 @@ const GlobalAtlasBoard = ({
 
           <EvolutionBoardColumn
             count={columns.now.length}
-            subtitle='Active work and currently shaped items.'
+            countNoun='plan'
+            subtitle='Plans currently in progress.'
             title='Now'
           >
             <GlobalBoardNodeList
@@ -2013,7 +2086,8 @@ const GlobalAtlasBoard = ({
 
           <EvolutionBoardColumn
             count={columns.next.length}
-            subtitle='Promoted next work.'
+            countNoun='plan'
+            subtitle='Plans promoted as next work.'
             title='Next'
           >
             <GlobalBoardNodeList
@@ -2029,7 +2103,8 @@ const GlobalAtlasBoard = ({
 
           <EvolutionBoardColumn
             count={columns.later.length}
-            subtitle='Later, backlog, research, and idea-shaped work.'
+            countNoun='plan'
+            subtitle='Deferred, backlog, and research plans.'
             title='Later'
           >
             <GlobalBoardNodeList
@@ -3318,6 +3393,7 @@ const FullMarkdownModal = ({
   nodesBySemanticId,
   node,
   navigationBackNode,
+  projectMemberships,
   getNodeHref,
   getTabHref,
   onActiveTabChange,
@@ -3334,6 +3410,7 @@ const FullMarkdownModal = ({
   nodesBySemanticId: Map<string, PlanWorkstreamNode>;
   node: PlanWorkstreamNode;
   navigationBackNode: PlanWorkstreamNode | null;
+  projectMemberships: PlanWorkstreamNode[];
   getNodeHref: (nodeId: string) => string;
   getTabHref: (tab: FullMarkdownModalTab) => string;
   onActiveTabChange: (tab: FullMarkdownModalTab) => void;
@@ -3492,6 +3569,19 @@ const FullMarkdownModal = ({
               <span className={cn('size-2 rounded-full', statusDotClassName(node.statusGroup))} />
               <span className='font-mono text-xs uppercase text-muted-foreground'>{node.kind}</span>
               <span className='font-mono text-xs text-muted-foreground'>{node.status}</span>
+              {projectMemberships.map(project => (
+                <span
+                  key={project.id}
+                  aria-label={`Project: ${project.shortTitle}`}
+                  className='inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/35 bg-primary/8 px-2 py-0.5 text-[11px] text-foreground'
+                  title={project.path ?? project.semanticId}
+                >
+                  <span className='font-mono text-[9px] uppercase text-muted-foreground'>
+                    Project
+                  </span>
+                  <span className='truncate font-medium'>{project.shortTitle}</span>
+                </span>
+              ))}
             </div>
             <div className='mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2'>
               <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
@@ -3963,6 +4053,7 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
   const [edgeFocusBackNodeId, setEdgeFocusBackNodeId] = useState<string | null>(null);
   const [edgeHoverHint, setEdgeHoverHint] = useState<EdgeHoverHint | null>(null);
   const [autoFocusEnabled, setAutoFocusEnabled] = useState(true);
+  const [selectedBoardProjectId, setSelectedBoardProjectId] = useState('');
   const [showBoardHistory, setShowBoardHistory] = useState(false);
   const [themeToggleMounted, setThemeToggleMounted] = useState(false);
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -4088,9 +4179,32 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
     () => snapshot.nodes.filter(node => visibleNodeIds.has(node.id)),
     [snapshot.nodes, visibleNodeIds],
   );
-  const globalBoardNodes = useMemo(
-    () => sortBoardNodes(snapshot.nodes.filter(node => node.kind !== 'root')),
+  const boardProjects = useMemo(
+    () =>
+      [...snapshot.nodes]
+        .filter(node => node.kind === 'project')
+        .sort((left, right) => left.shortTitle.localeCompare(right.shortTitle)),
     [snapshot.nodes],
+  );
+  const boardProjectNodeIds = useMemo(
+    () =>
+      selectedBoardProjectId
+        ? getProjectScopeNodeIds(selectedBoardProjectId, snapshot.nodes, snapshot.edges)
+        : null,
+    [selectedBoardProjectId, snapshot.edges, snapshot.nodes],
+  );
+  const projectMembershipsByNodeId = useMemo(
+    () => getProjectMembershipsByNodeId(boardProjects, snapshot.nodes, snapshot.edges),
+    [boardProjects, snapshot.edges, snapshot.nodes],
+  );
+  const globalBoardNodes = useMemo(
+    () =>
+      sortBoardNodes(
+        snapshot.nodes.filter(
+          node => node.kind === 'plan' && (!boardProjectNodeIds || boardProjectNodeIds.has(node.id)),
+        ),
+      ),
+    [boardProjectNodeIds, snapshot.nodes],
   );
   const globalBoardColumns = useMemo(() => {
     const columns: Record<BoardColumnKey, PlanWorkstreamNode[]> = {
@@ -4315,6 +4429,15 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
   useEffect(() => {
     setThemeToggleMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (
+      selectedBoardProjectId &&
+      !boardProjects.some(project => project.id === selectedBoardProjectId)
+    ) {
+      setSelectedBoardProjectId('');
+    }
+  }, [boardProjects, selectedBoardProjectId]);
 
   useEffect(() => {
     if (!searchOpen) {
@@ -4847,7 +4970,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
     setQuery('');
     setSearchOpen(false);
 
-    if (atlasView === 'board') {
+    if (atlasView === 'board' && node.kind === 'plan') {
+      if (boardProjectNodeIds && !boardProjectNodeIds.has(node.id)) {
+        setSelectedBoardProjectId('');
+      }
+
       setSelectedNodeId(node.id);
       setDetailOpen(false);
       setFullNodeId(null);
@@ -5284,8 +5411,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
           markdownContext={boardMarkdownContext}
           nodesById={nodesById}
           onOpenFull={openFullNode}
+          onProjectChange={setSelectedBoardProjectId}
           onShowHistoryChange={setShowBoardHistory}
+          projects={boardProjects}
           registerNode={registerBoardNode}
+          selectedProjectId={selectedBoardProjectId}
           selectedNodeId={selectedNodeId}
           showHistory={showBoardHistory}
           snapshotEdges={snapshot.edges}
@@ -5578,6 +5708,11 @@ export const PlanWorkstreamExplorer = ({ snapshot }: PlanWorkstreamExplorerProps
           nodesByPath={nodesByPath}
           nodesBySemanticId={nodesBySemanticId}
           node={fullNode}
+          projectMemberships={
+            boardProjects.length > 1 && fullNode.kind !== 'project'
+              ? (projectMembershipsByNodeId.get(fullNode.id) ?? [])
+              : []
+          }
           onActiveTabChange={tab => setFullNodeActiveTab(fullNode.id, tab)}
           onClose={closeFullNode}
           onNavigateBack={navigateFullNodeBack}
