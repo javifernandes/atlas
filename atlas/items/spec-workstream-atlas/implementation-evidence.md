@@ -37,6 +37,10 @@ Atlas, Ontahi, and BookOps Pull Requests bind their implementation intent to sta
 identities with `Atlas-Implements` and `Atlas-Shapes`. Atlas observes those author assertions from
 the merged PR body and preserves GitHub as the authority for the evidence record.
 
+Repository validation follows the changed source boundary. Markdown-only Atlas changes run the
+focused semantic-source and snapshot tests plus diff checks; executable application, workflow,
+configuration, and dependency changes retain the complete test, typecheck, and build pipeline.
+
 ## Child Items
 
 1. [`Coverage And Code Impact`](./implementation-evidence/coverage-and-code-impact.md)
