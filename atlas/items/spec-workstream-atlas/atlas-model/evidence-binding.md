@@ -11,7 +11,7 @@ supports:
 relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
   - plans/current/102-workstream-atlas-implementation-evidence.md
-  - plans/current/116-atlas-ontahi-postgres-persistence.md
+  - plans/done/116-atlas-ontahi-postgres-persistence.md
 ---
 
 Evidence Binding links a model item to concrete proof: code, tests, migrations, stories, deployments, metrics, docs, or PRs.

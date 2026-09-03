@@ -10,7 +10,7 @@ supports:
   - bookops
 relatedPlans:
   - plans/current/102-workstream-atlas-implementation-evidence.md
-  - plans/current/116-atlas-ontahi-postgres-persistence.md
+  - plans/done/116-atlas-ontahi-postgres-persistence.md
   - plans/done/111-atlas-as-ontahi-application.md
   - bookops://plans/18d-web-phase-2plusplus-storybook-information-architecture
   - bookops://plans/23-feedback-ui-hardening-and-storybook
@@ -32,6 +32,14 @@ GitHub, repository history, registries, and release providers remain authoritati
 the foundation for Changeset ingestion because a release may consume the source file whose meaning
 Atlas must continue to navigate. Temporary GitHub failures produce a degraded Projection Revision
 without deleting the last durable bindings for the unavailable source.
+
+Atlas, Ontahi, and BookOps Pull Requests bind their implementation intent to stable Plan or Item
+identities with `Atlas-Implements` and `Atlas-Shapes`. Atlas observes those author assertions from
+the merged PR body and preserves GitHub as the authority for the evidence record.
+
+Repository validation follows the changed source boundary. Markdown-only Atlas changes run the
+focused semantic-source and snapshot tests plus diff checks; executable application, workflow,
+configuration, and dependency changes retain the complete test, typecheck, and build pipeline.
 
 ## Child Items
 
