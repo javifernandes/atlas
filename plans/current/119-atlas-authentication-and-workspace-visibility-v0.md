@@ -192,3 +192,11 @@ This is the intended PR boundary for the pre-workspace authentication slice. The
 `current` through merge and production environment smoke. Durable `AtlasWorkspace` ownership,
 workspace-level visibility, memberships, and collaborators remain a separate follow-up rather than
 expanding this PR.
+
+### 2026-09-03 — persistent identity follow-up started
+
+[`Persistent Users And Linked Accounts V0`](123-persistent-users-and-linked-accounts-v0.md) now owns
+the next boundary: database-backed Better Auth records, provider account linking, and the stable
+Atlas User subject. That follow-up changes the durable Principal issuer from the host-specific
+`atlas:better-auth` label to `atlas`; this plan retains the pre-persistence implementation history
+and remains scoped to the base GitHub login PR.

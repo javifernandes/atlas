@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 
 import { inferPostgresMappings, inspectPostgresDataGraphSchema } from '@ontahi/postgres/data-graph';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { getMigrations } from 'better-auth/db/migration';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -14,6 +15,8 @@ import {
 } from '../domain/atlas-application';
 import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
+import { readAtlasAuthConfiguration } from '../../auth/config';
+import { createAtlasAuth, createAtlasAuthOptions } from '../../auth/server';
 import { runAtlasMigrations } from './migrations';
 import { createAtlasPostgresApplication } from './postgres-application';
 
@@ -79,6 +82,7 @@ Durable Atlas projection.
   let observedAtSequence = 0;
   let evidenceAvailable = true;
   let container: StartedPostgreSqlContainer | undefined;
+  let connectionString!: string;
   let adminPool!: Pool;
   let pool!: Pool;
   let atlas!: ReturnType<typeof createAtlasPostgresApplication>;
@@ -88,7 +92,7 @@ Durable Atlas projection.
   };
 
   beforeAll(async () => {
-    const connectionString = externalConnectionString ?? (await startPostgres()).getConnectionUri();
+    connectionString = externalConnectionString ?? (await startPostgres()).getConnectionUri();
 
     adminPool = new Pool({ connectionString, max: 1 });
     pool = new Pool({
@@ -135,6 +139,7 @@ Durable Atlas projection.
         '003-source-record-physical-identity.sql',
         '004-projection-reconciliation-lock.sql',
         '005-projection-revision-observation-order.sql',
+        '006-persistent-users-and-linked-accounts.sql',
       ],
       skipped: [],
     });
@@ -147,6 +152,82 @@ Durable Atlas projection.
     await expect(
       inspectPostgresDataGraphSchema({ entities: atlasEntities, pool, schema }),
     ).resolves.toMatchObject({ ok: true, issues: [] });
+
+    const authOptions = createAtlasAuthOptions(
+      readAtlasAuthConfiguration({
+        ATLAS_AUTH_GITHUB_CLIENT_ID: 'github-client',
+        ATLAS_AUTH_GITHUB_CLIENT_SECRET: 'github-secret',
+        BETTER_AUTH_SECRET: 'a-high-entropy-secret-with-at-least-32-characters',
+        BETTER_AUTH_URL: 'http://localhost:3000',
+        DATABASE_URL: connectionString,
+      }),
+      pool,
+    );
+    const authMigrations = await getMigrations(authOptions, { throwOnUnsafe: false });
+
+    expect(authMigrations).toMatchObject({
+      toBeAdded: [],
+      toBeAddedIndexes: [],
+      toBeCreated: [],
+      unsafeChanges: [],
+    });
+  }, 30_000);
+
+  it('persists one stable user identity without provider token material', async () => {
+    const configuration = readAtlasAuthConfiguration({
+      ATLAS_AUTH_GITHUB_CLIENT_ID: 'github-client',
+      ATLAS_AUTH_GITHUB_CLIENT_SECRET: 'github-secret',
+      BETTER_AUTH_SECRET: 'a-high-entropy-secret-with-at-least-32-characters',
+      BETTER_AUTH_URL: 'http://localhost:3000',
+      DATABASE_URL: connectionString,
+    });
+    const auth = createAtlasAuth(configuration, pool);
+    const context = await auth.$context;
+    const created = await context.internalAdapter.createOAuthUser(
+      {
+        email: 'persistent-user@example.com',
+        emailVerified: true,
+        image: null,
+        name: 'Persistent User',
+      },
+      {
+        accessToken: 'must-not-persist',
+        accessTokenExpiresAt: new Date('2026-09-04T00:00:00.000Z'),
+        accountId: 'github-user-123',
+        idToken: 'must-not-persist',
+        issuer: 'local:oauth:github',
+        providerId: 'github',
+        refreshToken: 'must-not-persist',
+        refreshTokenExpiresAt: new Date('2026-10-03T00:00:00.000Z'),
+      },
+    );
+    const session = await context.internalAdapter.createSession(created.user.id);
+
+    expect(created.user.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    await expect(
+      context.internalAdapter.findAccountOwnerByKey({
+        accountId: 'github-user-123',
+        issuer: 'local:oauth:github',
+      }),
+    ).resolves.toMatchObject({
+      kind: 'owned',
+      user: { id: created.user.id },
+    });
+    await expect(context.internalAdapter.findSession(session.token)).resolves.toMatchObject({
+      user: { id: created.user.id },
+    });
+    await expect(
+      pool.query(
+        `SELECT access_token, refresh_token, id_token
+         FROM atlas_auth_accounts
+         WHERE id = $1`,
+        [created.account.id],
+      ),
+    ).resolves.toMatchObject({
+      rows: [{ access_token: null, id_token: null, refresh_token: null }],
+    });
   }, 30_000);
 
   it('reconciles repeatedly without duplicating the current graph', async () => {

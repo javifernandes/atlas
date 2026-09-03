@@ -68,6 +68,10 @@ pnpm db:reconcile
 `rebuild` trigger and is the recovery command when the projection must be reconstructed from its
 authorities. Both commands print identities and counts only, never connection strings.
 
+`db:verify` checks both the Ontahí-backed Atlas projection schema and Better Auth's persistent
+User/Account/Session/Verification schema. A pending Better Auth table, field, index, or unsafe
+change fails the command.
+
 For a clean environment, apply migrations before the first reconcile. An empty database is a valid
 pre-bootstrap state: the page returns an empty Atlas view until the first Projection Revision is
 committed.

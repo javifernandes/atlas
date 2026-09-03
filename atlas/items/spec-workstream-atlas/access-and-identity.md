@@ -9,6 +9,7 @@ supports:
   - spec-workstream-atlas
   - spec-workstream-atlas.assisted-editing.operation-command-interface
 relatedPlans:
+  - plans/current/123-persistent-users-and-linked-accounts-v0.md
   - plans/current/119-atlas-authentication-and-workspace-visibility-v0.md
   - ontahi://plans/130-ontahi-authentication-principal-and-invocation-context
 ---
@@ -38,6 +39,15 @@ requires only the App's `Email addresses: read-only` account permission for Bett
 users who authorized the App before that permission was added must approve it on reauthorization.
 The deployed product boundary remains coarse and deployment-scoped until `AtlasWorkspace` is
 persisted.
+
+The first durable identity is
+[[spec-workstream-atlas.access-identity.persistent-user|Persistent User]]. It has an internal Atlas
+ID and one or more issuer/provider-account identities. Email remains mutable profile data rather
+than an identity key: provider accounts are never silently merged only because their emails match.
+An authenticated User may explicitly link another provider after proving control of it, including
+when the provider returns a different email, and may not unlink the final account. Better Auth owns
+the durable authentication records; Atlas owns these invariants and projects the User ID as the
+subject of an `atlas` Ontahí Principal.
 
 The intended durable containment is:
 

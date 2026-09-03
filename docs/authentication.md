@@ -1,8 +1,14 @@
 # Atlas Authentication
 
 Atlas uses [Better Auth](https://better-auth.com/) for human authentication and GitHub as the first
-OAuth provider. The first slice is stateless: the validated session lives in signed and encrypted
-cookies, so login does not require a database before Atlas has durable User and Workspace entities.
+OAuth provider. When `DATABASE_URL` is present, Better Auth persists Users, provider Accounts,
+Sessions, and Verification records in Atlas PostgreSQL. A first successful sign-in creates a User
+and GitHub Account automatically; future sign-ins resolve that same User through the provider's
+stable issuer and account ID.
+
+Without `DATABASE_URL`, Atlas retains the original signed-and-encrypted cookie session as a
+transitional local/preview fallback. That fallback can identify the current request but cannot
+support durable ownership, linked providers, or per-session revocation.
 
 Human login and repository integration reuse the same Atlas GitHub App registration, but remain
 separate trust flows with separate credentials:
@@ -75,8 +81,42 @@ allowlist is incomplete. The allowlist is a bootstrap mechanism for the deployme
 not the durable authorization model.
 
 Atlas also disables Better Auth's stateless account cookie. The session remains signed and
-encrypted, but the GitHub OAuth access token is not retained because repository access belongs to
-the same registration's installation-token flow.
+encrypted in fallback mode, but account data is never placed in that cookie.
+
+## Persistent Users And Linked Accounts
+
+The durable authentication schema is installed by
+`migrations/006-persistent-users-and-linked-accounts.sql` through the existing `pnpm db:migrate`
+workflow:
+
+```text
+atlas_auth_users
+  |-- atlas_auth_accounts
+  `-- atlas_auth_sessions
+
+atlas_auth_verifications
+```
+
+All record IDs are UUIDs. `atlas_auth_accounts` uniquely identifies a provider login by
+`(issuer, account_id)` and points to the stable internal User ID. Email is required profile/contact
+data but is not the identity key and never silently links independently authenticated accounts.
+
+Atlas configures account linking with these invariants:
+
+1. implicit same-email linking is disabled;
+2. a signed-in User may explicitly link another provider after completing that provider's OAuth
+   proof, including when it returns a different email;
+3. the final provider Account cannot be unlinked;
+4. a linked provider does not automatically overwrite the existing User profile;
+5. GitHub access, refresh, and ID tokens are discarded before Account inserts or updates.
+
+The token policy is intentional: Atlas source reads use GitHub App installation tokens. A human
+OAuth token grants no source authority and need not become a durable secret.
+
+Production and any persistent preview must run `pnpm db:migrate` against
+`DATABASE_URL_UNPOOLED` (preferred) or `DATABASE_URL` before deploying code that enables persistent
+auth. Vercel already needs the pooled `DATABASE_URL` for Atlas application reads; no additional auth
+database variable is required.
 
 ## Ontahí Boundary
 
@@ -85,7 +125,7 @@ Atlas validates the Better Auth session at the Next.js host boundary and maps th
 ```ts
 {
   kind: 'user',
-  issuer: 'atlas:better-auth',
+  issuer: 'atlas',
   subject: session.user.id,
 }
 ```
@@ -94,11 +134,11 @@ The Runtime Protocol dispatch runs inside `withInvocationContext({ principal })`
 receives one provider-neutral Principal and does not depend on Better Auth, GitHub cookies, or OAuth
 tokens.
 
-## Next Persistence Slice
+## Next Ownership Slice
 
-Stateless auth intentionally cannot provide durable workspace ownership, membership, invitation, or
-per-session revocation. When `AtlasWorkspace` lands, Atlas should add database-backed Better Auth
-users and sessions alongside Atlas-owned Workspace and Membership records. At that point:
+Authentication persistence intentionally stops before resource authorization. When
+`AtlasWorkspace` lands, Atlas-owned Workspace and Membership records will reference the stable User
+ID. At that point:
 
 1. workspace visibility replaces the deployment environment flag;
 2. owner/member relationships replace the GitHub allowlist;

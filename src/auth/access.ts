@@ -21,7 +21,7 @@ export type AtlasReadAccess = {
 export const atlasViewerToPrincipal = (viewer: AtlasViewer | null): Principal | null =>
   viewer
     ? {
-        issuer: 'atlas:better-auth',
+        issuer: 'atlas',
         kind: 'user',
         subject: viewer.id,
       }
