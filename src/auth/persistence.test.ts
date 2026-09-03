@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
 
 import {
   atlasAccountLinkingPolicy,
@@ -56,6 +57,19 @@ describe('Atlas persistent user model', () => {
       account: { accountLinking: atlasAccountLinkingPolicy },
       database: undefined,
       user: { modelName: 'atlas_auth_users' },
+    });
+  });
+
+  it('keeps the encrypted session cookie codec stable while moving to PostgreSQL', () => {
+    expect(createAtlasAuthPersistenceOptions().session?.cookieCache).toEqual({
+      enabled: true,
+      strategy: 'jwe',
+    });
+    expect(
+      createAtlasAuthPersistenceOptions({} as Pool).session?.cookieCache,
+    ).toEqual({
+      enabled: false,
+      strategy: 'jwe',
     });
   });
 
