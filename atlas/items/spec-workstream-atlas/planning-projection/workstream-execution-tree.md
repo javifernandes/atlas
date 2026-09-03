@@ -32,6 +32,12 @@ Parallel Streams remain possible but are not safely inferable from repository ac
 introduced, they require explicit routing rather than silent guesses. Sessions initially reads the
 current Stream plus bounded recent history instead of reconstructing all work from Git history.
 
+Sessions uses a fixed workspace shell rather than one vertically scrolling page. The session rail
+owns temporal context: Stream title, open/closed state, recent intervals, and the explicit close
+boundary. The Plan tree and merged-Pull-Request activity are sibling panels with independent scroll
+regions. Tree state is a local viewing concern: a User may hide done Plans and collapse or expand
+branches without changing Plan lifecycle, Stream membership, or shared Atlas source.
+
 The tree may also show explicitly referenced but unmaterialized targets as empty branch tips. Such
 a target records authorial intent and an incoming relation without pretending that a complete Plan
 or Atlas Item already exists. Materializing it should resolve that existing reference and preserve

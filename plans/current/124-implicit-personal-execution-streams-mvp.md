@@ -75,9 +75,10 @@ proves useful.
    focus within the existing Stream.
 7. Add a bridged Ontahí close operation that derives the User from the authenticated runtime
    Principal, verifies ownership, and closes the current Stream without mutating Plans.
-8. Add a Sessions view showing the open Stream tree, current focus, recent activity, and a bounded
-   list of recent closed Streams. When no Stream is open, explain that Atlas is waiting for the next
-   attributable merge.
+8. Add a fixed-height Sessions workspace with a persistent session rail and independently scrolling
+   Plan-tree and merged-PR panels. Keep the current Stream title, open state, and close affordance in
+   the session rail; let the tree hide done Plans and collapse or expand individual branches. When
+   no Stream is open, explain that Atlas is waiting for the next attributable merge.
 9. Keep reads bounded to the current Stream plus a small recent-history window. Do not scan Git
    history or rebuild activity during page refresh.
 
@@ -154,7 +155,10 @@ source projection changes.
 5. [x] Add the ownership-checked close operation over the shared Ontahí Operation bridge.
 6. [x] Add the Sessions view and bounded current/recent projection.
 7. [x] Verify unit, mapping, UI, webhook, migration, and PostgreSQL integration behavior.
-8. [ ] Dogfood the first real post-deploy merge and record whether the inferred root/focus is useful.
+8. [x] Dogfood the first real post-deploy merge and record the initial Sessions feedback.
+9. [x] Refine Sessions into a fixed workspace with independent scroll, rail-owned Stream context,
+       done filtering, and branch collapse/expand.
+10. [ ] Dogfood the revised workspace with a longer tree and PR history.
 
 ## Verification
 
@@ -174,6 +178,8 @@ source projection changes.
 - [x] Closing preserves unfinished Plans and the next attributable merge creates a new Stream.
 - [x] Sessions distinguishes current focus, done/current/next branches, activity, recent history,
       and the no-open-stream state on desktop and mobile.
+- [x] Sessions keeps its shell fixed while Plan and merged-PR panels scroll independently, exposes
+      current state/close from the session rail, and supports done filtering plus branch collapse.
 - [x] Page reads do not fetch or rescan repository history for Stream reconstruction.
 - [x] `pnpm verify`, the opt-in PostgreSQL suite, and `git diff --check` pass.
 
@@ -191,6 +197,8 @@ source projection changes.
    proves unhelpful.
 9. User-facing Stream mutations travel through bridged Ontahí operations and the shared operation
    dispatcher; product-specific Next.js mutation routes are not part of this model.
+10. Sessions is an execution workspace, not a document page: session context belongs in the rail,
+    while the tree and activity retain their own viewport and exploration state.
 
 ## Open Questions
 
@@ -248,3 +256,23 @@ successfully. Stream attribution now keeps the first implemented Plan as the sol
 activity Plan while adding the highest known ancestor of every resolved Plan target as a root. This
 preserves one activity per merge, avoids pretending the checkpoint is historical activity, and
 makes all explicitly declared workstream lineages navigable.
+
+### 2026-09-03 — first-use Sessions feedback
+
+The first real use showed that the Stream model is useful enough to continue, but the initial page
+layout spends too much vertical space on repeated headers and scrolls the whole experience. The next
+iteration keeps the Sessions shell fixed, consolidates Stream identity and the close boundary in the
+left rail, and gives the Plan tree and merged-PR history independent scroll regions. Tree exploration
+also needs a done-status filter and explicit per-branch collapse/expand controls so completed or
+irrelevant branches do not dominate the working view.
+
+### 2026-09-03 — fixed-workspace refinement
+
+Sessions now uses one viewport-bound three-zone shell: the left rail owns the current Stream title,
+green open state, close affordance, and recent intervals; Plan tree and merged-PR activity are sibling
+panels with independent vertical scrolling. The redundant current-stream heading and explanatory
+subtitle are removed. Tree controls can hide done Plans, collapse or expand individual branches, and
+collapse or expand the visible tree as a whole; these are local presentation choices and do not mutate
+Stream or Plan state. The responsive layout keeps the same bounded behavior as stacked tree/activity
+panels. `pnpm verify` passed with 78 unit/UI tests, typecheck, production build, and 77 Atlas source
+traces. Desktop and mobile browser smoke checks found no document-level overflow or console errors.
