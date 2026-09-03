@@ -8,7 +8,7 @@ import {
   Circle,
   Copy,
   GitFork,
-  GitPullRequest,
+  GitMerge,
   Loader2,
   Radio,
   X,
@@ -70,6 +70,12 @@ const formatRelativeTime = (value: string, now = Date.now()) => {
   const days = Math.floor(hours / 24);
   return days < 7 ? `${days}d ago` : recentDateFormatter.format(new Date(value));
 };
+
+const githubRepositoryUrl = (repositoryFullName: string) =>
+  `https://github.com/${repositoryFullName
+    .split('/')
+    .map(segment => encodeURIComponent(segment))
+    .join('/')}`;
 
 const planSourceLabel = (node: PlanWorkstreamNode) => {
   const path = node.path ?? '';
@@ -640,11 +646,13 @@ export const ExecutionStreamView = ({
                         <button
                           type='button'
                           aria-label={`Close ${currentStream.title}`}
-                          className='grid size-7 place-items-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                          title='Close Session'
+                          className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
                           disabled={closing}
                           onClick={() => setConfirmingClose(true)}
                         >
                           <Archive aria-hidden='true' className='size-3.5' />
+                          Close
                         </button>
                       </>
                     ) : null}
@@ -783,29 +791,61 @@ export const ExecutionStreamView = ({
                 {currentStream?.activities.length ? (
                   <ol className='grid gap-5'>
                     {currentStream.activities.map(activity => (
-                      <li key={activity.id} className='relative pl-5 text-sm'>
-                        <span className='absolute left-0 top-1.5 size-2 rounded-full bg-sky-500' />
+                      <li
+                        key={activity.id}
+                        className='grid grid-cols-[24px_minmax(0,1fr)] gap-2.5 text-sm'
+                      >
                         {activity.pullRequest ? (
-                          <a
-                            className='group block'
-                            href={activity.pullRequest.url}
-                            rel='noreferrer'
-                            target='_blank'
-                          >
-                            <span className='flex items-center gap-1.5 font-medium group-hover:text-sky-500'>
-                              <GitPullRequest aria-hidden='true' className='size-3.5' />
-                              PR #{activity.pullRequest.number} merged
+                          <>
+                            <span
+                              aria-label='Merged pull request'
+                              className='mt-0.5 grid size-6 place-items-center rounded-full bg-violet-500/10 text-violet-500'
+                              role='img'
+                              title='Merged pull request'
+                            >
+                              <GitMerge aria-hidden='true' className='size-3.5' />
                             </span>
-                            <span className='mt-1 block leading-5 text-muted-foreground'>
-                              {activity.plan?.title ?? activity.pullRequest.title}
-                            </span>
-                            <span className='mt-1 block text-[11px] text-muted-foreground'>
-                              {activity.pullRequest.repositoryFullName} ·{' '}
-                              {formatRelativeTime(activity.occurredAt)}
-                            </span>
-                          </a>
+                            <div className='min-w-0'>
+                              <a
+                                className='line-clamp-2 font-medium leading-5 transition-colors hover:text-violet-500'
+                                href={activity.pullRequest.url}
+                                rel='noreferrer'
+                                target='_blank'
+                              >
+                                {activity.pullRequest.title}
+                              </a>
+                              <div className='mt-2 flex min-w-0 items-end justify-between gap-3 text-[11px] text-muted-foreground'>
+                                <span className='min-w-0 truncate'>
+                                  <a
+                                    className='transition-colors hover:text-foreground hover:underline'
+                                    href={githubRepositoryUrl(
+                                      activity.pullRequest.repositoryFullName,
+                                    )}
+                                    rel='noreferrer'
+                                    target='_blank'
+                                  >
+                                    {activity.pullRequest.repositoryFullName}
+                                  </a>{' '}
+                                  · #{activity.pullRequest.number}
+                                </span>
+                                <time
+                                  className='shrink-0 text-right'
+                                  dateTime={activity.occurredAt}
+                                  title={activity.occurredAt}
+                                >
+                                  {formatRelativeTime(activity.occurredAt)}
+                                </time>
+                              </div>
+                            </div>
+                          </>
                         ) : (
-                          <span className='text-muted-foreground'>Merged PR activity</span>
+                          <>
+                            <span
+                              aria-hidden='true'
+                              className='mt-1.5 size-2 rounded-full bg-muted-foreground/50'
+                            />
+                            <span className='text-muted-foreground'>Merged PR activity</span>
+                          </>
                         )}
                       </li>
                     ))}
