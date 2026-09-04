@@ -47,6 +47,8 @@ describe('Atlas PostgreSQL identity mappings', () => {
         currentFocusPlanId: 'current_focus_plan_id',
         openedAt: 'opened_at',
         closedAt: 'closed_at',
+        archivedAt: 'archived_at',
+        lastActivityAt: 'last_activity_at',
       },
     });
     expect(streamRoot).toMatchObject({

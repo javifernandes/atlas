@@ -1,6 +1,8 @@
 // @vitest-environment node
 
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import { inferPostgresMappings, inspectPostgresDataGraphSchema } from '@ontahi/postgres/data-graph';
 import { withInvocationContext } from '@ontahi/core/runtime/server';
@@ -152,6 +154,7 @@ Durable Atlas projection.
         '006-persistent-users-and-linked-accounts.sql',
         '007-implicit-execution-streams.sql',
         '008-explicit-execution-stream-forks.sql',
+        '009-session-archive-and-last-activity.sql',
       ],
       skipped: [],
     });
@@ -183,6 +186,80 @@ Durable Atlas projection.
       toBeCreated: [],
       unsafeChanges: [],
     });
+  }, 30_000);
+
+  it('backfills last activity and constrains archive state over the prior schema', async () => {
+    const legacySchema = `atlas_legacy_${randomUUID().replaceAll('-', '')}`;
+    const legacyPool = new Pool({
+      connectionString,
+      max: 1,
+      options: `-c search_path=${legacySchema}`,
+    });
+    const closedStreamId = randomUUID();
+    const openStreamId = randomUUID();
+    const userId = randomUUID();
+
+    await adminPool.query(`CREATE SCHEMA ${legacySchema}`);
+
+    try {
+      await legacyPool.query(`
+        CREATE TABLE atlas_execution_streams (
+          id uuid PRIMARY KEY,
+          user_id uuid NOT NULL,
+          status text NOT NULL,
+          opened_at timestamptz NOT NULL
+        );
+        CREATE TABLE atlas_execution_stream_activities (
+          stream_id uuid NOT NULL,
+          occurred_at timestamptz NOT NULL
+        );
+      `);
+      await legacyPool.query(
+        `INSERT INTO atlas_execution_streams (id, user_id, status, opened_at)
+         VALUES ($1, $3, 'closed', '2026-09-01T00:00:00.000Z'),
+                ($2, $3, 'open', '2026-09-02T00:00:00.000Z')`,
+        [closedStreamId, openStreamId, userId],
+      );
+      await legacyPool.query(
+        `INSERT INTO atlas_execution_stream_activities (stream_id, occurred_at)
+         VALUES ($1, '2026-09-01T01:00:00.000Z'),
+                ($1, '2026-09-01T03:00:00.000Z')`,
+        [closedStreamId],
+      );
+
+      const migration = await readFile(
+        path.resolve(process.cwd(), 'migrations/009-session-archive-and-last-activity.sql'),
+        'utf8',
+      );
+      await legacyPool.query(migration);
+
+      const result = await legacyPool.query<{
+        archived_at: Date | null;
+        id: string;
+        last_activity_at: Date | null;
+      }>(
+        `SELECT id, archived_at, last_activity_at
+         FROM atlas_execution_streams
+         ORDER BY opened_at`,
+      );
+      expect(result.rows).toEqual([
+        {
+          id: closedStreamId,
+          archived_at: null,
+          last_activity_at: new Date('2026-09-01T03:00:00.000Z'),
+        },
+        { id: openStreamId, archived_at: null, last_activity_at: null },
+      ]);
+      await expect(
+        legacyPool.query(
+          'UPDATE atlas_execution_streams SET archived_at = now() WHERE id = $1',
+          [openStreamId],
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+    } finally {
+      await legacyPool.end();
+      await adminPool.query(`DROP SCHEMA ${legacySchema} CASCADE`);
+    }
   }, 30_000);
 
   it('persists one stable user identity without provider token material', async () => {
@@ -368,6 +445,8 @@ Durable Atlas projection.
         mode: 'implicit',
         status: 'open',
         title: 'Persistence',
+        archivedAt: null,
+        lastActivityAt: '2026-09-02T01:00:00.000Z',
         currentFocusPlan: expect.objectContaining({
           id: 'plan:atlas://plans/116-persistence',
         }),
@@ -432,6 +511,7 @@ Durable Atlas projection.
     const [openStream] = await atlas.getExecutionStreams(streamOwner.user.id);
     expect(openStream).toBeDefined();
     expect(openStream).toMatchObject({
+      lastActivityAt: '2026-09-02T02:00:00.000Z',
       currentFocusPlan: { id: 'plan:atlas://plans/117-secondary' },
       roots: expect.arrayContaining([
         expect.objectContaining({ id: 'plan:atlas://plans/116-persistence' }),
@@ -501,6 +581,7 @@ Durable Atlas projection.
     expect(streams).toHaveLength(2);
     expect(streams.filter(stream => stream.status === 'open')).toEqual([
       expect.objectContaining({
+        lastActivityAt: '2026-09-02T03:00:00.000Z',
         activities: [
           expect.objectContaining({
             pullRequest: expect.objectContaining({ number: 16 }),
@@ -510,6 +591,7 @@ Durable Atlas projection.
     ]);
     expect(streams.filter(stream => stream.status === 'closed')).toEqual([
       expect.objectContaining({
+        lastActivityAt: '2026-09-02T02:00:00.000Z',
         activities: expect.arrayContaining([
           expect.objectContaining({
             pullRequest: expect.objectContaining({ number: 14 }),
@@ -551,11 +633,64 @@ Durable Atlas projection.
       ).resolves.toMatchObject({ ok: true, value: { duplicate: false } });
     }
 
+    const outOfOrderWebhook: AtlasMergedPullRequestInput = {
+      ...webhook,
+      deliveryId: 'delivery-121',
+      mergeCommitSha: 'merge-19',
+      mergedAt: '2026-09-02T02:30:00.000Z',
+      number: 19,
+      title: 'Delayed activity delivery',
+      url: 'https://github.com/javifernandes/atlas/pull/19',
+    };
+    await expect(
+      atlas.application.invokeOperation(
+        atlas.application.graph.entities.PullRequest.domain.refreshAfterMerge,
+        outOfOrderWebhook,
+      ),
+    ).resolves.toMatchObject({ ok: true, value: { duplicate: false } });
+
     const unchangedStreams = await atlas.getExecutionStreams(streamOwner.user.id);
     expect(unchangedStreams).toHaveLength(2);
+    expect(unchangedStreams.find(stream => stream.status === 'open')).toMatchObject({
+      lastActivityAt: '2026-09-02T03:00:00.000Z',
+    });
     expect(
       unchangedStreams.flatMap(stream => stream.activities).map(activity => activity.id),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
+
+    const activeStream = unchangedStreams.find(stream => stream.status === 'open');
+    const historicalStream = unchangedStreams.find(stream => stream.status === 'closed');
+    const invokeSetArchived = (streamId: string, archived: boolean) =>
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: streamOwner.user.id } },
+        () =>
+          atlas.application.invokeOperation(
+            atlas.application.graph.entities.AtlasExecutionStream.domain.setArchived,
+            { id: streamId, archived },
+          ),
+      );
+
+    await expect(invokeSetArchived(activeStream!.id, true)).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'invalid_state' },
+    });
+    await expect(invokeSetArchived(historicalStream!.id, true)).resolves.toMatchObject({
+      ok: true,
+      value: { archived: true, archivedAt: expect.any(String) },
+    });
+    await expect(atlas.getExecutionStreams(streamOwner.user.id)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: historicalStream!.id,
+          archivedAt: expect.any(String),
+          status: 'closed',
+        }),
+      ]),
+    );
+    await expect(invokeSetArchived(historicalStream!.id, false)).resolves.toMatchObject({
+      ok: true,
+      value: { archived: false, archivedAt: null },
+    });
   }, 30_000);
 
   it('forks exact Plan roots and routes explicit Session activity without fallback', async () => {

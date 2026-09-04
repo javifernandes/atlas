@@ -7,6 +7,7 @@ import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 const refreshMock = vi.hoisted(() => vi.fn());
 const closeExecuteAsyncMock = vi.hoisted(() => vi.fn());
 const forkExecuteAsyncMock = vi.hoisted(() => vi.fn());
+const setArchivedExecuteAsyncMock = vi.hoisted(() => vi.fn());
 const clipboardWriteTextMock = vi.hoisted(() => vi.fn());
 
 vi.mock('next/navigation', () => ({
@@ -16,6 +17,8 @@ vi.mock('@ontahi/react/graph', () => ({
   useOperation: (operation: { id: string }) => ({
     executeAsync: operation.id.endsWith('.fork')
       ? forkExecuteAsyncMock
+      : operation.id.endsWith('.setArchived')
+        ? setArchivedExecuteAsyncMock
       : closeExecuteAsyncMock,
     isExecuting: false,
   }),
@@ -90,8 +93,10 @@ const currentStream: AtlasExecutionStreamProjection = {
   status: 'open',
   title: 'Implicit Streams',
   openedAt: '2026-09-03T00:00:00.000Z',
+  archivedAt: null,
   closedAt: null,
   forkedFromStream: null,
+  lastActivityAt: '2026-09-03T01:00:00.000Z',
   updatedAt: '2026-09-03T01:00:00.000Z',
   roots: [
     {
@@ -139,6 +144,13 @@ const recentStream: AtlasExecutionStreamProjection = {
   closedAt: '2026-09-02T23:00:00.000Z',
 };
 
+const archivedStream: AtlasExecutionStreamProjection = {
+  ...recentStream,
+  id: '67706869-e382-43d8-9e6b-97b48acf2f5c',
+  archivedAt: '2026-09-03T03:00:00.000Z',
+  title: 'Archived identity work',
+};
+
 const explicitStream: AtlasExecutionStreamProjection = {
   ...currentStream,
   id: '0df587f3-130f-454a-9b48-f985beb26de7',
@@ -171,6 +183,7 @@ const explicitStream: AtlasExecutionStreamProjection = {
 describe('ExecutionStreamView', () => {
   beforeEach(() => {
     refreshMock.mockReset();
+    globalThis.history.replaceState({}, '', '/');
     clipboardWriteTextMock.mockReset().mockResolvedValue(undefined);
     Object.defineProperty(globalThis.navigator, 'clipboard', {
       configurable: true,
@@ -193,6 +206,15 @@ describe('ExecutionStreamView', () => {
         forkedFromStreamId: currentStream.id,
         rootPlanIds: ['plan:atlas://plans/125-routing'],
         title: explicitStream.title,
+      },
+    });
+    setArchivedExecuteAsyncMock.mockReset().mockResolvedValue({
+      ok: true,
+      kind: 'success',
+      value: {
+        id: recentStream.id,
+        archived: true,
+        archivedAt: '2026-09-03T03:00:00.000Z',
       },
     });
   });
@@ -235,6 +257,7 @@ describe('ExecutionStreamView', () => {
     expect(screen.getByText('Persistent Identity')).toBeInTheDocument();
     expect(screen.getByText('done')).toBeInTheDocument();
     expect(screen.getByText('Earlier identity work')).toBeInTheDocument();
+    expect(screen.getAllByText(/Last PR/).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: /Explicit Routing/ }));
     expect(onOpenPlan).toHaveBeenCalledWith('plan:atlas://plans/125-routing');
@@ -337,5 +360,86 @@ describe('ExecutionStreamView', () => {
       expect(closeExecuteAsyncMock).toHaveBeenCalledWith({ id: currentStream.id }),
     );
     await waitFor(() => expect(refreshMock).toHaveBeenCalledOnce());
+  });
+
+  it('archives closed Sessions and reveals or restores archived history', async () => {
+    const { rerender } = render(
+      <ExecutionStreamView
+        executionStreams={[currentStream, recentStream, archivedStream]}
+        onOpenPlan={vi.fn()}
+        snapshot={snapshot}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /Archived identity work/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Show archived/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Archived identity work/ }));
+    expect(screen.getByRole('button', { name: 'Unarchive' })).toBeInTheDocument();
+
+    setArchivedExecuteAsyncMock.mockResolvedValueOnce({
+      ok: true,
+      kind: 'success',
+      value: { id: archivedStream.id, archived: false, archivedAt: null },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Unarchive' }));
+    await waitFor(() =>
+      expect(setArchivedExecuteAsyncMock).toHaveBeenCalledWith({
+        id: archivedStream.id,
+        archived: false,
+      }),
+    );
+
+    rerender(
+      <ExecutionStreamView
+        executionStreams={[currentStream, recentStream]}
+        onOpenPlan={vi.fn()}
+        snapshot={snapshot}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Earlier identity work/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Archive' }));
+    await waitFor(() =>
+      expect(setArchivedExecuteAsyncMock).toHaveBeenLastCalledWith({
+        id: recentStream.id,
+        archived: true,
+      }),
+    );
+  });
+
+  it('reveals an archived Session addressed directly by URL', () => {
+    globalThis.history.replaceState(
+      {},
+      '',
+      `/?view=sessions&session=${archivedStream.id}`,
+    );
+
+    render(
+      <ExecutionStreamView
+        executionStreams={[currentStream, recentStream, archivedStream]}
+        onOpenPlan={vi.fn()}
+        snapshot={snapshot}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Hide archived/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Unarchive' })).toBeInTheDocument();
+  });
+
+  it('can reveal archived history when no active or recent Session exists', () => {
+    render(
+      <ExecutionStreamView
+        executionStreams={[archivedStream]}
+        onOpenPlan={vi.fn()}
+        snapshot={snapshot}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Show archived/ }));
+
+    expect(screen.getByRole('button', { name: 'Unarchive' })).toBeInTheDocument();
+    expect(globalThis.location.search).toContain(`session=${archivedStream.id}`);
   });
 });

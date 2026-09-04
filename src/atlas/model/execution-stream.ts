@@ -26,6 +26,7 @@ export type AtlasExecutionStreamActivityProjection = {
 export type AtlasExecutionStreamProjection = {
   id: string;
   activities: AtlasExecutionStreamActivityProjection[];
+  archivedAt: string | null;
   closedAt: string | null;
   currentFocusPlan: AtlasExecutionStreamPlan | null;
   forkedFromStream: {
@@ -33,6 +34,7 @@ export type AtlasExecutionStreamProjection = {
     title: string;
   } | null;
   mode: 'implicit' | 'explicit';
+  lastActivityAt: string | null;
   openedAt: string;
   roots: AtlasExecutionStreamPlan[];
   status: 'open' | 'closed';
@@ -51,6 +53,12 @@ export type AtlasExecutionStreamForkResult = {
   id: string;
   rootPlanIds: string[];
   title: string;
+};
+
+export type AtlasExecutionStreamSetArchivedResult = {
+  archived: boolean;
+  archivedAt: string | null;
+  id: string;
 };
 
 export type AtlasSessionDirectiveParseResult =
@@ -286,6 +294,20 @@ export const AtlasExecutionStreamForkOutputSchema = graphSchema.value(
     id: field.id(),
     rootPlanIds: graphSchema.array(field.id()),
     title: field.nonEmptyString({ trim: true }),
+  },
+);
+
+export const AtlasExecutionStreamSetArchivedInputSchema = graphSchema.object({
+  id: field.id(),
+  archived: field.boolean(),
+});
+
+export const AtlasExecutionStreamSetArchivedOutputSchema = graphSchema.value(
+  'SetExecutionStreamArchivedResult',
+  {
+    id: field.id(),
+    archived: field.boolean(),
+    archivedAt: graphSchema.nullable(field.string()),
   },
 );
 import { field, graphSchema } from '@ontahi/core/data-graph';

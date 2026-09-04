@@ -49,6 +49,10 @@ the default implicit Session behavior. A User can select Plan branches from an o
 them into separately named explicit Sessions without moving source history or copying prior PR
 activity.
 
+Closed Sessions can be archived without deleting their Plans or PR history. Archived Sessions stay
+hidden by default, can be revealed and restored, and remain addressable by their stable URL. The
+session rail shows the latest merged-PR activity time for every interval, including open Sessions.
+
 Each open Session has a stable URL and a **Copy for LLM** action. Future PRs from that chat route to
 the Session by retaining this line in the PR body:
 

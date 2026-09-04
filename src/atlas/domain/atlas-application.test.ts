@@ -227,12 +227,17 @@ relatedPlans:
     });
     const closeStream = atlas.application.graph.entities.AtlasExecutionStream.domain.close;
     const forkStream = atlas.application.graph.entities.AtlasExecutionStream.domain.fork;
+    const setArchivedStream =
+      atlas.application.graph.entities.AtlasExecutionStream.domain.setArchived;
     expect(closeStream.id).toBe('AtlasExecutionStream.close');
     expect(closeStream.authority).toBe('server');
     expect(closeStream.exposure).toBe('bridge');
     expect(forkStream.id).toBe('AtlasExecutionStream.fork');
     expect(forkStream.authority).toBe('server');
     expect(forkStream.exposure).toBe('bridge');
+    expect(setArchivedStream.id).toBe('AtlasExecutionStream.setArchived');
+    expect(setArchivedStream.authority).toBe('server');
+    expect(setArchivedStream.exposure).toBe('bridge');
     await expect(
       withInvocationContext({ principal: null }, () =>
         atlas.application.checkPermission(closeStream, { id: 'stream-1' }),
@@ -300,6 +305,8 @@ Parent plan: [Streams](124-streams.md)
           forkedFromStreamId: null,
           openedAt: timestamp,
           closedAt: null,
+          archivedAt: null,
+          lastActivityAt: null,
           createdAt: timestamp,
           updatedAt: timestamp,
         },
@@ -347,6 +354,39 @@ Parent plan: [Streams](124-streams.md)
       ok: false,
       failure: { reason: 'not_found' },
     });
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: userId } },
+        () =>
+          atlas.application.invokeOperation(
+            entities.AtlasExecutionStream.domain.setArchived,
+            { id: sourceStreamId, archived: true },
+          ),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'invalid_state' },
+    });
+    await expect(
+      withInvocationContext(
+        {
+          principal: {
+            issuer: 'atlas',
+            kind: 'user',
+            subject: '26a09541-2cc4-4f86-b02d-34b8e8e29a52',
+          },
+        },
+        () =>
+          atlas.application.invokeOperation(
+            entities.AtlasExecutionStream.domain.setArchived,
+            { id: sourceStreamId, archived: true },
+          ),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'not_found' },
+    });
+
     await expect(
       withInvocationContext(
         { principal: { issuer: 'atlas', kind: 'user', subject: userId } },
@@ -403,6 +443,41 @@ Parent plan: [Streams](124-streams.md)
           { id: sourceStreamId },
         ),
     );
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: userId } },
+        () =>
+          atlas.application.invokeOperation(
+            entities.AtlasExecutionStream.domain.setArchived,
+            { id: sourceStreamId, archived: true },
+          ),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { id: sourceStreamId, archived: true, archivedAt: expect.any(String) },
+    });
+    await expect(atlas.getExecutionStreams(userId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: sourceStreamId,
+          status: 'closed',
+          archivedAt: expect.any(String),
+        }),
+      ]),
+    );
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: userId } },
+        () =>
+          atlas.application.invokeOperation(
+            entities.AtlasExecutionStream.domain.setArchived,
+            { id: sourceStreamId, archived: false },
+          ),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { id: sourceStreamId, archived: false, archivedAt: null },
+    });
     await expect(
       withInvocationContext(
         { principal: { issuer: 'atlas', kind: 'user', subject: userId } },

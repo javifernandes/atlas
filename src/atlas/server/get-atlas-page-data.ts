@@ -15,11 +15,16 @@ const emptyPageData = (): AtlasPageData => ({
 
 export const getAtlasPageData = async (
   userId?: string | null,
+  selectedStreamId?: string | null,
 ): Promise<AtlasPageData> => {
   const atlas = await getAtlasServerApplication();
   const [snapshot, executionStreams] = await Promise.all([
     atlas.getProjectionSnapshot(),
-    userId ? atlas.getExecutionStreams(userId) : Promise.resolve([]),
+    userId
+      ? selectedStreamId
+        ? atlas.getExecutionStreams(userId, { selectedStreamId })
+        : atlas.getExecutionStreams(userId)
+      : Promise.resolve([]),
   ]);
 
   return snapshot
