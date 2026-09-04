@@ -12,6 +12,7 @@ relatedPlans:
   - plans/done/124-implicit-personal-execution-streams-mvp.md
   - plans/done/125-explicit-session-forking-and-routing.md
   - plans/done/126-session-archival-and-activity-recency.md
+  - plans/done/127-inline-session-fork-selection.md
 ---
 
 [[spec-workstream-atlas.planning-projection.workstream-execution-tree|Workstream Execution Tree]]
@@ -35,6 +36,12 @@ a new explicit Session. The source Session keeps its activity and remains open; 
 with the selected Plans as exact roots, a lineage link to its source, and no copied PR history.
 The rail switches among simultaneous open Sessions and bounded recent history without reconstructing
 work from Git history.
+
+Fork selection begins in an explicit mode on the Session tree itself, preserving the collapse,
+done-state, and spatial context the User is already viewing. Checked branches remain local to that
+Session and flow into a **Fork new Session** review dialog with an exact selected count. The dialog
+can filter candidates by Plan title, source, or status without mutating the current selection;
+switching Sessions, cancelling selection mode, or completing the fork clears that local state.
 
 Repository activity cannot infer this parallelism safely. Each explicit Session exposes a stable ID,
 addressable URL, and copyable LLM instruction requiring `Atlas-Session: <id>` in future PR bodies.
