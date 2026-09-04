@@ -11,10 +11,6 @@ FROM (
 ) AS activity
 WHERE activity.stream_id = stream.id;
 
-ALTER TABLE atlas_execution_streams
-  ADD CONSTRAINT atlas_execution_streams_archive_requires_closed_check
-  CHECK (archived_at IS NULL OR status = 'closed');
-
 CREATE INDEX atlas_execution_streams_user_unarchived_idx
   ON atlas_execution_streams (user_id, opened_at DESC)
   WHERE archived_at IS NULL;

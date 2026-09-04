@@ -615,7 +615,7 @@ export const AtlasExecutionStream = entity({
       },
     }),
     setArchived: operation({
-      description: 'Archive or unarchive one closed User-owned Atlas Session',
+      description: 'Archive or unarchive one User-owned Atlas Session',
       exposure: 'bridge',
       bridge: {},
       input: AtlasExecutionStreamSetArchivedInputSchema,
@@ -653,13 +653,6 @@ export const AtlasExecutionStream = entity({
 
         if (!stream || stream.userId !== principal.subject) {
           return yield* app.operation.fail('not_found', 'Execution stream not found.');
-        }
-
-        if (archived && stream.status !== 'closed') {
-          return yield* app.operation.fail(
-            'invalid_state',
-            'Only a closed execution stream can be archived.',
-          );
         }
 
         if ((stream.archivedAt !== null) === archived) {
@@ -1601,19 +1594,21 @@ const atlasExecutionStreamsBaseQuery = (userId: string) =>
 const atlasExecutionStreamsQuery = (
   userId: string,
   status: 'closed' | 'open',
-  archived: boolean,
 ) =>
   atlasExecutionStreamsBaseQuery(userId)
     .where(stream => stream.status.eq(status))
-    .where(stream =>
-      archived ? selectionNot(stream.archivedAt.isNull()) : stream.archivedAt.isNull(),
-    )
-    .orderBy(stream => (archived ? stream.archivedAt.desc() : stream.openedAt.desc()));
+    .where(stream => stream.archivedAt.isNull())
+    .orderBy(stream => stream.openedAt.desc());
 
 const atlasExecutionStreamByIdQuery = (userId: string, streamId: string) =>
   atlasExecutionStreamsBaseQuery(userId)
     .where(stream => stream.id.eq(streamId))
     .first();
+
+const atlasArchivedExecutionStreamsQuery = (userId: string) =>
+  atlasExecutionStreamsBaseQuery(userId)
+    .where(stream => selectionNot(stream.archivedAt.isNull()))
+    .orderBy(stream => stream.archivedAt.desc());
 
 const atlasExecutionStreamRootsQuery = (streamIds: string[]) =>
   query(AtlasExecutionStreamRoot)
@@ -1730,17 +1725,17 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
       const limit = options.limit ?? 6;
       const boundedLimit = Math.max(1, Math.min(limit, 20));
       const [openStreams, recentStreams, archivedStreams, selectedStream] = await Promise.all([
-        application.graph.read(atlasExecutionStreamsQuery(userId, 'open', false), {
+        application.graph.read(atlasExecutionStreamsQuery(userId, 'open'), {
           scope: 'atlas.execution-streams.open',
         }),
         application.graph.read(
-          atlasExecutionStreamsQuery(userId, 'closed', false).limit(boundedLimit),
+          atlasExecutionStreamsQuery(userId, 'closed').limit(boundedLimit),
           {
             scope: 'atlas.execution-streams.recent',
           },
         ),
         application.graph.read(
-          atlasExecutionStreamsQuery(userId, 'closed', true).limit(boundedLimit),
+          atlasArchivedExecutionStreamsQuery(userId).limit(boundedLimit),
           {
             scope: 'atlas.execution-streams.archived',
           },

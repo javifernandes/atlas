@@ -501,7 +501,7 @@ export const ExecutionStreamView = ({
   };
 
   const toggleCurrentStreamArchived = async () => {
-    if (!currentStream || currentStream.status !== 'closed' || archiving) return;
+    if (!currentStream || archiving) return;
 
     const archived = !currentStream.archivedAt;
     setArchiveError(null);
@@ -518,8 +518,10 @@ export const ExecutionStreamView = ({
 
       if (archived) {
         const replacement =
-          openStreams.find(stream => stream.mode === 'implicit') ??
-          openStreams[0] ??
+          openStreams.find(
+            stream => stream.id !== currentStream.id && stream.mode === 'implicit',
+          ) ??
+          openStreams.find(stream => stream.id !== currentStream.id) ??
           recentStreams.find(stream => stream.id !== currentStream.id);
         setShowArchived(false);
         setSelectedStreamId(replacement?.id ?? null);
@@ -840,23 +842,22 @@ export const ExecutionStreamView = ({
                           Close
                         </button>
                       </>
-                    ) : (
-                      <button
-                        type='button'
-                        className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60'
-                        disabled={archiving}
-                        onClick={toggleCurrentStreamArchived}
-                      >
-                        {archiving ? (
-                          <Loader2 aria-hidden='true' className='size-3.5 animate-spin' />
-                        ) : currentStream.archivedAt ? (
-                          <ArchiveRestore aria-hidden='true' className='size-3.5' />
-                        ) : (
-                          <Archive aria-hidden='true' className='size-3.5' />
-                        )}
-                        {currentStream.archivedAt ? 'Unarchive' : 'Archive'}
-                      </button>
-                    )}
+                    ) : null}
+                    <button
+                      type='button'
+                      className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60'
+                      disabled={archiving}
+                      onClick={toggleCurrentStreamArchived}
+                    >
+                      {archiving ? (
+                        <Loader2 aria-hidden='true' className='size-3.5 animate-spin' />
+                      ) : currentStream.archivedAt ? (
+                        <ArchiveRestore aria-hidden='true' className='size-3.5' />
+                      ) : (
+                        <Archive aria-hidden='true' className='size-3.5' />
+                      )}
+                      {currentStream.archivedAt ? 'Unarchive' : 'Archive'}
+                    </button>
                     <button
                       type='button'
                       aria-pressed={hideDone}

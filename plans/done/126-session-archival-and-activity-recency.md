@@ -9,8 +9,9 @@ Parent plan: [Explicit Session Forking And Activity Routing](./125-explicit-sess
 ## Summary
 
 Keep the Sessions workspace useful as personal execution history grows. A User can archive a
-closed Session, reveal or hide archived Sessions, and restore one from the archive. Every Session
-row shows the timestamp of its last merged-Pull-Request activity rather than substituting a
+Session independently of whether it is open or closed, reveal or hide archived Sessions, and
+restore one from the archive. Every Session row shows the timestamp of its last
+merged-Pull-Request activity rather than substituting a
 lifecycle timestamp.
 
 This plan implements the **Workstream Execution Tree** and shapes the **Execution Stream** and
@@ -35,7 +36,9 @@ the Session itself, updated with ingestion and backfilled once from existing act
 - update `lastActivityAt` transactionally whenever merged-PR activity is appended, without
   regressing it for an out-of-order delivery;
 - add one ownership-checked bridged Ontahí operation that archives or unarchives a Session;
-- permit archiving only closed Sessions and keep the action reversible;
+- keep archive independent from routing lifecycle and make the action reversible;
+- automatically unarchive an open Session in the same transaction that appends newly routed
+  merged-PR activity;
 - load open Sessions, bounded recent unarchived Sessions, and bounded archived Sessions separately;
 - hide archived Sessions by default, expose a show/hide control, and preserve direct links to an
   archived Session by revealing the archive automatically;
@@ -45,9 +48,9 @@ the Session itself, updated with ingestion and backfilled once from existing act
 ## Non-Goals
 
 - deleting Sessions or their activity;
-- archiving an open Session or combining close and archive into one transition;
+- reopening a closed Session when new PR activity names it;
+- combining close and archive into one transition;
 - automatically archiving by age, inactivity, or count;
-- reopening a closed Session;
 - reconstructing activity recency from Git history or an unbounded page query;
 - adding workspace-wide retention policies or collaborator permissions.
 
@@ -57,15 +60,18 @@ the Session itself, updated with ingestion and backfilled once from existing act
 AtlasExecutionStream
   status: open | closed
   closedAt: timestamp?
-  archivedAt: timestamp?       # presentation/history curation; closed only
+  archivedAt: timestamp?       # presentation/history curation; any lifecycle state
   lastActivityAt: timestamp?   # max observed PR activity time
 
 AtlasExecutionStream.setArchived({ id, archived })
-  owner + closed Session -> archivedAt = now | null
+  owner + Session -> archivedAt = now | null
+
+routed merged-PR activity + archived open Session
+  -> append activity + archivedAt = null in one transaction
 ```
 
 `status` continues to answer whether activity can route to the Session. `archivedAt` answers whether
-the closed interval appears in the default workspace. Unarchiving restores visibility but does not
+the Session appears in the default workspace. Unarchiving restores visibility but does not
 reopen routing.
 
 ## Execution Slices
@@ -78,14 +84,16 @@ reopen routing.
 5. [x] Add the archive affordance, show/hide control, direct-link behavior, and rail timestamps.
 6. [x] Run default and PostgreSQL integration verification, update closure evidence, and move the
        Plan to `done/`.
+7. [x] Let open Sessions be archived and automatically resurface them on newly routed activity.
 
 ## Verification
 
 - [x] migration applies over existing Sessions, backfills the latest activity, and repeats safely;
 - [x] the Ontahí mapping matches `archived_at` and `last_activity_at`;
 - [x] only the owning authenticated User can archive or unarchive a Session;
-- [x] an open Session cannot be archived;
-- [x] archive and unarchive preserve `closed`, Plans, roots, focus, and activities;
+- [x] open and closed Sessions can both be archived without changing routing lifecycle;
+- [x] valid merged-PR activity atomically resurfaces an archived open Session;
+- [x] archive and unarchive preserve lifecycle status, Plans, roots, focus, and activities;
 - [x] merged-PR ingestion advances but never regresses `lastActivityAt`;
 - [x] default reads exclude archived Sessions from recent history while keeping a bounded archive;
 - [x] the UI hides archived Sessions by default and can reveal, select, and restore them;
@@ -97,10 +105,12 @@ reopen routing.
 ## Decisions
 
 1. Archive is reversible curation, not a third routing status.
-2. Only closed Sessions can be archived; closing remains an explicit separate boundary.
+2. Open or closed Sessions can be archived; closing remains the explicit routing boundary.
 3. `lastActivityAt` is a durable denormalized maximum because activity hydration is intentionally
    bounded.
 4. Archived data remains queryable and addressable; hiding it is a default view choice.
+5. Valid activity automatically resurfaces an archived open Session without changing its routing
+   lifecycle; closed Sessions remain closed and unroutable.
 
 ## Open Questions
 
@@ -117,8 +127,8 @@ Implementation started from direct Sessions dogfood. The originating PR is expli
 
 Atlas now persists archive state independently from open/closed lifecycle and exposes one
 ownership-checked bridged `AtlasExecutionStream.setArchived` operation for reversible curation.
-Only closed Sessions can enter the archive. Reads remain bounded across open, recent unarchived,
-and archived groups, while direct archived URLs reveal their selected Session.
+The first UI slice exposed archival on closed Sessions. Reads remain bounded across open, recent
+unarchived, and archived groups, while direct archived URLs reveal their selected Session.
 
 `lastActivityAt` is backfilled from the maximum existing activity and advanced transactionally by
 new merged-PR ingestion without regressing on out-of-order delivery. The rail renders that exact
@@ -126,5 +136,15 @@ summary for open, recent, and archived Sessions, with `No PRs yet` for a fresh f
 
 `pnpm verify` passed with 92 default unit/UI tests, typecheck, the production build, and 79 Atlas
 source traces. All 8 PostgreSQL integration tests passed against an ephemeral local Postgres 18
-container, including prior-schema backfill, archive constraints, bounded projection, and recency
-behavior. No production database or production-derived branch was used.
+container, including prior-schema backfill, bounded projection, and recency behavior. No production
+database or production-derived branch was used.
+
+### 2026-09-04 — activity-aware archive follow-up landed
+
+Dogfooding clarified that archive is a visibility preference rather than a lifecycle gate. The
+follow-up makes open Sessions archivable and clears `archivedAt` transactionally when a valid
+merged PR routes to one, while preserving `closed` as the hard activity boundary.
+
+`pnpm verify` passed with 93 default tests, typecheck, the production build, and 79 Atlas source
+traces. All 8 PostgreSQL integration tests passed against an ephemeral local Postgres 18 container,
+including explicit `Atlas-Session` routing into an archived open Session and its atomic resurfacing.

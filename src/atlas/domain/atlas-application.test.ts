@@ -364,9 +364,24 @@ Parent plan: [Streams](124-streams.md)
           ),
       ),
     ).resolves.toMatchObject({
-      ok: false,
-      failure: { reason: 'invalid_state' },
+      ok: true,
+      value: { id: sourceStreamId, archived: true, archivedAt: expect.any(String) },
     });
+    await expect(atlas.getExecutionStreams(userId)).resolves.toEqual([
+      expect.objectContaining({
+        id: sourceStreamId,
+        status: 'open',
+        archivedAt: expect.any(String),
+      }),
+    ]);
+    await withInvocationContext(
+      { principal: { issuer: 'atlas', kind: 'user', subject: userId } },
+      () =>
+        atlas.application.invokeOperation(
+          entities.AtlasExecutionStream.domain.setArchived,
+          { id: sourceStreamId, archived: false },
+        ),
+    );
     await expect(
       withInvocationContext(
         {

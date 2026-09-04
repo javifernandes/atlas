@@ -362,6 +362,26 @@ describe('ExecutionStreamView', () => {
     await waitFor(() => expect(refreshMock).toHaveBeenCalledOnce());
   });
 
+  it('archives an open Session without closing it', async () => {
+    render(
+      <ExecutionStreamView
+        executionStreams={[currentStream, recentStream]}
+        onOpenPlan={vi.fn()}
+        snapshot={snapshot}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archive' }));
+
+    await waitFor(() =>
+      expect(setArchivedExecuteAsyncMock).toHaveBeenCalledWith({
+        id: currentStream.id,
+        archived: true,
+      }),
+    );
+    expect(closeExecuteAsyncMock).not.toHaveBeenCalled();
+  });
+
   it('archives closed Sessions and reveals or restores archived history', async () => {
     const { rerender } = render(
       <ExecutionStreamView

@@ -292,6 +292,7 @@ export const createAtlasPostgresApplication = (input: {
           candidate.id.eq(currentStream.id),
         )
           .updateOne({
+            archivedAt: null,
             currentFocusPlanId: planAttribution.focusPlan.id,
             lastActivityAt: latestActivityTimestamp(
               currentStream.lastActivityAt,

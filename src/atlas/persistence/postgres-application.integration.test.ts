@@ -188,7 +188,7 @@ Durable Atlas projection.
     });
   }, 30_000);
 
-  it('backfills last activity and constrains archive state over the prior schema', async () => {
+  it('backfills last activity and permits lifecycle-independent archive state', async () => {
     const legacySchema = `atlas_legacy_${randomUUID().replaceAll('-', '')}`;
     const legacyPool = new Pool({
       connectionString,
@@ -255,7 +255,7 @@ Durable Atlas projection.
           'UPDATE atlas_execution_streams SET archived_at = now() WHERE id = $1',
           [openStreamId],
         ),
-      ).rejects.toMatchObject({ code: '23514' });
+      ).resolves.toMatchObject({ rowCount: 1 });
     } finally {
       await legacyPool.end();
       await adminPool.query(`DROP SCHEMA ${legacySchema} CASCADE`);
@@ -671,9 +671,18 @@ Durable Atlas projection.
       );
 
     await expect(invokeSetArchived(activeStream!.id, true)).resolves.toMatchObject({
-      ok: false,
-      failure: { reason: 'invalid_state' },
+      ok: true,
+      value: { archived: true, archivedAt: expect.any(String) },
     });
+    await expect(atlas.getExecutionStreams(streamOwner.user.id)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: activeStream!.id,
+          archivedAt: expect.any(String),
+          status: 'open',
+        }),
+      ]),
+    );
     await expect(invokeSetArchived(historicalStream!.id, true)).resolves.toMatchObject({
       ok: true,
       value: { archived: true, archivedAt: expect.any(String) },
@@ -842,6 +851,43 @@ Atlas-Session: ${explicitStreamId}`,
       expect.objectContaining({ pullRequest: expect.objectContaining({ number: 30 }) }),
     ]);
 
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: owner.user.id } },
+        () =>
+          atlas.application.invokeOperation(
+            atlas.application.graph.entities.AtlasExecutionStream.domain.setArchived,
+            { id: explicitStreamId, archived: true },
+          ),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { archived: true, archivedAt: expect.any(String) },
+    });
+    await expect(
+      merge(
+        webhook({
+          body: `Atlas-Implements: atlas://plans/117-secondary
+Atlas-Session: ${explicitStreamId}`,
+          number: 36,
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
+    expect(
+      (await atlas.getExecutionStreams(owner.user.id)).find(
+        stream => stream.id === explicitStreamId,
+      ),
+    ).toMatchObject({
+      archivedAt: null,
+      status: 'open',
+      activities: expect.arrayContaining([
+        expect.objectContaining({
+          attribution: 'explicit-directive',
+          pullRequest: expect.objectContaining({ number: 36 }),
+        }),
+      ]),
+    });
+
     const unroutedWebhooks = [
       webhook({
         body: `Atlas-Implements: atlas://plans/116-persistence
@@ -867,7 +913,7 @@ Atlas-Session: ${explicitStreamId}`,
 
     await expect(atlas.getExecutionStreams(otherAuthor.user.id)).resolves.toEqual([]);
     const unchangedStreams = await atlas.getExecutionStreams(owner.user.id);
-    expect(unchangedStreams.flatMap(stream => stream.activities)).toHaveLength(2);
+    expect(unchangedStreams.flatMap(stream => stream.activities)).toHaveLength(3);
 
     await withInvocationContext(
       { principal: { issuer: 'atlas', kind: 'user', subject: owner.user.id } },
@@ -887,7 +933,7 @@ Atlas-Session: ${explicitStreamId}`,
       ),
     ).resolves.toMatchObject({ ok: true });
     const finalStreams = await atlas.getExecutionStreams(owner.user.id);
-    expect(finalStreams.flatMap(stream => stream.activities)).toHaveLength(2);
+    expect(finalStreams.flatMap(stream => stream.activities)).toHaveLength(3);
   }, 30_000);
 
   it('does not let an older observation overwrite a newer projection', async () => {

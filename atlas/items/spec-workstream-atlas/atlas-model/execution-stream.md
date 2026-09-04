@@ -48,7 +48,9 @@ the directive, the implicit behavior remains compatible. `Atlas-Implements` and 
 continue to resolve Plan and Item evidence independently.
 
 Closing a Stream is an explicit temporal boundary. Archiving is a separate, reversible curation
-state recorded by nullable `archivedAt`: only a closed Stream can be archived, and unarchiving it
+state recorded by nullable `archivedAt`; it can hide an open or closed Stream without changing
+activity routing. Newly routed merged-PR activity clears `archivedAt` in the same transaction so
+an active Stream resurfaces automatically. A closed Stream remains unroutable and unarchiving it
 does not reopen activity routing. Both mutations are bridged Ontahí operations carried by the
 generic Operation adapter and dispatcher also used by Atlas's Runtime Protocol; the operation
 derives the User from the authenticated Principal and never accepts a client-asserted owner
