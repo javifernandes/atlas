@@ -8,14 +8,24 @@ import { AuthControl } from '@/components/auth/auth-control';
 
 export const dynamic = 'force-dynamic';
 
-const AtlasPage = async () => {
+type AtlasPageProps = {
+  searchParams?: { session?: string | string[] };
+};
+
+const AtlasPage = async ({ searchParams }: AtlasPageProps) => {
   const access = await getAtlasRequestAccess(headers());
 
   if (!access.canRead) {
     redirect('/sign-in');
   }
 
-  const { executionStreams, snapshot } = await getAtlasPageData(access.viewer?.id);
+  const selectedStreamId = Array.isArray(searchParams?.session)
+    ? searchParams.session[0]
+    : searchParams?.session;
+  const { executionStreams, snapshot } = await getAtlasPageData(
+    access.viewer?.id,
+    selectedStreamId,
+  );
 
   return (
     <>

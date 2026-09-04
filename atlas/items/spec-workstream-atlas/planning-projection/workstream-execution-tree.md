@@ -11,6 +11,7 @@ supports:
 relatedPlans:
   - plans/done/124-implicit-personal-execution-streams-mvp.md
   - plans/done/125-explicit-session-forking-and-routing.md
+  - plans/done/126-session-archival-and-activity-recency.md
 ---
 
 [[spec-workstream-atlas.planning-projection.workstream-execution-tree|Workstream Execution Tree]]
@@ -52,6 +53,11 @@ violet merge glyph carries the merged-state convention without repeating `PR` an
 primary line; the linked repository and PR number remain secondary metadata, while the activity
 time sits at the opposite edge for quick scanning. Session lifecycle actions keep a visible text
 label, including `Close`, rather than relying on an unexplained icon.
+
+Closed Sessions may be archived without becoming deleted or reopening their execution interval.
+The rail hides archived history by default and can reveal it explicitly; an addressable archived
+Session reveals that group automatically. Every open, recent, or archived row shows the exact time
+of its latest merged-Pull-Request activity, or `No PRs yet` when the Session has no activity.
 
 The tree may also show explicitly referenced but unmaterialized targets as empty branch tips. Such
 a target records authorial intent and an incoming relation without pretending that a complete Plan

@@ -60,4 +60,18 @@ describe('Atlas page data', () => {
 
     await expect(getAtlasPageData('user-1')).resolves.toMatchObject({ executionStreams });
   });
+
+  it('requests an addressed Session independently from bounded history', async () => {
+    const getExecutionStreams = vi.fn().mockResolvedValue([]);
+    getApplication.mockResolvedValue({
+      getExecutionStreams,
+      getProjectionSnapshot: vi.fn().mockResolvedValue(null),
+    } as never);
+
+    await getAtlasPageData('user-1', 'archived-stream-1');
+
+    expect(getExecutionStreams).toHaveBeenCalledWith('user-1', {
+      selectedStreamId: 'archived-stream-1',
+    });
+  });
 });
