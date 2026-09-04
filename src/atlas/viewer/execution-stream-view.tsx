@@ -12,6 +12,7 @@ import {
   GitMerge,
   Loader2,
   Radio,
+  Search,
   X,
 } from 'lucide-react';
 import { useOperation } from '@ontahi/react/graph';
@@ -261,6 +262,8 @@ export const ExecutionStreamView = ({
   const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
   const [forkTitle, setForkTitle] = useState('');
   const [forkPlanIds, setForkPlanIds] = useState<Set<string>>(() => new Set());
+  const [forkPlanFilter, setForkPlanFilter] = useState('');
+  const [selectingForkPlans, setSelectingForkPlans] = useState(false);
   const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -329,6 +332,17 @@ export const ExecutionStreamView = ({
         : [],
     [currentStream, snapshot],
   );
+  const filteredForkTreeRows = useMemo(() => {
+    const query = forkPlanFilter.trim().toLocaleLowerCase();
+
+    if (!query) return forkTreeRows;
+
+    return forkTreeRows.filter(({ node }) =>
+      [node.shortTitle, node.title, node.status, node.statusGroup, planSourceLabel(node)].some(
+        value => value.toLocaleLowerCase().includes(query),
+      ),
+    );
+  }, [forkPlanFilter, forkTreeRows]);
   const collapsibleNodeIds = expandedTreeRows
     .filter(row => row.hasChildren)
     .map(row => row.node.id);
@@ -375,11 +389,19 @@ export const ExecutionStreamView = ({
     globalThis.history.replaceState({}, '', nextUrl);
   };
 
+  const resetForkSelection = () => {
+    setConfirmingFork(false);
+    setSelectingForkPlans(false);
+    setForkPlanIds(new Set());
+    setForkPlanFilter('');
+    setForkError(null);
+  };
+
   const selectStream = (stream: AtlasExecutionStreamProjection) => {
     setSelectedStreamId(stream.id);
     setCollapsedNodeIds(new Set());
     setConfirmingClose(false);
-    setConfirmingFork(false);
+    resetForkSelection();
     setCopyError(null);
     setArchiveError(null);
     if (stream.archivedAt) setShowArchived(true);
@@ -433,12 +455,19 @@ export const ExecutionStreamView = ({
   };
 
   const openForkDialog = () => {
-    if (!currentStream || currentStream.status !== 'open') return;
+    if (!currentStream || currentStream.status !== 'open' || forkPlanIds.size === 0) return;
 
     setForkError(null);
-    setForkPlanIds(new Set());
+    setForkPlanFilter('');
     setForkTitle(`Fork of ${currentStream.title}`);
     setConfirmingFork(true);
+  };
+
+  const startForkSelection = () => {
+    setForkError(null);
+    setForkPlanIds(new Set());
+    setForkPlanFilter('');
+    setSelectingForkPlans(true);
   };
 
   const toggleForkPlan = (planId: string) => {
@@ -474,7 +503,7 @@ export const ExecutionStreamView = ({
 
       setSelectedStreamId(result.value.id);
       writeSessionRoute(result.value.id);
-      setConfirmingFork(false);
+      resetForkSelection();
       router.refresh();
     } catch (error) {
       setForkError(error instanceof Error ? error.message : 'Atlas could not fork this Session.');
@@ -494,6 +523,7 @@ export const ExecutionStreamView = ({
       }
 
       setConfirmingClose(false);
+      resetForkSelection();
       router.refresh();
     } catch (error) {
       setCloseError(error instanceof Error ? error.message : 'Atlas could not close this stream.');
@@ -810,79 +840,122 @@ export const ExecutionStreamView = ({
                   <div className='flex items-center gap-1.5'>
                     {currentStream.status === 'open' ? (
                       <>
-                        <button
-                          type='button'
-                          className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-                          onClick={openForkDialog}
-                        >
-                          <GitFork aria-hidden='true' className='size-3.5' />
-                          Fork session
-                        </button>
-                        <button
-                          type='button'
-                          className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-                          onClick={copySessionInstructions}
-                        >
-                          {copiedSessionId === currentStream.id ? (
-                            <Check aria-hidden='true' className='size-3.5 text-emerald-500' />
-                          ) : (
-                            <Copy aria-hidden='true' className='size-3.5' />
-                          )}
-                          {copiedSessionId === currentStream.id ? 'Copied' : 'Copy for LLM'}
-                        </button>
-                        <button
-                          type='button'
-                          aria-label={`Close ${currentStream.title}`}
-                          title='Close Session'
-                          className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-                          disabled={closing}
-                          onClick={() => setConfirmingClose(true)}
-                        >
-                          <Archive aria-hidden='true' className='size-3.5' />
-                          Close
-                        </button>
+                        {selectingForkPlans ? (
+                          <>
+                            <button
+                              type='button'
+                              className='inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-[11px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50'
+                              disabled={forkPlanIds.size === 0}
+                              onClick={openForkDialog}
+                            >
+                              <GitFork aria-hidden='true' className='size-3.5' />
+                              Fork new Session
+                              {forkPlanIds.size > 0 ? ` (${forkPlanIds.size})` : null}
+                            </button>
+                            <button
+                              type='button'
+                              aria-label='Cancel Plan selection'
+                              className='rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+                              onClick={resetForkSelection}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type='button'
+                            className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+                            onClick={startForkSelection}
+                          >
+                            <GitFork aria-hidden='true' className='size-3.5' />
+                            Select plans
+                          </button>
+                        )}
+                        {!selectingForkPlans ? (
+                          <>
+                            <button
+                              type='button'
+                              className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+                              onClick={copySessionInstructions}
+                            >
+                              {copiedSessionId === currentStream.id ? (
+                                <Check
+                                  aria-hidden='true'
+                                  className='size-3.5 text-emerald-500'
+                                />
+                              ) : (
+                                <Copy aria-hidden='true' className='size-3.5' />
+                              )}
+                              {copiedSessionId === currentStream.id ? 'Copied' : 'Copy for LLM'}
+                            </button>
+                            <button
+                              type='button'
+                              aria-label={`Close ${currentStream.title}`}
+                              title='Close Session'
+                              className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+                              disabled={closing}
+                              onClick={() => setConfirmingClose(true)}
+                            >
+                              <Archive aria-hidden='true' className='size-3.5' />
+                              Close
+                            </button>
+                          </>
+                        ) : null}
                       </>
                     ) : null}
-                    <button
-                      type='button'
-                      className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60'
-                      disabled={archiving}
-                      onClick={toggleCurrentStreamArchived}
-                    >
-                      {archiving ? (
-                        <Loader2 aria-hidden='true' className='size-3.5 animate-spin' />
-                      ) : currentStream.archivedAt ? (
-                        <ArchiveRestore aria-hidden='true' className='size-3.5' />
-                      ) : (
-                        <Archive aria-hidden='true' className='size-3.5' />
-                      )}
-                      {currentStream.archivedAt ? 'Unarchive' : 'Archive'}
-                    </button>
-                    <button
-                      type='button'
-                      aria-pressed={hideDone}
-                      className={cn(
-                        'rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors',
-                        hideDone
-                          ? 'border-primary/45 bg-primary/10 text-foreground'
-                          : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
-                      )}
-                      onClick={() => setHideDone(current => !current)}
-                    >
-                      Hide done
-                    </button>
-                    {collapsibleNodeIds.length > 0 ? (
-                      <button
-                        type='button'
-                        className='rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-                        onClick={toggleAllBranches}
-                      >
-                        {hasCollapsedBranches ? 'Expand all' : 'Collapse all'}
-                      </button>
+                    {!selectingForkPlans ? (
+                      <>
+                        <button
+                          type='button'
+                          className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60'
+                          disabled={archiving}
+                          onClick={toggleCurrentStreamArchived}
+                        >
+                          {archiving ? (
+                            <Loader2 aria-hidden='true' className='size-3.5 animate-spin' />
+                          ) : currentStream.archivedAt ? (
+                            <ArchiveRestore aria-hidden='true' className='size-3.5' />
+                          ) : (
+                            <Archive aria-hidden='true' className='size-3.5' />
+                          )}
+                          {currentStream.archivedAt ? 'Unarchive' : 'Archive'}
+                        </button>
+                        <button
+                          type='button'
+                          aria-pressed={hideDone}
+                          className={cn(
+                            'rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors',
+                            hideDone
+                              ? 'border-primary/45 bg-primary/10 text-foreground'
+                              : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
+                          )}
+                          onClick={() => setHideDone(current => !current)}
+                        >
+                          Hide done
+                        </button>
+                        {collapsibleNodeIds.length > 0 ? (
+                          <button
+                            type='button'
+                            className='rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+                            onClick={toggleAllBranches}
+                          >
+                            {hasCollapsedBranches ? 'Expand all' : 'Collapse all'}
+                          </button>
+                        ) : null}
+                      </>
                     ) : null}
                   </div>
                 ) : null}
               </header>
+
+              {selectingForkPlans && currentStream?.status === 'open' ? (
+                <div className='flex items-center justify-between gap-3 border-b border-violet-500/20 bg-violet-500/5 px-4 py-2 text-[11px] text-muted-foreground'>
+                  <span>Select Plan branches directly in this tree.</span>
+                  <span className='shrink-0 font-medium text-foreground'>
+                    {forkPlanIds.size} selected
+                  </span>
+                </div>
+              ) : null}
 
               {currentStream?.forkedFromStream ? (
                 <div className='border-b border-border/70 px-4 py-2 text-[11px] text-muted-foreground'>
@@ -916,13 +989,19 @@ export const ExecutionStreamView = ({
                       {treeRows.map(({ depth, hasChildren, node }) => {
                         const focused = node.id === currentStream.currentFocusPlan?.id;
                         const collapsed = collapsedNodeIds.has(node.id);
+                        const selectedForFork = forkPlanIds.has(node.id);
 
                         return (
                           <div
                             key={node.id}
                             className={cn(
-                              'grid min-h-12 w-full grid-cols-[24px_minmax(0,1fr)] items-center rounded-lg pr-2 transition-colors hover:bg-muted/55',
+                              'grid min-h-12 w-full items-center rounded-lg pr-2 transition-colors hover:bg-muted/55',
+                              selectingForkPlans
+                                ? 'grid-cols-[24px_28px_minmax(0,1fr)]'
+                                : 'grid-cols-[24px_minmax(0,1fr)]',
                               focused && 'bg-sky-500/10 hover:bg-sky-500/15',
+                              selectedForFork &&
+                                'bg-violet-500/10 ring-1 ring-inset ring-violet-500/25 hover:bg-violet-500/15',
                             )}
                             style={{ paddingLeft: `${4 + Math.min(depth, 6) * 22}px` }}
                           >
@@ -943,6 +1022,17 @@ export const ExecutionStreamView = ({
                             ) : (
                               <span aria-hidden='true' />
                             )}
+                            {selectingForkPlans ? (
+                              <span className='grid size-7 place-items-center'>
+                                <input
+                                  type='checkbox'
+                                  aria-label={`Select ${node.shortTitle} to fork`}
+                                  checked={selectedForFork}
+                                  className='size-4 cursor-pointer accent-violet-500'
+                                  onChange={() => toggleForkPlan(node.id)}
+                                />
+                              </span>
+                            ) : null}
                             <button
                               type='button'
                               className='grid min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 py-2 text-left'
@@ -1090,8 +1180,9 @@ export const ExecutionStreamView = ({
                   Fork “{currentStream.title}”
                 </h2>
                 <p className='mt-2 text-sm leading-6 text-muted-foreground'>
-                  Select the Plan branches that continue in a separate Session. Existing PR
-                  history stays here.
+                  Review {forkPlanIds.size} selected Plan
+                  {forkPlanIds.size === 1 ? '' : 's'} for the new Session. Existing PR history
+                  stays here.
                 </p>
               </div>
               <button
@@ -1114,24 +1205,50 @@ export const ExecutionStreamView = ({
                   onChange={event => setForkTitle(event.target.value)}
                 />
               </label>
+              <label className='mt-4 grid gap-1.5 text-sm font-medium'>
+                Filter Plans
+                <span className='relative'>
+                  <Search
+                    aria-hidden='true'
+                    className='pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground'
+                  />
+                  <input
+                    type='search'
+                    className='h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 font-normal outline-none focus:border-sky-500'
+                    placeholder='Search by title, source, or status'
+                    value={forkPlanFilter}
+                    onChange={event => setForkPlanFilter(event.target.value)}
+                  />
+                </span>
+              </label>
               <fieldset className='mt-5'>
-                <legend className='text-sm font-medium'>Plans to continue</legend>
+                <legend className='text-sm font-medium'>
+                  Plans to continue · {forkPlanIds.size} selected
+                </legend>
                 <div className='mt-2 grid gap-1 rounded-lg border border-border p-2'>
-                  {forkTreeRows.map(({ depth, node }) => (
-                    <label
-                      key={node.id}
-                      className='flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 hover:bg-muted/55'
-                      style={{ paddingLeft: `${8 + Math.min(depth, 6) * 18}px` }}
-                    >
-                      <input
-                        type='checkbox'
-                        checked={forkPlanIds.has(node.id)}
-                        onChange={() => toggleForkPlan(node.id)}
-                      />
-                      <span className='min-w-0 flex-1 truncate text-sm'>{node.shortTitle}</span>
-                      <span className='text-[11px] text-muted-foreground'>{node.statusGroup}</span>
-                    </label>
-                  ))}
+                  {filteredForkTreeRows.length > 0 ? (
+                    filteredForkTreeRows.map(({ depth, node }) => (
+                      <label
+                        key={node.id}
+                        className='flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 hover:bg-muted/55'
+                        style={{ paddingLeft: `${8 + Math.min(depth, 6) * 18}px` }}
+                      >
+                        <input
+                          type='checkbox'
+                          checked={forkPlanIds.has(node.id)}
+                          onChange={() => toggleForkPlan(node.id)}
+                        />
+                        <span className='min-w-0 flex-1 truncate text-sm'>{node.shortTitle}</span>
+                        <span className='text-[11px] text-muted-foreground'>
+                          {node.statusGroup}
+                        </span>
+                      </label>
+                    ))
+                  ) : (
+                    <p className='px-2 py-4 text-center text-sm text-muted-foreground'>
+                      No Plans match “{forkPlanFilter.trim()}”.
+                    </p>
+                  )}
                 </div>
               </fieldset>
 

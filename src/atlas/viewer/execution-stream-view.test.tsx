@@ -314,7 +314,7 @@ describe('ExecutionStreamView', () => {
     );
   });
 
-  it('forks selected Plans without copying activity in the client request', async () => {
+  it('selects multiple visible Plans, filters their review, and forks the exact selection', async () => {
     render(
       <ExecutionStreamView
         executionStreams={[currentStream]}
@@ -323,22 +323,80 @@ describe('ExecutionStreamView', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Fork session' }));
-    const dialog = screen.getByRole('dialog', { name: /Fork “Implicit Streams”/ });
+    fireEvent.click(screen.getByRole('button', { name: 'Select plans' }));
+    expect(screen.getByRole('button', { name: 'Fork new Session' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Explicit Routing to fork' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Persistent Identity to fork' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fork new Session (2)' }));
+    let dialog = screen.getByRole('dialog', { name: /Fork “Implicit Streams”/ });
+    expect(within(dialog).getByRole('checkbox', { name: /Explicit Routing/ })).toBeChecked();
+    expect(within(dialog).getByRole('checkbox', { name: /Persistent Identity/ })).toBeChecked();
+    fireEvent.change(within(dialog).getByRole('searchbox', { name: 'Filter Plans' }), {
+      target: { value: 'identity' },
+    });
+    expect(within(dialog).queryByRole('checkbox', { name: /Explicit Routing/ })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('checkbox', { name: /Persistent Identity/ })).toBeChecked();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fork new Session (2)' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Fork new Session (2)' }));
+    dialog = screen.getByRole('dialog', { name: /Fork “Implicit Streams”/ });
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Session name' }), {
       target: { value: 'Protocol follow-up' },
     });
-    fireEvent.click(within(dialog).getByRole('checkbox', { name: /Explicit Routing/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create Session' }));
 
     await waitFor(() =>
       expect(forkExecuteAsyncMock).toHaveBeenCalledWith({
         sourceStreamId: currentStream.id,
         title: 'Protocol follow-up',
-        planIds: ['plan:atlas://plans/125-routing'],
+        planIds: [
+          'plan:atlas://plans/125-routing',
+          'plan:atlas://plans/123-identity',
+        ],
       }),
     );
     await waitFor(() => expect(refreshMock).toHaveBeenCalledOnce());
+  });
+
+  it('clears inline fork selection when selection mode is cancelled', () => {
+    render(
+      <ExecutionStreamView
+        executionStreams={[currentStream]}
+        onOpenPlan={vi.fn()}
+        snapshot={snapshot}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select plans' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Explicit Routing to fork' }));
+    expect(screen.getByRole('button', { name: 'Fork new Session (1)' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Plan selection' }));
+    expect(screen.queryByRole('checkbox', { name: /to fork/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Select plans' }));
+    expect(screen.getByRole('button', { name: 'Fork new Session' })).toBeDisabled();
+  });
+
+  it('scopes inline fork selection to the currently selected Session', () => {
+    render(
+      <ExecutionStreamView
+        executionStreams={[currentStream, explicitStream]}
+        onOpenPlan={vi.fn()}
+        snapshot={snapshot}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select plans' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Persistent Identity to fork' }));
+    fireEvent.click(screen.getByRole('button', { name: /Secondary lineage/ }));
+
+    expect(screen.queryByRole('checkbox', { name: /to fork/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Select plans' }));
+    expect(screen.getByRole('checkbox', { name: 'Select Explicit Routing to fork' })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Fork new Session' })).toBeDisabled();
   });
 
   it('confirms and closes the current stream through the bridged operation', async () => {
