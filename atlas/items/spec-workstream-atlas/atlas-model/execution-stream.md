@@ -11,6 +11,7 @@ supports:
 relatedPlans:
   - plans/done/124-implicit-personal-execution-streams-mvp.md
   - plans/done/125-explicit-session-forking-and-routing.md
+  - plans/done/126-session-archival-and-activity-recency.md
 ---
 
 An Execution Stream is Atlas-native operational memory for one person's bounded interval of work.
@@ -25,7 +26,9 @@ merge with resolved Plan evidence creates one. Explicit Streams receive activity
 `Atlas-Session` directive naming that exact open Stream.
 
 A Stream stores its owning User, mode, lifecycle status, title, root Plan memberships,
-current-focus Plan, optional `forkedFrom` Stream, and lifecycle timestamps. An implicit Stream may
+current-focus Plan, optional `forkedFrom` Stream, and lifecycle timestamps. `lastActivityAt` is the
+durable maximum merged-PR activity time, maintained as an ingestion summary so bounded activity
+hydration never makes recency inaccurate. An implicit Stream may
 accumulate several inferred roots when one temporal interval touches disjoint Plan families. An
 explicit Stream begins with the exact Plans selected during a fork; the source Stream and its PR
 history remain unchanged, and the new Stream starts without copied activity. A merged Pull Request
@@ -44,11 +47,16 @@ explicit target records no Stream activity and never falls back to the implicit 
 the directive, the implicit behavior remains compatible. `Atlas-Implements` and `Atlas-Shapes`
 continue to resolve Plan and Item evidence independently.
 
-Closing a Stream is an explicit temporal boundary. It is a bridged Ontahí operation carried by the
+Closing a Stream is an explicit temporal boundary. Archiving is a separate, reversible curation
+state recorded by nullable `archivedAt`; it can hide an open or closed Stream without changing
+activity routing. Newly routed merged-PR activity clears `archivedAt` in the same transaction so
+an active Stream resurfaces automatically. A closed Stream remains unroutable and unarchiving it
+does not reopen activity routing. Both mutations are bridged Ontahí operations carried by the
 generic Operation adapter and dispatcher also used by Atlas's Runtime Protocol; the operation
 derives the User from the authenticated Principal and never accepts a client-asserted owner
 identity. Its declared requirement admits only an Atlas user Principal, keeping permission checks
 aligned with execution. Fork is likewise an ownership-checked bridged operation and creates the new
-Stream plus selected root memberships transactionally. Close archives one interval while preserving
-unfinished Plans and all activity. Page reads project open Streams and bounded recent history
-directly from the database; they do not reconstruct a person's work by replaying repository history.
+Stream plus selected root memberships transactionally. Close ends one interval while preserving
+unfinished Plans and all activity. Page reads project open Streams, bounded recent unarchived
+history, and a bounded archive directly from the database; they do not reconstruct a person's work
+by replaying repository history.

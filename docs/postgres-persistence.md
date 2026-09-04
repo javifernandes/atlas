@@ -32,6 +32,9 @@ older than the latest committed revision cannot overwrite it.
 Personal Sessions are durable operational state beside that source projection. Migration 007
 introduced the implicit Execution Stream, roots, and merged-PR activity. Migration 008 adds the
 self-referencing `forked_from_stream_id` lineage and the `explicit-directive` attribution mode.
+Migration 009 adds reversible Session archive state and a backfilled `last_activity_at` summary.
+New merged-PR activity advances that maximum and clears archive state transactionally, so bounded
+page reads can show exact Session recency and active Sessions resurface without scanning history.
 The ownership-checked fork operation inserts an explicit Stream and its exact selected roots in one
 transaction. Merged-PR reconciliation resolves `Atlas-Session` after stable GitHub-account identity;
 an invalid explicit target writes no Stream activity and cannot fall through to implicit creation.

@@ -35,6 +35,18 @@ const hashRevisionSet = (revisionIds: string[]) =>
 const executionStreamTitle = (planTitle: string) =>
   planTitle.replace(/^\d+[a-z]?\.\s+/i, '').trim() || planTitle;
 
+const latestActivityTimestamp = (current: string | null, candidate: string) => {
+  if (!current) return candidate;
+
+  const currentTime = Date.parse(current);
+  const candidateTime = Date.parse(candidate);
+
+  return Number.isFinite(candidateTime) &&
+    (!Number.isFinite(currentTime) || candidateTime > currentTime)
+    ? candidate
+    : current;
+};
+
 const mergeWebhookPullRequestObservation = (
   projection: AtlasProjectionInput,
   request: AtlasReconciliationRequest,
@@ -267,6 +279,8 @@ export const createAtlasPostgresApplication = (input: {
           forkedFromStreamId: null,
           openedAt: timestamp,
           closedAt: null,
+          archivedAt: null,
+          lastActivityAt: timestamp,
           createdAt: timestamp,
           updatedAt: timestamp,
         };
@@ -278,7 +292,12 @@ export const createAtlasPostgresApplication = (input: {
           candidate.id.eq(currentStream.id),
         )
           .updateOne({
+            archivedAt: null,
             currentFocusPlanId: planAttribution.focusPlan.id,
+            lastActivityAt: latestActivityTimestamp(
+              currentStream.lastActivityAt,
+              timestamp,
+            ),
             updatedAt: timestamp,
           })
           .run();

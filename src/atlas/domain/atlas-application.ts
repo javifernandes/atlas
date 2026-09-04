@@ -7,6 +7,7 @@ import {
   field,
   graphSchema,
   query,
+  selectionNot,
 } from '@ontahi/core/data-graph';
 import {
   entity,
@@ -34,6 +35,8 @@ import {
   AtlasExecutionStreamCloseOutputSchema,
   AtlasExecutionStreamForkInputSchema,
   AtlasExecutionStreamForkOutputSchema,
+  AtlasExecutionStreamSetArchivedInputSchema,
+  AtlasExecutionStreamSetArchivedOutputSchema,
   resolveExecutionStreamForkPlans,
 } from '../model/execution-stream';
 import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
@@ -271,6 +274,8 @@ const atlasExecutionStreamFields = {
   forkedFromStreamId: field.nullable(field.id()),
   openedAt: field.nonEmptyString({ trim: true }),
   closedAt: field.nullable(field.string()),
+  archivedAt: field.nullable(field.string()),
+  lastActivityAt: field.nullable(field.string()),
   createdAt: field.nonEmptyString({ trim: true }),
   updatedAt: field.nonEmptyString({ trim: true }),
 };
@@ -584,6 +589,8 @@ export const AtlasExecutionStream = entity({
                 forkedFromStreamId: sourceStream.id,
                 openedAt: timestamp,
                 closedAt: null,
+                archivedAt: null,
+                lastActivityAt: null,
                 createdAt: timestamp,
                 updatedAt: timestamp,
               })
@@ -605,6 +612,67 @@ export const AtlasExecutionStream = entity({
           rootPlanIds: forkPlans.map(plan => plan.id),
           title,
         };
+      },
+    }),
+    setArchived: operation({
+      description: 'Archive or unarchive one User-owned Atlas Session',
+      exposure: 'bridge',
+      bridge: {},
+      input: AtlasExecutionStreamSetArchivedInputSchema,
+      output: AtlasExecutionStreamSetArchivedOutputSchema,
+      requires: [
+        {
+          run: () =>
+            app.auth.requirePrincipal().pipe(
+              Effect.flatMap(principal =>
+                principal.kind === 'user' && principal.issuer === 'atlas'
+                  ? Effect.void
+                  : app.operation.fail(
+                      'not_authorized',
+                      'Only an authenticated Atlas User can archive an execution stream.',
+                    ),
+              ),
+            ),
+        },
+      ],
+      *run({ id, archived }) {
+        const principal = yield* app.auth.requirePrincipal();
+
+        if (principal.kind !== 'user' || principal.issuer !== 'atlas') {
+          return yield* app.operation.fail(
+            'not_authorized',
+            'Only an authenticated Atlas User can archive an execution stream.',
+          );
+        }
+
+        const matches = yield* commands
+          .where(stream => stream.id.eq(id))
+          .limit(1)
+          .run();
+        const stream = matches[0];
+
+        if (!stream || stream.userId !== principal.subject) {
+          return yield* app.operation.fail('not_found', 'Execution stream not found.');
+        }
+
+        if ((stream.archivedAt !== null) === archived) {
+          return {
+            id: stream.id,
+            archived,
+            archivedAt: stream.archivedAt
+              ? serializeAtlasTimestamp(stream.archivedAt)
+              : null,
+          };
+        }
+
+        const updatedAt = new Date().toISOString();
+        const archivedAt = archived ? updatedAt : null;
+        yield* commands
+          .where(candidate => candidate.id.eq(stream.id))
+          .updateOne({ archivedAt, updatedAt })
+          .run();
+
+        return { id: stream.id, archived, archivedAt };
       },
     }),
   }),
@@ -1503,13 +1571,9 @@ const atlasUserIdentityQuery = (id: string) =>
     }))
     .first();
 
-const atlasExecutionStreamsQuery = (
-  userId: string,
-  status: 'closed' | 'open',
-) =>
+const atlasExecutionStreamsBaseQuery = (userId: string) =>
   query(AtlasExecutionStream)
     .where(stream => stream.userId.eq(userId))
-    .where(stream => stream.status.eq(status))
     .select(stream => ({
       id: stream.id,
       mode: stream.mode,
@@ -1517,14 +1581,34 @@ const atlasExecutionStreamsQuery = (
       title: stream.title,
       openedAt: stream.openedAt,
       closedAt: stream.closedAt,
+      archivedAt: stream.archivedAt,
+      lastActivityAt: stream.lastActivityAt,
       updatedAt: stream.updatedAt,
       currentFocusPlanId: stream.currentFocusPlanId,
       forkedFromStream: stream.forkedFrom.select(source => ({
         id: source.id,
         title: source.title,
       })),
-    }))
+    }));
+
+const atlasExecutionStreamsQuery = (
+  userId: string,
+  status: 'closed' | 'open',
+) =>
+  atlasExecutionStreamsBaseQuery(userId)
+    .where(stream => stream.status.eq(status))
+    .where(stream => stream.archivedAt.isNull())
     .orderBy(stream => stream.openedAt.desc());
+
+const atlasExecutionStreamByIdQuery = (userId: string, streamId: string) =>
+  atlasExecutionStreamsBaseQuery(userId)
+    .where(stream => stream.id.eq(streamId))
+    .first();
+
+const atlasArchivedExecutionStreamsQuery = (userId: string) =>
+  atlasExecutionStreamsBaseQuery(userId)
+    .where(stream => selectionNot(stream.archivedAt.isNull()))
+    .orderBy(stream => stream.archivedAt.desc());
 
 const atlasExecutionStreamRootsQuery = (streamIds: string[]) =>
   query(AtlasExecutionStreamRoot)
@@ -1636,22 +1720,39 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
       }),
     getExecutionStreams: async (
       userId: string,
-      limit = 6,
+      options: { limit?: number; selectedStreamId?: string | null } = {},
     ): Promise<AtlasExecutionStreamProjection[]> => {
-      const [openStreams, recentStreams] = await Promise.all([
+      const limit = options.limit ?? 6;
+      const boundedLimit = Math.max(1, Math.min(limit, 20));
+      const [openStreams, recentStreams, archivedStreams, selectedStream] = await Promise.all([
         application.graph.read(atlasExecutionStreamsQuery(userId, 'open'), {
           scope: 'atlas.execution-streams.open',
         }),
         application.graph.read(
-          atlasExecutionStreamsQuery(userId, 'closed').limit(
-            Math.max(1, Math.min(limit, 20)),
-          ),
+          atlasExecutionStreamsQuery(userId, 'closed').limit(boundedLimit),
           {
             scope: 'atlas.execution-streams.recent',
           },
         ),
+        application.graph.read(
+          atlasArchivedExecutionStreamsQuery(userId).limit(boundedLimit),
+          {
+            scope: 'atlas.execution-streams.archived',
+          },
+        ),
+        options.selectedStreamId
+          ? application.graph.read(
+              atlasExecutionStreamByIdQuery(userId, options.selectedStreamId),
+              { scope: 'atlas.execution-streams.selected' },
+            )
+          : Promise.resolve(null),
       ]);
-      const streams = [...openStreams, ...recentStreams];
+      const streams = [
+        ...new Map(
+          [...openStreams, ...recentStreams, ...archivedStreams, ...(selectedStream ? [selectedStream] : [])]
+            .map(stream => [stream.id, stream] as const),
+        ).values(),
+      ];
       const streamIds = streams.map(stream => stream.id);
 
       if (streamIds.length === 0) {
@@ -1706,6 +1807,12 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
         title: stream.title,
         openedAt: serializeAtlasTimestamp(stream.openedAt),
         closedAt: stream.closedAt ? serializeAtlasTimestamp(stream.closedAt) : null,
+        archivedAt: stream.archivedAt
+          ? serializeAtlasTimestamp(stream.archivedAt)
+          : null,
+        lastActivityAt: stream.lastActivityAt
+          ? serializeAtlasTimestamp(stream.lastActivityAt)
+          : null,
         updatedAt: serializeAtlasTimestamp(stream.updatedAt),
         currentFocusPlan: stream.currentFocusPlanId
           ? (plansById.get(stream.currentFocusPlanId) ?? null)

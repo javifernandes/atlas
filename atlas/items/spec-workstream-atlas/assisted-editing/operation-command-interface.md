@@ -15,6 +15,8 @@ relatedPlans:
   - plans/next/106-atlas-plan-reconciliation-operation.md
   - plans/done/111-atlas-as-ontahi-application.md
   - plans/done/124-implicit-personal-execution-streams-mvp.md
+  - plans/done/125-explicit-session-forking-and-routing.md
+  - plans/done/126-session-archival-and-activity-recency.md
 ---
 
 The Operation Command Interface lets a user invoke atlas and product operations in ordinary prose while Atlas resolves the request to a typed operation.
@@ -40,9 +42,11 @@ trusted request-context derivation; the adapter owns only HTTP parsing, protocol
 response serialization. Legacy family-specific Fetch clients remain outside this server-boundary
 change and continue to use their existing paths until their owning migration lands.
 
-The first user-triggered mutation is `AtlasExecutionStream.close`. Its client uses the typed Ontahí
-Operation hook and generic `/operations` adapter; `/operations` and the `operation` family under
-`/runtime` share one Atlas dispatcher. That dispatcher resolves only operations explicitly marked
-`exposure: 'bridge'`, so a `server-only` operation cannot become remotely callable merely because
-its ID is known. Authenticated ownership is derived inside the operation from the invocation
-Principal, never supplied as public input.
+The first user-triggered mutation is `AtlasExecutionStream.close`; Session forking and reversible
+archive curation extend the same boundary through `AtlasExecutionStream.fork` and
+`AtlasExecutionStream.setArchived`. Their clients use the typed Ontahí Operation hook and generic
+`/operations` adapter; `/operations` and the `operation` family under `/runtime` share one Atlas
+dispatcher. That dispatcher resolves only operations explicitly marked `exposure: 'bridge'`, so a
+`server-only` operation cannot become remotely callable merely because its ID is known.
+Authenticated ownership is derived inside each operation from the invocation Principal, never
+supplied as public input.

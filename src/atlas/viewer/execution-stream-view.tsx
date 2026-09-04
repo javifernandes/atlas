@@ -2,6 +2,7 @@
 
 import {
   Archive,
+  ArchiveRestore,
   Check,
   ChevronDown,
   ChevronRight,
@@ -76,6 +77,22 @@ const githubRepositoryUrl = (repositoryFullName: string) =>
     .split('/')
     .map(segment => encodeURIComponent(segment))
     .join('/')}`;
+
+const SessionLastActivity = ({
+  stream,
+}: {
+  stream: AtlasExecutionStreamProjection;
+}) =>
+  stream.lastActivityAt ? (
+    <>
+      Last PR{' '}
+      <time dateTime={stream.lastActivityAt} title={stream.lastActivityAt}>
+        {formatRelativeTime(stream.lastActivityAt)}
+      </time>
+    </>
+  ) : (
+    <>No PRs yet</>
+  );
 
 const planSourceLabel = (node: PlanWorkstreamNode) => {
   const path = node.path ?? '';
@@ -238,6 +255,7 @@ export const ExecutionStreamView = ({
   const [confirmingClose, setConfirmingClose] = useState(false);
   const [confirmingFork, setConfirmingFork] = useState(false);
   const [closeError, setCloseError] = useState<string | null>(null);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [forkError, setForkError] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
@@ -249,10 +267,19 @@ export const ExecutionStreamView = ({
   const [hideDone, setHideDone] = useState(false);
   const closeStream = useOperation(AtlasExecutionStreamClient.domain.close);
   const forkStream = useOperation(AtlasExecutionStreamClient.domain.fork);
+  const setArchivedStream = useOperation(
+    AtlasExecutionStreamClient.domain.setArchived,
+  );
   const closing = closeStream.isExecuting;
   const forking = forkStream.isExecuting;
-  const openStreams = executionStreams.filter(stream => stream.status === 'open');
-  const recentStreams = executionStreams.filter(stream => stream.status === 'closed');
+  const archiving = setArchivedStream.isExecuting;
+  const openStreams = executionStreams.filter(
+    stream => stream.status === 'open' && !stream.archivedAt,
+  );
+  const recentStreams = executionStreams.filter(
+    stream => stream.status === 'closed' && !stream.archivedAt,
+  );
+  const archivedStreams = executionStreams.filter(stream => Boolean(stream.archivedAt));
   const defaultStream =
     executionStreams.find(stream => {
       if (typeof globalThis.window === 'undefined') return false;
@@ -264,6 +291,12 @@ export const ExecutionStreamView = ({
   const [selectedStreamId, setSelectedStreamId] = useState<string | null>(
     defaultStream?.id ?? null,
   );
+  const [showArchived, setShowArchived] = useState(Boolean(defaultStream?.archivedAt));
+  const selectableStreams = [
+    ...openStreams,
+    ...recentStreams,
+    ...(showArchived ? archivedStreams : []),
+  ];
   const currentStream =
     executionStreams.find(stream => stream.id === selectedStreamId) ?? defaultStream;
   const expandedTreeRows = useMemo(
@@ -329,12 +362,13 @@ export const ExecutionStreamView = ({
     return () => globalThis.removeEventListener('keydown', closeOnEscape);
   }, [confirmingFork, forking]);
 
-  const writeSessionRoute = (sessionId: string) => {
+  const writeSessionRoute = (sessionId: string | null) => {
     if (typeof globalThis.window === 'undefined') return;
 
     const nextUrl = new URL(globalThis.location.href);
     nextUrl.searchParams.set('view', 'sessions');
-    nextUrl.searchParams.set('session', sessionId);
+    if (sessionId) nextUrl.searchParams.set('session', sessionId);
+    else nextUrl.searchParams.delete('session');
     nextUrl.searchParams.delete('node');
     nextUrl.searchParams.delete('full');
     nextUrl.searchParams.delete('section');
@@ -347,7 +381,27 @@ export const ExecutionStreamView = ({
     setConfirmingClose(false);
     setConfirmingFork(false);
     setCopyError(null);
+    setArchiveError(null);
+    if (stream.archivedAt) setShowArchived(true);
     writeSessionRoute(stream.id);
+  };
+
+  const toggleArchivedVisibility = () => {
+    const nextShowArchived = !showArchived;
+
+    if (nextShowArchived && !currentStream && archivedStreams[0]) {
+      setSelectedStreamId(archivedStreams[0].id);
+      writeSessionRoute(archivedStreams[0].id);
+    } else if (!nextShowArchived && currentStream?.archivedAt) {
+      const replacement =
+        openStreams.find(stream => stream.mode === 'implicit') ??
+        openStreams[0] ??
+        recentStreams[0];
+      setSelectedStreamId(replacement?.id ?? null);
+      writeSessionRoute(replacement?.id ?? null);
+    }
+
+    setShowArchived(nextShowArchived);
   };
 
   const copySessionInstructions = async () => {
@@ -446,6 +500,42 @@ export const ExecutionStreamView = ({
     }
   };
 
+  const toggleCurrentStreamArchived = async () => {
+    if (!currentStream || archiving) return;
+
+    const archived = !currentStream.archivedAt;
+    setArchiveError(null);
+
+    try {
+      const result = await setArchivedStream.executeAsync({
+        id: currentStream.id,
+        archived,
+      });
+
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
+
+      if (archived) {
+        const replacement =
+          openStreams.find(
+            stream => stream.id !== currentStream.id && stream.mode === 'implicit',
+          ) ??
+          openStreams.find(stream => stream.id !== currentStream.id) ??
+          recentStreams.find(stream => stream.id !== currentStream.id);
+        setShowArchived(false);
+        setSelectedStreamId(replacement?.id ?? null);
+        writeSessionRoute(replacement?.id ?? null);
+      }
+
+      router.refresh();
+    } catch (error) {
+      setArchiveError(
+        error instanceof Error ? error.message : 'Atlas could not update this Session archive.',
+      );
+    }
+  };
+
   const toggleCollapsedNode = (nodeId: string) => {
     setCollapsedNodeIds(current => {
       const next = new Set(current);
@@ -504,8 +594,13 @@ export const ExecutionStreamView = ({
                           <span className='mt-2 block line-clamp-2 text-sm font-medium leading-5'>
                             {stream.title}
                           </span>
-                          <span className='mt-1 block text-[11px] text-muted-foreground'>
-                            {stream.mode === 'explicit' ? 'Explicit session' : 'Implicit session'}
+                          <span className='mt-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground'>
+                            <span>
+                              {stream.mode === 'explicit' ? 'Explicit' : 'Implicit'}
+                            </span>
+                            <span className='shrink-0 text-right'>
+                              <SessionLastActivity stream={stream} />
+                            </span>
                           </span>
                         </button>
                       </li>
@@ -542,9 +637,14 @@ export const ExecutionStreamView = ({
                         onClick={() => selectStream(stream)}
                       >
                         <span className='block truncate text-xs font-medium'>{stream.title}</span>
-                        <span className='mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground'>
-                          <span className='size-1.5 rounded-full bg-muted-foreground/45' />
-                          Closed {formatRelativeTime(stream.closedAt ?? stream.updatedAt)}
+                        <span className='mt-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground'>
+                          <span className='inline-flex items-center gap-1.5'>
+                            <span className='size-1.5 rounded-full bg-muted-foreground/45' />
+                            Closed
+                          </span>
+                          <span className='shrink-0 text-right'>
+                            <SessionLastActivity stream={stream} />
+                          </span>
                         </span>
                       </button>
                     </li>
@@ -552,14 +652,63 @@ export const ExecutionStreamView = ({
                 </ul>
               </div>
             ) : null}
+
+            {archivedStreams.length > 0 ? (
+              <div className='mt-5 border-t border-border/70 pt-3'>
+                <button
+                  type='button'
+                  aria-expanded={showArchived}
+                  className='flex w-full items-center gap-1.5 rounded-md px-1 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground'
+                  onClick={toggleArchivedVisibility}
+                >
+                  <Archive aria-hidden='true' className='size-3.5' />
+                  {showArchived ? 'Hide archived' : 'Show archived'}
+                </button>
+
+                {showArchived ? (
+                  <ul className='mt-2 grid gap-1'>
+                    {archivedStreams.map(stream => (
+                      <li key={stream.id}>
+                        <button
+                          type='button'
+                          aria-current={
+                            stream.id === currentStream?.id ? 'true' : undefined
+                          }
+                          className={cn(
+                            'w-full rounded-md border px-2 py-2.5 text-left transition-colors hover:bg-muted/45',
+                            stream.id === currentStream?.id
+                              ? 'border-border bg-muted/45'
+                              : 'border-transparent',
+                          )}
+                          onClick={() => selectStream(stream)}
+                        >
+                          <span className='block truncate text-xs font-medium'>
+                            {stream.title}
+                          </span>
+                          <span className='mt-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground'>
+                            <span className='inline-flex items-center gap-1.5'>
+                              <Archive aria-hidden='true' className='size-3' />
+                              Archived
+                            </span>
+                            <span className='shrink-0 text-right'>
+                              <SessionLastActivity stream={stream} />
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </aside>
 
         <div className='flex min-h-0 min-w-0 flex-col'>
-          {currentStream ? (
+          {currentStream || archivedStreams.length > 0 ? (
             <div className='flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border/70 px-3 lg:hidden'>
               <div className='min-w-0 flex-1'>
-                {executionStreams.length > 1 ? (
+                {currentStream && selectableStreams.length > 1 ? (
                   <label className='block'>
                     <span className='sr-only'>Selected Session</span>
                     <select
@@ -583,35 +732,73 @@ export const ExecutionStreamView = ({
                           {stream.title} (closed)
                         </option>
                       ))}
+                      {showArchived
+                        ? archivedStreams.map(stream => (
+                            <option key={stream.id} value={stream.id}>
+                              {stream.title} (archived)
+                            </option>
+                          ))
+                        : null}
                     </select>
                   </label>
-                ) : (
+                ) : currentStream ? (
                   <div className='truncate text-sm font-medium'>{currentStream.title}</div>
+                ) : (
+                  <div className='truncate text-sm font-medium'>Archived Sessions</div>
                 )}
                 <div className='inline-flex items-center gap-1.5 text-[10px] text-muted-foreground'>
-                  <span
-                    className={cn(
-                      'size-1.5 rounded-full',
-                      currentStream.status === 'open'
-                        ? 'bg-emerald-500'
-                        : 'bg-muted-foreground/45',
-                    )}
-                  />
-                  {currentStream.status === 'open' ? 'Open' : 'Closed'}
+                  {currentStream ? (
+                    <>
+                      <span
+                        className={cn(
+                          'size-1.5 rounded-full',
+                          currentStream.status === 'open'
+                            ? 'bg-emerald-500'
+                            : 'bg-muted-foreground/45',
+                        )}
+                      />
+                      {currentStream.archivedAt
+                        ? 'Archived'
+                        : currentStream.status === 'open'
+                          ? 'Open'
+                          : 'Closed'}
+                    </>
+                  ) : (
+                    'Hidden by default'
+                  )}
                 </div>
               </div>
-              {currentStream.status === 'open' ? (
-                <button
-                  type='button'
-                  aria-label={`Close ${currentStream.title}`}
-                  title='Close stream'
-                  className='grid size-8 shrink-0 place-items-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-                  disabled={closing}
-                  onClick={() => setConfirmingClose(true)}
-                >
-                  <Archive aria-hidden='true' className='size-4' />
-                </button>
-              ) : null}
+              <div className='flex shrink-0 items-center gap-1.5'>
+                {archivedStreams.length > 0 ? (
+                  <button
+                    type='button'
+                    aria-pressed={showArchived}
+                    title={showArchived ? 'Hide archived Sessions' : 'Show archived Sessions'}
+                    className={cn(
+                      'inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-[10px] font-medium transition-colors',
+                      showArchived
+                        ? 'border-primary/45 bg-primary/10 text-foreground'
+                        : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                    onClick={toggleArchivedVisibility}
+                  >
+                    <Archive aria-hidden='true' className='size-3.5' />
+                    Archived
+                  </button>
+                ) : null}
+                {currentStream?.status === 'open' ? (
+                  <button
+                    type='button'
+                    aria-label={`Close ${currentStream.title}`}
+                    title='Close stream'
+                    className='grid size-8 shrink-0 place-items-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                    disabled={closing}
+                    onClick={() => setConfirmingClose(true)}
+                  >
+                    <Archive aria-hidden='true' className='size-4' />
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -658,6 +845,21 @@ export const ExecutionStreamView = ({
                     ) : null}
                     <button
                       type='button'
+                      className='inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60'
+                      disabled={archiving}
+                      onClick={toggleCurrentStreamArchived}
+                    >
+                      {archiving ? (
+                        <Loader2 aria-hidden='true' className='size-3.5 animate-spin' />
+                      ) : currentStream.archivedAt ? (
+                        <ArchiveRestore aria-hidden='true' className='size-3.5' />
+                      ) : (
+                        <Archive aria-hidden='true' className='size-3.5' />
+                      )}
+                      {currentStream.archivedAt ? 'Unarchive' : 'Archive'}
+                    </button>
+                    <button
+                      type='button'
                       aria-pressed={hideDone}
                       className={cn(
                         'rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors',
@@ -696,6 +898,14 @@ export const ExecutionStreamView = ({
                   role='alert'
                 >
                   {copyError}
+                </p>
+              ) : null}
+              {archiveError ? (
+                <p
+                  className='border-b border-border/70 px-4 py-2 text-xs text-destructive'
+                  role='alert'
+                >
+                  {archiveError}
                 </p>
               ) : null}
 
