@@ -376,9 +376,7 @@ export const ExecutionStreamView = ({
     return () => globalThis.removeEventListener('keydown', closeOnEscape);
   }, [confirmingFork, forking]);
 
-  const writeSessionRoute = (sessionId: string | null) => {
-    if (typeof globalThis.window === 'undefined') return;
-
+  const buildSessionRoute = (sessionId: string | null) => {
     const nextUrl = new URL(globalThis.location.href);
     nextUrl.searchParams.set('view', 'sessions');
     if (sessionId) nextUrl.searchParams.set('session', sessionId);
@@ -386,7 +384,13 @@ export const ExecutionStreamView = ({
     nextUrl.searchParams.delete('node');
     nextUrl.searchParams.delete('full');
     nextUrl.searchParams.delete('section');
-    globalThis.history.replaceState({}, '', nextUrl);
+    return `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+  };
+
+  const writeSessionRoute = (sessionId: string | null) => {
+    if (typeof globalThis.window === 'undefined') return;
+
+    globalThis.history.replaceState({}, '', buildSessionRoute(sessionId));
   };
 
   const resetForkSelection = () => {
@@ -502,9 +506,8 @@ export const ExecutionStreamView = ({
       }
 
       setSelectedStreamId(result.value.id);
-      writeSessionRoute(result.value.id);
       resetForkSelection();
-      router.refresh();
+      router.replace(buildSessionRoute(result.value.id), { scroll: false });
     } catch (error) {
       setForkError(error instanceof Error ? error.message : 'Atlas could not fork this Session.');
     }

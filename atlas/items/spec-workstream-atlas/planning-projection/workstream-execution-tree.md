@@ -13,6 +13,7 @@ relatedPlans:
   - plans/done/125-explicit-session-forking-and-routing.md
   - plans/done/126-session-archival-and-activity-recency.md
   - plans/done/127-inline-session-fork-selection.md
+  - plans/done/128-session-fork-live-navigation.md
 ---
 
 [[spec-workstream-atlas.planning-projection.workstream-execution-tree|Workstream Execution Tree]]
@@ -42,6 +43,8 @@ done-state, and spatial context the User is already viewing. Checked branches re
 Session and flow into a **Fork new Session** review dialog with an exact selected count. The dialog
 can filter candidates by Plan title, source, or status without mutating the current selection;
 switching Sessions, cancelling selection mode, or completing the fork clears that local state.
+After a successful fork, Atlas navigates through the application router to the returned Session ID
+so the durable server projection is loaded and selected without a manual browser refresh.
 
 Repository activity cannot infer this parallelism safely. Each explicit Session exposes a stable ID,
 addressable URL, and copyable LLM instruction requiring `Atlas-Session: <id>` in future PR bodies.

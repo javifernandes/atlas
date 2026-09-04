@@ -5,13 +5,14 @@ import type { AtlasExecutionStreamProjection } from '../model/execution-stream';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 
 const refreshMock = vi.hoisted(() => vi.fn());
+const replaceMock = vi.hoisted(() => vi.fn());
 const closeExecuteAsyncMock = vi.hoisted(() => vi.fn());
 const forkExecuteAsyncMock = vi.hoisted(() => vi.fn());
 const setArchivedExecuteAsyncMock = vi.hoisted(() => vi.fn());
 const clipboardWriteTextMock = vi.hoisted(() => vi.fn());
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: refreshMock }),
+  useRouter: () => ({ refresh: refreshMock, replace: replaceMock }),
 }));
 vi.mock('@ontahi/react/graph', () => ({
   useOperation: (operation: { id: string }) => ({
@@ -183,6 +184,7 @@ const explicitStream: AtlasExecutionStreamProjection = {
 describe('ExecutionStreamView', () => {
   beforeEach(() => {
     refreshMock.mockReset();
+    replaceMock.mockReset();
     globalThis.history.replaceState({}, '', '/');
     clipboardWriteTextMock.mockReset().mockResolvedValue(undefined);
     Object.defineProperty(globalThis.navigator, 'clipboard', {
@@ -315,7 +317,7 @@ describe('ExecutionStreamView', () => {
   });
 
   it('selects multiple visible Plans, filters their review, and forks the exact selection', async () => {
-    render(
+    const { rerender } = render(
       <ExecutionStreamView
         executionStreams={[currentStream]}
         onOpenPlan={vi.fn()}
@@ -358,7 +360,25 @@ describe('ExecutionStreamView', () => {
         ],
       }),
     );
-    await waitFor(() => expect(refreshMock).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(replaceMock).toHaveBeenCalledWith(
+        `/?view=sessions&session=${explicitStream.id}`,
+        { scroll: false },
+      ),
+    );
+    expect(refreshMock).not.toHaveBeenCalled();
+
+    rerender(
+      <ExecutionStreamView
+        executionStreams={[currentStream, explicitStream]}
+        onOpenPlan={vi.fn()}
+        snapshot={snapshot}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { current: true, name: /Secondary lineage/ }),
+    ).toBeInTheDocument();
   });
 
   it('clears inline fork selection when selection mode is cancelled', () => {
