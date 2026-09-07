@@ -1,6 +1,7 @@
 import { buildPlanWorkstreamSnapshotFromFiles } from '../markdown/build-snapshot';
 import type { AtlasExecutionStreamProjection } from '../model/execution-stream';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
+import { withAtlasPostgresQueryContext } from '../persistence/postgres-observability';
 import { getAtlasServerApplication } from './atlas-composition';
 
 export type AtlasPageData = {
@@ -16,18 +17,25 @@ const emptyPageData = (): AtlasPageData => ({
 export const getAtlasPageData = async (
   userId?: string | null,
   selectedStreamId?: string | null,
-): Promise<AtlasPageData> => {
-  const atlas = await getAtlasServerApplication();
-  const [snapshot, executionStreams] = await Promise.all([
-    atlas.getProjectionSnapshot(),
-    userId
-      ? selectedStreamId
-        ? atlas.getExecutionStreams(userId, { selectedStreamId })
-        : atlas.getExecutionStreams(userId)
-      : Promise.resolve([]),
-  ]);
+): Promise<AtlasPageData> =>
+  withAtlasPostgresQueryContext(
+    {
+      operation: 'atlas.page.read',
+      trigger: userId ? 'authenticated-page' : 'public-page',
+    },
+    async () => {
+      const atlas = await getAtlasServerApplication();
+      const [snapshot, executionStreams] = await Promise.all([
+        atlas.getProjectionSnapshot(),
+        userId
+          ? selectedStreamId
+            ? atlas.getExecutionStreams(userId, { selectedStreamId })
+            : atlas.getExecutionStreams(userId)
+          : Promise.resolve([]),
+      ]);
 
-  return snapshot
-    ? { executionStreams, snapshot }
-    : { ...emptyPageData(), executionStreams };
-};
+      return snapshot
+        ? { executionStreams, snapshot }
+        : { ...emptyPageData(), executionStreams };
+    },
+  );

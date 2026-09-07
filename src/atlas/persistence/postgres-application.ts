@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 
+import { selectionNot } from '@ontahi/core/data-graph';
 import { createPostgresDataGraphStorage } from '@ontahi/postgres/data-graph';
 import { Effect } from 'effect';
 import type { Pool } from 'pg';
@@ -26,6 +27,12 @@ import {
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import type { AtlasProjectionInput } from '../server/load-atlas-projection';
 import { atlasPostgresMappingOverrides } from './postgres-mapping';
+import {
+  instrumentAtlasPostgresPool,
+  withAtlasPostgresQueryContext,
+  type AtlasPostgresQueryObservation,
+} from './postgres-observability';
+import { createVersionedProjectionSnapshotCache } from './projection-snapshot-cache';
 
 const hashRevisionSet = (revisionIds: string[]) =>
   createHash('sha256')
@@ -190,6 +197,8 @@ const retainEvidenceFromFailedSources = (input: {
 export const createAtlasPostgresApplication = (input: {
   invalidatePresentation?: () => void;
   loadProjection: (request: AtlasReconciliationRequest) => Promise<AtlasProjectionInput>;
+  observePostgresQueries?: boolean;
+  onPostgresQuery?: (observation: AtlasPostgresQueryObservation) => void;
   pool: Pick<Pool, 'connect' | 'query'>;
 }) => {
   let reconcileProjection: (
@@ -207,14 +216,28 @@ export const createAtlasPostgresApplication = (input: {
       },
     },
   };
+  const pool = instrumentAtlasPostgresPool(input.pool, {
+    enabled: input.observePostgresQueries,
+    observe: input.onPostgresQuery,
+  });
   const atlas = createAtlasOntahiApplicationWithStorage({
     storage: createPostgresDataGraphStorage({
-      pool: input.pool,
+      pool,
       overrides: atlasPostgresMappingOverrides,
     }),
     capabilities,
   });
   const entities = atlas.application.graph.entities;
+  const projectionSnapshotCache = createVersionedProjectionSnapshotCache({
+    readRevisionId: async () => {
+      const result = await pool.query<{ id: string }>(
+        'SELECT id FROM projection_revisions ORDER BY started_at DESC LIMIT 1',
+      );
+
+      return result.rows[0]?.id ?? null;
+    },
+    readSnapshot: atlas.getProjectionSnapshot,
+  });
 
   const recordMergedPullRequestActivity = (
     webhook: AtlasMergedPullRequestInput,
@@ -497,30 +520,30 @@ export const createAtlasPostgresApplication = (input: {
                 strategy: 'merge',
               }).run();
             }
-            const persistedItems = yield* entities.AtlasItem.all().run();
-            const staleItemIds = persistedItems
-              .map(item => item.id)
-              .filter(id => !currentItemIds.has(id));
-            if (staleItemIds.length > 0) {
-              yield* entities.AtlasItem.where(item => item.id.in(staleItemIds))
+            if (currentItemIds.size === 0) {
+              yield* entities.AtlasItem.all().delete().run();
+            } else {
+              yield* entities.AtlasItem.where(item =>
+                selectionNot(item.id.in([...currentItemIds])),
+              )
                 .delete()
                 .run();
             }
-            const persistedPlans = yield* entities.AtlasPlan.all().run();
-            const stalePlanIds = persistedPlans
-              .map(plan => plan.id)
-              .filter(id => !currentPlanIds.has(id));
-            if (stalePlanIds.length > 0) {
-              yield* entities.AtlasPlan.where(plan => plan.id.in(stalePlanIds))
+            if (currentPlanIds.size === 0) {
+              yield* entities.AtlasPlan.all().delete().run();
+            } else {
+              yield* entities.AtlasPlan.where(plan =>
+                selectionNot(plan.id.in([...currentPlanIds])),
+              )
                 .delete()
                 .run();
             }
-            const persistedSourceRecords = yield* entities.AtlasSourceRecord.all().run();
-            const staleSourceRecordIds = persistedSourceRecords
-              .map(record => record.id)
-              .filter(id => !currentSourceRecordIds.has(id));
-            if (staleSourceRecordIds.length > 0) {
-              yield* entities.AtlasSourceRecord.where(record => record.id.in(staleSourceRecordIds))
+            if (currentSourceRecordIds.size === 0) {
+              yield* entities.AtlasSourceRecord.all().delete().run();
+            } else {
+              yield* entities.AtlasSourceRecord.where(record =>
+                selectionNot(record.id.in([...currentSourceRecordIds])),
+              )
                 .delete()
                 .run();
             }
@@ -605,7 +628,12 @@ export const createAtlasPostgresApplication = (input: {
           }),
         );
       }),
-      Effect.tap(() => Effect.sync(() => input.invalidatePresentation?.())),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          projectionSnapshotCache.invalidate();
+          input.invalidatePresentation?.();
+        }),
+      ),
       Effect.orDie,
     );
 
@@ -652,6 +680,11 @@ export const createAtlasPostgresApplication = (input: {
 
   return {
     ...atlas,
-    reconcile: invokeReconciliationOperation,
+    getProjectionSnapshot: projectionSnapshotCache.read,
+    reconcile: (request: AtlasReconciliationRequest) =>
+      withAtlasPostgresQueryContext(
+        { operation: 'atlas.projection.reconcile', trigger: request.trigger },
+        () => invokeReconciliationOperation(request),
+      ),
   };
 };
