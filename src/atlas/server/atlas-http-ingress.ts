@@ -6,6 +6,7 @@ import { createOperationInvocationDispatcher } from '@ontahi/core/runtime/server
 
 import { requireAtlasGitHubWebhookSecret } from '../github/app-config';
 import { createAtlasGitHubWebhookIngressProvider } from '../github/webhook-ingress-provider';
+import { withAtlasPostgresQueryContext } from '../persistence/postgres-observability';
 import { getAtlasServerApplication } from './atlas-composition';
 
 export const handleAtlasHttpIngress = async (request: Request) => {
@@ -22,5 +23,8 @@ export const handleAtlasHttpIngress = async (request: Request) => {
     }),
   });
 
-  return router.handle(request);
+  return withAtlasPostgresQueryContext(
+    { operation: 'atlas.projection.reconcile', trigger: 'webhook' },
+    () => router.handle(request),
+  );
 };

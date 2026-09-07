@@ -23,6 +23,7 @@ import { createAtlasAuth, createAtlasAuthOptions } from '../../auth/server';
 import { runAtlasMigrations } from './migrations';
 import { createAtlasPostgresApplication } from './postgres-application';
 import { atlasPostgresMappingOverrides } from './postgres-mapping';
+import type { AtlasPostgresQueryObservation } from './postgres-observability';
 
 const externalConnectionString =
   process.env.ATLAS_POSTGRES_TEST_URL ??
@@ -1018,8 +1019,11 @@ Atlas-Session: ${explicitStreamId}`,
     };
     let includeProduct = true;
     let revision = 5;
+    const queryObservations: AtlasPostgresQueryObservation[] = [];
     const inventoryAtlas = createAtlasPostgresApplication({
       pool,
+      observePostgresQueries: true,
+      onPostgresQuery: observation => queryObservations.push(observation),
       loadProjection: async () => {
         const observedAt = `2026-09-02T0${revision}:00:00.000Z`;
         const projection = {
@@ -1070,7 +1074,23 @@ Atlas-Session: ${explicitStreamId}`,
     });
 
     includeProduct = false;
+    queryObservations.length = 0;
     await inventoryAtlas.reconcile({ trigger: 'manual' });
+    expect(
+      queryObservations.filter(
+        observation =>
+          observation.statement === 'select' &&
+          observation.table === 'atlas_source_records',
+      ),
+    ).toEqual([]);
+    expect(queryObservations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          query: expect.stringMatching(/^delete\.atlas_source_records\.[0-9a-f]{12}$/),
+          trigger: 'manual',
+        }),
+      ]),
+    );
     await expect(
       pool.query(
         'SELECT source_id, count(*)::int AS count FROM atlas_plans GROUP BY source_id ORDER BY source_id',
@@ -1081,5 +1101,66 @@ Atlas-Session: ${explicitStreamId}`,
         "SELECT count(*)::int AS count FROM atlas_source_records WHERE source_id = 'product'",
       ),
     ).resolves.toMatchObject({ rows: [{ count: 0 }] });
+  }, 30_000);
+
+  it('reuses the full snapshot while unchanged and invalidates it after reconciliation', async () => {
+    let revision = 10;
+    const queryObservations: AtlasPostgresQueryObservation[] = [];
+    const cachingAtlas = createAtlasPostgresApplication({
+      pool,
+      observePostgresQueries: true,
+      onPostgresQuery: observation => queryObservations.push(observation),
+      loadProjection: async () => {
+        const observedAt = `2026-09-02T${revision}:00:00.000Z`;
+        const projection = {
+          evidenceFailures: [],
+          evidenceSourceIds: ['atlas'],
+          observedAt,
+          observedPullRequests: [observedPullRequest],
+          records,
+          sourceRevisions: [
+            {
+              ...sourceRevisions[0]!,
+              id: `atlas:markdown:cache-${revision}`,
+              revision: `cache-${revision}`,
+              observedAt,
+            },
+          ],
+        };
+        revision += 1;
+        return projection;
+      },
+    });
+
+    await cachingAtlas.reconcile({ trigger: 'manual' });
+    queryObservations.length = 0;
+    await cachingAtlas.getProjectionSnapshot();
+    const projectionReadsAfterCacheMiss = queryObservations.filter(
+      observation =>
+        observation.statement === 'select' &&
+        observation.table === 'projection_revisions' &&
+        observation.operation === null,
+    ).length;
+    await cachingAtlas.getProjectionSnapshot();
+    const projectionReadsAfterCacheHit = queryObservations.filter(
+      observation =>
+        observation.statement === 'select' &&
+        observation.table === 'projection_revisions' &&
+        observation.operation === null,
+    ).length;
+
+    expect(projectionReadsAfterCacheMiss).toBe(2);
+    expect(projectionReadsAfterCacheHit).toBe(3);
+
+    await cachingAtlas.reconcile({ trigger: 'manual' });
+    await cachingAtlas.getProjectionSnapshot();
+    const projectionReadsAfterReconciliation = queryObservations.filter(
+      observation =>
+        observation.statement === 'select' &&
+        observation.table === 'projection_revisions' &&
+        observation.operation === null,
+    ).length;
+
+    expect(projectionReadsAfterReconciliation).toBe(5);
   }, 30_000);
 });

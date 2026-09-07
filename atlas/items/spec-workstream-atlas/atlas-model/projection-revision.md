@@ -12,6 +12,7 @@ supports:
 relatedPlans:
   - plans/done/116-atlas-ontahi-postgres-persistence.md
   - plans/current/102-workstream-atlas-implementation-evidence.md
+  - plans/done/129-neon-egress-audit-and-containment.md
 ---
 
 Projection Revision is the durable operational observation served by Atlas. It records one trigger,
@@ -31,3 +32,10 @@ last successful bindings.
 The first production cutover was completed through Plan 116: deployed page and Runtime Protocol
 reads use the same Neon-backed composition, and an explicit production rebuild verified recovery
 against the persisted source, topology, and evidence projection.
+
+Normal page reads are revision-aware: a server process checks the latest Projection Revision
+identity, reuses its parsed snapshot while that identity is unchanged, and transfers the full
+snapshot only on a cold or changed revision. Successful reconciliation invalidates the local read
+and presentation caches; other server instances discover the committed identity on their next
+read. PostgreSQL query observations record metadata-only row counts, approximate result bytes,
+duration, and trigger context so Projection Revision egress is visible outside the Neon UI.
