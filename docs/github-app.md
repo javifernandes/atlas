@@ -79,12 +79,12 @@ limited to recent deliveries. If Atlas or PostgreSQL was unavailable during merg
 read-only recovery preview:
 
 ```sh
-pnpm db:catch-up
+pnpm db:catch-up -- --since=2026-09-07T00:00:00Z
 ```
 
-Then use `pnpm db:catch-up -- --apply` or the manually dispatched **Catch Up Production Merges**
-workflow after reviewing the candidates. Catch-up re-observes GitHub authority and restores only
-missing attributable Session activity; it does not synthesize delivery IDs. See
+Then add `--apply` or use the manually dispatched **Catch Up Production Merges** workflow after
+reviewing the candidates. The lower bound scopes the recovery window; stable Pull Request identity
+still decides what is missing within it. Catch-up does not synthesize delivery IDs. See
 [GitHub's redelivery guidance](https://docs.github.com/en/webhooks/testing-and-troubleshooting-webhooks/redelivering-webhooks)
 and [PostgreSQL persistence](./postgres-persistence.md) for the full operator and rollback
 procedures.

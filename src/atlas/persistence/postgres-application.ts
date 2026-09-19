@@ -57,7 +57,10 @@ export type AtlasMergeCatchUpSkipped = {
 export type AtlasMergeCatchUpPreview = {
   alreadyRecorded: number;
   candidates: AtlasMergeCatchUpCandidate[];
+  eligiblePullRequests: number;
+  excludedBeforeSince: number;
   observedPullRequests: number;
+  since: string;
   skipped: AtlasMergeCatchUpSkipped[];
   sourceFailures: AtlasProjectionInput['evidenceFailures'];
 };
@@ -74,6 +77,16 @@ const hashRevisionSet = (revisionIds: string[]) =>
 
 const executionStreamTitle = (planTitle: string) =>
   planTitle.replace(/^\d+[a-z]?\.\s+/i, '').trim() || planTitle;
+
+const requireCatchUpSince = (value: string | null | undefined) => {
+  const timestamp = Date.parse(value ?? '');
+
+  if (!value || !Number.isFinite(timestamp)) {
+    throw new Error('Atlas catch-up requires a valid ISO-8601 lower bound.');
+  }
+
+  return { iso: new Date(timestamp).toISOString(), timestamp };
+};
 
 const advancesActivityTimestamp = (current: string | null, candidate: string) => {
   if (!current) return true;
@@ -405,8 +418,14 @@ export const createAtlasPostgresApplication = (input: {
       return true;
     });
 
-  const previewMergeCatchUp = async (): Promise<AtlasMergeCatchUpPreview> => {
-    const projection = await input.loadProjection({ trigger: 'catch-up' });
+  const previewMergeCatchUp = async (previewInput: {
+    since: string;
+  }): Promise<AtlasMergeCatchUpPreview> => {
+    const catchUpSince = requireCatchUpSince(previewInput.since);
+    const projection = await input.loadProjection({
+      catchUpSince: catchUpSince.iso,
+      trigger: 'catch-up',
+    });
     const dataset = buildAtlasOntahiDataset(
       projection.records,
       projection.observedPullRequests,
@@ -441,8 +460,11 @@ export const createAtlasPostgresApplication = (input: {
     const candidates: AtlasMergeCatchUpCandidate[] = [];
     const skipped: AtlasMergeCatchUpSkipped[] = [];
     let alreadyRecorded = 0;
-    const observedPullRequests = [...projection.observedPullRequests].sort((left, right) =>
+    const allObservedPullRequests = [...projection.observedPullRequests].sort((left, right) =>
       left.mergedAt.localeCompare(right.mergedAt),
+    );
+    const observedPullRequests = allObservedPullRequests.filter(
+      pullRequest => Date.parse(pullRequest.mergedAt) >= catchUpSince.timestamp,
     );
 
     for (const pullRequest of observedPullRequests) {
@@ -529,7 +551,10 @@ export const createAtlasPostgresApplication = (input: {
     return {
       alreadyRecorded,
       candidates,
-      observedPullRequests: observedPullRequests.length,
+      eligiblePullRequests: observedPullRequests.length,
+      excludedBeforeSince: allObservedPullRequests.length - observedPullRequests.length,
+      observedPullRequests: allObservedPullRequests.length,
+      since: catchUpSince.iso,
       skipped,
       sourceFailures: projection.evidenceFailures,
     };
@@ -544,6 +569,11 @@ export const createAtlasPostgresApplication = (input: {
   reconcileProjection = request =>
     Effect.promise(() => input.loadProjection(request)).pipe(
       Effect.flatMap(projection => {
+        const catchUpSince =
+          request.trigger === 'catch-up'
+            ? requireCatchUpSince(request.catchUpSince)
+            : null;
+
         if (request.trigger === 'catch-up' && projection.evidenceFailures.length > 0) {
           return Effect.die(
             new Error(
@@ -569,6 +599,7 @@ export const createAtlasPostgresApplication = (input: {
         const currentSourceRecordIds = new Set(dataset.AtlasSourceRecord.map(record => record.id));
         const currentSnapshotJson = dataset.ProjectionRevision[0]?.snapshotJson ?? '{}';
         const diagnosticsJson = JSON.stringify({
+          catchUpSince: catchUpSince?.iso ?? null,
           evidenceFailures: projection.evidenceFailures,
         });
         const reconciliationToken = randomUUID();
@@ -763,9 +794,12 @@ export const createAtlasPostgresApplication = (input: {
             }
 
             if (request.trigger === 'catch-up') {
-              const catchUpPullRequests = [...projection.observedPullRequests].sort((left, right) =>
-                left.mergedAt.localeCompare(right.mergedAt),
-              );
+              const catchUpPullRequests = [...projection.observedPullRequests]
+                .filter(
+                  pullRequest =>
+                    Date.parse(pullRequest.mergedAt) >= catchUpSince!.timestamp,
+                )
+                .sort((left, right) => left.mergedAt.localeCompare(right.mergedAt));
 
               for (const pullRequest of catchUpPullRequests) {
                 yield* recordMergedPullRequestActivity(
@@ -845,7 +879,10 @@ export const createAtlasPostgresApplication = (input: {
 
     const result = await atlas.application.invokeOperation(
       entities.ProjectionRevision.domain.reconcile,
-      { trigger: request.trigger },
+      {
+        catchUpSince: request.catchUpSince ?? null,
+        trigger: request.trigger,
+      },
     );
 
     if (!result.ok) {
@@ -882,10 +919,10 @@ export const createAtlasPostgresApplication = (input: {
   return {
     ...atlas,
     getProjectionSnapshot: projectionSnapshotCache.read,
-    previewMergeCatchUp: () =>
+    previewMergeCatchUp: (previewInput: { since: string }) =>
       withAtlasPostgresQueryContext(
         { operation: 'atlas.projection.catch-up-preview', trigger: 'catch-up' },
-        previewMergeCatchUp,
+        () => previewMergeCatchUp(previewInput),
       ),
     reconcile: (request: AtlasReconciliationRequest) =>
       withAtlasPostgresQueryContext(

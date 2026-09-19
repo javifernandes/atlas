@@ -72,20 +72,20 @@ advisory lock, and applies each new migration transactionally.
 pnpm db:migrate
 pnpm db:verify
 pnpm db:reconcile
-pnpm db:catch-up
+pnpm db:catch-up -- --since=2026-09-07T00:00:00Z
 ```
 
 `db:reconcile` performs a normal manual reconciliation. `pnpm db:rebuild` uses the explicit
 `rebuild` trigger and is the recovery command when the projection must be reconstructed from its
 authorities. Both commands print identities and counts only, never connection strings.
 
-`db:catch-up` is the missed-merge recovery command. Its default mode is a read-only preview: it
-observes the bounded GitHub PR history, compares directive-bearing Pull Requests with durable
-Session activity, and prints exact candidates and skip reasons. After reviewing that output, apply
-the same recovery with:
+`db:catch-up` is the missed-merge recovery command. It requires an ISO-8601 lower bound and defaults
+to a read-only preview: it observes the bounded GitHub PR history, compares directive-bearing Pull
+Requests within that window with durable Session activity, and prints exact candidates, exclusions,
+and skip reasons. After reviewing that output, apply the same recovery with:
 
 ```sh
-pnpm db:catch-up -- --apply
+pnpm db:catch-up -- --since=2026-09-07T00:00:00Z --apply
 ```
 
 Apply performs one normal projection reconciliation and appends attributable missing activity
@@ -130,7 +130,8 @@ using it.
 
 `.github/workflows/catch-up-production.yml` exposes the same recovery as a manually dispatched
 Production workflow. Leave its `apply` input disabled for the first run and inspect the candidate
-and skipped identities in the job log. Dispatch it again with `apply` enabled only after the
+and skipped identities in the job log. Review its `since` input on every dispatch and keep the
+exact same value for preview and apply. Dispatch it again with `apply` enabled only after the
 preview is understood. The workflow applies and verifies migrations before either mode and uses
 the `Production` environment's direct `DATABASE_URL_UNPOOLED` secret.
 

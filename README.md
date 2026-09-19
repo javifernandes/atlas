@@ -73,9 +73,10 @@ Signed GitHub App `push` and merged-pull-request webhooks now reconcile register
 PostgreSQL transactionally. Normal page reads consume one durable Projection Revision and never fan
 out to source providers. Duplicate delivery ids converge across server instances.
 
-If an outage spans merged Pull Request deliveries, `pnpm db:catch-up` previews the missing
-attributable Session activity without writing. `pnpm db:catch-up -- --apply` performs the reviewed,
-idempotent recovery; the Production workflow exposes the same dry-run-first operation.
+If an outage spans merged Pull Request deliveries,
+`pnpm db:catch-up -- --since=<ISO-8601>` previews the missing attributable Session activity within
+that explicit recovery window without writing. Add `--apply` to perform the reviewed, idempotent
+recovery; the Production workflow exposes the same dry-run-first operation.
 
 For a Vercel deployment, create a Deploy Hook for the production branch and store its URL as the
 `VERCEL_DEPLOY_HOOK_URL` GitHub Actions repository secret. Treat the hook URL as a credential: anyone

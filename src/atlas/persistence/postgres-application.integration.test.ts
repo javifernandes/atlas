@@ -388,6 +388,7 @@ Durable Atlas projection.
 
   it('previews and recovers missing merge activity without regressing Session state', async () => {
     const catchUpSchema = `atlas_catch_up_${randomUUID().replaceAll('-', '')}`;
+    const catchUpSince = '2026-09-02T01:00:00.000Z';
     const catchUpPool = new Pool({
       connectionString,
       max: 3,
@@ -402,6 +403,15 @@ Durable Atlas projection.
       number: 41,
       title: 'Recover historical persistence activity',
       url: 'https://github.com/javifernandes/atlas/pull/41',
+    };
+    const beforeCutoffPullRequest: AtlasObservedPullRequest = {
+      ...catchUpPullRequest,
+      id: 'github:javifernandes/atlas#40',
+      mergeCommitSha: 'merge-catch-up-40',
+      mergedAt: '2026-09-02T00:59:59.000Z',
+      number: 40,
+      title: 'Historical activity outside the recovery window',
+      url: 'https://github.com/javifernandes/atlas/pull/40',
     };
     const missingAuthorPullRequest: AtlasObservedPullRequest = {
       ...catchUpPullRequest,
@@ -446,6 +456,7 @@ Atlas-Session: not-a-session`,
       url: 'https://github.com/javifernandes/atlas/pull/46',
     };
     const catchUpPullRequests = [
+      beforeCutoffPullRequest,
       catchUpPullRequest,
       missingAuthorPullRequest,
       unlinkedAuthorPullRequest,
@@ -527,7 +538,7 @@ Atlas-Session: not-a-session`,
         ),
       ).resolves.toMatchObject({ ok: true, value: { archived: true } });
 
-      await expect(catchUpAtlas.previewMergeCatchUp()).resolves.toEqual({
+      await expect(catchUpAtlas.previewMergeCatchUp({ since: catchUpSince })).resolves.toEqual({
         alreadyRecorded: 0,
         candidates: [
           expect.objectContaining({
@@ -537,7 +548,10 @@ Atlas-Session: not-a-session`,
             targetStreamId: activeStream!.id,
           }),
         ],
-        observedPullRequests: 5,
+        eligiblePullRequests: 5,
+        excludedBeforeSince: 1,
+        observedPullRequests: 6,
+        since: catchUpSince,
         skipped: [
           expect.objectContaining({ id: missingAuthorPullRequest.id, reason: 'missing-author' }),
           expect.objectContaining({
@@ -555,13 +569,28 @@ Atlas-Session: not-a-session`,
         ),
       ).resolves.toMatchObject({ rows: [{ count: 1 }] });
 
-      await expect(catchUpAtlas.reconcile({ trigger: 'catch-up' })).resolves.toMatchObject({
+      await expect(
+        catchUpAtlas.reconcile({ catchUpSince, trigger: 'catch-up' }),
+      ).resolves.toMatchObject({
         duplicate: false,
       });
-      await expect(catchUpAtlas.previewMergeCatchUp()).resolves.toEqual({
+      const catchUpRevision = await catchUpPool.query<{ diagnostics_json: string }>(
+        `SELECT diagnostics_json
+         FROM projection_revisions
+         WHERE trigger = 'catch-up'
+         ORDER BY completed_at DESC
+         LIMIT 1`,
+      );
+      expect(JSON.parse(catchUpRevision.rows[0]!.diagnostics_json)).toMatchObject({
+        catchUpSince,
+      });
+      await expect(catchUpAtlas.previewMergeCatchUp({ since: catchUpSince })).resolves.toEqual({
         alreadyRecorded: 1,
         candidates: [],
-        observedPullRequests: 5,
+        eligiblePullRequests: 5,
+        excludedBeforeSince: 1,
+        observedPullRequests: 6,
+        since: catchUpSince,
         skipped: [
           expect.objectContaining({ id: missingAuthorPullRequest.id, reason: 'missing-author' }),
           expect.objectContaining({
@@ -590,7 +619,7 @@ Atlas-Session: not-a-session`,
         ],
       });
 
-      await catchUpAtlas.reconcile({ trigger: 'catch-up' });
+      await catchUpAtlas.reconcile({ catchUpSince, trigger: 'catch-up' });
       await expect(
         catchUpPool.query(
           'SELECT count(*)::int AS count FROM atlas_execution_stream_activities',

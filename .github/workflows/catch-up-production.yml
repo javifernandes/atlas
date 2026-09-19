@@ -3,6 +3,11 @@ name: Catch Up Production Merges
 on:
   workflow_dispatch:
     inputs:
+      since:
+        description: Include merged PRs on or after this ISO-8601 timestamp
+        required: true
+        default: '2026-09-07T00:00:00Z'
+        type: string
       apply:
         description: Apply missing Session activity after the preview
         required: true
@@ -28,6 +33,7 @@ jobs:
       ATLAS_GITHUB_APP_ID: ${{ secrets.ATLAS_GITHUB_APP_ID }}
       ATLAS_GITHUB_APP_PRIVATE_KEY_BASE64: ${{ secrets.ATLAS_GITHUB_APP_PRIVATE_KEY_BASE64 }}
       ATLAS_GITHUB_REPOSITORY: javifernandes/atlas
+      CATCH_UP_SINCE: ${{ inputs.since }}
       DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
 
     steps:
@@ -58,6 +64,13 @@ jobs:
             exit 1
           fi
 
+          if ! node -e '
+            process.exit(Number.isFinite(Date.parse(process.env.CATCH_UP_SINCE ?? "")) ? 0 : 1);
+          '; then
+            echo '::error::Workflow input since must be a valid ISO-8601 timestamp'
+            exit 1
+          fi
+
           if [[ ! "${ATLAS_GITHUB_APP_ID:-}" =~ ^[0-9]+$ ]]; then
             echo '::error::Production environment secret ATLAS_GITHUB_APP_ID is missing or invalid'
             exit 1
@@ -79,8 +92,8 @@ jobs:
 
       - name: Preview merge catch-up
         if: ${{ !inputs.apply }}
-        run: pnpm db:catch-up
+        run: pnpm db:catch-up -- --since="$CATCH_UP_SINCE"
 
       - name: Apply merge catch-up
         if: ${{ inputs.apply }}
-        run: pnpm db:catch-up -- --apply
+        run: pnpm db:catch-up -- --since="$CATCH_UP_SINCE" --apply

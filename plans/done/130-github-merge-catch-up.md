@@ -48,13 +48,14 @@ it tolerates delayed deliveries, out-of-order merges, and prior evidence-only re
 ## Proposed Form
 
 ```text
-pnpm db:catch-up
+pnpm db:catch-up -- --since=<ISO-8601>
   -> observe current sources and bounded GitHub PR history
+  -> exclude Pull Requests before the operator-reviewed recovery window
   -> compare directive-bearing Pull Requests with durable Session activity
   -> print exact candidates and skip reasons
   -> no writes
 
-pnpm db:catch-up -- --apply
+pnpm db:catch-up -- --since=<same-ISO-8601> --apply
   -> run the same authority observation
   -> reconcile the current durable projection once
   -> append missing attributable activity oldest-first
@@ -88,7 +89,8 @@ duplicating evidence, activities, or Sessions.
 
 ## Decisions
 
-1. Use stable set reconciliation rather than a timestamp-only cursor.
+1. Use stable set reconciliation within an explicit operator-reviewed lower bound rather than a
+   timestamp-only cursor or an unbounded historical backfill.
 2. Keep the GitHub observer bounded and explicit instead of adding provider calls to page reads.
 3. Make dry-run the command and workflow default; applying recovery requires an explicit flag.
 4. Reuse normal evidence reconciliation once per apply rather than once per missed PR.
@@ -123,3 +125,9 @@ The first Production preview exposed a credential-boundary correction: `github.t
 to Atlas and cannot observe private federated sources. The workflow now requires the Atlas GitHub
 App ID and a private key in the GitHub `Production` environment, matching the installation-token
 path used by the hosted application.
+
+The first complete preview also exposed an unsafe scope assumption: the bounded GitHub observer
+still reached directive-bearing work from before Sessions existed. Catch-up now requires one
+ISO-8601 lower bound, reports excluded history, records the bound in Projection Revision
+diagnostics, and applies only the reviewed window. Stable identities remain the missing-activity
+checkpoint inside that window.
