@@ -1,0 +1,71 @@
+name: Catch Up Production Merges
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply missing Session activity after the preview
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: production-merge-catch-up
+  cancel-in-progress: false
+
+jobs:
+  catch-up:
+    name: Preview or apply merge catch-up
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: Production
+    env:
+      ATLAS_GITHUB_REPOSITORY: javifernandes/atlas
+      ATLAS_GITHUB_TOKEN: ${{ github.token }}
+      DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate production database configuration
+        run: |
+          if [[ -z "${DATABASE_URL_UNPOOLED:-}" ]]; then
+            echo '::error::Production environment secret DATABASE_URL_UNPOOLED is not configured'
+            exit 1
+          fi
+
+          if [[ "$DATABASE_URL_UNPOOLED" == *"-pooler."* ]]; then
+            echo '::error::DATABASE_URL_UNPOOLED must be a direct, non-pooled PostgreSQL connection'
+            exit 1
+          fi
+
+      - name: Apply and verify schema
+        run: |
+          pnpm db:migrate
+          pnpm db:verify
+
+      - name: Preview merge catch-up
+        if: ${{ !inputs.apply }}
+        run: pnpm db:catch-up
+
+      - name: Apply merge catch-up
+        if: ${{ inputs.apply }}
+        run: pnpm db:catch-up -- --apply

@@ -71,4 +71,20 @@ mutate the target Plan or Item status.
 Each accepted event reconciles the durable PostgreSQL projection and records its GitHub delivery id.
 Supported source events without GitHub's `X-GitHub-Delivery` header are rejected because they cannot
 provide cross-instance deduplication.
-See [PostgreSQL persistence](./postgres-persistence.md) for rebuild and rollback procedures.
+
+## Missed delivery recovery
+
+GitHub does not automatically redeliver failed webhook deliveries, and its manual redelivery UI is
+limited to recent deliveries. If Atlas or PostgreSQL was unavailable during merges, first run the
+read-only recovery preview:
+
+```sh
+pnpm db:catch-up
+```
+
+Then use `pnpm db:catch-up -- --apply` or the manually dispatched **Catch Up Production Merges**
+workflow after reviewing the candidates. Catch-up re-observes GitHub authority and restores only
+missing attributable Session activity; it does not synthesize delivery IDs. See
+[GitHub's redelivery guidance](https://docs.github.com/en/webhooks/testing-and-troubleshooting-webhooks/redelivering-webhooks)
+and [PostgreSQL persistence](./postgres-persistence.md) for the full operator and rollback
+procedures.

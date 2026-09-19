@@ -16,6 +16,7 @@ export type AtlasObservedPullRequest = {
   authorAvatarUrl: string | null;
   authorProviderAccountId: string | null;
   authorLogin: string | null;
+  body?: string | null;
   directives: AtlasPullRequestDirective[];
   id: string;
   mergeCommitSha: string | null;
@@ -207,6 +208,7 @@ const mapPullRequest = (
     authorAvatarUrl: author.avatarUrl,
     authorProviderAccountId: author.accountId,
     authorLogin: author.login,
+    body: optionalString(pullRequest.body),
     directives,
     id: `github:${source.repositoryFullName.toLowerCase()}#${pullRequest.number}`,
     mergeCommitSha: optionalString(pullRequest.merge_commit_sha),

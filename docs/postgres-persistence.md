@@ -72,11 +72,27 @@ advisory lock, and applies each new migration transactionally.
 pnpm db:migrate
 pnpm db:verify
 pnpm db:reconcile
+pnpm db:catch-up
 ```
 
 `db:reconcile` performs a normal manual reconciliation. `pnpm db:rebuild` uses the explicit
 `rebuild` trigger and is the recovery command when the projection must be reconstructed from its
 authorities. Both commands print identities and counts only, never connection strings.
+
+`db:catch-up` is the missed-merge recovery command. Its default mode is a read-only preview: it
+observes the bounded GitHub PR history, compares directive-bearing Pull Requests with durable
+Session activity, and prints exact candidates and skip reasons. After reviewing that output, apply
+the same recovery with:
+
+```sh
+pnpm db:catch-up -- --apply
+```
+
+Apply performs one normal projection reconciliation and appends attributable missing activity
+oldest-first. Stable Pull Request and activity identities make reruns idempotent. It deliberately
+does not fabricate webhook delivery records, and an older recovered merge cannot regress a
+Session's current focus, last-activity time, or archive state. Apply aborts if any configured
+GitHub evidence source could not be observed, preventing a partial recovery from looking complete.
 
 `db:verify` checks both the Ontahí-backed Atlas projection schema and Better Auth's persistent
 User/Account/Session/Verification schema. A pending Better Auth table, field, index, or unsafe
@@ -109,6 +125,20 @@ uses a PostgreSQL advisory lock and immutable checksums.
 All migrations must be expand-first and compatible with the currently deployed application.
 Removing an old table or column is a later contract step after every production reader has stopped
 using it.
+
+### Production merge catch-up
+
+`.github/workflows/catch-up-production.yml` exposes the same recovery as a manually dispatched
+Production workflow. Leave its `apply` input disabled for the first run and inspect the candidate
+and skipped identities in the job log. Dispatch it again with `apply` enabled only after the
+preview is understood. The workflow applies and verifies migrations before either mode and uses
+the `Production` environment's direct `DATABASE_URL_UNPOOLED` secret.
+
+The committed `atlas.sources.yaml` gives this operator path the public BookOps and Ontahí source
+inventory outside Vercel. An ignored `atlas.sources.local.yaml` still takes precedence for local
+work. GitHub Actions' repository token can read public sources; if a registered source becomes
+private, the workflow must use credentials that can read that repository before catch-up will be
+complete.
 
 ## Neon changes and validation
 

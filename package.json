@@ -16,6 +16,7 @@
     "db:migrate": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-postgres.ts migrate",
     "db:traffic": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-postgres-traffic.ts",
     "db:verify": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-postgres.ts verify",
+    "db:catch-up": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-catch-up.ts",
     "db:reconcile": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-reconcile.ts",
     "db:rebuild": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-reconcile.ts rebuild",
     "start": "next start",

@@ -83,7 +83,12 @@ export type AtlasRepositoryPushInput = {
   repositoryFullName: string;
 };
 
-export type AtlasReconciliationTrigger = 'bootstrap' | 'manual' | 'rebuild' | 'webhook';
+export type AtlasReconciliationTrigger =
+  | 'bootstrap'
+  | 'catch-up'
+  | 'manual'
+  | 'rebuild'
+  | 'webhook';
 
 export type AtlasReconciliationRequest = {
   trigger: AtlasReconciliationTrigger;
@@ -209,7 +214,7 @@ const evidenceBindingFields = {
 
 const projectionRevisionFields = {
   id: field.id(),
-  trigger: field.enum(['bootstrap', 'manual', 'rebuild', 'webhook']),
+  trigger: field.enum(['bootstrap', 'catch-up', 'manual', 'rebuild', 'webhook']),
   sourceRevisionSetHash: field.nonEmptyString({ trim: true }),
   snapshotJson: field.string(),
   diagnosticsJson: field.string(),
@@ -324,7 +329,7 @@ const MergedPullRequestOutputSchema = graphSchema.value('MergedPullRequestRefres
 });
 
 const ReconcileProjectionInputSchema = graphSchema.object({
-  trigger: field.enum(['bootstrap', 'manual', 'rebuild']),
+  trigger: field.enum(['bootstrap', 'catch-up', 'manual', 'rebuild']),
 });
 
 const RepositoryPushInputSchema = graphSchema.object({

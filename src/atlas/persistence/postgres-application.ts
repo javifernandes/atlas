@@ -34,6 +34,39 @@ import {
 } from './postgres-observability';
 import { createVersionedProjectionSnapshotCache } from './projection-snapshot-cache';
 
+export type AtlasMergeCatchUpCandidate = {
+  action: 'append-to-session' | 'create-implicit-session';
+  attribution: 'explicit-directive' | 'implicit-single-open';
+  id: string;
+  mergedAt: string;
+  number: number;
+  planId: string;
+  repositoryFullName: string;
+  targetStreamId: string | null;
+  title: string;
+};
+
+export type AtlasMergeCatchUpSkipped = {
+  id: string;
+  number: number;
+  reason: 'invalid-session' | 'missing-author' | 'unlinked-author' | 'unresolved-plan';
+  repositoryFullName: string;
+  title: string;
+};
+
+export type AtlasMergeCatchUpPreview = {
+  alreadyRecorded: number;
+  candidates: AtlasMergeCatchUpCandidate[];
+  observedPullRequests: number;
+  skipped: AtlasMergeCatchUpSkipped[];
+  sourceFailures: AtlasProjectionInput['evidenceFailures'];
+};
+
+type AtlasMergeActivityInput = Pick<
+  AtlasMergedPullRequestInput,
+  'authorProviderAccountId' | 'body' | 'mergedAt' | 'number' | 'repositoryFullName'
+>;
+
 const hashRevisionSet = (revisionIds: string[]) =>
   createHash('sha256')
     .update([...revisionIds].sort((left, right) => left.localeCompare(right)).join('\0'))
@@ -42,17 +75,20 @@ const hashRevisionSet = (revisionIds: string[]) =>
 const executionStreamTitle = (planTitle: string) =>
   planTitle.replace(/^\d+[a-z]?\.\s+/i, '').trim() || planTitle;
 
-const latestActivityTimestamp = (current: string | null, candidate: string) => {
-  if (!current) return candidate;
+const advancesActivityTimestamp = (current: string | null, candidate: string) => {
+  if (!current) return true;
 
   const currentTime = Date.parse(current);
   const candidateTime = Date.parse(candidate);
 
-  return Number.isFinite(candidateTime) &&
+  return (
+    Number.isFinite(candidateTime) &&
     (!Number.isFinite(currentTime) || candidateTime > currentTime)
-    ? candidate
-    : current;
+  );
 };
+
+const latestActivityTimestamp = (current: string | null, candidate: string): string =>
+  advancesActivityTimestamp(current, candidate) ? candidate : (current ?? candidate);
 
 const mergeWebhookPullRequestObservation = (
   projection: AtlasProjectionInput,
@@ -81,6 +117,7 @@ const mergeWebhookPullRequestObservation = (
     authorProviderAccountId:
       webhook.authorProviderAccountId ?? existing?.authorProviderAccountId ?? null,
     authorLogin: webhook.authorLogin ?? existing?.authorLogin ?? null,
+    body: webhook.body,
     directives: directives.length > 0 ? directives : (existing?.directives ?? []),
     id,
     mergeCommitSha: webhook.mergeCommitSha,
@@ -102,7 +139,7 @@ const mergeWebhookPullRequestObservation = (
 
 const resolveExecutionPlanAttribution = (
   dataset: ReturnType<typeof buildAtlasOntahiDataset>,
-  webhook: AtlasMergedPullRequestInput,
+  webhook: AtlasMergeActivityInput,
 ) => {
   const pullRequestId = `github:${webhook.repositoryFullName.toLowerCase()}#${webhook.number}`;
   const context = resolveExecutionStreamPlanContext({
@@ -240,19 +277,19 @@ export const createAtlasPostgresApplication = (input: {
   });
 
   const recordMergedPullRequestActivity = (
-    webhook: AtlasMergedPullRequestInput,
+    webhook: AtlasMergeActivityInput,
     dataset: ReturnType<typeof buildAtlasOntahiDataset>,
   ) =>
     Effect.gen(function* () {
       if (!webhook.authorProviderAccountId) {
-        return;
+        return false;
       }
 
       const planAttribution = resolveExecutionPlanAttribution(dataset, webhook);
       const sessionDirective = parseAtlasSessionDirective(webhook.body);
 
       if (!planAttribution) {
-        return;
+        return false;
       }
 
       const accounts = yield* entities.AtlasAuthAccount.where(account =>
@@ -261,7 +298,7 @@ export const createAtlasPostgresApplication = (input: {
       const account = accounts.find(candidate => candidate.providerId === 'github');
 
       if (!account) {
-        return;
+        return false;
       }
 
       const priorActivity = yield* entities.AtlasExecutionStreamActivity.where(activity =>
@@ -271,7 +308,7 @@ export const createAtlasPostgresApplication = (input: {
         .run();
 
       if (priorActivity[0]) {
-        return;
+        return false;
       }
 
       const streams = yield* entities.AtlasExecutionStream.where(stream =>
@@ -284,7 +321,7 @@ export const createAtlasPostgresApplication = (input: {
       });
 
       if (activityTarget.kind === 'unrouted') {
-        return;
+        return false;
       }
 
       let stream = activityTarget.kind === 'existing' ? activityTarget.stream : undefined;
@@ -311,17 +348,24 @@ export const createAtlasPostgresApplication = (input: {
         streamId = stream.id;
       } else {
         const currentStream = stream;
+        const nextLastActivityAt = latestActivityTimestamp(
+          currentStream.lastActivityAt,
+          timestamp,
+        );
+        const advancesStream = advancesActivityTimestamp(
+          currentStream.lastActivityAt,
+          timestamp,
+        );
         yield* entities.AtlasExecutionStream.where(candidate =>
           candidate.id.eq(currentStream.id),
         )
           .updateOne({
-            archivedAt: null,
-            currentFocusPlanId: planAttribution.focusPlan.id,
-            lastActivityAt: latestActivityTimestamp(
-              currentStream.lastActivityAt,
-              timestamp,
-            ),
-            updatedAt: timestamp,
+            archivedAt: advancesStream ? null : currentStream.archivedAt,
+            currentFocusPlanId: advancesStream
+              ? planAttribution.focusPlan.id
+              : currentStream.currentFocusPlanId,
+            lastActivityAt: nextLastActivityAt,
+            updatedAt: latestActivityTimestamp(currentStream.updatedAt, timestamp),
           })
           .run();
         streamId = currentStream.id;
@@ -357,7 +401,139 @@ export const createAtlasPostgresApplication = (input: {
         },
         { conflictOn: ['id'], strategy: 'ignore' },
       ).run();
+
+      return true;
     });
+
+  const previewMergeCatchUp = async (): Promise<AtlasMergeCatchUpPreview> => {
+    const projection = await input.loadProjection({ trigger: 'catch-up' });
+    const dataset = buildAtlasOntahiDataset(
+      projection.records,
+      projection.observedPullRequests,
+      projection.sourceRevisions,
+    );
+    const [activityRows, accountRows, streamRows] = await Promise.all([
+      pool.query<{ pull_request_id: string }>(
+        'SELECT pull_request_id FROM atlas_execution_stream_activities',
+      ),
+      pool.query<{ account_id: string; user_id: string }>(
+        "SELECT account_id, user_id::text FROM atlas_auth_accounts WHERE provider_id = 'github'",
+      ),
+      pool.query<{
+        id: string;
+        mode: 'explicit' | 'implicit';
+        status: 'closed' | 'open';
+        user_id: string;
+      }>('SELECT id::text, mode, status, user_id::text FROM atlas_execution_streams'),
+    ]);
+    const recordedPullRequestIds = new Set(
+      activityRows.rows.map(row => row.pull_request_id),
+    );
+    const userIdByAccountId = new Map(
+      accountRows.rows.map(row => [row.account_id, row.user_id] as const),
+    );
+    const simulatedStreams = streamRows.rows.map(row => ({
+      id: row.id,
+      mode: row.mode,
+      status: row.status,
+      userId: row.user_id,
+    }));
+    const candidates: AtlasMergeCatchUpCandidate[] = [];
+    const skipped: AtlasMergeCatchUpSkipped[] = [];
+    let alreadyRecorded = 0;
+    const observedPullRequests = [...projection.observedPullRequests].sort((left, right) =>
+      left.mergedAt.localeCompare(right.mergedAt),
+    );
+
+    for (const pullRequest of observedPullRequests) {
+      if (recordedPullRequestIds.has(pullRequest.id)) {
+        alreadyRecorded += 1;
+        continue;
+      }
+
+      const skip = (reason: AtlasMergeCatchUpSkipped['reason']) => {
+        skipped.push({
+          id: pullRequest.id,
+          number: pullRequest.number,
+          reason,
+          repositoryFullName: pullRequest.repositoryFullName,
+          title: pullRequest.title,
+        });
+      };
+      const activityInput: AtlasMergeActivityInput = {
+        authorProviderAccountId: pullRequest.authorProviderAccountId,
+        body: pullRequest.body ?? null,
+        mergedAt: pullRequest.mergedAt,
+        number: pullRequest.number,
+        repositoryFullName: pullRequest.repositoryFullName,
+      };
+      const planAttribution = resolveExecutionPlanAttribution(dataset, activityInput);
+
+      if (!planAttribution) {
+        skip('unresolved-plan');
+        continue;
+      }
+
+      if (!pullRequest.authorProviderAccountId) {
+        skip('missing-author');
+        continue;
+      }
+
+      const userId = userIdByAccountId.get(pullRequest.authorProviderAccountId);
+
+      if (!userId) {
+        skip('unlinked-author');
+        continue;
+      }
+
+      const activityTarget = resolveExecutionStreamActivityTarget({
+        directive: parseAtlasSessionDirective(pullRequest.body),
+        streams: simulatedStreams,
+        userId,
+      });
+
+      if (activityTarget.kind === 'unrouted') {
+        skip('invalid-session');
+        continue;
+      }
+
+      if (activityTarget.kind === 'create-implicit') {
+        simulatedStreams.push({
+          id: `catch-up-preview:${userId}`,
+          mode: 'implicit',
+          status: 'open',
+          userId,
+        });
+      }
+
+      candidates.push({
+        action:
+          activityTarget.kind === 'create-implicit'
+            ? 'create-implicit-session'
+            : 'append-to-session',
+        attribution:
+          activityTarget.kind === 'existing'
+            ? activityTarget.attribution
+            : 'implicit-single-open',
+        id: pullRequest.id,
+        mergedAt: pullRequest.mergedAt,
+        number: pullRequest.number,
+        planId: planAttribution.focusPlan.id,
+        repositoryFullName: pullRequest.repositoryFullName,
+        targetStreamId:
+          activityTarget.kind === 'existing' ? activityTarget.stream.id : null,
+        title: pullRequest.title,
+      });
+    }
+
+    return {
+      alreadyRecorded,
+      candidates,
+      observedPullRequests: observedPullRequests.length,
+      skipped,
+      sourceFailures: projection.evidenceFailures,
+    };
+  };
 
   proposePersistentPlanLink = request =>
     Effect.promise(async () => {
@@ -368,6 +544,14 @@ export const createAtlasPostgresApplication = (input: {
   reconcileProjection = request =>
     Effect.promise(() => input.loadProjection(request)).pipe(
       Effect.flatMap(projection => {
+        if (request.trigger === 'catch-up' && projection.evidenceFailures.length > 0) {
+          return Effect.die(
+            new Error(
+              `Atlas catch-up requires all evidence sources; ${projection.evidenceFailures.length} source observation(s) failed.`,
+            ),
+          );
+        }
+
         const observedPullRequests = mergeWebhookPullRequestObservation(projection, request);
         const dataset = buildAtlasOntahiDataset(
           projection.records,
@@ -578,7 +762,24 @@ export const createAtlasPostgresApplication = (input: {
               }).run();
             }
 
-            if (webhook && 'number' in webhook) {
+            if (request.trigger === 'catch-up') {
+              const catchUpPullRequests = [...projection.observedPullRequests].sort((left, right) =>
+                left.mergedAt.localeCompare(right.mergedAt),
+              );
+
+              for (const pullRequest of catchUpPullRequests) {
+                yield* recordMergedPullRequestActivity(
+                  {
+                    authorProviderAccountId: pullRequest.authorProviderAccountId,
+                    body: pullRequest.body ?? null,
+                    mergedAt: pullRequest.mergedAt,
+                    number: pullRequest.number,
+                    repositoryFullName: pullRequest.repositoryFullName,
+                  },
+                  dataset,
+                );
+              }
+            } else if (webhook && 'number' in webhook) {
               yield* recordMergedPullRequestActivity(webhook, dataset);
             }
 
@@ -681,6 +882,11 @@ export const createAtlasPostgresApplication = (input: {
   return {
     ...atlas,
     getProjectionSnapshot: projectionSnapshotCache.read,
+    previewMergeCatchUp: () =>
+      withAtlasPostgresQueryContext(
+        { operation: 'atlas.projection.catch-up-preview', trigger: 'catch-up' },
+        previewMergeCatchUp,
+      ),
     reconcile: (request: AtlasReconciliationRequest) =>
       withAtlasPostgresQueryContext(
         { operation: 'atlas.projection.reconcile', trigger: request.trigger },
