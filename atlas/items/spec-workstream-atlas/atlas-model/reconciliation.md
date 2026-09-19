@@ -44,4 +44,6 @@ Webhook recovery is a distinct operational reconciliation mode. It re-observes a
 history and compares stable Pull Request identities with durable Session activity, so a failed
 delivery can be recovered without inventing delivery provenance or relying on a timestamp that may
 already have advanced through evidence-only reconciliation. Preview is read-only; apply converges
-the projection once and appends only missing attributable activity.
+the projection once and appends only missing attributable activity. Operators must also provide a
+reviewed ISO-8601 lower bound: it limits recovery scope without replacing stable identity as the
+deduplication checkpoint, and the committed Projection Revision records that bound in diagnostics.

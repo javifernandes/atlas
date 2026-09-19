@@ -91,6 +91,7 @@ export type AtlasReconciliationTrigger =
   | 'webhook';
 
 export type AtlasReconciliationRequest = {
+  catchUpSince?: string | null;
   trigger: AtlasReconciliationTrigger;
   webhook?: AtlasMergedPullRequestInput | AtlasRepositoryPushInput;
 };
@@ -329,6 +330,7 @@ const MergedPullRequestOutputSchema = graphSchema.value('MergedPullRequestRefres
 });
 
 const ReconcileProjectionInputSchema = graphSchema.object({
+  catchUpSince: graphSchema.nullable(field.string()),
   trigger: field.enum(['bootstrap', 'catch-up', 'manual', 'rebuild']),
 });
 
