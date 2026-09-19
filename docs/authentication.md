@@ -56,29 +56,27 @@ stable preview domain has also been registered as a redirect URI.
 
 ## Viewer Visibility
 
-The default remains an anonymous public viewer:
+Atlas is private by default. A complete GitHub OAuth configuration admits any successfully
+authenticated GitHub User:
+
+```dotenv
+ATLAS_VISIBILITY=private
+```
+
+Anonymous page requests render a lightweight login landing before Atlas loads its projection.
+Private mode also gates `/runtime` and `/operations`, and fails closed when authentication is
+incomplete. The root page and sign-in surface advertise `noindex, nofollow`; the authenticated
+session remains the actual access boundary.
+
+Local development may explicitly bypass authentication:
 
 ```dotenv
 ATLAS_VISIBILITY=public
 ```
 
-Public deployments may still configure GitHub login so the current Principal is available to
-future operations.
-
-The temporary private mode requires both complete authentication configuration and a comma-separated
-allowlist of stable numeric GitHub user IDs:
-
-```dotenv
-ATLAS_VISIBILITY=private
-ATLAS_PRIVATE_GITHUB_USER_IDS=12345678,87654321
-```
-
-The current account ID is available with `gh api user --jq .id`. Atlas deliberately checks the
-provider-owned numeric ID rather than a mutable GitHub login.
-
-Private mode gates both the viewer page and `/runtime`. It fails closed when authentication or the
-allowlist is incomplete. The allowlist is a bootstrap mechanism for the deployment-scoped viewer,
-not the durable authorization model.
+Public mode permits anonymous reads and may still configure GitHub login so the current Principal
+is available to operations. Atlas rejects this bypass when `NODE_ENV=production`; deployed
+environments are always gated.
 
 Atlas also disables Better Auth's stateless account cookie. The session remains signed and
 encrypted in fallback mode, but account data is never placed in that cookie.
@@ -154,5 +152,5 @@ Authentication persistence intentionally stops before resource authorization. Wh
 ID. At that point:
 
 1. workspace visibility replaces the deployment environment flag;
-2. owner/member relationships replace the GitHub allowlist;
+2. owner/member relationships replace the coarse deployment-wide authenticated boundary;
 3. Client Applications authenticate as service Principals with separate scoped grants.

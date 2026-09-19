@@ -5,7 +5,6 @@ import { getAtlasPostgresPool } from '../database/postgres-pool';
 
 import { decideAtlasReadAccess, type AtlasReadAccess, type AtlasViewer } from './access';
 import {
-  isGithubProfileAllowed,
   readAtlasAuthConfiguration,
   type AtlasAuthConfiguration,
 } from './config';
@@ -54,13 +53,6 @@ export const createAtlasAuthOptions = (
             errorDescription: 'Atlas currently accepts GitHub identities only.',
           };
         }
-
-        if (!isGithubProfileAllowed(configuration, source.oauth.profile)) {
-          return {
-            error: 'github_user_not_allowed',
-            errorDescription: 'This GitHub account does not have access to this private Atlas.',
-          };
-        }
       },
     },
   };
@@ -83,7 +75,6 @@ const getConfigurationKey = (configuration: AtlasAuthConfiguration) =>
     clientId: configuration.clientId,
     clientSecret: configuration.clientSecret,
     databaseUrl: configuration.databaseUrl,
-    privateGithubUserIds: [...configuration.privateGithubUserIds].sort(),
     secret: configuration.secret,
     visibility: configuration.visibility,
   });

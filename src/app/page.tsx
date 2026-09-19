@@ -1,12 +1,28 @@
 import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
+import type { Metadata } from 'next';
 
+import { readAtlasAuthConfiguration } from '@/auth/config';
 import { getAtlasRequestAccess } from '@/auth/server';
 import { PlanWorkstreamExplorer } from '@/atlas/viewer/atlas-explorer';
 import { getAtlasPageData } from '@/atlas/server/get-atlas-page-data';
 import { AuthControl } from '@/components/auth/auth-control';
+import { AuthLanding } from '@/components/auth/auth-landing';
 
 export const dynamic = 'force-dynamic';
+
+export const generateMetadata = (): Metadata => {
+  const configuration = readAtlasAuthConfiguration();
+
+  return configuration.visibility === 'public' && !configuration.configurationError
+    ? {}
+    : {
+        robots: {
+          follow: false,
+          googleBot: { follow: false, index: false },
+          index: false,
+        },
+      };
+};
 
 type AtlasPageProps = {
   searchParams?: { session?: string | string[] };
@@ -16,7 +32,13 @@ const AtlasPage = async ({ searchParams }: AtlasPageProps) => {
   const access = await getAtlasRequestAccess(headers());
 
   if (!access.canRead) {
-    redirect('/sign-in');
+    return (
+      <AuthLanding
+        authAvailable={access.authAvailable}
+        configurationError={access.configurationError}
+        viewer={access.viewer}
+      />
+    );
   }
 
   const selectedStreamId = Array.isArray(searchParams?.session)
