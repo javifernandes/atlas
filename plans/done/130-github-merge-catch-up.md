@@ -131,3 +131,7 @@ still reached directive-bearing work from before Sessions existed. Catch-up now 
 ISO-8601 lower bound, reports excluded history, records the bound in Projection Revision
 diagnostics, and applies only the reviewed window. Stable identities remain the missing-activity
 checkpoint inside that window.
+
+The first bounded workflow invocation exposed that pnpm preserves its conventional standalone
+`--` argument separator for this script. The catch-up CLI now accepts that delimiter explicitly,
+with a focused parser test covering the exact Production invocation shape.

@@ -2,6 +2,9 @@ import { configureServerRuntime } from '@ontahi/core/runtime/server';
 import { Pool } from 'pg';
 
 import { createAtlasPostgresComposition } from '../src/atlas/server/atlas-postgres-composition';
+import { parseAtlasCatchUpArguments } from './atlas-catch-up-arguments';
+
+const { apply, since } = parseAtlasCatchUpArguments(process.argv.slice(2));
 
 const connectionString =
   process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
@@ -10,32 +13,6 @@ if (!connectionString) {
   throw new Error('DATABASE_URL_UNPOOLED or DATABASE_URL is required.');
 }
 
-const argumentsList = process.argv.slice(2);
-const argumentsSet = new Set(argumentsList);
-const sinceArguments = argumentsList.filter(argument => argument.startsWith('--since='));
-const unknownArguments = argumentsList.filter(
-  argument =>
-    argument !== '--apply' &&
-    argument !== '--dry-run' &&
-    !argument.startsWith('--since='),
-);
-
-if (
-  unknownArguments.length > 0 ||
-  sinceArguments.length !== 1 ||
-  (argumentsSet.has('--apply') && argumentsSet.has('--dry-run'))
-) {
-  throw new Error('Usage: atlas-catch-up.ts --since=<ISO-8601> [--dry-run|--apply]');
-}
-
-const apply = argumentsSet.has('--apply');
-const sinceTimestamp = Date.parse(sinceArguments[0]!.slice('--since='.length));
-
-if (!Number.isFinite(sinceTimestamp)) {
-  throw new Error('Catch-up --since must be a valid ISO-8601 timestamp.');
-}
-
-const since = new Date(sinceTimestamp).toISOString();
 const pool = new Pool({ connectionString, max: 3 });
 configureServerRuntime({ diagnostics: { exposeInternalErrorCauses: true } });
 
