@@ -23,16 +23,19 @@ the workspace or nested resource, and relevant context. A GitHub App webhook sig
 GitHub as an event producer; it does not authenticate the human viewing Atlas.
 
 The first implementation keeps the existing deployment-scoped viewer and adds GitHub login plus a
-coarse `public` or `private` visibility boundary. Private mode uses a stable GitHub user-ID allowlist
-only as a bootstrap until the durable ownership model exists.
+coarse authenticated boundary. The deployed viewer is private by default and admits any validated
+GitHub User; an explicit public mode exists only as a local-development bypass until the durable
+ownership model exists and is rejected when `NODE_ENV=production`.
 
-Atlas implements that boundary with Better Auth stateless GitHub OAuth. The Next.js host validates
-the session and supplies an `atlas:better-auth` user Principal to Ontahí Runtime Protocol dispatch.
-Public deployments still admit anonymous reads; private deployments require a validated allowlisted
-identity for both the viewer and runtime operations. Human OAuth tokens are not retained for source
-access because the Atlas GitHub App's separate installation-token flow remains authoritative for
-repository access. The same App registration may identify a human through OAuth without conflating
-that user session with installation or webhook authority.
+Atlas implements that boundary with Better Auth GitHub OAuth, PostgreSQL-backed users and sessions
+when `DATABASE_URL` is present, and a signed-cookie fallback for local or preview use. The Next.js
+host validates the session and supplies an `atlas` user Principal to Ontahí Runtime Protocol
+dispatch. Private deployments show anonymous callers a small login landing, decide access before
+loading the Atlas projection, and require a validated identity for both viewer and runtime
+operations. Human OAuth tokens are not retained for source access because the Atlas GitHub App's
+separate installation-token flow remains authoritative for repository access. The same App
+registration may identify a human through OAuth without conflating that user session with
+installation or webhook authority.
 
 The first real authorization exercises this boundary through the existing Atlas GitHub App. Atlas
 requires only the App's `Email addresses: read-only` account permission for Better Auth identity;

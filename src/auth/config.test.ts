@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  isGithubProfileAllowed,
-  parsePrivateGithubUserIds,
-  readAtlasAuthConfiguration,
-} from './config';
+import { readAtlasAuthConfiguration } from './config';
 
 const completeAuthEnvironment = {
   ATLAS_AUTH_GITHUB_CLIENT_ID: 'github-client',
@@ -14,11 +10,31 @@ const completeAuthEnvironment = {
 };
 
 describe('Atlas auth configuration', () => {
-  it('defaults to an anonymous public viewer when auth is not configured', () => {
+  it('defaults to a closed private viewer when auth is not configured', () => {
     expect(readAtlasAuthConfiguration({})).toMatchObject({
       authAvailable: false,
-      configurationError: null,
+      configurationError: expect.stringContaining('requires GitHub OAuth'),
       persistence: 'stateless',
+      visibility: 'private',
+    });
+  });
+
+  it('allows an explicit public bypass without auth for local development', () => {
+    expect(readAtlasAuthConfiguration({ ATLAS_VISIBILITY: 'public' })).toMatchObject({
+      authAvailable: false,
+      configurationError: null,
+      visibility: 'public',
+    });
+  });
+
+  it('fails closed when the public bypass is configured in production', () => {
+    expect(
+      readAtlasAuthConfiguration({
+        ATLAS_VISIBILITY: 'public',
+        NODE_ENV: 'production',
+      }),
+    ).toMatchObject({
+      configurationError: 'Public Atlas visibility is available only in local development.',
       visibility: 'public',
     });
   });
@@ -35,7 +51,7 @@ describe('Atlas auth configuration', () => {
     });
   });
 
-  it('fails private visibility closed when auth or its allowlist is incomplete', () => {
+  it('accepts any configured GitHub identity in private visibility', () => {
     expect(
       readAtlasAuthConfiguration({ ATLAS_VISIBILITY: 'private' }).configurationError,
     ).toContain('requires GitHub OAuth');
@@ -43,28 +59,16 @@ describe('Atlas auth configuration', () => {
       readAtlasAuthConfiguration({
         ...completeAuthEnvironment,
         ATLAS_VISIBILITY: 'private',
+      }),
+    ).toMatchObject({ configurationError: null, visibility: 'private' });
+  });
+
+  it('rejects unknown visibility values', () => {
+    expect(
+      readAtlasAuthConfiguration({
+        ...completeAuthEnvironment,
+        ATLAS_VISIBILITY: 'authenticated',
       }).configurationError,
-    ).toContain('ATLAS_PRIVATE_GITHUB_USER_IDS');
-  });
-
-  it('normalizes the temporary GitHub user id allowlist', () => {
-    expect([...parsePrivateGithubUserIds(' 12345,67890, 12345 ')]).toEqual([
-      '12345',
-      '67890',
-    ]);
-  });
-
-  it('allows every GitHub profile in public mode and only configured profiles in private mode', () => {
-    const publicConfiguration = readAtlasAuthConfiguration(completeAuthEnvironment);
-    const privateConfiguration = readAtlasAuthConfiguration({
-      ...completeAuthEnvironment,
-      ATLAS_PRIVATE_GITHUB_USER_IDS: '12345',
-      ATLAS_VISIBILITY: 'private',
-    });
-
-    expect(isGithubProfileAllowed(publicConfiguration, { id: 99999 })).toBe(true);
-    expect(isGithubProfileAllowed(privateConfiguration, { id: '12345' })).toBe(true);
-    expect(isGithubProfileAllowed(privateConfiguration, { id: 99999 })).toBe(false);
-    expect(isGithubProfileAllowed(privateConfiguration, undefined)).toBe(false);
+    ).toContain('must be "private" or "public"');
   });
 });

@@ -13,7 +13,6 @@ const viewer: AtlasViewer = {
 const privateConfiguration = readAtlasAuthConfiguration({
   ATLAS_AUTH_GITHUB_CLIENT_ID: 'github-client',
   ATLAS_AUTH_GITHUB_CLIENT_SECRET: 'github-secret',
-  ATLAS_PRIVATE_GITHUB_USER_IDS: '12345',
   ATLAS_VISIBILITY: 'private',
   BETTER_AUTH_SECRET: 'a-high-entropy-secret-with-at-least-32-characters',
   BETTER_AUTH_URL: 'http://localhost:3000',
@@ -28,14 +27,19 @@ describe('Atlas read access', () => {
     });
   });
 
-  it('allows anonymous public reads and requires a viewer for private reads', () => {
-    expect(decideAtlasReadAccess(readAtlasAuthConfiguration({}), null).canRead).toBe(true);
+  it('allows an explicit public bypass and requires a viewer by default', () => {
+    expect(
+      decideAtlasReadAccess(
+        readAtlasAuthConfiguration({ ATLAS_VISIBILITY: 'public' }),
+        null,
+      ).canRead,
+    ).toBe(true);
     expect(decideAtlasReadAccess(privateConfiguration, null).canRead).toBe(false);
     expect(decideAtlasReadAccess(privateConfiguration, viewer).canRead).toBe(true);
   });
 
-  it('fails closed when private configuration is invalid', () => {
-    const configuration = readAtlasAuthConfiguration({ ATLAS_VISIBILITY: 'private' });
+  it('fails closed when the default private configuration is incomplete', () => {
+    const configuration = readAtlasAuthConfiguration({});
     const access = decideAtlasReadAccess(configuration, viewer);
 
     expect(access.canRead).toBe(false);

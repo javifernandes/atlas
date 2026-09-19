@@ -41,6 +41,12 @@ describe('AuthControl', () => {
     );
   });
 
+  it('names the primary landing action after the identity provider', () => {
+    render(<AuthControl authAvailable variant='sign-in' viewer={null} />);
+
+    expect(screen.getByRole('button', { name: 'Continue with GitHub' })).toBeInTheDocument();
+  });
+
   it('presents the current viewer and a sign-out action', () => {
     render(
       <AuthControl

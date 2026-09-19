@@ -7,13 +7,12 @@ Definition level: shaped
 ## Summary
 
 Add the first human identity boundary to Atlas with GitHub OAuth, project the authenticated host
-session into an Ontahí `Principal`, and let one deployed Atlas viewer be configured as `public` or
-`private`.
+session into an Ontahí `Principal`, and gate the deployed Atlas viewer behind authentication by
+default. An explicit `public` mode remains as a local-development bypass.
 
 This is deliberately a pre-workspace slice. It proves authentication and request propagation
-without prematurely persisting Atlas users, memberships, collaborators, or source configuration.
-A private deployment uses an explicit stable GitHub user-ID allowlist as a temporary bootstrap boundary;
-durable ownership replaces that allowlist when `AtlasWorkspace` becomes a persisted product object.
+without prematurely persisting Atlas memberships, collaborators, or source configuration. Any
+validated GitHub User may enter until `AtlasWorkspace` becomes a persisted authorization boundary.
 
 ## Context
 
@@ -60,9 +59,10 @@ Passport integrations already proven by BookOps and the Ontahí Todo application
 4. Map a validated Better Auth session to an Ontahí `Principal` at the Runtime Protocol boundary.
 5. Configure the deployment viewer as `public` or `private`.
 6. Require authentication for the page and Runtime Protocol when visibility is private.
-7. Require an explicit stable GitHub user-ID allowlist for the temporary private mode.
+7. Admit every successfully authenticated GitHub user in the pre-workspace private mode.
 8. Reuse the Atlas GitHub App registration while keeping repository-installation credentials,
    webhook verification, and GitHub user OAuth configuration separate.
+9. Present a lightweight login landing before any Atlas projection read.
 
 ## Non-Goals
 
@@ -88,27 +88,26 @@ Viewer access is deployment-scoped for this slice:
 
 ```text
 public
-  -> anonymous read allowed
+  -> anonymous read allowed in local development only
   -> optional GitHub sign-in
 
 private
-  -> configured GitHub user ID may sign in
+  -> any valid GitHub user may sign in
   -> validated session required for viewer and Runtime Protocol
+  -> anonymous requests see a login landing without loading the Atlas projection
 ```
 
-The temporary allowlist is not the future authorization model. The next durable shape is:
+Deployment visibility is not the future authorization model. The next durable shape is:
 
 ```text
 User -> owns/is-member-of -> AtlasWorkspace -> contains -> Projects and Sources
 ```
 
-`AtlasWorkspace.visibility` will later replace the deployment visibility flag, and membership will
-replace the GitHub allowlist.
+`AtlasWorkspace.visibility` and membership will later replace the deployment visibility flag.
 
 ## Execution Slices
 
-1. [x] Add configuration parsing for GitHub OAuth, auth readiness, viewer visibility, and private
-       user-ID allowlisting.
+1. [x] Add configuration parsing for GitHub OAuth, auth readiness, and viewer visibility.
 2. [x] Mount Better Auth's Next.js handler and add a small auth client/UI surface.
 3. [x] Gate the viewer and Runtime Protocol consistently in private mode.
 4. [x] Translate the host session into an Ontahí Principal and propagate it through operation
@@ -117,16 +116,23 @@ replace the GitHub allowlist.
        rejection, and current-user UI states.
 6. [x] Document local GitHub OAuth registration and environment configuration.
 7. [x] Run `pnpm verify`, record the checkpoint, and identify the workspace-ownership follow-up.
+8. [x] Make private/authenticated access the default, remove the temporary allowlist, and render
+       its anonymous login wall before projection loading while retaining an explicit public local
+       bypass.
 
 ## Verification
 
-1. The application builds with auth unconfigured and defaults to a public anonymous viewer.
+1. The application builds with auth unconfigured and fails closed unless local development opts
+   explicitly into public visibility.
 2. A configured GitHub OAuth login creates a visible authenticated session and can sign out.
-3. Private mode fails closed when auth or its GitHub user-ID allowlist is incomplete.
-4. Anonymous private viewer and Runtime Protocol requests are rejected.
+3. Private mode fails closed when auth is incomplete and admits any valid GitHub session.
+4. An anonymous private viewer receives only the login landing, and anonymous Runtime Protocol
+   requests are rejected.
 5. An authenticated Runtime Protocol request executes inside the matching Ontahí Principal context.
 6. The GitHub App's repository/webhook behavior remains unchanged.
 7. `pnpm verify` passes.
+8. An anonymous private-mode page renders the login landing without calling
+   `getAtlasPageData()`; the same URL renders Atlas after a valid session.
 
 ## Decisions
 
@@ -136,8 +142,8 @@ replace the GitHub allowlist.
 3. Keep authentication, workspace visibility, and future authorization as separate concepts.
 4. Reuse the Atlas GitHub App registration for human login, with explicit local and production
    redirect URIs and a dedicated OAuth client secret.
-5. Keep public anonymous reading as the default until a deployment explicitly opts into private
-   mode.
+5. Keep private authenticated reading as the default; public anonymous reading requires an
+   explicit local-development opt-out.
 6. Do not retain the human GitHub OAuth token in a stateless account cookie; the repository GitHub
    App remains the only source-access credential.
 
@@ -200,3 +206,21 @@ the next boundary: database-backed Better Auth records, provider account linking
 Atlas User subject. That follow-up changes the durable Principal issuer from the host-specific
 `atlas:better-auth` label to `atlas`; this plan retains the pre-persistence implementation history
 and remains scoped to the base GitHub login PR.
+
+### 2026-09-19 — authenticated landing wall completed locally
+
+The Neon transfer incident showed that deployment visibility is also an operational traffic
+boundary: anonymous bots could trigger a dynamic projection read even when no collaboration was
+intended. This checkpoint makes the deployment closed by default, admits any validated GitHub User,
+and removes the temporary provider-ID allowlist. Anonymous requests receive a small login landing
+at the stable root URL, and access is decided before projection data loads. `public` remains only as
+an explicit local-development bypass. Repository source visibility remains unchanged; this boundary
+protects only the deployed Atlas application. Workspace membership and project-scoped authorization
+remain deferred.
+
+The completed implementation rejects the explicit `public` bypass under `NODE_ENV=production`,
+marks private pages `noindex, nofollow`, and reuses `/` for both the anonymous wall and the
+authenticated workspace. Focused coverage proves that anonymous requests do not call
+`getAtlasPageData()`. The full verification passes with 104 tests, 9 opt-in PostgreSQL integration
+tests skipped, typechecking, the production build, and 82 source traces. A local private-mode browser
+smoke confirmed the landing presentation and absence of workspace content before OAuth.

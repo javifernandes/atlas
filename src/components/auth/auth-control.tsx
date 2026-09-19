@@ -70,7 +70,11 @@ export const AuthControl = ({
           onClick={signIn}
         >
           <Github className='size-4' />
-          {pendingAction === 'sign-in' ? 'Connecting…' : 'Sign in'}
+          {pendingAction === 'sign-in'
+            ? 'Connecting…'
+            : variant === 'sign-in'
+              ? 'Continue with GitHub'
+              : 'Sign in'}
         </button>
         {error ? <p className='m-0 text-xs text-destructive'>{error}</p> : null}
       </div>

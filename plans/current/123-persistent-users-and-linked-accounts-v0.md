@@ -80,8 +80,8 @@ The pressure is not merely to persist the GitHub profile. Atlas needs to separat
 3. Do not infer or merge Users solely because provider emails match.
 4. Do not implement account recovery, destructive account merge, or user deletion workflows yet.
 5. Do not use human provider tokens for GitHub repository access.
-6. Do not remove the temporary deployment visibility/allowlist boundary until workspace
-   authorization replaces it.
+6. Do not remove the deployment-wide authenticated boundary until workspace authorization replaces
+   it.
 
 ## Proposed Form
 
