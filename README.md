@@ -32,6 +32,9 @@ sources:
 Configured local checkouts are preferred when they contain `plans/` or `atlas/items/`. Otherwise
 Atlas reads the configured GitHub repository. Deployments may provide the same YAML through
 `ATLAS_SOURCES_YAML`, keeping workspace-specific repositories out of the application repository.
+This repository also commits `atlas.sources.yaml` for its public BookOps and Ontahí production
+inventory; the ignored local file and deployment environment value retain their documented
+precedence.
 
 Hosted environments should use the Atlas GitHub App for private source access and merged-PR
 evidence. The App mints short-lived installation tokens and receives signed events through Ontahi
@@ -70,6 +73,10 @@ semantic evidence. Invalid explicit Session routing never falls back automatical
 Signed GitHub App `push` and merged-pull-request webhooks now reconcile registered authorities into
 PostgreSQL transactionally. Normal page reads consume one durable Projection Revision and never fan
 out to source providers. Duplicate delivery ids converge across server instances.
+
+If an outage spans merged Pull Request deliveries, `pnpm db:catch-up` previews the missing
+attributable Session activity without writing. `pnpm db:catch-up -- --apply` performs the reviewed,
+idempotent recovery; the Production workflow exposes the same dry-run-first operation.
 
 For a Vercel deployment, create a Deploy Hook for the production branch and store its URL as the
 `VERCEL_DEPLOY_HOOK_URL` GitHub Actions repository secret. Treat the hook URL as a credential: anyone

@@ -97,6 +97,22 @@ Durable Atlas projection.
   let adminPool!: Pool;
   let pool!: Pool;
   let atlas!: ReturnType<typeof createAtlasPostgresApplication>;
+  const loadProjection = async () => ({
+    evidenceFailures: evidenceAvailable
+      ? []
+      : [
+          {
+            repositoryFullName: 'javifernandes/atlas',
+            sourceId: 'atlas',
+            message: 'temporary GitHub failure',
+          },
+        ],
+    evidenceSourceIds: evidenceAvailable ? ['atlas'] : [],
+    observedAt: new Date(Date.UTC(2026, 8, 2, 0, 0, observedAtSequence++)).toISOString(),
+    observedPullRequests: evidenceAvailable ? [observedPullRequest] : [],
+    records,
+    sourceRevisions,
+  });
   const startPostgres = async () => {
     container = await new PostgreSqlContainer('postgres:18-alpine').start();
     return container;
@@ -112,27 +128,7 @@ Durable Atlas projection.
       options: `-c search_path=${schema}`,
     });
     await adminPool.query(`CREATE SCHEMA ${schema}`);
-    atlas = createAtlasPostgresApplication({
-      pool,
-      loadProjection: async () => ({
-        evidenceFailures: evidenceAvailable
-          ? []
-          : [
-              {
-                repositoryFullName: 'javifernandes/atlas',
-                sourceId: 'atlas',
-                message: 'temporary GitHub failure',
-              },
-            ],
-        evidenceSourceIds: evidenceAvailable ? ['atlas'] : [],
-        observedAt: new Date(
-          Date.UTC(2026, 8, 2, 0, 0, observedAtSequence++),
-        ).toISOString(),
-        observedPullRequests: evidenceAvailable ? [observedPullRequest] : [],
-        records,
-        sourceRevisions,
-      }),
-    });
+    atlas = createAtlasPostgresApplication({ pool, loadProjection });
   }, 180_000);
 
   afterAll(async () => {
@@ -156,6 +152,7 @@ Durable Atlas projection.
         '007-implicit-execution-streams.sql',
         '008-explicit-execution-stream-forks.sql',
         '009-session-archive-and-last-activity.sql',
+        '010-github-merge-catch-up.sql',
       ],
       skipped: [],
     });
@@ -387,6 +384,223 @@ Durable Atlas projection.
       pool.query('SELECT status FROM projection_revisions ORDER BY completed_at DESC LIMIT 1'),
     ).resolves.toMatchObject({ rows: [{ status: 'degraded' }] });
     evidenceAvailable = true;
+  }, 30_000);
+
+  it('previews and recovers missing merge activity without regressing Session state', async () => {
+    const catchUpSchema = `atlas_catch_up_${randomUUID().replaceAll('-', '')}`;
+    const catchUpPool = new Pool({
+      connectionString,
+      max: 3,
+      options: `-c search_path=${catchUpSchema}`,
+    });
+    const catchUpPullRequest: AtlasObservedPullRequest = {
+      ...observedPullRequest,
+      body: 'Atlas-Implements: atlas://plans/116-persistence',
+      id: 'github:javifernandes/atlas#41',
+      mergeCommitSha: 'merge-catch-up-41',
+      mergedAt: '2026-09-02T01:00:00.000Z',
+      number: 41,
+      title: 'Recover historical persistence activity',
+      url: 'https://github.com/javifernandes/atlas/pull/41',
+    };
+    const missingAuthorPullRequest: AtlasObservedPullRequest = {
+      ...catchUpPullRequest,
+      authorProviderAccountId: null,
+      id: 'github:javifernandes/atlas#43',
+      mergeCommitSha: 'merge-catch-up-43',
+      mergedAt: '2026-09-02T01:05:00.000Z',
+      number: 43,
+      title: 'Merge with no observable author',
+      url: 'https://github.com/javifernandes/atlas/pull/43',
+    };
+    const unlinkedAuthorPullRequest: AtlasObservedPullRequest = {
+      ...catchUpPullRequest,
+      authorProviderAccountId: 'unlinked-github-user',
+      id: 'github:javifernandes/atlas#44',
+      mergeCommitSha: 'merge-catch-up-44',
+      mergedAt: '2026-09-02T01:10:00.000Z',
+      number: 44,
+      title: 'Merge by an unlinked Atlas user',
+      url: 'https://github.com/javifernandes/atlas/pull/44',
+    };
+    const unresolvedPlanPullRequest: AtlasObservedPullRequest = {
+      ...catchUpPullRequest,
+      body: 'Atlas-Implements: atlas://plans/999-missing',
+      directives: [{ kind: 'implements', target: 'atlas://plans/999-missing' }],
+      id: 'github:javifernandes/atlas#45',
+      mergeCommitSha: 'merge-catch-up-45',
+      mergedAt: '2026-09-02T01:15:00.000Z',
+      number: 45,
+      title: 'Merge for an unresolved Plan',
+      url: 'https://github.com/javifernandes/atlas/pull/45',
+    };
+    const invalidSessionPullRequest: AtlasObservedPullRequest = {
+      ...catchUpPullRequest,
+      body: `Atlas-Implements: atlas://plans/116-persistence
+Atlas-Session: not-a-session`,
+      id: 'github:javifernandes/atlas#46',
+      mergeCommitSha: 'merge-catch-up-46',
+      mergedAt: '2026-09-02T01:20:00.000Z',
+      number: 46,
+      title: 'Merge with an invalid Session directive',
+      url: 'https://github.com/javifernandes/atlas/pull/46',
+    };
+    const catchUpPullRequests = [
+      catchUpPullRequest,
+      missingAuthorPullRequest,
+      unlinkedAuthorPullRequest,
+      unresolvedPlanPullRequest,
+      invalidSessionPullRequest,
+    ];
+
+    await adminPool.query(`CREATE SCHEMA ${catchUpSchema}`);
+
+    try {
+      await runAtlasMigrations({ pool: catchUpPool });
+      const catchUpAtlas = createAtlasPostgresApplication({
+        pool: catchUpPool,
+        loadProjection: async () => ({
+          evidenceFailures: [],
+          evidenceSourceIds: ['atlas'],
+          observedAt: '2026-09-02T06:00:00.000Z',
+          observedPullRequests: catchUpPullRequests,
+          records,
+          sourceRevisions,
+        }),
+      });
+      const configuration = readAtlasAuthConfiguration({
+        ATLAS_AUTH_GITHUB_CLIENT_ID: 'github-client',
+        ATLAS_AUTH_GITHUB_CLIENT_SECRET: 'github-secret',
+        BETTER_AUTH_SECRET: 'a-high-entropy-secret-with-at-least-32-characters',
+        BETTER_AUTH_URL: 'http://localhost:3000',
+        DATABASE_URL: connectionString,
+      });
+      const auth = createAtlasAuth(configuration, catchUpPool);
+      const context = await auth.$context;
+      const owner = await context.internalAdapter.createOAuthUser(
+        {
+          email: 'catch-up-owner@example.com',
+          emailVerified: true,
+          image: null,
+          name: 'Catch-up Owner',
+        },
+        {
+          accountId: 'github-user-123',
+          issuer: 'local:oauth:github',
+          providerId: 'github',
+        },
+      );
+      const newerWebhook: AtlasMergedPullRequestInput = {
+        authorProviderAccountId: 'github-user-123',
+        authorLogin: 'javi',
+        body: 'Atlas-Implements: atlas://plans/117-secondary',
+        deliveryId: 'delivery-catch-up-42',
+        installationId: '1234',
+        mergeCommitSha: 'merge-catch-up-42',
+        mergedAt: '2026-09-02T02:00:00.000Z',
+        number: 42,
+        repositoryFullName: 'javifernandes/atlas',
+        title: 'Advance the active Session',
+        url: 'https://github.com/javifernandes/atlas/pull/42',
+      };
+
+      await expect(
+        catchUpAtlas.application.invokeOperation(
+          catchUpAtlas.application.graph.entities.PullRequest.domain.refreshAfterMerge,
+          newerWebhook,
+        ),
+      ).resolves.toMatchObject({ ok: true, value: { duplicate: false } });
+
+      const [activeStream] = await catchUpAtlas.getExecutionStreams(owner.user.id);
+      expect(activeStream).toMatchObject({
+        currentFocusPlan: { id: 'plan:atlas://plans/117-secondary' },
+        lastActivityAt: '2026-09-02T02:00:00.000Z',
+      });
+      await expect(
+        withInvocationContext(
+          { principal: { issuer: 'atlas', kind: 'user', subject: owner.user.id } },
+          () =>
+            catchUpAtlas.application.invokeOperation(
+              catchUpAtlas.application.graph.entities.AtlasExecutionStream.domain.setArchived,
+              { id: activeStream!.id, archived: true },
+            ),
+        ),
+      ).resolves.toMatchObject({ ok: true, value: { archived: true } });
+
+      await expect(catchUpAtlas.previewMergeCatchUp()).resolves.toEqual({
+        alreadyRecorded: 0,
+        candidates: [
+          expect.objectContaining({
+            action: 'append-to-session',
+            id: catchUpPullRequest.id,
+            planId: 'plan:atlas://plans/116-persistence',
+            targetStreamId: activeStream!.id,
+          }),
+        ],
+        observedPullRequests: 5,
+        skipped: [
+          expect.objectContaining({ id: missingAuthorPullRequest.id, reason: 'missing-author' }),
+          expect.objectContaining({
+            id: unlinkedAuthorPullRequest.id,
+            reason: 'unlinked-author',
+          }),
+          expect.objectContaining({ id: unresolvedPlanPullRequest.id, reason: 'unresolved-plan' }),
+          expect.objectContaining({ id: invalidSessionPullRequest.id, reason: 'invalid-session' }),
+        ],
+        sourceFailures: [],
+      });
+      await expect(
+        catchUpPool.query(
+          'SELECT count(*)::int AS count FROM atlas_execution_stream_activities',
+        ),
+      ).resolves.toMatchObject({ rows: [{ count: 1 }] });
+
+      await expect(catchUpAtlas.reconcile({ trigger: 'catch-up' })).resolves.toMatchObject({
+        duplicate: false,
+      });
+      await expect(catchUpAtlas.previewMergeCatchUp()).resolves.toEqual({
+        alreadyRecorded: 1,
+        candidates: [],
+        observedPullRequests: 5,
+        skipped: [
+          expect.objectContaining({ id: missingAuthorPullRequest.id, reason: 'missing-author' }),
+          expect.objectContaining({
+            id: unlinkedAuthorPullRequest.id,
+            reason: 'unlinked-author',
+          }),
+          expect.objectContaining({ id: unresolvedPlanPullRequest.id, reason: 'unresolved-plan' }),
+          expect.objectContaining({ id: invalidSessionPullRequest.id, reason: 'invalid-session' }),
+        ],
+        sourceFailures: [],
+      });
+
+      const [recoveredStream] = await catchUpAtlas.getExecutionStreams(owner.user.id);
+      expect(recoveredStream).toMatchObject({
+        id: activeStream!.id,
+        archivedAt: expect.any(String),
+        currentFocusPlan: { id: 'plan:atlas://plans/117-secondary' },
+        lastActivityAt: '2026-09-02T02:00:00.000Z',
+        roots: expect.arrayContaining([
+          expect.objectContaining({ id: 'plan:atlas://plans/116-persistence' }),
+          expect.objectContaining({ id: 'plan:atlas://plans/117-secondary' }),
+        ]),
+        activities: [
+          expect.objectContaining({ pullRequest: expect.objectContaining({ number: 42 }) }),
+          expect.objectContaining({ pullRequest: expect.objectContaining({ number: 41 }) }),
+        ],
+      });
+
+      await catchUpAtlas.reconcile({ trigger: 'catch-up' });
+      await expect(
+        catchUpPool.query(
+          'SELECT count(*)::int AS count FROM atlas_execution_stream_activities',
+        ),
+      ).resolves.toMatchObject({ rows: [{ count: 2 }] });
+    } finally {
+      await catchUpPool.end();
+      await adminPool.query(`DROP SCHEMA ${catchUpSchema} CASCADE`);
+      atlas = createAtlasPostgresApplication({ pool, loadProjection });
+    }
   }, 30_000);
 
   it('deduplicates a GitHub delivery durably', async () => {

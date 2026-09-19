@@ -13,6 +13,7 @@ supports:
   - spec-workstream-atlas.assisted-editing.plan-status-review
 relatedPlans:
   - plans/done/116-atlas-ontahi-postgres-persistence.md
+  - plans/done/130-github-merge-catch-up.md
   - plans/next/106-atlas-plan-reconciliation-operation.md
   - plans/done/104-atlas-source-shape-v0.md
 ---
@@ -38,3 +39,9 @@ commit one provenance-bearing PostgreSQL Projection Revision through Ontahi. Thi
 `ReviewPlanState`: it converges the operational graph without deciding whether curated intent is
 complete. A durable lock serializes reconcilers, older observations cannot overwrite newer ones,
 and degraded evidence sources retain their last successful bindings.
+
+Webhook recovery is a distinct operational reconciliation mode. It re-observes a bounded GitHub
+history and compares stable Pull Request identities with durable Session activity, so a failed
+delivery can be recovered without inventing delivery provenance or relying on a timestamp that may
+already have advanced through evidence-only reconciliation. Preview is read-only; apply converges
+the projection once and appends only missing attributable activity.
