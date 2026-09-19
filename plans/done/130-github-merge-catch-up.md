@@ -34,7 +34,7 @@ it tolerates delayed deliveries, out-of-order merges, and prior evidence-only re
 5. Keep live webhook deduplication and delivery records unchanged; catch-up does not fabricate
    GitHub delivery IDs.
 6. Add a manually dispatched production workflow with dry-run as the default.
-7. Commit the public Atlas source registry so operator reconciliation observes Atlas, BookOps, and
+7. Commit the Atlas source registry so operator reconciliation observes Atlas, BookOps, and
    Ontahí consistently outside Vercel.
 
 ## Non-Goals
@@ -103,7 +103,7 @@ duplicating evidence, activities, or Sessions.
 ## Closure / Evolution
 
 Completed with a dry-run-first operator command, an explicitly applied Production workflow, a
-committed public source registry, and one serialized `catch-up` reconciliation mode. The
+committed source registry, and one serialized `catch-up` reconciliation mode. The
 PostgreSQL integration proof covers no-write preview, missing activity recovery, rerun
 idempotency, and historical activity that preserves newer Session focus, recency, and archive
 state.
@@ -118,3 +118,8 @@ Closure verification:
 Follow-ups remain intentionally separate: exercise the workflow against Production after deploy,
 then decide whether a scheduled backstop or an observer beyond the current bounded 500-PR window
 is warranted.
+
+The first Production preview exposed a credential-boundary correction: `github.token` is scoped
+to Atlas and cannot observe private federated sources. The workflow now requires the Atlas GitHub
+App ID and a private key in the GitHub `Production` environment, matching the installation-token
+path used by the hosted application.

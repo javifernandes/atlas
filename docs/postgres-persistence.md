@@ -134,11 +134,12 @@ and skipped identities in the job log. Dispatch it again with `apply` enabled on
 preview is understood. The workflow applies and verifies migrations before either mode and uses
 the `Production` environment's direct `DATABASE_URL_UNPOOLED` secret.
 
-The committed `atlas.sources.yaml` gives this operator path the public BookOps and Ontahí source
-inventory outside Vercel. An ignored `atlas.sources.local.yaml` still takes precedence for local
-work. GitHub Actions' repository token can read public sources; if a registered source becomes
-private, the workflow must use credentials that can read that repository before catch-up will be
-complete.
+The committed `atlas.sources.yaml` gives this operator path the BookOps and Ontahí source inventory
+outside Vercel. An ignored `atlas.sources.local.yaml` still takes precedence for local work. The
+workflow receives `ATLAS_GITHUB_APP_ID` and
+`ATLAS_GITHUB_APP_PRIVATE_KEY_BASE64` from the GitHub `Production` environment, then Atlas mints a
+short-lived installation token for each registered repository. Both secrets are required because
+the ordinary workflow token cannot read private federated sources such as BookOps.
 
 ## Neon changes and validation
 
