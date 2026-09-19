@@ -32,9 +32,8 @@ sources:
 Configured local checkouts are preferred when they contain `plans/` or `atlas/items/`. Otherwise
 Atlas reads the configured GitHub repository. Deployments may provide the same YAML through
 `ATLAS_SOURCES_YAML`, keeping workspace-specific repositories out of the application repository.
-This repository also commits `atlas.sources.yaml` for its public BookOps and Ontahí production
-inventory; the ignored local file and deployment environment value retain their documented
-precedence.
+This repository also commits `atlas.sources.yaml` for its BookOps and Ontahí production inventory;
+the ignored local file and deployment environment value retain their documented precedence.
 
 Hosted environments should use the Atlas GitHub App for private source access and merged-PR
 evidence. The App mints short-lived installation tokens and receives signed events through Ontahi
