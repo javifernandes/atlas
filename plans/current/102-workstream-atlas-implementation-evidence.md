@@ -62,10 +62,10 @@ without pretending they have the same authority or storage lifecycle.
    durable declared implementation structure from concrete versioned artifacts.
 7. [109. Work Item Impact Surface](./109-work-item-impact-surface.md) provides the `shapes`,
    `affects`, `preserves`, `breaks`, and `restores` vocabulary for relating work to system form.
-8. `@ontahi/core@1.0.0-alpha.11`, consumed by Atlas, exposes graph HTTP ingress routing and operation
-   dispatch. `@ontahi/runtime-nextjs@1.0.0-alpha.11` exposes the shared Next.js Runtime Protocol
-   adapter, while `@ontahi/postgres@1.0.0-alpha.11` supports the selected Relation projections used
-   by the durable evidence read model.
+8. `@ontahi/core@1.0.0-alpha.12`, consumed by Atlas, exposes graph HTTP ingress routing and operation
+   dispatch. `@ontahi/runtime-nextjs@1.0.0-alpha.12` exposes the shared Next.js Runtime Protocol
+   adapter, while `@ontahi/postgres@1.0.0-alpha.12` compiles the selected Fields and Relation keys
+   used by the durable evidence read model into narrow physical PostgreSQL projections.
 9. Ontahi's Changesets configuration uses a fixed group for its public packages. A release may
    therefore publish several Component Versions together without turning the group itself into a
    Component.
@@ -476,3 +476,12 @@ first release-evidence slice.
 Plan 116 completed the Neon-backed Ontahi composition for page reads, Runtime Protocol operations,
 source reconciliation, and durable GitHub ingress. Plan 102 may now proceed with Changesets,
 Component Versions, and Releases on that shared persistence boundary.
+
+### 2026-09-19 — physical projection checkpoint
+
+Atlas now consumes Ontahí `1.0.0-alpha.12`, so selected evidence, topology, identity, Session, and
+projection reads constrain the PostgreSQL result columns rather than only the materialized
+JavaScript shape. Reconciliation uses that contract to read only the latest revision identity and
+timestamp during normal operation, fetching the previous snapshot JSON solely when degraded source
+evidence must be retained. The narrower wire contract completes the reusable adapter follow-up from
+Plan 129 without changing the durable evidence model or its source authorities.

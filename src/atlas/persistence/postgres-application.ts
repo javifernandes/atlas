@@ -668,6 +668,10 @@ export const createAtlasPostgresApplication = (input: {
             }
 
             const latestRevisions = yield* entities.ProjectionRevision.all()
+              .select(revision => ({
+                id: revision.id,
+                startedAt: revision.startedAt,
+              }))
               .orderBy(revision => revision.startedAt.desc())
               .limit(1)
               .run();
@@ -696,10 +700,20 @@ export const createAtlasPostgresApplication = (input: {
               } satisfies AtlasReconciliationResult;
             }
 
+            const previousSnapshots =
+              projection.evidenceFailures.length > 0 && latestRevision
+                ? yield* entities.ProjectionRevision.where(revision =>
+                    revision.id.eq(latestRevision.id),
+                  )
+                    .select(revision => ({ snapshotJson: revision.snapshotJson }))
+                    .limit(1)
+                    .run()
+                : [];
+
             const { evidenceBindingCount, snapshotJson } = retainEvidenceFromFailedSources({
               currentSnapshotJson,
               failures: projection.evidenceFailures,
-              previousSnapshotJson: latestRevision?.snapshotJson,
+              previousSnapshotJson: previousSnapshots[0]?.snapshotJson,
             });
 
             for (const sourceId of projection.evidenceSourceIds) {

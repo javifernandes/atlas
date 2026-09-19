@@ -31,7 +31,10 @@ evidence, source provenance, reconciliation state, and Atlas-owned inference whi
 GitHub, repository history, registries, and release providers remain authoritative. Persistence is
 the foundation for Changeset ingestion because a release may consume the source file whose meaning
 Atlas must continue to navigate. Temporary GitHub failures produce a degraded Projection Revision
-without deleting the last durable bindings for the unavailable source.
+without deleting the last durable bindings for the unavailable source. Ontahí's PostgreSQL
+physical projection keeps this read model's selected fields aligned with its wire transfer: broad
+snapshot and source-content columns cross the database boundary only when an Atlas query explicitly
+requests them.
 
 Atlas, Ontahi, and BookOps Pull Requests bind their implementation intent to stable Plan or Item
 identities with `Atlas-Implements` and `Atlas-Shapes`. Atlas observes those author assertions from

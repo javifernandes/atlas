@@ -30,6 +30,7 @@ const externalConnectionString =
   (process.env.ATLAS_POSTGRES_TEST_TARGET === 'neon'
     ? process.env.DATABASE_URL_UNPOOLED
     : undefined);
+const postgresTestTimeout = externalConnectionString ? 120_000 : 30_000;
 const describePostgres = process.env.ATLAS_POSTGRES_TEST_ENABLED === '1' ? describe : describe.skip;
 
 describePostgres('Atlas PostgreSQL persistence', () => {
@@ -184,7 +185,7 @@ Durable Atlas projection.
       toBeCreated: [],
       unsafeChanges: [],
     });
-  }, 30_000);
+  }, postgresTestTimeout);
 
   it('backfills last activity and permits lifecycle-independent archive state', async () => {
     const legacySchema = `atlas_legacy_${randomUUID().replaceAll('-', '')}`;
@@ -258,7 +259,7 @@ Durable Atlas projection.
       await legacyPool.end();
       await adminPool.query(`DROP SCHEMA ${legacySchema} CASCADE`);
     }
-  }, 30_000);
+  }, postgresTestTimeout);
 
   it('persists one stable user identity without provider token material', async () => {
     const configuration = readAtlasAuthConfiguration({
@@ -330,7 +331,7 @@ Durable Atlas projection.
         },
       ],
     });
-  }, 30_000);
+  }, postgresTestTimeout);
 
   it('reconciles repeatedly without duplicating the current graph', async () => {
     await expect(atlas.reconcile({ trigger: 'bootstrap' })).resolves.toMatchObject({
@@ -384,7 +385,7 @@ Durable Atlas projection.
       pool.query('SELECT status FROM projection_revisions ORDER BY completed_at DESC LIMIT 1'),
     ).resolves.toMatchObject({ rows: [{ status: 'degraded' }] });
     evidenceAvailable = true;
-  }, 30_000);
+  }, postgresTestTimeout);
 
   it('previews and recovers missing merge activity without regressing Session state', async () => {
     const catchUpSchema = `atlas_catch_up_${randomUUID().replaceAll('-', '')}`;
@@ -630,7 +631,7 @@ Atlas-Session: not-a-session`,
       await adminPool.query(`DROP SCHEMA ${catchUpSchema} CASCADE`);
       atlas = createAtlasPostgresApplication({ pool, loadProjection });
     }
-  }, 30_000);
+  }, postgresTestTimeout);
 
   it('deduplicates a GitHub delivery durably', async () => {
     const configuration = readAtlasAuthConfiguration({
@@ -944,7 +945,7 @@ Atlas-Session: not-a-session`,
       ok: true,
       value: { archived: false, archivedAt: null },
     });
-  }, 30_000);
+  }, postgresTestTimeout);
 
   it('forks exact Plan roots and routes explicit Session activity without fallback', async () => {
     const configuration = readAtlasAuthConfiguration({
@@ -1178,7 +1179,7 @@ Atlas-Session: ${explicitStreamId}`,
     ).resolves.toMatchObject({ ok: true });
     const finalStreams = await atlas.getExecutionStreams(owner.user.id);
     expect(finalStreams.flatMap(stream => stream.activities)).toHaveLength(3);
-  }, 30_000);
+  }, postgresTestTimeout);
 
   it('does not let an older observation overwrite a newer projection', async () => {
     let loadCount = 0;
@@ -1252,7 +1253,7 @@ Atlas-Session: ${explicitStreamId}`,
       'SELECT count(*)::int AS count FROM projection_revisions',
     );
     expect(after.rows[0]!.count).toBe(before.rows[0]!.count + 1);
-  }, 30_000);
+  }, postgresTestTimeout);
 
   it('removes only identities absent from the current source inventory', async () => {
     const productFile = {
@@ -1344,7 +1345,7 @@ Atlas-Session: ${explicitStreamId}`,
         "SELECT count(*)::int AS count FROM atlas_source_records WHERE source_id = 'product'",
       ),
     ).resolves.toMatchObject({ rows: [{ count: 0 }] });
-  }, 30_000);
+  }, postgresTestTimeout);
 
   it('reuses the full snapshot while unchanged and invalidates it after reconciliation', async () => {
     let revision = 10;
@@ -1405,5 +1406,5 @@ Atlas-Session: ${explicitStreamId}`,
     ).length;
 
     expect(projectionReadsAfterReconciliation).toBe(5);
-  }, 30_000);
+  }, postgresTestTimeout);
 });
