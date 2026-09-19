@@ -117,3 +117,18 @@ nine-case persistence integration suite passed against an isolated local Postgre
 Production `pg_stat_statements` and exact table measurements remain a rollout check after the quota
 resets or the project is upgraded. Incremental source/evidence reconciliation and the reusable
 Ontahi physical-projection/telemetry changes remain P2/P1 evolution documented in the audit.
+
+### 2026-09-19 — narrow physical projections adopted
+
+Ontahí `1.0.0-alpha.12` shipped the physical query projection from
+`ontahi://plans/149-postgres-physical-query-projection`, and Atlas now consumes the matching Core,
+PostgreSQL, React, and Next.js runtime packages in lockstep. Atlas's existing `.select(...)` reads
+therefore transfer only their selected fields plus required relation keys instead of every mapped
+column.
+
+Reconciliation now selects only the latest Projection Revision identity and start time on the
+normal path. It loads the prior multi-megabyte snapshot separately only when a source observation
+failed and the last durable evidence must be retained. A focused Atlas compiler regression proves
+that a projected Source Record identity excludes its wide `content` column from the executed SQL.
+All ten persistence integration cases passed against an ephemeral Neon branch cloned from
+production, which was deleted after verification.

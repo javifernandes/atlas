@@ -1,7 +1,15 @@
-import { inferPostgresMappings } from '@ontahi/postgres/data-graph';
+import { query } from '@ontahi/core/data-graph';
+import {
+  compilePostgresQuery,
+  inferPostgresMappings,
+} from '@ontahi/postgres/data-graph';
 import { describe, expect, it } from 'vitest';
 
-import { atlasEntities } from '../domain/atlas-application';
+import {
+  AtlasSourceRecord,
+  ProjectionRevision,
+  atlasEntities,
+} from '../domain/atlas-application';
 import { atlasPostgresMappingOverrides } from './postgres-mapping';
 
 describe('Atlas PostgreSQL identity mappings', () => {
@@ -63,6 +71,48 @@ describe('Atlas PostgreSQL identity mappings', () => {
         planId: 'plan_id',
         occurredAt: 'occurred_at',
       },
+    });
+  });
+
+  it('physically excludes unselected wide columns from Atlas projections', () => {
+    const mappings = inferPostgresMappings(atlasEntities, {
+      overrides: atlasPostgresMappingOverrides,
+    });
+    const sourceRecordMapping = mappings.find(
+      candidate => candidate.entity.name === 'AtlasSourceRecord',
+    );
+    const projectionRevisionMapping = mappings.find(
+      candidate => candidate.entity.name === 'ProjectionRevision',
+    );
+
+    expect(sourceRecordMapping).toBeDefined();
+    expect(
+      compilePostgresQuery(
+        query(AtlasSourceRecord).select(record => ({ id: record.id })),
+        undefined,
+        sourceRecordMapping!,
+      ),
+    ).toEqual({
+      text: 'SELECT "id" AS "id" FROM "atlas_source_records" WHERE TRUE',
+      values: [],
+    });
+
+    expect(projectionRevisionMapping).toBeDefined();
+    expect(
+      compilePostgresQuery(
+        query(ProjectionRevision)
+          .select(revision => ({ id: revision.id, startedAt: revision.startedAt }))
+          .orderBy(revision => revision.startedAt.desc())
+          .limit(1),
+        undefined,
+        projectionRevisionMapping!,
+      ),
+    ).toEqual({
+      text:
+        'SELECT "id" AS "id", "started_at" AS "startedAt"' +
+        ' FROM "projection_revisions" WHERE TRUE' +
+        ' ORDER BY "started_at" DESC NULLS LAST LIMIT 1',
+      values: [],
     });
   });
 });

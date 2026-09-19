@@ -288,16 +288,17 @@ verified, and its closure records that verification. It is no longer part of sou
 - Keep metadata-only query observations enabled in production and aggregate by `query`,
   `operation`, and `trigger`.
 - Run `pnpm db:traffic` and capture `pg_stat_statements` after access resumes.
-- Fix Ontahi SQL projection so `.select(...)` emits only required physical columns. The compiler
-  must include fields needed by predicates, ordering, relation joins, and derived expressions, then
-  add adapter tests proving a wide unselected field is absent from SQL and wire results.
+- Ontahí `1.0.0-alpha.12` now compiles `.select(...)` into only the required physical columns,
+  including relation join keys while excluding unselected wide values. Atlas consumes that release
+  and keeps a focused compiler regression proving that a Source Record identity projection excludes
+  its `content` column from SQL.
 - Add a first-class Ontahi storage observer. The graph runtime already receives read `scope`, but
-  alpha.11 does not pass scope/entity/operation metadata to the PostgreSQL executor. A reusable
+  the PostgreSQL executor does not yet receive scope/entity/operation metadata. A reusable
   hook should receive query identity, entity/table, scope, row count, approximate result bytes,
   duration, and failure outcome without Atlas parsing SQL.
-- Narrow the latest reconciliation read to revision metadata and load the prior snapshot only on
-  the degraded-evidence branch. This awaits correct Ontahi projections or a small upstream
-  projection primitive.
+- The latest reconciliation read now selects only revision identity and start time. The prior
+  snapshot is loaded separately only on the degraded-evidence branch that must retain bindings from
+  an unavailable source.
 
 ### P2: incremental reconciliation — design only
 
