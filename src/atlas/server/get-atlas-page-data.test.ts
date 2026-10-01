@@ -86,6 +86,30 @@ describe('Atlas page data', () => {
     expect(snapshot.nodes[0]).toHaveProperty('markdown', '# Large plan body');
   });
 
+  it('uses a storage-bounded page projection when the application provides one', async () => {
+    const pageSnapshot: PlanWorkstreamSnapshot = {
+      generatedAt: '2026-10-01T00:00:00.000Z',
+      nodes: [],
+      edges: [],
+      evidence: [],
+      metrics: [],
+      territories: [],
+    };
+    const getPageProjectionSnapshot = vi.fn().mockResolvedValue(pageSnapshot);
+    const getProjectionSnapshot = vi.fn();
+    getApplication.mockResolvedValue({
+      getExecutionStreams: vi.fn().mockResolvedValue([]),
+      getPageProjectionSnapshot,
+      getProjectionSnapshot,
+    } as never);
+
+    await expect(getAtlasPageData('user-1')).resolves.toMatchObject({
+      snapshot: pageSnapshot,
+    });
+    expect(getPageProjectionSnapshot).toHaveBeenCalledOnce();
+    expect(getProjectionSnapshot).not.toHaveBeenCalled();
+  });
+
   it('returns an empty view before the first bootstrap revision exists', async () => {
     getApplication.mockResolvedValue({
       getProjectionSnapshot: vi.fn().mockResolvedValue(null),

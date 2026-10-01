@@ -153,3 +153,15 @@ the full interactive explorer inside the server process. Import measurement attr
 server data/runtime graph. Atlas now treats the explorer as a client-only boundary: the server
 authenticates and serializes the bounded projection, the loading surface bridges chunk startup,
 and map, board, Sessions, and Markdown rendering initialize only in the browser.
+
+Production logs then isolated the remaining failure more precisely. A 2,048 MB Vercel invocation
+completed the revision-head read and all three bounded Session queries before dying; the full
+snapshot read never emitted its completion observation. A read-only Neon measurement showed the
+latest revision itself was healthy at 6,112,169 bytes with 346 nodes, 317 documents, and 1,462
+edges, ruling out runaway corpus growth.
+
+The page path now projects the latest revision inside PostgreSQL, removing node and document
+Markdown before data crosses into Node. The exact production query returns 1,110,751 bytes while
+preserving all 346 nodes and 317 documents. Full detail uses a separate parameterized SQL projection
+for one Markdown body. The existing revision-aware cache now stores this bounded page form and is
+invalidated alongside the complete operational snapshot after reconciliation.

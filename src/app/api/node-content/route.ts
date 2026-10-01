@@ -23,14 +23,20 @@ export const GET = async (request: Request) => {
   }
 
   const atlas = await getAtlasServerApplication();
-  const snapshot = await atlas.getProjectionSnapshot();
-  const node = [...(snapshot?.nodes ?? []), ...(snapshot?.documents ?? [])].find(
-    candidate => candidate.id === nodeId,
-  );
+  const markdown =
+    'getProjectionNodeContent' in atlas
+      ? await atlas.getProjectionNodeContent(nodeId)
+      : await atlas.getProjectionSnapshot().then(snapshot => {
+          const node = [...(snapshot?.nodes ?? []), ...(snapshot?.documents ?? [])].find(
+            candidate => candidate.id === nodeId,
+          );
 
-  if (!node) {
+          return node ? (node.markdown ?? '') : null;
+        });
+
+  if (markdown === null) {
     return Response.json({ error: 'node_not_found' }, { status: 404 });
   }
 
-  return Response.json({ markdown: node.markdown ?? '' });
+  return Response.json({ markdown });
 };
