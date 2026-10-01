@@ -204,6 +204,37 @@ describe('PlanWorkstreamExplorer', () => {
     expect(within(dialog).getByRole('button', { name: /supports\s*Item C/ })).toBeInTheDocument();
   });
 
+  it('copies a permalink to the open full-detail section', async () => {
+    globalThis.history.replaceState(
+      {},
+      '',
+      '/internal/plans?node=item-a&full=item-a&section=context',
+    );
+    const user = userEvent.setup();
+
+    renderExplorer();
+    await user.click(screen.getByRole('button', { name: 'Copy permalink' }));
+
+    expect(await globalThis.navigator.clipboard.readText()).toBe(
+      'http://localhost:3000/internal/plans?node=item-a&full=item-a&section=context',
+    );
+    expect(screen.getByRole('button', { name: 'Permalink copied' })).toBeInTheDocument();
+  });
+
+  it('offers full detail for a source-backed node whose Markdown is loaded on demand', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?node=item-b');
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-b' ? { ...node, markdown: undefined } : node,
+      ),
+    };
+
+    renderExplorer({ value });
+
+    expect(screen.getByRole('button', { name: 'See full' })).toBeInTheDocument();
+  });
+
   it('shows every project membership in full detail when Atlas has multiple projects', () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-b');
     const ontahiProject = createNode('ontahi-project', {
