@@ -12,6 +12,7 @@ import {
   GitBranch,
   GitPullRequest,
   Info,
+  Link2,
   Minus,
   Moon,
   Network,
@@ -3437,6 +3438,7 @@ const FullMarkdownModal = ({
   semanticSignals: SemanticSignal[];
   contentStatus: NodeContentState['status'];
 }) => {
+  const [permalinkCopied, setPermalinkCopied] = useState(false);
   const parsedDocument = useMemo(() => parseMarkdownDocument(node), [node]);
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
@@ -3514,6 +3516,10 @@ const FullMarkdownModal = ({
     breadcrumb.length > 0 || contextHierarchy.length > 0 || relations.length > 0;
 
   useEffect(() => {
+    setPermalinkCopied(false);
+  }, [activeTab, node.id]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose();
@@ -3577,6 +3583,18 @@ const FullMarkdownModal = ({
                 <ArrowLeft className='size-4' />
               </IconButton>
             ) : null}
+            <IconButton
+              label={permalinkCopied ? 'Permalink copied' : 'Copy permalink'}
+              onClick={() => {
+                const permalink = new URL(getTabHref(activeTab), globalThis.location.href).href;
+
+                void globalThis.navigator.clipboard.writeText(permalink).then(() => {
+                  setPermalinkCopied(true);
+                });
+              }}
+            >
+              {permalinkCopied ? <Check className='size-4' /> : <Link2 className='size-4' />}
+            </IconButton>
             <IconButton label='Close full detail' onClick={onClose}>
               <X className='size-4' />
             </IconButton>
@@ -3979,7 +3997,7 @@ const SelectionPanel = ({
             />
           ) : null}
 
-          {node.markdown ? (
+          {node.sourceFilePath || node.path ? (
             <button
               type='button'
               className='mt-4 inline-flex items-center gap-2 rounded-md border border-border/70 bg-background/70 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground'

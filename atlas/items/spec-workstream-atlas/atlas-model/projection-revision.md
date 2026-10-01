@@ -43,8 +43,10 @@ duration, and trigger context so Projection Revision egress is visible outside t
 The page-facing materialization is intentionally narrower than the durable revision. Initial
 renders carry topology, summaries, metrics, evidence, and viewer-specific execution state, but omit
 the multi-megabyte Markdown bodies. An authenticated node-content read resolves one body from the
-same current revision when a reader opens full detail. This keeps the revision internally coherent
-without making every page request serialize the entire federated source corpus.
+same current revision when a reader opens full detail. Source-backed nodes retain the full-detail
+affordance even though their initial page projection has no `markdown` field, and the opened node
+and detail section remain addressable through a copyable permalink. This keeps the revision
+internally coherent without making every page request serialize the entire federated source corpus.
 
 PostgreSQL performs that page projection before the snapshot crosses the application boundary. It
 removes each node and document `markdown` field from the latest revision inside the query, and a
