@@ -9,8 +9,8 @@ vi.mock('@/auth/server', () => ({ getAtlasRequestAccess: getAtlasRequestAccessMo
 vi.mock('@/atlas/server/get-atlas-page-data', () => ({
   getAtlasPageData: getAtlasPageDataMock,
 }));
-vi.mock('@/atlas/viewer/atlas-explorer', () => ({
-  PlanWorkstreamExplorer: () => <div>Atlas workspace</div>,
+vi.mock('@/components/atlas-explorer-client', () => ({
+  AtlasExplorerClient: () => <div>Atlas workspace</div>,
 }));
 vi.mock('@/components/auth/auth-control', () => ({
   AuthControl: ({ variant }: { variant?: string }) => (

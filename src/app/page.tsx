@@ -3,8 +3,8 @@ import type { Metadata } from 'next';
 
 import { readAtlasAuthConfiguration } from '@/auth/config';
 import { getAtlasRequestAccess } from '@/auth/server';
-import { PlanWorkstreamExplorer } from '@/atlas/viewer/atlas-explorer';
 import { getAtlasPageData } from '@/atlas/server/get-atlas-page-data';
+import { AtlasExplorerClient } from '@/components/atlas-explorer-client';
 import { AuthControl } from '@/components/auth/auth-control';
 import { AuthLanding } from '@/components/auth/auth-landing';
 
@@ -51,7 +51,7 @@ const AtlasPage = async ({ searchParams }: AtlasPageProps) => {
 
   return (
     <>
-      <PlanWorkstreamExplorer executionStreams={executionStreams} snapshot={snapshot} />
+      <AtlasExplorerClient executionStreams={executionStreams} snapshot={snapshot} />
       <AuthControl
         authAvailable={access.authAvailable}
         className='fixed right-4 top-4 z-50'
