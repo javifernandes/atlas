@@ -146,3 +146,10 @@ authenticated node-content endpoint only when a reader opens that node. The meas
 response fell from 6.24 MB to 1.18 MB, while the serializable snapshot fell from 5.94 MB to 0.92 MB.
 The durable Projection Revision remains complete and authoritative as an operational observation;
 only its page-facing materialization is bounded.
+
+The first production rollout still exceeded the function's memory because Next loaded and rendered
+the full interactive explorer inside the server process. Import measurement attributed roughly
+128 MiB of resident memory to that browser interaction module before React rendering, on top of the
+server data/runtime graph. Atlas now treats the explorer as a client-only boundary: the server
+authenticates and serializes the bounded projection, the loading surface bridges chunk startup,
+and map, board, Sessions, and Markdown rendering initialize only in the browser.

@@ -22,6 +22,12 @@ created from that structure, but they are temporal interventions rather than str
 must look visually distinct. A later control may make this Plan layer optional without changing the
 underlying graph.
 
+The interactive map, board, Sessions workspace, and full-detail renderer form a browser-only
+surface. The server authenticates the request and prepares the bounded page projection, while the
+existing full-page loading boundary remains visible until the client explorer chunk is ready. This
+keeps the large navigation and Markdown-rendering dependency graph out of the server function
+without changing the shareable page or node-route contract.
+
 The default canvas keeps navigation chrome minimal: a compact Atlas wordmark reserves the future
 brand-mark position, while `Command-K` or `Control-K` opens a wide, opaque search palette. The
 compact mark and the full-page loading boundary share one image-only symbol; `Atlas` and its product
