@@ -36,6 +36,56 @@ describe('Atlas page data', () => {
     expect(getExecutionStreams).toHaveBeenCalledWith('user-1');
   });
 
+  it('omits Markdown bodies from the initial page projection', async () => {
+    const snapshot: PlanWorkstreamSnapshot = {
+      generatedAt: '2026-09-02T00:00:00.000Z',
+      nodes: [
+        {
+          id: 'plan:one',
+          kind: 'plan',
+          markdown: '# Large plan body',
+          title: 'Plan one',
+          shortTitle: 'Plan one',
+          statusGroup: 'current',
+          status: 'active',
+          territory: 'Atlas',
+          sections: [],
+          relatedCount: 0,
+          candidateCount: 0,
+        },
+      ],
+      documents: [
+        {
+          id: 'document:one',
+          kind: 'concept',
+          markdown: '# Large durable body',
+          title: 'Document one',
+          shortTitle: 'Document one',
+          statusGroup: 'current',
+          status: 'active',
+          territory: 'Atlas',
+          sections: [],
+          relatedCount: 0,
+          candidateCount: 0,
+        },
+      ],
+      edges: [],
+      evidence: [],
+      metrics: [],
+      territories: [],
+    };
+    getApplication.mockResolvedValue({
+      getExecutionStreams: vi.fn().mockResolvedValue([]),
+      getProjectionSnapshot: vi.fn().mockResolvedValue(snapshot),
+    } as never);
+
+    const result = await getAtlasPageData('user-1');
+
+    expect(result.snapshot.nodes[0]).not.toHaveProperty('markdown');
+    expect(result.snapshot.documents?.[0]).not.toHaveProperty('markdown');
+    expect(snapshot.nodes[0]).toHaveProperty('markdown', '# Large plan body');
+  });
+
   it('returns an empty view before the first bootstrap revision exists', async () => {
     getApplication.mockResolvedValue({
       getProjectionSnapshot: vi.fn().mockResolvedValue(null),

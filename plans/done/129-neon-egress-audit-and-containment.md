@@ -132,3 +132,17 @@ failed and the last durable evidence must be retained. A focused Atlas compiler 
 that a projected Source Record identity excludes its wide `content` column from the executed SQL.
 All ten persistence integration cases passed against an ephemeral Neon branch cloned from
 production, which was deleted after verification.
+
+### 2026-10-01 — initial page materialization bounded
+
+Production exposed a separate memory boundary after database egress was contained: the dynamic
+page serialized roughly 5.94 MB of topology plus source Markdown into its initial React payload,
+and Vercel terminated the function while rendering it. The browser surfaced the terminated stream
+as `Connection closed` after the splash.
+
+The initial page projection now excludes node and document Markdown while retaining topology,
+summaries, metrics, evidence, and Session data. Full source content is loaded through an
+authenticated node-content endpoint only when a reader opens that node. The measured local HTML
+response fell from 6.24 MB to 1.18 MB, while the serializable snapshot fell from 5.94 MB to 0.92 MB.
+The durable Projection Revision remains complete and authoritative as an operational observation;
+only its page-facing materialization is bounded.

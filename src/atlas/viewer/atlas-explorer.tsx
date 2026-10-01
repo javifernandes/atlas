@@ -212,6 +212,11 @@ type AtlasRouteState = {
   selectedNodeId: string | null;
 };
 
+type NodeContentState =
+  | { status: 'loading' }
+  | { status: 'loaded'; markdown: string }
+  | { status: 'error' };
+
 const rootNodeId = 'root:planning';
 const fallbackViewport: Viewport = { x: 36, y: 96, scale: 0.06 };
 const minScale = 0.035;
@@ -3412,6 +3417,7 @@ const FullMarkdownModal = ({
   onNavigateBack,
   onOpenFull,
   semanticSignals,
+  contentStatus,
 }: {
   activeTab: FullMarkdownModalTab;
   edges: PlanWorkstreamEdge[];
@@ -3429,6 +3435,7 @@ const FullMarkdownModal = ({
   onNavigateBack: () => void;
   onOpenFull: (nodeId: string) => void;
   semanticSignals: SemanticSignal[];
+  contentStatus: NodeContentState['status'];
 }) => {
   const parsedDocument = useMemo(() => parseMarkdownDocument(node), [node]);
   const markdownContext = useMemo<MarkdownRenderContext>(
@@ -3642,9 +3649,17 @@ const FullMarkdownModal = ({
           {activeTab === 'overview' ? (
             <div className='grid min-w-0 gap-6 px-1 sm:px-2 xl:grid-cols-[minmax(0,1fr)_12rem]'>
               <article className='grid min-w-0 max-w-full gap-5 overflow-hidden break-words xl:pr-2 [&>*]:min-w-0 [&>*]:max-w-full'>
-                {renderMarkdownBody(overviewBody, markdownContext)}
+                {contentStatus === 'loading' ? (
+                  <p className='text-sm text-muted-foreground'>Loading source content…</p>
+                ) : contentStatus === 'error' ? (
+                  <p className='text-sm text-destructive'>Source content could not be loaded.</p>
+                ) : (
+                  renderMarkdownBody(overviewBody, markdownContext)
+                )}
               </article>
-              <MarkdownSectionIndex groups={markdownSectionGroups} />
+              {contentStatus === 'loaded' ? (
+                <MarkdownSectionIndex groups={markdownSectionGroups} />
+              ) : null}
             </div>
           ) : null}
 
@@ -4070,9 +4085,13 @@ export const PlanWorkstreamExplorer = ({
   const [selectedBoardProjectId, setSelectedBoardProjectId] = useState('');
   const [showBoardHistory, setShowBoardHistory] = useState(false);
   const [themeToggleMounted, setThemeToggleMounted] = useState(false);
+  const [nodeContentById, setNodeContentById] = useState<Map<string, NodeContentState>>(
+    () => new Map(),
+  );
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const boardNodeRefs = useRef(new Map<string, HTMLElement>());
+  const requestedNodeContentIdsRef = useRef(new Set<string>());
   const viewportRef = useRef<Viewport>(fallbackViewport);
   const hasInitializedViewportRef = useRef(false);
   const hasAppliedInitialRouteRef = useRef(false);
@@ -4242,6 +4261,15 @@ export const PlanWorkstreamExplorer = ({
   const renderedEdges = useMemo(() => getRenderedEdges(visibleEdges), [visibleEdges]);
   const selectedNode = selectedNodeId ? nodesById.get(selectedNodeId) : null;
   const fullNode = fullNodeId ? nodesById.get(fullNodeId) : null;
+  const fullNodeContent = fullNode
+    ? fullNode.markdown !== undefined
+      ? ({ status: 'loaded', markdown: fullNode.markdown } as const)
+      : (nodeContentById.get(fullNode.id) ?? { status: 'loading' as const })
+    : null;
+  const fullNodeWithContent =
+    fullNode && fullNodeContent?.status === 'loaded'
+      ? { ...fullNode, markdown: fullNodeContent.markdown }
+      : fullNode;
   const fullNodeNavigationBackNode =
     fullNodeHistoryIds.length > 0
       ? (nodesById.get(fullNodeHistoryIds[fullNodeHistoryIds.length - 1] ?? '') ?? null)
@@ -4311,6 +4339,56 @@ export const PlanWorkstreamExplorer = ({
     : [];
   const incoming = selectedNode ? snapshot.edges.filter(edge => edge.to === selectedNode.id) : [];
   const fullNodeEdges = snapshot.edges;
+
+  useEffect(() => {
+    if (
+      !fullNodeId ||
+      nodesById.get(fullNodeId)?.markdown !== undefined ||
+      requestedNodeContentIdsRef.current.has(fullNodeId)
+    ) {
+      return;
+    }
+
+    requestedNodeContentIdsRef.current.add(fullNodeId);
+    const controller = new AbortController();
+    setNodeContentById(current => {
+      const next = new Map(current);
+      next.set(fullNodeId, { status: 'loading' });
+      return next;
+    });
+
+    void fetch(`/api/node-content?nodeId=${encodeURIComponent(fullNodeId)}`, {
+      signal: controller.signal,
+    })
+      .then(async response => {
+        if (!response.ok) {
+          throw new Error(`Atlas node content request failed with ${response.status}.`);
+        }
+
+        return (await response.json()) as { markdown: string };
+      })
+      .then(({ markdown }) => {
+        setNodeContentById(current => {
+          const next = new Map(current);
+          next.set(fullNodeId, { status: 'loaded', markdown });
+          return next;
+        });
+      })
+      .catch(error => {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          requestedNodeContentIdsRef.current.delete(fullNodeId);
+          return;
+        }
+
+        setNodeContentById(current => {
+          const next = new Map(current);
+          next.set(fullNodeId, { status: 'error' });
+          return next;
+        });
+      });
+
+    return () => controller.abort();
+  }, [fullNodeId, nodesById]);
 
   const getFitViewport = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -5716,7 +5794,7 @@ export const PlanWorkstreamExplorer = ({
         />
       ) : null}
 
-      {fullNode ? (
+      {fullNodeWithContent && fullNodeContent ? (
         <FullMarkdownModal
           activeTab={fullNodeActiveTab}
           edges={fullNodeEdges}
@@ -5731,7 +5809,7 @@ export const PlanWorkstreamExplorer = ({
           }
           getTabHref={tab =>
             getAtlasRouteHref({
-              fullNodeId: fullNode.id,
+              fullNodeId: fullNodeWithContent.id,
               fullNodeTab: tab,
               selectedNodeId,
             })
@@ -5740,19 +5818,22 @@ export const PlanWorkstreamExplorer = ({
           nodesById={nodesById}
           nodesByPath={nodesByPath}
           nodesBySemanticId={nodesBySemanticId}
-          node={fullNode}
+          node={fullNodeWithContent}
           projectMemberships={
-            boardProjects.length > 1 && fullNode.kind !== 'project'
-              ? (projectMembershipsByNodeId.get(fullNode.id) ?? [])
+            boardProjects.length > 1 && fullNodeWithContent.kind !== 'project'
+              ? (projectMembershipsByNodeId.get(fullNodeWithContent.id) ?? [])
               : []
           }
-          onActiveTabChange={tab => setFullNodeActiveTab(fullNode.id, tab)}
+          onActiveTabChange={tab => setFullNodeActiveTab(fullNodeWithContent.id, tab)}
           onClose={closeFullNode}
           onNavigateBack={navigateFullNodeBack}
           onOpenFull={openFullNode}
           semanticSignals={
-            fullNode.semanticId ? (semanticSignalsByTargetId.get(fullNode.semanticId) ?? []) : []
+            fullNodeWithContent.semanticId
+              ? (semanticSignalsByTargetId.get(fullNodeWithContent.semanticId) ?? [])
+              : []
           }
+          contentStatus={fullNodeContent.status}
         />
       ) : null}
     </main>
