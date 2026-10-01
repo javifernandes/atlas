@@ -45,3 +45,8 @@ renders carry topology, summaries, metrics, evidence, and viewer-specific execut
 the multi-megabyte Markdown bodies. An authenticated node-content read resolves one body from the
 same current revision when a reader opens full detail. This keeps the revision internally coherent
 without making every page request serialize the entire federated source corpus.
+
+PostgreSQL performs that page projection before the snapshot crosses the application boundary. It
+removes each node and document `markdown` field from the latest revision inside the query, and a
+separate parameterized read extracts one matching Markdown body for full detail. The server never
+has to materialize the complete revision merely to discard most of its bytes.

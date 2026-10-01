@@ -288,6 +288,71 @@ export const createAtlasPostgresApplication = (input: {
     },
     readSnapshot: atlas.getProjectionSnapshot,
   });
+  const pageProjectionSnapshotCache = createVersionedProjectionSnapshotCache({
+    readRevisionId: async () => {
+      const result = await pool.query<{ id: string }>(
+        'SELECT id FROM projection_revisions ORDER BY started_at DESC LIMIT 1',
+      );
+
+      return result.rows[0]?.id ?? null;
+    },
+    readSnapshot: async () => {
+      const result = await pool.query<{ snapshot: PlanWorkstreamSnapshot }>(`
+        WITH latest AS (
+          SELECT snapshot_json::jsonb AS snapshot
+          FROM projection_revisions
+          ORDER BY started_at DESC
+          LIMIT 1
+        )
+        SELECT jsonb_set(
+          jsonb_set(
+            snapshot,
+            '{nodes}',
+            (
+              SELECT COALESCE(jsonb_agg(node - 'markdown'), '[]'::jsonb)
+              FROM jsonb_array_elements(COALESCE(snapshot -> 'nodes', '[]'::jsonb)) AS node
+            )
+          ),
+          '{documents}',
+          (
+            SELECT COALESCE(jsonb_agg(document - 'markdown'), '[]'::jsonb)
+            FROM jsonb_array_elements(COALESCE(snapshot -> 'documents', '[]'::jsonb)) AS document
+          )
+        ) AS snapshot
+        FROM latest
+      `);
+
+      return result.rows[0]?.snapshot ?? null;
+    },
+  });
+
+  const getProjectionNodeContent = async (nodeId: string) => {
+    const result = await pool.query<{ markdown: string | null }>(
+      `
+        WITH latest AS (
+          SELECT snapshot_json::jsonb AS snapshot
+          FROM projection_revisions
+          ORDER BY started_at DESC
+          LIMIT 1
+        ), candidates AS (
+          SELECT node
+          FROM latest,
+            LATERAL jsonb_array_elements(COALESCE(snapshot -> 'nodes', '[]'::jsonb)) AS node
+          UNION ALL
+          SELECT document
+          FROM latest,
+            LATERAL jsonb_array_elements(COALESCE(snapshot -> 'documents', '[]'::jsonb)) AS document
+        )
+        SELECT node ->> 'markdown' AS markdown
+        FROM candidates
+        WHERE node ->> 'id' = $1
+        LIMIT 1
+      `,
+      [nodeId],
+    );
+
+    return result.rows.length > 0 ? (result.rows[0]?.markdown ?? '') : null;
+  };
 
   const recordMergedPullRequestActivity = (
     webhook: AtlasMergeActivityInput,
@@ -880,6 +945,7 @@ export const createAtlasPostgresApplication = (input: {
       Effect.tap(() =>
         Effect.sync(() => {
           projectionSnapshotCache.invalidate();
+          pageProjectionSnapshotCache.invalidate();
           input.invalidatePresentation?.();
         }),
       ),
@@ -932,6 +998,8 @@ export const createAtlasPostgresApplication = (input: {
 
   return {
     ...atlas,
+    getPageProjectionSnapshot: pageProjectionSnapshotCache.read,
+    getProjectionNodeContent,
     getProjectionSnapshot: projectionSnapshotCache.read,
     previewMergeCatchUp: (previewInput: { since: string }) =>
       withAtlasPostgresQueryContext(

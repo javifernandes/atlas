@@ -41,6 +41,23 @@ describe('Atlas node content route', () => {
     await expect(response.json()).resolves.toEqual({ markdown: '# Document one' });
   });
 
+  it('uses a storage-bounded content projection when available', async () => {
+    const getProjectionNodeContent = vi.fn().mockResolvedValue('# Projected node');
+    const getProjectionSnapshot = vi.fn();
+    getAtlasServerApplicationMock.mockResolvedValue({
+      getProjectionNodeContent,
+      getProjectionSnapshot,
+    });
+
+    const response = await GET(
+      new Request('http://atlas.test/api/node-content?nodeId=plan%3Aone'),
+    );
+
+    await expect(response.json()).resolves.toEqual({ markdown: '# Projected node' });
+    expect(getProjectionNodeContent).toHaveBeenCalledWith('plan:one');
+    expect(getProjectionSnapshot).not.toHaveBeenCalled();
+  });
+
   it('rejects anonymous access to a private Atlas', async () => {
     getAtlasRequestAccessMock.mockResolvedValue({
       authAvailable: true,
