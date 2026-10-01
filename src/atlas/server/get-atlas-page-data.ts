@@ -14,6 +14,19 @@ const emptyPageData = (): AtlasPageData => ({
   snapshot: { ...buildPlanWorkstreamSnapshotFromFiles([]), evidence: [] },
 });
 
+const omitNodeMarkdown = ({
+  markdown: _markdown,
+  ...node
+}: PlanWorkstreamSnapshot['nodes'][number]) => node;
+
+export const createAtlasPageSnapshot = (
+  snapshot: PlanWorkstreamSnapshot,
+): PlanWorkstreamSnapshot => ({
+  ...snapshot,
+  nodes: snapshot.nodes.map(omitNodeMarkdown),
+  documents: snapshot.documents?.map(omitNodeMarkdown),
+});
+
 export const getAtlasPageData = async (
   userId?: string | null,
   selectedStreamId?: string | null,
@@ -35,7 +48,7 @@ export const getAtlasPageData = async (
       ]);
 
       return snapshot
-        ? { executionStreams, snapshot }
+        ? { executionStreams, snapshot: createAtlasPageSnapshot(snapshot) }
         : { ...emptyPageData(), executionStreams };
     },
   );

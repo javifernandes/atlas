@@ -39,3 +39,9 @@ snapshot only on a cold or changed revision. Successful reconciliation invalidat
 and presentation caches; other server instances discover the committed identity on their next
 read. PostgreSQL query observations record metadata-only row counts, approximate result bytes,
 duration, and trigger context so Projection Revision egress is visible outside the Neon UI.
+
+The page-facing materialization is intentionally narrower than the durable revision. Initial
+renders carry topology, summaries, metrics, evidence, and viewer-specific execution state, but omit
+the multi-megabyte Markdown bodies. An authenticated node-content read resolves one body from the
+same current revision when a reader opens full detail. This keeps the revision internally coherent
+without making every page request serialize the entire federated source corpus.
