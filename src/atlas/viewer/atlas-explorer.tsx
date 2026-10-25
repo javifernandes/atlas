@@ -48,6 +48,7 @@ import type {
   PlanWorkstreamSnapshot,
 } from '@/atlas/model/snapshot';
 import { ExecutionStreamView } from '@/atlas/viewer/execution-stream-view';
+import { getPlanDisplayId, getPlanDisplayKey, PlanTitle } from '@/atlas/viewer/plan-title';
 import { cn } from '@/lib/classes';
 
 type PlanWorkstreamExplorerProps = {
@@ -708,15 +709,7 @@ const normalizeSearchValue = (value: string) =>
     .toLowerCase();
 
 const getPlanNumber = (node: PlanWorkstreamNode) => {
-  if (node.kind !== 'plan') {
-    return null;
-  }
-
-  return (
-    (node.path ?? node.semanticId ?? node.shortTitle)
-      .match(/(?:^|\/)(\d+[a-z]*)[-–]/i)?.[1]
-      ?.toLowerCase() ?? null
-  );
+  return getPlanDisplayKey(node)?.toLowerCase() ?? null;
 };
 
 const getPlanNumberAliases = (planNumber: string) => {
@@ -741,7 +734,7 @@ const getPlanSearchTokens = (node: PlanWorkstreamNode) => {
     return [];
   }
 
-  return getPlanNumberAliases(planNumber).flatMap(alias => [
+  const localAliases = getPlanNumberAliases(planNumber).flatMap(alias => [
     alias,
     `#${alias}`,
     `p${alias}`,
@@ -749,6 +742,11 @@ const getPlanSearchTokens = (node: PlanWorkstreamNode) => {
     `plan-${alias}`,
     `plan:${alias}`,
   ]);
+  const displayId = getPlanDisplayId(node)?.toLowerCase();
+
+  return displayId
+    ? [...localAliases, displayId, `#${displayId}`, `plan ${displayId}`, `plan:${displayId}`]
+    : localAliases;
 };
 
 const getSearchText = (node: PlanWorkstreamNode) =>
@@ -781,14 +779,7 @@ const getSearchMatchRank = (node: PlanWorkstreamNode, query: string) => {
     return 1;
   }
 
-  const exactPlanQueries = getPlanNumberAliases(planNumber).flatMap(alias => [
-    alias,
-    `#${alias}`,
-    `p${alias}`,
-    `plan ${alias}`,
-    `plan-${alias}`,
-    `plan:${alias}`,
-  ]);
+  const exactPlanQueries = getPlanSearchTokens(node);
 
   return exactPlanQueries.includes(query) ? 0 : 1;
 };
@@ -1264,7 +1255,11 @@ const NodeCard = ({
         {getNodeStatusLabel(node)}
       </span>
     </div>
-    <div className='mt-1.5 line-clamp-2 text-sm font-medium leading-snug'>{node.shortTitle}</div>
+    <PlanTitle
+      className='mt-1.5 text-sm font-medium leading-snug'
+      node={node}
+      titleClassName='line-clamp-2'
+    />
   </div>
 );
 
@@ -1350,7 +1345,11 @@ const RelationList = ({
               className={cn('size-1.5 shrink-0 rounded-full', relationDotClassName(relation.kind))}
             />
             <span className='font-mono'>{label}</span>
-            <span className='truncate'>{otherNode?.shortTitle ?? relation.otherNodeId}</span>
+            {otherNode ? (
+              <PlanTitle node={otherNode} titleClassName='truncate' />
+            ) : (
+              <span className='truncate'>{relation.otherNodeId}</span>
+            )}
           </button>
         );
       })}
@@ -1443,7 +1442,7 @@ const SemanticSignalList = ({
                     title={sourceNode.path ?? sourceNode.semanticId}
                     onClick={() => onOpenFull(sourceNode.id)}
                   >
-                    {sourceNode.shortTitle}
+                    <PlanTitle node={sourceNode} titleClassName='truncate' />
                   </button>
                 </>
               ) : null}
@@ -1744,7 +1743,7 @@ const EvolutionEntryList = ({
               className='line-clamp-2 text-left text-sm font-medium text-foreground transition-colors hover:text-sky-300'
               onClick={() => onOpenFull(entry.node.id)}
             >
-              {entry.node.shortTitle}
+              <PlanTitle node={entry.node} titleClassName='line-clamp-2' />
             </button>
             {entry.node.summary ? (
               <ShapeContentSummary
@@ -1944,7 +1943,7 @@ const GlobalBoardNodeCard = ({
           {breadcrumb.slice(-3).map((crumb, crumbIndex) => (
             <Fragment key={crumb.id}>
               {crumbIndex > 0 ? <span className='text-muted-foreground/45'>/</span> : null}
-              <span className='truncate'>{crumb.shortTitle}</span>
+              <PlanTitle node={crumb} titleClassName='truncate' />
             </Fragment>
           ))}
         </div>
@@ -1955,7 +1954,7 @@ const GlobalBoardNodeCard = ({
         className='line-clamp-2 text-left text-sm font-medium leading-snug text-foreground transition-colors hover:text-sky-300'
         onClick={() => onOpenFull(node.id)}
       >
-        {node.shortTitle}
+        <PlanTitle node={node} titleClassName='line-clamp-2' />
       </button>
 
       {node.summary ? (
@@ -3569,7 +3568,7 @@ const FullMarkdownModal = ({
                 <span className='font-mono text-[9px] uppercase text-muted-foreground/70'>
                   Parent
                 </span>
-                <span className='truncate font-medium'>{parentNode.shortTitle}</span>
+                <PlanTitle node={parentNode} titleClassName='truncate font-medium' />
               </a>
             </nav>
           ) : null}
@@ -3615,13 +3614,13 @@ const FullMarkdownModal = ({
                   <span className='font-mono text-[9px] uppercase text-muted-foreground'>
                     Project
                   </span>
-                  <span className='truncate font-medium'>{project.shortTitle}</span>
+                  <PlanTitle node={project} titleClassName='truncate font-medium' />
                 </span>
               ))}
             </div>
             <div className='mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2'>
               <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
-                {node.shortTitle}
+                <PlanTitle node={node} titleClassName='truncate' />
               </h2>
               <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
                 {fullMarkdownModalTabs.map(tab => (
@@ -3783,7 +3782,7 @@ const FullMarkdownModal = ({
                               title={crumb.path ?? crumb.semanticId}
                               onClick={() => onOpenFull(crumb.id)}
                             >
-                              <span className='truncate'>{crumb.shortTitle}</span>
+                              <PlanTitle node={crumb} titleClassName='truncate' />
                             </button>
                           </Fragment>
                         ))}
@@ -3914,7 +3913,7 @@ const FullMarkdownModal = ({
                         <span className='ml-auto shrink-0 normal-case'>{getNodeStatusLabel(child)}</span>
                       </span>
                       <span className='truncate text-xs font-medium text-foreground transition-colors group-hover/child:text-primary'>
-                        {child.shortTitle}
+                        <PlanTitle node={child} titleClassName='truncate' />
                       </span>
                     </a>
                   ))}
@@ -3980,7 +3979,7 @@ const SelectionPanel = ({
               <span className='font-mono text-xs text-muted-foreground'>{node.status}</span>
             </div>
             <h2 className='mt-2 line-clamp-2 text-lg font-semibold leading-tight'>
-              {node.shortTitle}
+              <PlanTitle node={node} titleClassName='line-clamp-2' />
             </h2>
           </div>
           <IconButton label='Clear selection' onClick={onClose}>
@@ -5566,7 +5565,7 @@ export const PlanWorkstreamExplorer = ({
             </span>
             <ArrowRight className='size-3 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-sky-300' />
             <span className='min-w-0 truncate font-medium text-foreground transition-colors group-hover:text-sky-300'>
-              {edgeHoverTargetNode.shortTitle}
+              <PlanTitle node={edgeHoverTargetNode} titleClassName='truncate' />
             </span>
           </button>
         </div>
@@ -5680,7 +5679,6 @@ export const PlanWorkstreamExplorer = ({
                 {searchMatches.length > 0 ? (
                   searchMatches.map(node => {
                     const sourceParts = getSearchSourceParts(node);
-                    const planNumber = getPlanNumber(node);
 
                     return (
                       <button
@@ -5698,14 +5696,12 @@ export const PlanWorkstreamExplorer = ({
                         />
                         <span className='min-w-0'>
                           <span className='flex min-w-0 items-start gap-2'>
-                            {planNumber ? (
-                              <span className='shrink-0 rounded-md border border-primary/35 bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-semibold leading-none text-primary'>
-                                {planNumber}
-                              </span>
-                            ) : null}
-                            <span className='line-clamp-2 text-sm font-medium leading-snug'>
-                              {node.shortTitle}
-                            </span>
+                            <PlanTitle
+                              className='text-sm font-medium leading-snug'
+                              keyClassName='text-xs'
+                              node={node}
+                              titleClassName='line-clamp-2'
+                            />
                           </span>
                           <span className='mt-1.5 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground'>
                             <span className='shrink-0 font-mono uppercase'>{node.kind}</span>

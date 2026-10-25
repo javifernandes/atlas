@@ -659,7 +659,7 @@ describe('PlanWorkstreamExplorer', () => {
     const result = screen.getByTitle(
       'bookops://plans/68-unified-application-architecture-surface',
     );
-    expect(within(result).getByText('68')).toBeInTheDocument();
+    expect(within(result).getByText('BOK-68')).toBeInTheDocument();
     expect(within(result).getByText('bookops')).toBeInTheDocument();
     expect(within(result).queryByText('bookops://')).not.toBeInTheDocument();
     expect(

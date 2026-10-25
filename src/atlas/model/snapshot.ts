@@ -44,6 +44,8 @@ export type PlanWorkstreamNode = {
   shortTitle: string;
   statusGroup: PlanStatusGroup;
   status: string;
+  planKey?: string;
+  sourceId?: string;
   planKind?: string;
   scale?: string;
   horizon?: string;
