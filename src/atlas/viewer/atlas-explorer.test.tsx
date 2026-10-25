@@ -145,6 +145,13 @@ describe('PlanWorkstreamExplorer', () => {
 
     let dialog = screen.getByRole('dialog');
     const detailTitle = within(dialog).getByRole('heading', { name: 'Item A' });
+    const readingPosition = within(dialog).getByRole('scrollbar', {
+      name: 'Detail reading position',
+    });
+    const contentViewport = dialog.querySelector('#full-detail-content-scroll');
+
+    expect(readingPosition).toHaveAttribute('aria-valuenow', '0');
+    expect(contentViewport).toHaveClass('[scrollbar-width:none]');
     const titleRow = detailTitle.parentElement;
 
     expect(titleRow).not.toBeNull();

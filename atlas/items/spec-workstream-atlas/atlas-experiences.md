@@ -10,9 +10,14 @@ supports:
 relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
   - plans/done/101-workstream-atlas-semantic-source.md
+  - plans/done/134-full-detail-reading-position.md
 ---
 
 Atlas Experiences are the human workflows the atlas should support: navigating the map, authoring the model, planning work, closing plans, reviewing evidence, and reading history.
+
+Long-form full-detail reading should preserve native scrolling input while using quiet Atlas-owned
+position feedback instead of visually dominant platform scrollbar chrome. The indicator should
+communicate both viewport scale and current position without becoming another panel boundary.
 
 ## Child Items
 

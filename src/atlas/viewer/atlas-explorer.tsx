@@ -3607,6 +3607,8 @@ const FullMarkdownModal = ({
   contentStatus: NodeContentState['status'];
 }) => {
   const [permalinkCopied, setPermalinkCopied] = useState(false);
+  const [contentScroll, setContentScroll] = useState({ progress: 0, visibleRatio: 1 });
+  const contentScrollRef = useRef<HTMLDivElement>(null);
   const parsedDocument = useMemo(() => parseMarkdownDocument(node), [node]);
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
@@ -3687,6 +3689,36 @@ const FullMarkdownModal = ({
   useEffect(() => {
     setPermalinkCopied(false);
   }, [activeTab, node.id]);
+
+  useLayoutEffect(() => {
+    const viewport = contentScrollRef.current;
+    if (!viewport) return;
+
+    viewport.scrollTop = 0;
+    const update = () => {
+      const scrollable = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      setContentScroll({
+        progress: scrollable > 0 ? viewport.scrollTop / scrollable : 0,
+        visibleRatio:
+          viewport.scrollHeight > 0
+            ? Math.min(1, viewport.clientHeight / viewport.scrollHeight)
+            : 1,
+      });
+    };
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+
+    update();
+    viewport.addEventListener('scroll', update, { passive: true });
+    resizeObserver?.observe(viewport);
+    const content = viewport.firstElementChild;
+    if (content) resizeObserver?.observe(content);
+
+    return () => {
+      viewport.removeEventListener('scroll', update);
+      resizeObserver?.disconnect();
+    };
+  }, [activeTab, contentStatus, node.id]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -3827,12 +3859,15 @@ const FullMarkdownModal = ({
           </div>
         </header>
 
-        <div
-          className={cn(
-            'min-h-0 flex-1 px-6 py-6 sm:px-8 lg:px-10',
-            activeTab === 'evolution' ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto',
-          )}
-        >
+        <div className='relative min-h-0 flex-1'>
+          <div
+            ref={contentScrollRef}
+            id='full-detail-content-scroll'
+            className={cn(
+              'h-full px-6 py-6 [scrollbar-width:none] sm:px-8 lg:px-10 [&::-webkit-scrollbar]:hidden',
+              activeTab === 'evolution' ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto',
+            )}
+          >
           {activeTab === 'overview' ? contentStatus === 'loading' ? (
             <DetailContentLoading node={node} />
           ) : contentStatus === 'error' ? (
@@ -4033,6 +4068,26 @@ const FullMarkdownModal = ({
               <p className='text-sm text-muted-foreground'>No source metadata.</p>
             )
           ) : null}
+          </div>
+
+          <div
+            aria-controls='full-detail-content-scroll'
+            aria-label='Detail reading position'
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={Math.round(contentScroll.progress * 100)}
+            className='pointer-events-none absolute bottom-3 right-2 top-3 w-px bg-border/45'
+            role='scrollbar'
+          >
+            <span
+              aria-hidden='true'
+              className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-sky-300/75 shadow-[0_0_8px_hsl(var(--primary)/0.2)] transition-[top,height] duration-150 motion-reduce:transition-none'
+              style={{
+                height: `${Math.max(8, contentScroll.visibleRatio * 100)}%`,
+                top: `${contentScroll.progress * Math.max(0, 100 - Math.max(8, contentScroll.visibleRatio * 100))}%`,
+              }}
+            />
+          </div>
         </div>
 
         {childNodes.length > 0 ? (
