@@ -11,9 +11,79 @@ html.dark .shiki span {
   color: var(--shiki-dark) !important;
 }
 
+@keyframes atlas-loading-breathe {
+  0%, 100% {
+    transform: scale(0.94);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes atlas-loading-reach-top {
+  0%, 28%, 100% {
+    transform: scaleY(0.9);
+  }
+  12% {
+    transform: scaleY(1.28);
+  }
+}
+
+@keyframes atlas-loading-reach-left {
+  0%, 34%, 66%, 100% {
+    transform: scaleX(0.9);
+  }
+  50% {
+    transform: scaleX(1.28);
+  }
+}
+
+@keyframes atlas-loading-reach-curve {
+  0%, 64%, 100% {
+    transform: scale(0.92);
+  }
+  82% {
+    transform: scale(1.17);
+  }
+}
+
+.atlas-loading-core,
+.atlas-loading-pseudopod {
+  transform-box: view-box;
+  will-change: transform;
+}
+
+.atlas-loading-core {
+  animation: atlas-loading-breathe 2.8s ease-in-out infinite;
+  transform-origin: 128px 128px;
+}
+
+.atlas-loading-pseudopod {
+  animation-duration: 5.4s;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+.atlas-loading-pseudopod-top {
+  animation-name: atlas-loading-reach-top;
+  transform-origin: 128px 98px;
+}
+
+.atlas-loading-pseudopod-left {
+  animation-name: atlas-loading-reach-left;
+  transform-origin: 98px 128px;
+}
+
+.atlas-loading-pseudopod-curve {
+  animation-name: atlas-loading-reach-curve;
+  transform-origin: 153px 141px;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .atlas-loading-mark animate {
-    display: none;
+  .atlas-loading-core,
+  .atlas-loading-pseudopod {
+    animation: none;
+    transform: none;
   }
 }
 

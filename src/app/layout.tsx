@@ -12,6 +12,13 @@ export const metadata: Metadata = {
 
 const RootLayout = ({ children }: { children: ReactNode }) => (
   <html lang='en' suppressHydrationWarning>
+    <head>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `(function(){try{var stored=localStorage.getItem('atlas-theme');var theme=stored==='dark'||stored==='light'?stored:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var root=document.documentElement;root.classList.toggle('dark',theme==='dark');root.style.colorScheme=theme;}catch(_){}})();`,
+        }}
+      />
+    </head>
     <body>
       <AtlasClientProvider>
         <ThemeProvider>{children}</ThemeProvider>

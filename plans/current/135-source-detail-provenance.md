@@ -71,3 +71,8 @@ The visual follow-up uses a fixed mid-gray viewport marker for reliable light/da
 interpolates its progress with animation frames. The central Atlas loading mark now breathes and
 extends its three graph branches in sequence, with the previous three-dot spinner removed and
 reduced-motion behavior preserved.
+
+Theme selection now runs in the document head before first paint, using the stored preference or
+the system preference, so a dark session no longer flashes the light loading surface. Loader motion
+uses explicit CSS transforms for the core and branch groups rather than declarative SVG animation,
+making the organic reach visible and consistent during the short splash interval.
