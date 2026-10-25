@@ -27,6 +27,6 @@ Closed on 2026-10-25. Full detail now keeps its content viewport's native scroll
 hides platform scrollbar chrome. A persistent one-pixel rail and highlighted segment communicate
 the visible proportion and current reading position, reset on item or tab changes, and avoid motion
 under reduced-motion preferences. The rail sits inset from the content edge; its passive range is a
-dim neutral gray and its active range uses a brighter semi-white neutral rather than a semantic
-product accent.
+dim neutral gray and its active range uses a restrained translucent light gray rather than a
+semantic product accent or a high-contrast white marker.
 

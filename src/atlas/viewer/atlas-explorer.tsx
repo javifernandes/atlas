@@ -4081,7 +4081,7 @@ const FullMarkdownModal = ({
           >
             <span
               aria-hidden='true'
-              className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-foreground/80 shadow-[0_0_7px_hsl(var(--foreground)/0.16)] transition-[top,height] duration-150 motion-reduce:transition-none'
+              className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-foreground/55 shadow-[0_0_6px_hsl(var(--foreground)/0.08)] transition-[top,height] duration-150 motion-reduce:transition-none'
               style={{
                 height: `${Math.max(8, contentScroll.visibleRatio * 100)}%`,
                 top: `${contentScroll.progress * Math.max(0, 100 - Math.max(8, contentScroll.visibleRatio * 100))}%`,
