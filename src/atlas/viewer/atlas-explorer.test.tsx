@@ -364,7 +364,7 @@ describe('PlanWorkstreamExplorer', () => {
       new URL(childLink.getAttribute('href') ?? '', 'http://atlas.local').searchParams.get('full'),
     ).toBe('item-c');
     expect(childLink).toHaveClass('rounded-full');
-    expect(within(childLink).getByText('Child')).toBeInTheDocument();
+    expect(within(childLink).getByText('system-primitive')).toBeInTheDocument();
 
     await user.click(childLink);
 

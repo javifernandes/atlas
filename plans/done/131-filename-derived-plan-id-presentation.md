@@ -55,6 +55,7 @@ to its host surface.
 Closed on 2026-10-25. Plan nodes project their filename-derived key and owning source. The shared
 title treatment renders collision-safe IDs (`ATL-…`, `BOK-…`, and `ONT-…`) across map, board,
 detail, search, relationship, and Session surfaces. Full detail uses the same qualified heading,
-child navigation now mirrors the lightweight parent treatment, and global search layers above an
+child navigation now mirrors the lightweight parent treatment while using each child's item type
+instead of a repeated relation label, and global search layers above an
 open detail modal and replaces it directly on selection. Search accepts qualified IDs and local
 number aliases, while legacy snapshots retain path-based fallbacks. `pnpm verify` passes.

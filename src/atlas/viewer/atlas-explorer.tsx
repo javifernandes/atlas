@@ -3900,7 +3900,7 @@ const FullMarkdownModal = ({
                     >
                       <ArrowDown className='size-3.5 shrink-0 transition-transform group-hover/child:translate-y-0.5' />
                       <span className='shrink-0 font-mono text-[9px] uppercase text-muted-foreground/70'>
-                        Child
+                        {child.kind}
                       </span>
                       <PlanTitle node={child} titleClassName='truncate font-medium' />
                     </a>
