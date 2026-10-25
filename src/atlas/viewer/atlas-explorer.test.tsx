@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { PlanWorkstreamExplorer } from './atlas-explorer';
 
@@ -221,8 +221,10 @@ describe('PlanWorkstreamExplorer', () => {
     expect(screen.getByRole('button', { name: 'Permalink copied' })).toBeInTheDocument();
   });
 
-  it('offers full detail for a source-backed node whose Markdown is loaded on demand', () => {
+  it('offers full detail for a source-backed node with an Atlas loading state', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?node=item-b');
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
     const value: PlanWorkstreamSnapshot = {
       ...snapshot,
       nodes: snapshot.nodes.map(node =>
@@ -232,7 +234,12 @@ describe('PlanWorkstreamExplorer', () => {
 
     renderExplorer({ value });
 
-    expect(screen.getByRole('button', { name: 'See full' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'See full' }));
+
+    const loading = screen.getByRole('status', { name: 'Loading Item B' });
+    expect(within(loading).getByText('Loading source')).toBeInTheDocument();
+    expect(within(loading).getByText('Item B')).toBeInTheDocument();
+    fetchMock.mockRestore();
   });
 
   it('shows every project membership in full detail when Atlas has multiple projects', () => {

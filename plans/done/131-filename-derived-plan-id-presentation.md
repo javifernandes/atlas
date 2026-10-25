@@ -70,3 +70,5 @@ the exact distance needed to reveal the adjacent result.
 Search ranking treats exact titles, title prefixes, title phrases, and title-token matches as
 progressively stronger than incidental metadata or URI matches, preventing structural source paths
 from burying the item a person named explicitly.
+Full-detail source loading now uses a centered Atlas mark with restrained orbital and pulse motion,
+the target item identity, and reduced-motion fallbacks instead of a bare loading sentence.

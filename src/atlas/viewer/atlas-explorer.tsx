@@ -3414,6 +3414,35 @@ const MarkdownSectionIndex = ({ groups }: { groups: MarkdownSectionGroup[] }) =>
   );
 };
 
+const DetailContentLoading = ({ node }: { node: PlanWorkstreamNode }) => (
+  <div
+    role='status'
+    aria-label={`Loading ${node.shortTitle}`}
+    aria-live='polite'
+    className='grid min-h-[min(48vh,420px)] place-items-center'
+  >
+    <div className='flex flex-col items-center gap-4 text-center'>
+      <div className='relative grid size-24 place-items-center'>
+        <span className='absolute inset-2 rounded-full bg-sky-400/10 blur-xl motion-safe:animate-pulse' />
+        <span className='absolute inset-2 rounded-full border border-sky-400/20' />
+        <span className='absolute inset-0 rounded-full border border-transparent border-t-sky-300/65 border-r-sky-300/15 motion-safe:animate-[spin_2.8s_linear_infinite] motion-reduce:animate-none' />
+        <span className='absolute inset-3 rounded-full border border-dashed border-sky-300/25 motion-safe:animate-[spin_5s_linear_infinite_reverse] motion-reduce:animate-none' />
+        <AtlasMark className='size-11 motion-safe:animate-pulse motion-reduce:animate-none' priority />
+      </div>
+      <div className='grid gap-1.5'>
+        <span className='font-mono text-[10px] uppercase tracking-[0.18em] text-sky-300/80'>
+          Loading source
+        </span>
+        <PlanTitle
+          className='justify-center text-sm font-medium text-muted-foreground'
+          node={node}
+          titleClassName='line-clamp-1'
+        />
+      </div>
+    </div>
+  </div>
+);
+
 const FullMarkdownModal = ({
   activeTab,
   edges,
@@ -3677,12 +3706,12 @@ const FullMarkdownModal = ({
             activeTab === 'evolution' ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto',
           )}
         >
-          {activeTab === 'overview' ? (
+          {activeTab === 'overview' ? contentStatus === 'loading' ? (
+            <DetailContentLoading node={node} />
+          ) : (
             <div className='grid min-w-0 gap-6 px-1 sm:px-2 xl:grid-cols-[minmax(0,1fr)_12rem]'>
               <article className='grid min-w-0 max-w-full gap-5 overflow-hidden break-words xl:pr-2 [&>*]:min-w-0 [&>*]:max-w-full'>
-                {contentStatus === 'loading' ? (
-                  <p className='text-sm text-muted-foreground'>Loading source content…</p>
-                ) : contentStatus === 'error' ? (
+                {contentStatus === 'error' ? (
                   <p className='text-sm text-destructive'>Source content could not be loaded.</p>
                 ) : (
                   renderMarkdownBody(overviewBody, markdownContext)
