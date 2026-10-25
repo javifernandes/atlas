@@ -68,11 +68,13 @@ repository at the exact git revision when available and to `main` for a local co
 by local projection provenance.
 
 The visual follow-up uses a fixed mid-gray viewport marker for reliable light/dark contrast and
-interpolates its progress with animation frames. The central Atlas loading mark now breathes and
-extends its three graph branches in sequence, with the previous three-dot spinner removed and
-reduced-motion behavior preserved.
+interpolates its progress with animation frames. The Atlas loading mark now constructs itself in
+sequence: the central node draws clockwise, then each connection and endpoint appears in turn.
+The completed graph rests briefly and fades as a whole, allowing the stroke state to reset while
+invisible instead of visibly rewinding. The previous three-dot spinner is removed and
+reduced-motion behavior is preserved.
 
 Theme selection now runs in the document head before first paint, using the stored preference or
 the system preference, so a dark session no longer flashes the light loading surface. Loader motion
-uses explicit CSS transforms for the core and branch groups rather than declarative SVG animation,
-making the organic reach visible and consistent during the short splash interval.
+uses CSS-driven SVG stroke progress without scaling or deforming the Atlas mark, keeping its
+geometry stable throughout the short splash interval.

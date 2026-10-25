@@ -14,8 +14,9 @@ describe('Atlas loading screen', () => {
     ).toBeInTheDocument();
 
     expect(container.querySelector('.atlas-loading-mark')).toBeInTheDocument();
-    expect(container.querySelectorAll('.atlas-loading-pseudopod')).toHaveLength(3);
+    expect(container.querySelectorAll('.atlas-loading-stroke')).toHaveLength(7);
     expect(container.querySelector('.atlas-loading-core')).toBeInTheDocument();
+    expect(container.querySelectorAll('[pathLength="1"]')).toHaveLength(7);
     expect(container.querySelectorAll('.animate-pulse')).toHaveLength(0);
   });
 });
