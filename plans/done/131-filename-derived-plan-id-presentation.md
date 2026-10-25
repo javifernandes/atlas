@@ -77,3 +77,5 @@ Source-load failures use a similarly centered, low-contrast empty state with a s
 icon and calm explanatory copy instead of aggressive destructive typography.
 Resolved Plan links inside rendered Markdown use the same federated ID badge and remove the local
 numeric prefix from link text, keeping related-plan lists consistent with the rest of the UI.
+Within prose, that identifier uses a lightweight typographic treatment without a border, fill, or
+rounded container so it preserves the document's reading rhythm.

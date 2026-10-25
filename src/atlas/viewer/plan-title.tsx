@@ -11,6 +11,7 @@ type PlanTitleProps = {
 type PlanIdBadgeProps = {
   className?: string;
   node: PlanWorkstreamNode;
+  variant?: 'badge' | 'text';
 };
 
 export const getPlanDisplayKey = (node: PlanWorkstreamNode) => {
@@ -48,7 +49,7 @@ export const getPlanDisplayId = (node: PlanWorkstreamNode) => {
   return prefix ? `${prefix}-${key.toUpperCase()}` : key.toUpperCase();
 };
 
-export const PlanIdBadge = ({ className, node }: PlanIdBadgeProps) => {
+export const PlanIdBadge = ({ className, node, variant = 'badge' }: PlanIdBadgeProps) => {
   const planId = getPlanDisplayId(node);
   if (!planId) return null;
 
@@ -56,7 +57,10 @@ export const PlanIdBadge = ({ className, node }: PlanIdBadgeProps) => {
     <span
       aria-label={`Plan ${planId}`}
       className={cn(
-        'shrink-0 rounded-md border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 font-mono text-[0.78em] font-semibold leading-none tracking-tight text-sky-300',
+        'shrink-0 font-mono font-semibold leading-none tracking-tight text-sky-300',
+        variant === 'badge'
+          ? 'rounded-md border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 text-[0.78em]'
+          : 'text-[0.72em] opacity-90',
         className,
       )}
     >

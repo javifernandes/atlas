@@ -2842,7 +2842,7 @@ const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
             onClick={() => context.onOpenFull(internalNode.id)}
           >
             <InlinePlanStatusBadge node={internalNode} />
-            <PlanIdBadge className='text-[0.72em]' node={internalNode} />
+            <PlanIdBadge node={internalNode} variant='text' />
             <span className='text-sky-300 underline decoration-sky-300/45 underline-offset-4 transition-colors group-hover:text-sky-200 group-hover:decoration-sky-200'>
               {internalDisplayLabel}
             </span>

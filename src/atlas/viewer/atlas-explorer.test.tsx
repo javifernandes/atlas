@@ -296,7 +296,9 @@ describe('PlanWorkstreamExplorer', () => {
     renderExplorer({ value });
 
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByLabelText('Plan BOK-125A')).toBeInTheDocument();
+    const planId = within(dialog).getByLabelText('Plan BOK-125A');
+    expect(planId).toBeInTheDocument();
+    expect(planId).not.toHaveClass('border', 'bg-sky-400/10', 'rounded-md');
     expect(within(dialog).getByText('Resource Governance')).toBeInTheDocument();
     expect(within(dialog).queryByText('125a. Resource Governance')).not.toBeInTheDocument();
   });
