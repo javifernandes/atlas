@@ -363,6 +363,8 @@ describe('PlanWorkstreamExplorer', () => {
     expect(
       new URL(childLink.getAttribute('href') ?? '', 'http://atlas.local').searchParams.get('full'),
     ).toBe('item-c');
+    expect(childLink).toHaveClass('rounded-full');
+    expect(within(childLink).getByText('Child')).toBeInTheDocument();
 
     await user.click(childLink);
 
@@ -535,7 +537,7 @@ describe('PlanWorkstreamExplorer', () => {
     expect(screen.getByRole('button', { name: 'BookOps next plan' })).toBeInTheDocument();
   });
 
-  it('returns to the map when Board search selects a structural item', async () => {
+  it('opens a Board search result directly in full detail without changing workspace', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans');
     const user = userEvent.setup();
 
@@ -550,11 +552,11 @@ describe('PlanWorkstreamExplorer', () => {
     await user.type(within(searchDialog).getByRole('textbox', { name: 'Search atlas' }), 'Item A');
     await user.click(within(searchDialog).getByRole('button', { name: /Item A/ }));
 
-    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Board' })).toHaveClass('bg-primary/12');
+    expect(new URLSearchParams(globalThis.location.search).get('view')).toBe('board');
     expect(
-      screen.queryByRole('combobox', { name: 'Filter board by project' }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Item A' })).toBeInTheDocument();
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'Item A' }),
+    ).toBeInTheDocument();
   });
 
   it('renders Plans as visually distinct temporal nodes in the Map', () => {
@@ -632,7 +634,7 @@ describe('PlanWorkstreamExplorer', () => {
   });
 
   it('opens the search palette with Command-K and renders URI schemes as source badges', async () => {
-    globalThis.history.replaceState({}, '', '/internal/plans');
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();
     const federatedPlan = {
       ...createNode('federated-plan', {
@@ -650,8 +652,9 @@ describe('PlanWorkstreamExplorer', () => {
 
     fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
 
-    const searchInput = screen.getByRole('textbox', { name: 'Search atlas' });
-    expect(screen.getByRole('dialog', { name: 'Search Atlas' })).toBeInTheDocument();
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
+    const searchInput = within(searchDialog).getByRole('textbox', { name: 'Search atlas' });
+    expect(searchDialog.parentElement).toHaveClass('z-[100]');
     expect(searchInput).toHaveFocus();
 
     await user.type(searchInput, '68');
@@ -670,8 +673,11 @@ describe('PlanWorkstreamExplorer', () => {
       'bookops://plans/68-unified-application-architecture-surface',
     );
 
-    await user.keyboard('{Escape}');
+    await user.click(result);
     expect(screen.queryByRole('dialog', { name: 'Search Atlas' })).not.toBeInTheDocument();
+    const detailDialog = screen.getByRole('dialog');
+    expect(within(detailDialog).getByLabelText('Plan BOK-68')).toBeInTheDocument();
+    expect(within(detailDialog).getByText('Federated plan details.')).toBeInTheDocument();
   });
 
   it('renders explicit merged PR evidence as an attachment outside evolution stages', async () => {

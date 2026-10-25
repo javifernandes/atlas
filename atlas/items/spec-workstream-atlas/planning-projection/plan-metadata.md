@@ -22,5 +22,7 @@ parent and child links, GitHub Project mapping, ownership, implementation eviden
 and queryable planning attributes. Presentation surfaces should treat the key as identity metadata
 rather than folding it into undifferentiated title text. Federated presentation qualifies local
 keys with stable repository prefixes such as `ATL`, `BOK`, and `ONT` to avoid collisions.
+The same qualified identity should remain visible when a Plan is opened in full detail, not only in
+compact graph, board, search, or Session surfaces.
 
 These fields should become useful only when the atlas needs an operational planning view, not before.

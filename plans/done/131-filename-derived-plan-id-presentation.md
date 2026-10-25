@@ -40,6 +40,9 @@ to its host surface.
 - [x] Verify the application and close the Plan.
 - [x] Qualify Plan keys with stable source/repository prefixes.
 - [x] Extend search aliases and verification for federated IDs.
+- [x] Surface qualified IDs explicitly in Plan detail headings.
+- [x] Align child navigation with the quieter parent-navigation language.
+- [x] Make global search modal-aware and open results directly in full detail.
 
 ## Verification
 
@@ -49,7 +52,9 @@ to its host surface.
 
 ## Closure / Evolution
 
-Closed on 2026-10-25. Plan nodes now project their filename-derived key and owning source. The
-shared title treatment renders collision-safe IDs (`ATL-…`, `BOK-…`, and `ONT-…`) across map,
-board, detail, search, relationship, and Session surfaces. Search accepts both qualified IDs and
-local-number aliases, while legacy snapshots retain path-based fallbacks. `pnpm verify` passes.
+Closed on 2026-10-25. Plan nodes project their filename-derived key and owning source. The shared
+title treatment renders collision-safe IDs (`ATL-…`, `BOK-…`, and `ONT-…`) across map, board,
+detail, search, relationship, and Session surfaces. Full detail uses the same qualified heading,
+child navigation now mirrors the lightweight parent treatment, and global search layers above an
+open detail modal and replaces it directly on selection. Search accepts qualified IDs and local
+number aliases, while legacy snapshots retain path-based fallbacks. `pnpm verify` passes.

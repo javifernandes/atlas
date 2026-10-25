@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  ArrowDown,
   ArrowRight,
   ArrowUp,
   BookOpen,
@@ -3870,21 +3871,16 @@ const FullMarkdownModal = ({
         {childNodes.length > 0 ? (
           <nav
             aria-label='Child nodes'
-            className='relative shrink-0 bg-gradient-to-t from-card via-card/95 to-transparent px-5 pb-4 pt-4 sm:px-8'
+            className='relative shrink-0 border-t border-border/70 bg-card/90 px-5 py-3 sm:px-8'
           >
-            <div className='mb-1.5 text-center font-mono text-[9px] uppercase tracking-wide text-muted-foreground/55'>
-              Children
-            </div>
             <div className='relative'>
-              <div className='pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-card to-transparent' />
-              <div className='pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-card to-transparent' />
-              <div className='scroll-smooth overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-                <div className='flex w-max min-w-full snap-x snap-mandatory justify-center gap-2 px-3'>
+              <div className='scroll-smooth overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+                <div className='flex w-max min-w-full snap-x snap-mandatory justify-center gap-1.5'>
                   {childNodes.map(child => (
                     <a
                       key={child.id}
                       aria-label={`Child node: ${child.shortTitle}`}
-                      className='group/child grid w-52 shrink-0 snap-start gap-1 rounded-lg bg-muted/25 px-3 py-2 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
+                      className='group/child inline-flex max-w-[min(20rem,70vw)] shrink-0 snap-start items-center gap-2 rounded-full px-3 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground focus-visible:bg-muted/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
                       href={getNodeHref(child.id)}
                       title={child.path ?? child.semanticId}
                       onClick={event => {
@@ -3902,19 +3898,11 @@ const FullMarkdownModal = ({
                         onOpenFull(child.id);
                       }}
                     >
-                      <span className='flex min-w-0 items-center gap-2 font-mono text-[9px] uppercase text-muted-foreground/65'>
-                        <span
-                          className={cn(
-                            'size-1.5 shrink-0 rounded-full',
-                            statusDotClassName(child.statusGroup),
-                          )}
-                        />
-                        <span className='truncate'>{child.kind}</span>
-                        <span className='ml-auto shrink-0 normal-case'>{getNodeStatusLabel(child)}</span>
+                      <ArrowDown className='size-3.5 shrink-0 transition-transform group-hover/child:translate-y-0.5' />
+                      <span className='shrink-0 font-mono text-[9px] uppercase text-muted-foreground/70'>
+                        Child
                       </span>
-                      <span className='truncate text-xs font-medium text-foreground transition-colors group-hover/child:text-primary'>
-                        <PlanTitle node={child} titleClassName='truncate' />
-                      </span>
+                      <PlanTitle node={child} titleClassName='truncate font-medium' />
                     </a>
                   ))}
                 </div>
@@ -5019,16 +5007,6 @@ export const PlanWorkstreamExplorer = ({
 
     boardNodeRefs.current.delete(nodeId);
   }, []);
-  const scrollBoardNodeIntoView = useCallback((nodeId: string) => {
-    globalThis.requestAnimationFrame(() => {
-      boardNodeRefs.current.get(nodeId)?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'center',
-      });
-    });
-  }, []);
-
   const clearEdgeHoverHideTimeout = () => {
     if (edgeHoverHideTimeoutRef.current === null) {
       return;
@@ -5078,28 +5056,7 @@ export const PlanWorkstreamExplorer = ({
   const selectSearchMatch = (node: PlanWorkstreamNode) => {
     setQuery('');
     setSearchOpen(false);
-
-    if (atlasView === 'board' && node.kind === 'plan') {
-      if (boardProjectNodeIds && !boardProjectNodeIds.has(node.id)) {
-        setSelectedBoardProjectId('');
-      }
-
-      setSelectedNodeId(node.id);
-      setDetailOpen(false);
-      setFullNodeId(null);
-      setFullNodeHistoryIds([]);
-      setHoveredNodeId(null);
-      writeAtlasRouteState({
-        fullNodeId: null,
-        fullNodeTab: defaultFullMarkdownModalTab,
-        selectedNodeId: node.id,
-      });
-      scrollBoardNodeIntoView(node.id);
-      return;
-    }
-
-    setAtlasView('map');
-    selectNode(node.id, { focus: true });
+    openFullNode(node.id);
   };
 
   const toggleExpandedNode = (nodeId: string) => {
@@ -5630,7 +5587,7 @@ export const PlanWorkstreamExplorer = ({
 
       {searchOpen ? (
         <div
-          className='pointer-events-auto absolute inset-0 z-[80] flex items-start justify-center bg-background/80 px-4 pt-[min(14vh,120px)] backdrop-blur-md'
+          className='pointer-events-auto absolute inset-0 z-[100] flex items-start justify-center bg-background/80 px-4 pt-[min(14vh,120px)] backdrop-blur-md'
           onMouseDown={event => {
             if (event.target !== event.currentTarget) {
               return;
