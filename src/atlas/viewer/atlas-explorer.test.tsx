@@ -715,6 +715,38 @@ describe('PlanWorkstreamExplorer', () => {
     );
   });
 
+  it('ranks an exact item title ahead of incidental source-path matches', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
+    const ontahiModel = createNode('ontahi-model', {
+      kind: 'model',
+      markdown: '# Ontahi Model',
+      semanticId: 'ontahi://atlas/model',
+      shortTitle: 'Ontahi Model',
+    });
+    const incidentalMatch = createNode('incidental-model-match', {
+      kind: 'concept',
+      markdown: '# Implementation Surface',
+      semanticId: 'atlas://atlas/ontahi-model/implementation-surface',
+      shortTitle: 'Implementation Surface',
+    });
+
+    renderExplorer({
+      value: { ...snapshot, nodes: [...snapshot.nodes, incidentalMatch, ontahiModel] },
+    });
+    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
+    await user.type(
+      within(searchDialog).getByRole('combobox', { name: 'Search atlas' }),
+      'ontahi model',
+    );
+
+    const results = within(searchDialog).getAllByRole('option');
+    expect(results[0]).toHaveAttribute('data-node-id', ontahiModel.id);
+    expect(results[0]).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('renders explicit merged PR evidence as an attachment outside evolution stages', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();

@@ -763,6 +763,8 @@ const getSearchText = (node: PlanWorkstreamNode) =>
       node.codename,
       node.territory,
       node.workstream,
+      node.summary,
+      ...node.sections,
       ...(node.exemplars ?? []),
       ...getPlanSearchTokens(node),
     ]
@@ -771,19 +773,23 @@ const getSearchText = (node: PlanWorkstreamNode) =>
   );
 
 const getSearchMatchRank = (node: PlanWorkstreamNode, query: string) => {
-  if (node.kind !== 'plan') {
-    return 1;
+  const title = normalizeSearchValue(node.shortTitle || node.title).trim();
+  const fullTitle = normalizeSearchValue(node.title).trim();
+  const terms = query.split(/\s+/).filter(Boolean);
+  const titleTerms = new Set(title.split(/\s+/).filter(Boolean));
+
+  if (title === query || fullTitle === query) return 0;
+
+  if (node.kind === 'plan' && getPlanNumber(node) && getPlanSearchTokens(node).includes(query)) {
+    return 0;
   }
 
-  const planNumber = getPlanNumber(node);
+  if (title.startsWith(query) || fullTitle.startsWith(query)) return 1;
+  if (title.includes(query) || fullTitle.includes(query)) return 2;
+  if (terms.every(term => titleTerms.has(term))) return 3;
+  if (terms.every(term => title.includes(term) || fullTitle.includes(term))) return 4;
 
-  if (!planNumber) {
-    return 1;
-  }
-
-  const exactPlanQueries = getPlanSearchTokens(node);
-
-  return exactPlanQueries.includes(query) ? 0 : 1;
+  return 5;
 };
 
 type HierarchyIndex = {
@@ -933,7 +939,13 @@ const getSearchMatches = (nodes: PlanWorkstreamNode[], query: string) => {
       text: getSearchText(node),
     }))
     .filter(match => match.node.kind !== 'root' && terms.every(term => match.text.includes(term)))
-    .sort((left, right) => left.rank - right.rank || left.index - right.index)
+    .sort(
+      (left, right) =>
+        left.rank - right.rank ||
+        left.node.shortTitle.length - right.node.shortTitle.length ||
+        left.node.shortTitle.localeCompare(right.node.shortTitle) ||
+        left.index - right.index,
+    )
     .map(match => match.node)
     .slice(0, searchMatchLimit);
 };

@@ -67,3 +67,6 @@ form, while child navigation exercises horizontal start/end forms.
 The hint's dimming is localized behind its badge rather than spanning the viewport. Keyboard result
 navigation clamps at list boundaries, clears pointer-hover styling while active, and scrolls only
 the exact distance needed to reveal the adjacent result.
+Search ranking treats exact titles, title prefixes, title phrases, and title-token matches as
+progressively stronger than incidental metadata or URI matches, preventing structural source paths
+from burying the item a person named explicitly.
