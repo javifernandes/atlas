@@ -3,6 +3,51 @@ import { describe, expect, it } from 'vitest';
 import { buildPlanWorkstreamSnapshotFromFiles } from './build-snapshot';
 
 describe('plan workstream data', () => {
+  it('materializes conservative exact-title mentions in the semantic snapshot', () => {
+    const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
+      {
+        path: 'atlas/items/planning-projection.md',
+        content: `---
+id: atlas.planning-projection
+kind: experience
+title: Planning Projection
+status: shaping
+---
+
+Planning Projection uses Execution Stream as personal memory.
+
+## Execution Stream
+
+An existing [Execution Stream](./execution-stream.md) and \`Execution Stream\` stay explicit.
+`,
+      },
+      {
+        path: 'atlas/items/execution-stream.md',
+        content: `---
+id: atlas.execution-stream
+kind: entity
+title: Execution Stream
+status: shaping
+---
+
+An execution interval.
+`,
+      },
+    ]);
+
+    expect(
+      snapshot.nodes.find(node => node.semanticId === 'atlas.planning-projection')
+        ?.inferredMentions,
+    ).toEqual([
+      {
+        confidence: 1,
+        inference: 'exact-title',
+        matchedText: 'Execution Stream',
+        targetNodeId: 'atlas:atlas.execution-stream',
+      },
+    ]);
+  });
+
   it('builds plan, related, and unmaterialized candidate relationships from markdown', () => {
     const snapshot = buildPlanWorkstreamSnapshotFromFiles([
       {

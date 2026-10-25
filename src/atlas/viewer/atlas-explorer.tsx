@@ -177,9 +177,11 @@ type CodeRenderState = {
 };
 
 type MarkdownRenderContext = {
+  nodesById: Map<string, PlanWorkstreamNode>;
   nodesByPath: Map<string, PlanWorkstreamNode>;
   nodesBySemanticId: Map<string, PlanWorkstreamNode>;
   onOpenFull: (nodeId: string) => void;
+  renderedInferredTargetIds?: Set<string>;
   sourceNode: PlanWorkstreamNode;
 };
 
@@ -2759,7 +2761,64 @@ const getInternalLinkLabel = (label: string, node: PlanWorkstreamNode) =>
         .trim()
     : label;
 
-const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
+const escapeRegularExpression = (value: string) =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const renderInferredMentions = (
+  text: string,
+  context: MarkdownRenderContext,
+  keyPrefix: string,
+) => {
+  const mentions = context.sourceNode.inferredMentions ?? [];
+  if (mentions.length === 0) return [text];
+
+  const targetsByText = new Map(
+    mentions
+      .filter(mention => !context.renderedInferredTargetIds?.has(mention.targetNodeId))
+      .map(mention => [mention.matchedText.toLocaleLowerCase(), mention.targetNodeId]),
+  );
+  const terms = [...targetsByText.keys()].sort((left, right) => right.length - left.length);
+  if (terms.length === 0) return [text];
+  const pattern = new RegExp(
+    `(^|[^\\p{L}\\p{N}])(${terms.map(escapeRegularExpression).join('|')})(?=$|[^\\p{L}\\p{N}])`,
+    'giu',
+  );
+  const rendered: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(pattern)) {
+    const prefix = match[1] ?? '';
+    const label = match[2] ?? '';
+    const start = (match.index ?? 0) + prefix.length;
+    const targetId = targetsByText.get(label.toLocaleLowerCase());
+    const target = targetId ? context.nodesById.get(targetId) : null;
+
+    if (!target || context.renderedInferredTargetIds?.has(target.id)) continue;
+    context.renderedInferredTargetIds?.add(target.id);
+    if (start > lastIndex) rendered.push(text.slice(lastIndex, start));
+    rendered.push(
+      <button
+        key={`${keyPrefix}-${start}-${target.id}`}
+        type='button'
+        className='cursor-pointer text-sky-300/90 underline decoration-dotted decoration-sky-300/45 underline-offset-4 transition-colors hover:text-sky-200 hover:decoration-sky-200'
+        title={`Inferred reference · ${target.shortTitle}`}
+        onClick={() => context.onOpenFull(target.id)}
+      >
+        {label}
+      </button>,
+    );
+    lastIndex = start + label.length;
+  }
+
+  if (lastIndex < text.length) rendered.push(text.slice(lastIndex));
+  return rendered.length > 0 ? rendered : [text];
+};
+
+const renderMarkdownInline = (
+  text: string,
+  context: MarkdownRenderContext,
+  allowInferred = true,
+) => {
   const nodes: ReactNode[] = [];
   const pattern =
     /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|(\*\*|__)([\s\S]+?)\6/g;
@@ -2769,7 +2828,12 @@ const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
     const index = match.index ?? 0;
 
     if (index > lastIndex) {
-      nodes.push(text.slice(lastIndex, index));
+      const plainText = text.slice(lastIndex, index);
+      nodes.push(
+        ...(allowInferred
+          ? renderInferredMentions(plainText, context, `mention-${lastIndex}`)
+          : [plainText]),
+      );
     }
 
     if (match[1]) {
@@ -2871,7 +2935,12 @@ const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
   }
 
   if (lastIndex < text.length) {
-    nodes.push(text.slice(lastIndex));
+    const plainText = text.slice(lastIndex);
+    nodes.push(
+      ...(allowInferred
+        ? renderInferredMentions(plainText, context, `mention-${lastIndex}`)
+        : [plainText]),
+    );
   }
 
   return nodes;
@@ -2885,9 +2954,15 @@ const ShapeContentSummary = ({
   className?: string;
   context: MarkdownRenderContext;
   text: string;
-}) => (
-  <p className={cn('text-muted-foreground', className)}>{renderMarkdownInline(text, context)}</p>
-);
+}) => {
+  const renderContext = { ...context, renderedInferredTargetIds: new Set<string>() };
+
+  return (
+    <p className={cn('text-muted-foreground', className)}>
+      {renderMarkdownInline(text, renderContext)}
+    </p>
+  );
+};
 
 const isListLine = (line: string) => /^\s*[-*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line);
 
@@ -3011,6 +3086,7 @@ const isMarkdownTableStart = (lines: string[], index: number) =>
   isMarkdownTableRow(lines[index] ?? '') && isMarkdownTableSeparator(lines[index + 1] ?? '');
 
 const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
+  context = { ...context, renderedInferredTargetIds: new Set<string>() };
   const lines = body.trim().split('\n');
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -3062,7 +3138,7 @@ const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
             level === 2 ? 'mt-7 text-lg' : 'mt-5 text-sm',
           )}
         >
-          {renderMarkdownInline(content, context)}
+          {renderMarkdownInline(content, context, false)}
         </HeadingTag>,
       );
       index += 1;
@@ -3534,12 +3610,13 @@ const FullMarkdownModal = ({
   const parsedDocument = useMemo(() => parseMarkdownDocument(node), [node]);
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
+      nodesById,
       nodesByPath,
       nodesBySemanticId,
       onOpenFull,
       sourceNode: node,
     }),
-    [node, nodesByPath, nodesBySemanticId, onOpenFull],
+    [node, nodesById, nodesByPath, nodesBySemanticId, onOpenFull],
   );
   const futureSignals = semanticSignals.filter(
     signal => signal.kind === 'future' || signal.kind === 'question',
@@ -4031,12 +4108,13 @@ const SelectionPanel = ({
   const { hierarchy, relations } = mergeDrawerRelations(node.id, incoming, outgoing);
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
+      nodesById,
       nodesByPath,
       nodesBySemanticId,
       onOpenFull,
       sourceNode: node,
     }),
-    [node, nodesByPath, nodesBySemanticId, onOpenFull],
+    [node, nodesById, nodesByPath, nodesBySemanticId, onOpenFull],
   );
   const futureSignals = semanticSignals.filter(
     signal => signal.kind === 'future' || signal.kind === 'question',
@@ -5116,13 +5194,14 @@ export const PlanWorkstreamExplorer = ({
     () =>
       boardSourceNode
         ? {
+            nodesById,
             nodesByPath,
             nodesBySemanticId,
             onOpenFull: openFullNode,
             sourceNode: boardSourceNode,
           }
         : null,
-    [boardSourceNode, nodesByPath, nodesBySemanticId, openFullNode],
+    [boardSourceNode, nodesById, nodesByPath, nodesBySemanticId, openFullNode],
   );
   const registerBoardNode = useCallback((nodeId: string, element: HTMLElement | null) => {
     if (element) {

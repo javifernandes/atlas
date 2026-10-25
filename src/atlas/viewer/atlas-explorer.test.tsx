@@ -305,6 +305,46 @@ describe('PlanWorkstreamExplorer', () => {
     expect(within(dialog).queryByText('125a. Resource Governance')).not.toBeInTheDocument();
   });
 
+  it('renders snapshot-inferred item mentions as navigable wiki links', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const user = userEvent.setup();
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-a'
+          ? {
+              ...node,
+              inferredMentions: [
+                {
+                  confidence: 1,
+                  inference: 'exact-title' as const,
+                  matchedText: 'Item C',
+                  targetNodeId: 'item-c',
+                },
+              ],
+              markdown: 'Item C provides the runtime boundary. Item C remains referenced later.',
+            }
+          : node,
+      ),
+    };
+
+    renderExplorer({ value });
+
+    const inferredLink = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Item C',
+    });
+    expect(inferredLink).toHaveAttribute('title', 'Inferred reference · Item C');
+    expect(
+      within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Item C' }),
+    ).toHaveLength(1);
+
+    await user.click(inferredLink);
+
+    expect(
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'Item C' }),
+    ).toBeInTheDocument();
+  });
+
   it('shows every project membership in full detail when Atlas has multiple projects', () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-b');
     const ontahiProject = createNode('ontahi-project', {

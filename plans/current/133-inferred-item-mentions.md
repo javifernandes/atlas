@@ -1,6 +1,6 @@
 # 133. Inferred Item Mentions
 
-Status: next
+Status: current
 
 Definition level: shaped
 
@@ -64,9 +64,10 @@ Signal hierarchy:
 
 ## Execution Slices
 
-- [ ] Define alias metadata, ambiguity rules, and the derived mention snapshot contract.
-- [ ] Extract mentions from Markdown syntax nodes during snapshot construction.
-- [ ] Render inferred links without disturbing explicit links or code-oriented content.
+- [x] Define the first exact-title ambiguity rules and derived mention snapshot contract; explicit
+      alias metadata remains a follow-up slice.
+- [x] Extract conservative exact-title mentions during snapshot construction.
+- [x] Render inferred links without disturbing explicit links, headings, or code-oriented content.
 - [ ] Add inferred backlinks and use mentions as a low-weight search signal.
 - [ ] Verify overlap, ambiguity, self-reference, punctuation, and section-level deduplication.
 - [ ] Dogfood against Atlas-owned content and record false positives before expanding inference.
@@ -86,4 +87,12 @@ Signal hierarchy:
 2. What minimum specificity should allow a one-word title to participate automatically?
 3. Should inferred backlinks appear in Context, a dedicated Mentions section, or only on demand?
 4. Which confidence threshold should later LLM-proposed semantic paraphrases require before display?
+
+## Checkpoint — 2026-10-25
+
+The first vertical slice stores unambiguous exact-title mentions on each projected source node and
+renders those facts as dotted, navigable wiki links. Extraction ignores frontmatter, headings,
+fenced and inline code, explicit Markdown links, and explicit wiki links; it rejects self-links,
+ambiguous titles, and short single-word vocabulary. Aliases, backlinks, section-level occurrence
+coordinates, and search weighting remain open slices.
 

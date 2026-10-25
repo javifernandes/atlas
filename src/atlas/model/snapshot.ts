@@ -63,6 +63,14 @@ export type PlanWorkstreamNode = {
   exemplars?: string[];
   relatedCount: number;
   candidateCount: number;
+  inferredMentions?: PlanWorkstreamMention[];
+};
+
+export type PlanWorkstreamMention = {
+  confidence: number;
+  inference: 'exact-title';
+  matchedText: string;
+  targetNodeId: string;
 };
 
 export type PlanWorkstreamEdge = {
