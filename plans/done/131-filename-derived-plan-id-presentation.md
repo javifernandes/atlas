@@ -60,3 +60,7 @@ instead of a repeated relation label, and global search layers above an
 open detail modal and replaces it directly on selection. Search exposes item types at the right
 edge of each result and supports active-result navigation with arrow keys and Enter. It accepts qualified IDs and local
 number aliases, while legacy snapshots retain path-based fallbacks. `pnpm verify` passes.
+
+Scrollable item panels now share a subtle overflow affordance that dims the obscured edge and shows
+the number of remaining items with a directional arrow. The search results exercise the vertical
+form, while child navigation exercises horizontal start/end forms.

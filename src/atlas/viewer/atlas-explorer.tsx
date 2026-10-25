@@ -38,6 +38,7 @@ import {
 
 import { AtlasMark } from '@/components/atlas-mark';
 import { MermaidDiagram } from '@/components/mermaid-diagram';
+import { ScrollableOverflow } from '@/components/scrollable-overflow';
 import { useTheme } from '@/components/theme-provider';
 import type { AtlasExecutionStreamProjection } from '@/atlas/model/execution-stream';
 import type {
@@ -3873,9 +3874,11 @@ const FullMarkdownModal = ({
             aria-label='Child nodes'
             className='relative shrink-0 border-t border-border/70 bg-card/90 px-5 py-3 sm:px-8'
           >
-            <div className='relative'>
-              <div className='scroll-smooth overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-                <div className='flex w-max min-w-full snap-x snap-mandatory justify-center gap-1.5'>
+            <ScrollableOverflow
+              axis='horizontal'
+              viewportClassName='scroll-smooth overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+              contentClassName='flex w-max min-w-full snap-x snap-mandatory justify-center gap-1.5'
+            >
                   {childNodes.map(child => (
                     <a
                       key={child.id}
@@ -3905,9 +3908,7 @@ const FullMarkdownModal = ({
                       <PlanTitle node={child} titleClassName='truncate font-medium' />
                     </a>
                   ))}
-                </div>
-              </div>
-            </div>
+            </ScrollableOverflow>
           </nav>
         ) : null}
       </div>
@@ -5673,11 +5674,15 @@ export const PlanWorkstreamExplorer = ({
             </div>
 
             {query.trim() ? (
-              <div
-                id='atlas-search-results'
-                role='listbox'
-                aria-label='Atlas search results'
-                className='mt-2 max-h-[min(60vh,560px)] overflow-y-auto rounded-lg p-1'
+              <ScrollableOverflow
+                axis='vertical'
+                className='mt-2'
+                viewportClassName='max-h-[min(60vh,560px)] overflow-y-auto rounded-lg p-1'
+                viewportProps={{
+                  id: 'atlas-search-results',
+                  role: 'listbox',
+                  'aria-label': 'Atlas search results',
+                }}
               >
                 {searchMatches.length > 0 ? (
                   searchMatches.map((node, resultIndex) => {
@@ -5739,7 +5744,7 @@ export const PlanWorkstreamExplorer = ({
                 ) : (
                   <div className='px-3 py-3 text-sm text-muted-foreground'>No matches</div>
                 )}
-              </div>
+              </ScrollableOverflow>
             ) : (
               <div className='px-3 py-5 text-center text-xs text-muted-foreground'>
                 Search by title, type, status, or source URI
