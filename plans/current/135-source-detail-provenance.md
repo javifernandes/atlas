@@ -21,9 +21,11 @@ for the browser to build an exact source-control link.
 - Remove `parent` from the metadata view because parent navigation already owns that relationship.
 - Humanize camelCase and compact metadata names such as `RelatedPlans` and `TypeOf`.
 - Show the source file and observed revision, with the filename linking to GitHub.
+- Let readers copy the repository-relative source path for direct IDE navigation.
 - Preserve list metadata below the scalar summary without adding card borders.
 - Refine the full-detail reading rail so its current viewport remains legible across themes and
-  follows scrolling without discrete jumps.
+  follows scrolling without discrete jumps, while staying absent when the content does not
+  overflow.
 - Let the Atlas loading mark carry its own restrained, organic progress motion instead of adding a
   separate generic activity indicator.
 
@@ -78,3 +80,7 @@ Theme selection now runs in the document head before first paint, using the stor
 the system preference, so a dark session no longer flashes the light loading surface. Loader motion
 uses CSS-driven SVG stroke progress without scaling or deforming the Atlas mark, keeping its
 geometry stable throughout the short splash interval.
+
+The reading-position rail now renders only for genuinely overflowing detail content, removing the
+inactive track from short tabs. Source provenance also exposes a quiet copy action beside the
+repository link so the displayed source path can be pasted directly into an IDE.

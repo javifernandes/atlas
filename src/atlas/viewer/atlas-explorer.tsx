@@ -8,6 +8,7 @@ import {
   BookOpen,
   Check,
   Columns3,
+  Copy,
   Crosshair,
   ExternalLink,
   GitBranch,
@@ -3618,7 +3619,12 @@ const FullMarkdownModal = ({
   contentStatus: NodeContentState['status'];
 }) => {
   const [permalinkCopied, setPermalinkCopied] = useState(false);
-  const [contentScroll, setContentScroll] = useState({ progress: 0, visibleRatio: 1 });
+  const [sourceFileCopied, setSourceFileCopied] = useState(false);
+  const [contentScroll, setContentScroll] = useState({
+    isScrollable: false,
+    progress: 0,
+    visibleRatio: 1,
+  });
   const contentScrollRef = useRef<HTMLDivElement>(null);
   const parsedDocument = useMemo(() => parseMarkdownDocument(node), [node]);
   const sourceMetadata = useMemo(() => {
@@ -3639,6 +3645,7 @@ const FullMarkdownModal = ({
     };
   }, [parsedDocument.metadata]);
   const sourceHref = sourceFileHref(node);
+  const sourceFilePath = node.sourcePath ?? node.sourceFilePath ?? node.path;
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
       nodesById,
@@ -3717,6 +3724,7 @@ const FullMarkdownModal = ({
 
   useEffect(() => {
     setPermalinkCopied(false);
+    setSourceFileCopied(false);
   }, [activeTab, node.id]);
 
   useLayoutEffect(() => {
@@ -3754,6 +3762,7 @@ const FullMarkdownModal = ({
       }
 
       setContentScroll({
+        isScrollable: scrollable > 1,
         progress: displayedProgress,
         visibleRatio,
       });
@@ -4106,9 +4115,30 @@ const FullMarkdownModal = ({
                     </a>
                   ) : (
                     <span className='min-w-0 break-all font-mono text-sm text-foreground'>
-                      {node.sourcePath ?? node.sourceFilePath ?? node.path ?? 'Unknown source'}
+                      {sourceFilePath ?? 'Unknown source'}
                     </span>
                   )}
+                  {sourceFilePath ? (
+                    <button
+                      type='button'
+                      aria-label={
+                        sourceFileCopied ? 'Source file path copied' : 'Copy source file path'
+                      }
+                      className='inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/65 transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
+                      title={sourceFileCopied ? 'Copied' : 'Copy source file path'}
+                      onClick={() => {
+                        void globalThis.navigator.clipboard.writeText(sourceFilePath).then(() => {
+                          setSourceFileCopied(true);
+                        });
+                      }}
+                    >
+                      {sourceFileCopied ? (
+                        <Check aria-hidden='true' className='size-3.5' />
+                      ) : (
+                        <Copy aria-hidden='true' className='size-3.5' />
+                      )}
+                    </button>
+                  ) : null}
                   {node.sourceRepository ? (
                     <span className='font-mono text-xs text-muted-foreground/65'>
                       {node.sourceRepository}
@@ -4201,24 +4231,26 @@ const FullMarkdownModal = ({
           ) : null}
           </div>
 
-          <div
-            aria-controls='full-detail-content-scroll'
-            aria-label='Detail reading position'
-            aria-valuemax={100}
-            aria-valuemin={0}
-            aria-valuenow={Math.round(contentScroll.progress * 100)}
-            className='pointer-events-none absolute bottom-6 right-6 top-6 w-px bg-muted-foreground/15'
-            role='scrollbar'
-          >
-            <span
-              aria-hidden='true'
-              className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-[rgb(140,140,140)] shadow-[0_0_5px_rgb(140_140_140/0.12)] transition-[height] duration-200 motion-reduce:transition-none'
-              style={{
-                height: `${Math.max(8, contentScroll.visibleRatio * 100)}%`,
-                top: `${contentScroll.progress * Math.max(0, 100 - Math.max(8, contentScroll.visibleRatio * 100))}%`,
-              }}
-            />
-          </div>
+          {contentScroll.isScrollable ? (
+            <div
+              aria-controls='full-detail-content-scroll'
+              aria-label='Detail reading position'
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={Math.round(contentScroll.progress * 100)}
+              className='pointer-events-none absolute bottom-6 right-6 top-6 w-px bg-muted-foreground/15'
+              role='scrollbar'
+            >
+              <span
+                aria-hidden='true'
+                className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-[rgb(140,140,140)] shadow-[0_0_5px_rgb(140_140_140/0.12)] transition-[height] duration-200 motion-reduce:transition-none'
+                style={{
+                  height: `${Math.max(8, contentScroll.visibleRatio * 100)}%`,
+                  top: `${contentScroll.progress * Math.max(0, 100 - Math.max(8, contentScroll.visibleRatio * 100))}%`,
+                }}
+              />
+            </div>
+          ) : null}
         </div>
 
         {childNodes.length > 0 ? (

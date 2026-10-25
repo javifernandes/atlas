@@ -145,13 +145,22 @@ describe('PlanWorkstreamExplorer', () => {
 
     let dialog = screen.getByRole('dialog');
     const detailTitle = within(dialog).getByRole('heading', { name: 'Item A' });
-    const readingPosition = within(dialog).getByRole('scrollbar', {
-      name: 'Detail reading position',
-    });
     const contentViewport = dialog.querySelector('#full-detail-content-scroll');
 
-    expect(readingPosition).toHaveAttribute('aria-valuenow', '0');
+    expect(contentViewport).not.toBeNull();
+    if (!contentViewport) throw new Error('Expected the detail content viewport.');
+    expect(
+      within(dialog).queryByRole('scrollbar', { name: 'Detail reading position' }),
+    ).not.toBeInTheDocument();
     expect(contentViewport).toHaveClass('[scrollbar-width:none]');
+    Object.defineProperties(contentViewport, {
+      clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, value: 800 },
+    });
+    fireEvent.scroll(contentViewport);
+    expect(
+      within(dialog).getByRole('scrollbar', { name: 'Detail reading position' }),
+    ).toHaveAttribute('aria-valuenow', '0');
     const titleRow = detailTitle.parentElement;
 
     expect(titleRow).not.toBeNull();
@@ -228,6 +237,33 @@ describe('PlanWorkstreamExplorer', () => {
       'http://localhost:3000/internal/plans?node=item-a&full=item-a&section=context',
     );
     expect(screen.getByRole('button', { name: 'Permalink copied' })).toBeInTheDocument();
+  });
+
+  it('copies the source file path from the Source section', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a&section=source');
+    const user = userEvent.setup();
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-a'
+          ? {
+              ...node,
+              sourcePath: 'atlas/items/spec-workstream-atlas/item-a.md',
+              sourceRepository: 'javifernandes/atlas',
+              sourceRevision: 'abc123',
+              sourceRevisionKind: 'git',
+            }
+          : node,
+      ),
+    };
+
+    renderExplorer({ value });
+    await user.click(screen.getByRole('button', { name: 'Copy source file path' }));
+
+    expect(await globalThis.navigator.clipboard.readText()).toBe(
+      'atlas/items/spec-workstream-atlas/item-a.md',
+    );
+    expect(screen.getByRole('button', { name: 'Source file path copied' })).toBeInTheDocument();
   });
 
   it('offers full detail for a source-backed node with an Atlas loading state', async () => {
