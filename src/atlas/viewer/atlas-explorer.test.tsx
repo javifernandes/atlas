@@ -697,6 +697,17 @@ describe('PlanWorkstreamExplorer', () => {
     expect(screen.getByRole('button', { name: 'Map Plan' })).toHaveClass('border-dashed');
   });
 
+  it('opens full detail when a Map tree node is double-clicked', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+
+    renderExplorer();
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'Item A' }));
+
+    expect(
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'Item A' }),
+    ).toBeInTheDocument();
+  });
+
   it('shows direct and total descendant counts on collapsed branches', () => {
     globalThis.history.replaceState({}, '', '/internal/plans');
     const value: PlanWorkstreamSnapshot = {
