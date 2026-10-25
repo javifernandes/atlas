@@ -22,6 +22,10 @@ for the browser to build an exact source-control link.
 - Humanize camelCase and compact metadata names such as `RelatedPlans` and `TypeOf`.
 - Show the source file and observed revision, with the filename linking to GitHub.
 - Preserve list metadata below the scalar summary without adding card borders.
+- Refine the full-detail reading rail so its current viewport remains legible across themes and
+  follows scrolling without discrete jumps.
+- Let the Atlas loading mark carry its own restrained, organic progress motion instead of adding a
+  separate generic activity indicator.
 
 ## Non-Goals
 
@@ -62,3 +66,8 @@ repository, path, revision, and revision kind. The source filename links to the 
 repository at the exact git revision when available and to `main` for a local content revision.
 `sourceCommit` supplied by the document remains the displayed semantic commit and is not duplicated
 by local projection provenance.
+
+The visual follow-up uses a fixed mid-gray viewport marker for reliable light/dark contrast and
+interpolates its progress with animation frames. The central Atlas loading mark now breathes and
+extends its three graph branches in sequence, with the previous three-dot spinner removed and
+reduced-motion behavior preserved.

@@ -11,6 +11,12 @@ html.dark .shiki span {
   color: var(--shiki-dark) !important;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .atlas-loading-mark animate {
+    display: none;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

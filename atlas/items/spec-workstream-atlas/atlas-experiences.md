@@ -19,6 +19,10 @@ Full detail keeps semantic content and its source provenance on one continuous r
 The Source view exposes the authoritative repository file and observed revision without repeating
 hierarchy already expressed by detail navigation.
 
+Atlas uses motion to communicate living structure rather than generic waiting: reading-position
+feedback follows the viewport continuously, while loading animates the graph mark itself with
+restrained, reduced-motion-safe expansion.
+
 Long-form full-detail reading should preserve native scrolling input while using quiet Atlas-owned
 position feedback instead of visually dominant platform scrollbar chrome. The indicator should
 communicate both viewport scale and current position without becoming another panel boundary.

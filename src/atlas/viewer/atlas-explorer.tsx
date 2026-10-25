@@ -3724,28 +3724,58 @@ const FullMarkdownModal = ({
     if (!viewport) return;
 
     viewport.scrollTop = 0;
-    const update = () => {
-      const scrollable = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-      setContentScroll({
-        progress: scrollable > 0 ? viewport.scrollTop / scrollable : 0,
-        visibleRatio:
-          viewport.scrollHeight > 0
-            ? Math.min(1, viewport.clientHeight / viewport.scrollHeight)
-            : 1,
-      });
-    };
-    const resizeObserver =
-      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    let displayedProgress = 0;
+    let targetProgress = 0;
+    let animationFrame: number | null = null;
+    const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
-    update();
-    viewport.addEventListener('scroll', update, { passive: true });
-    resizeObserver?.observe(viewport);
+    const animateProgress = () => {
+      const distance = targetProgress - displayedProgress;
+      displayedProgress =
+        Math.abs(distance) < 0.0005 ? targetProgress : displayedProgress + distance * 0.18;
+      setContentScroll(current => ({ ...current, progress: displayedProgress }));
+
+      if (displayedProgress !== targetProgress) {
+        animationFrame = globalThis.requestAnimationFrame(animateProgress);
+      } else {
+        animationFrame = null;
+      }
+    };
+    const update = (immediate = false) => {
+      const scrollable = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      targetProgress = scrollable > 0 ? viewport.scrollTop / scrollable : 0;
+      const visibleRatio =
+        viewport.scrollHeight > 0
+          ? Math.min(1, viewport.clientHeight / viewport.scrollHeight)
+          : 1;
+
+      if (immediate) {
+        displayedProgress = targetProgress;
+      }
+
+      setContentScroll({
+        progress: displayedProgress,
+        visibleRatio,
+      });
+
+      if (!immediate && animationFrame === null) {
+        animationFrame = globalThis.requestAnimationFrame(animateProgress);
+      }
+    };
+    update(true);
+    const handleScroll = () => update(reduceMotion);
+    const handleResize = () => update(true);
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+    const smoothResizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(handleResize);
+    smoothResizeObserver?.observe(viewport);
     const content = viewport.firstElementChild;
-    if (content) resizeObserver?.observe(content);
+    if (content) smoothResizeObserver?.observe(content);
 
     return () => {
-      viewport.removeEventListener('scroll', update);
-      resizeObserver?.disconnect();
+      viewport.removeEventListener('scroll', handleScroll);
+      smoothResizeObserver?.disconnect();
+      if (animationFrame !== null) globalThis.cancelAnimationFrame(animationFrame);
     };
   }, [activeTab, contentStatus, node.id]);
 
@@ -4182,7 +4212,7 @@ const FullMarkdownModal = ({
           >
             <span
               aria-hidden='true'
-              className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-foreground/72 shadow-[0_0_5px_hsl(var(--foreground)/0.08)] transition-[top,height] duration-150 motion-reduce:transition-none'
+              className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-[rgb(140,140,140)] shadow-[0_0_5px_rgb(140_140_140/0.12)] transition-[height] duration-200 motion-reduce:transition-none'
               style={{
                 height: `${Math.max(8, contentScroll.visibleRatio * 100)}%`,
                 top: `${contentScroll.progress * Math.max(0, 100 - Math.max(8, contentScroll.visibleRatio * 100))}%`,
