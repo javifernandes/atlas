@@ -8,6 +8,7 @@ import {
   BookOpen,
   Check,
   Columns3,
+  Copy,
   Crosshair,
   ExternalLink,
   GitBranch,
@@ -2170,13 +2171,69 @@ const GlobalAtlasBoard = ({
 
 const metadataLabel = (key: string) =>
   key
+    .replaceAll(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replaceAll('_', ' ')
     .replaceAll('-', ' ')
     .replaceAll(/\s+/g, ' ')
     .trim()
     .replaceAll(/\b[a-z]/g, match => match.toUpperCase());
 
-const metadataSectionLabel = (node: PlanWorkstreamNode) =>
-  node.kind === 'plan' ? 'Plan shape' : 'Atlas metadata';
+const normalizeMetadataKey = (key: string) => key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase();
+
+const sourceFileHref = (node: PlanWorkstreamNode) => {
+  if (!node.sourceRepository || !node.sourcePath) return null;
+  const revision = node.sourceRevisionKind === 'git' ? node.sourceRevision : 'main';
+
+  return `https://github.com/${node.sourceRepository}/blob/${encodeURIComponent(revision || 'main')}/${node.sourcePath
+    .split('/')
+    .map(part => encodeURIComponent(part))
+    .join('/')}`;
+};
+
+const resolveSourceMetadataNode = (
+  value: string,
+  nodesByPath: Map<string, PlanWorkstreamNode>,
+  nodesBySemanticId: Map<string, PlanWorkstreamNode>,
+) => {
+  const reference = value.trim().replace(/^['"]|['"]$/g, '');
+
+  return (
+    nodesByPath.get(reference) ??
+    nodesBySemanticId.get(reference) ??
+    (reference.startsWith('atlas:')
+      ? nodesBySemanticId.get(reference.slice('atlas:'.length))
+      : undefined) ??
+    null
+  );
+};
+
+const SourceMetadataValue = ({
+  nodesByPath,
+  nodesBySemanticId,
+  onOpenFull,
+  value,
+}: {
+  nodesByPath: Map<string, PlanWorkstreamNode>;
+  nodesBySemanticId: Map<string, PlanWorkstreamNode>;
+  onOpenFull: (nodeId: string) => void;
+  value: string;
+}) => {
+  const target = resolveSourceMetadataNode(value, nodesByPath, nodesBySemanticId);
+
+  return target ? (
+    <button
+      type='button'
+      className='inline-flex max-w-full items-baseline gap-2 text-left text-foreground/80 transition-colors hover:text-sky-300 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
+      title={value}
+      onClick={() => onOpenFull(target.id)}
+    >
+      <PlanIdBadge className='text-[0.68em]' node={target} variant='text' />
+      <span className='min-w-0 break-words'>{target.shortTitle}</span>
+    </button>
+  ) : (
+    <span className='min-w-0 break-words'>{value || 'None'}</span>
+  );
+};
 
 const parseMarkdownMetadataLines = (lines: string[]) => {
   const metadata = new Map<string, string | string[]>();
@@ -2690,7 +2747,7 @@ const HighlightedCodeBlock = ({ code, language }: { code: string; language?: str
 
     const renderHighlightedCode = async () => {
       try {
-        const { codeToHtml } = await import('shiki');
+        const { codeToHtml } = await import('shiki/bundle/web');
         const html = await codeToHtml(code, {
           defaultColor: false,
           lang: mappedLanguage as Parameters<typeof codeToHtml>[1]['lang'],
@@ -3607,9 +3664,33 @@ const FullMarkdownModal = ({
   contentStatus: NodeContentState['status'];
 }) => {
   const [permalinkCopied, setPermalinkCopied] = useState(false);
-  const [contentScroll, setContentScroll] = useState({ progress: 0, visibleRatio: 1 });
+  const [sourceFileCopied, setSourceFileCopied] = useState(false);
+  const [contentScroll, setContentScroll] = useState({
+    isScrollable: false,
+    progress: 0,
+    visibleRatio: 1,
+  });
   const contentScrollRef = useRef<HTMLDivElement>(null);
   const parsedDocument = useMemo(() => parseMarkdownDocument(node), [node]);
+  const sourceMetadata = useMemo(() => {
+    const visible = parsedDocument.metadata.filter(
+      item => normalizeMetadataKey(item.key) !== 'parent',
+    );
+    const primaryOrder = ['title', 'id', 'kind', 'status', 'horizon', 'typeof', 'sourcecommit'];
+    const primary = primaryOrder.flatMap(key => {
+      const item = visible.find(candidate => normalizeMetadataKey(candidate.key) === key);
+
+      return item ? [item] : [];
+    });
+    const primaryKeys = new Set(primary.map(item => item.key));
+
+    return {
+      primary,
+      remaining: visible.filter(item => !primaryKeys.has(item.key)),
+    };
+  }, [parsedDocument.metadata]);
+  const sourceHref = sourceFileHref(node);
+  const sourceFilePath = node.sourcePath ?? node.sourceFilePath ?? node.path;
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
       nodesById,
@@ -3688,6 +3769,7 @@ const FullMarkdownModal = ({
 
   useEffect(() => {
     setPermalinkCopied(false);
+    setSourceFileCopied(false);
   }, [activeTab, node.id]);
 
   useLayoutEffect(() => {
@@ -3695,28 +3777,59 @@ const FullMarkdownModal = ({
     if (!viewport) return;
 
     viewport.scrollTop = 0;
-    const update = () => {
-      const scrollable = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-      setContentScroll({
-        progress: scrollable > 0 ? viewport.scrollTop / scrollable : 0,
-        visibleRatio:
-          viewport.scrollHeight > 0
-            ? Math.min(1, viewport.clientHeight / viewport.scrollHeight)
-            : 1,
-      });
-    };
-    const resizeObserver =
-      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    let displayedProgress = 0;
+    let targetProgress = 0;
+    let animationFrame: number | null = null;
+    const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
-    update();
-    viewport.addEventListener('scroll', update, { passive: true });
-    resizeObserver?.observe(viewport);
+    const animateProgress = () => {
+      const distance = targetProgress - displayedProgress;
+      displayedProgress =
+        Math.abs(distance) < 0.0005 ? targetProgress : displayedProgress + distance * 0.18;
+      setContentScroll(current => ({ ...current, progress: displayedProgress }));
+
+      if (displayedProgress !== targetProgress) {
+        animationFrame = globalThis.requestAnimationFrame(animateProgress);
+      } else {
+        animationFrame = null;
+      }
+    };
+    const update = (immediate = false) => {
+      const scrollable = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      targetProgress = scrollable > 0 ? viewport.scrollTop / scrollable : 0;
+      const visibleRatio =
+        viewport.scrollHeight > 0
+          ? Math.min(1, viewport.clientHeight / viewport.scrollHeight)
+          : 1;
+
+      if (immediate) {
+        displayedProgress = targetProgress;
+      }
+
+      setContentScroll({
+        isScrollable: scrollable > 1,
+        progress: displayedProgress,
+        visibleRatio,
+      });
+
+      if (!immediate && animationFrame === null) {
+        animationFrame = globalThis.requestAnimationFrame(animateProgress);
+      }
+    };
+    update(true);
+    const handleScroll = () => update(reduceMotion);
+    const handleResize = () => update(true);
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+    const smoothResizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(handleResize);
+    smoothResizeObserver?.observe(viewport);
     const content = viewport.firstElementChild;
-    if (content) resizeObserver?.observe(content);
+    if (content) smoothResizeObserver?.observe(content);
 
     return () => {
-      viewport.removeEventListener('scroll', update);
-      resizeObserver?.disconnect();
+      viewport.removeEventListener('scroll', handleScroll);
+      smoothResizeObserver?.disconnect();
+      if (animationFrame !== null) globalThis.cancelAnimationFrame(animationFrame);
     };
   }, [activeTab, contentStatus, node.id]);
 
@@ -3743,38 +3856,7 @@ const FullMarkdownModal = ({
         className='absolute left-1/2 top-1/2 flex h-[min(88vh,920px)] w-[min(1180px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-border/80 bg-card/95 shadow-2xl'
         onClick={event => event.stopPropagation()}
       >
-        <header className='relative border-b border-border/70 px-5 pb-4 pt-3'>
-          {parentNode ? (
-            <nav aria-label='Parent node' className='flex min-h-7 justify-center px-20'>
-              <a
-                aria-label={`Parent node: ${parentNode.shortTitle}`}
-                className='group/parent inline-flex max-w-[min(20rem,50vw)] items-center gap-2 rounded-full px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
-                href={getNodeHref(parentNode.id)}
-                title={parentNode.path ?? parentNode.semanticId}
-                onClick={event => {
-                  if (
-                    event.button !== 0 ||
-                    event.metaKey ||
-                    event.ctrlKey ||
-                    event.shiftKey ||
-                    event.altKey
-                  ) {
-                    return;
-                  }
-
-                  event.preventDefault();
-                  onOpenFull(parentNode.id);
-                }}
-              >
-                <ArrowUp className='size-3.5 shrink-0 transition-transform group-hover/parent:-translate-y-0.5' />
-                <span className='font-mono text-[9px] uppercase text-muted-foreground/70'>
-                  Parent
-                </span>
-                <PlanTitle node={parentNode} titleClassName='truncate font-medium' />
-              </a>
-            </nav>
-          ) : null}
-
+        <header className='relative border-b border-border/70 px-5 pb-3 pt-3'>
           <div className='absolute right-5 top-3 flex items-center gap-2'>
             {navigationBackNode && navigationBackNode.id !== parentNode?.id ? (
               <IconButton
@@ -3801,8 +3883,8 @@ const FullMarkdownModal = ({
             </IconButton>
           </div>
 
-          <div className={cn('min-w-0', parentNode && 'mt-1')}>
-            <div className='flex flex-wrap items-center gap-2'>
+          <div className='grid min-h-8 grid-cols-[minmax(0,1fr)_auto_minmax(6rem,1fr)] items-center gap-3 pr-24'>
+            <div className='flex min-w-0 flex-wrap items-center gap-2'>
               <span className={cn('size-2 rounded-full', statusDotClassName(node.statusGroup))} />
               <span className='font-mono text-xs uppercase text-muted-foreground'>{node.kind}</span>
               <span className='font-mono text-xs text-muted-foreground'>{node.status}</span>
@@ -3820,42 +3902,76 @@ const FullMarkdownModal = ({
                 </span>
               ))}
             </div>
-            <div className='mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2'>
-              <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
-                <PlanTitle node={node} titleClassName='truncate' />
-              </h2>
-              <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
-                {fullMarkdownModalTabs.map(tab => (
-                  <a
-                    key={tab}
-                    aria-current={activeTab === tab ? 'page' : undefined}
-                    className={cn(
-                      'rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors',
-                      activeTab === tab
-                        ? 'bg-primary/12 text-foreground'
-                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                    )}
-                    href={getTabHref(tab)}
-                    onClick={event => {
-                      if (
-                        event.button !== 0 ||
-                        event.metaKey ||
-                        event.ctrlKey ||
-                        event.shiftKey ||
-                        event.altKey
-                      ) {
-                        return;
-                      }
 
-                      event.preventDefault();
-                      onActiveTabChange(tab);
-                    }}
-                  >
-                    {tab}
-                  </a>
-                ))}
+            {parentNode ? (
+              <nav aria-label='Parent node' className='flex min-w-0 justify-center'>
+                <a
+                  aria-label={`Parent node: ${parentNode.shortTitle}`}
+                  className='group/parent inline-flex max-w-[min(20rem,36vw)] items-center gap-2 rounded-full px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
+                  href={getNodeHref(parentNode.id)}
+                  title={parentNode.path ?? parentNode.semanticId}
+                  onClick={event => {
+                    if (
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    ) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    onOpenFull(parentNode.id);
+                  }}
+                >
+                  <ArrowUp className='size-3.5 shrink-0 transition-transform group-hover/parent:-translate-y-0.5' />
+                  <span className='font-mono text-[9px] uppercase text-muted-foreground/70'>
+                    Parent
+                  </span>
+                  <PlanTitle node={parentNode} titleClassName='truncate font-medium' />
+                </a>
               </nav>
-            </div>
+            ) : (
+              <span />
+            )}
+          </div>
+
+          <div className='mt-1 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1'>
+            <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
+              <PlanTitle node={node} titleClassName='truncate' />
+            </h2>
+            <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
+              {fullMarkdownModalTabs.map(tab => (
+                <a
+                  key={tab}
+                  aria-current={activeTab === tab ? 'page' : undefined}
+                  className={cn(
+                    'rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors',
+                    activeTab === tab
+                      ? 'bg-primary/12 text-foreground'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                  )}
+                  href={getTabHref(tab)}
+                  onClick={event => {
+                    if (
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    ) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    onActiveTabChange(tab);
+                  }}
+                >
+                  {tab}
+                </a>
+              ))}
+            </nav>
           </div>
         </header>
 
@@ -4029,65 +4145,187 @@ const FullMarkdownModal = ({
           ) : null}
 
           {activeTab === 'source' ? (
-            parsedDocument.metadata.length > 0 ? (
-              <section className='rounded-md border border-border/70 bg-background/35 p-4'>
-                <h3 className='font-mono text-xs uppercase text-muted-foreground'>
-                  {metadataSectionLabel(node)}
-                </h3>
-                <dl className='mt-3 grid gap-3 sm:grid-cols-2'>
-                  {parsedDocument.metadata.map(item => (
-                    <div key={item.key} className='min-w-0'>
-                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/70'>
+            <section className='mx-auto grid w-full max-w-6xl gap-8 px-1 py-1 sm:px-2'>
+              <div className='grid gap-2 border-b border-border/55 pb-6'>
+                <span className='font-mono text-[10px] uppercase text-muted-foreground/65'>
+                  Source file
+                </span>
+                <div className='flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1'>
+                  {sourceHref ? (
+                    <a
+                      className='group inline-flex min-w-0 items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-sky-300'
+                      href={sourceHref}
+                      rel='noreferrer'
+                      target='_blank'
+                    >
+                      <span className='min-w-0 break-all font-mono'>{node.sourcePath}</span>
+                      <ExternalLink className='size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-sky-300' />
+                    </a>
+                  ) : (
+                    <span className='min-w-0 break-all font-mono text-sm text-foreground'>
+                      {sourceFilePath ?? 'Unknown source'}
+                    </span>
+                  )}
+                  {sourceFilePath ? (
+                    <button
+                      type='button'
+                      aria-label={
+                        sourceFileCopied ? 'Source file path copied' : 'Copy source file path'
+                      }
+                      className='inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/65 transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
+                      title={sourceFileCopied ? 'Copied' : 'Copy source file path'}
+                      onClick={() => {
+                        void globalThis.navigator.clipboard.writeText(sourceFilePath).then(() => {
+                          setSourceFileCopied(true);
+                        });
+                      }}
+                    >
+                      {sourceFileCopied ? (
+                        <Check aria-hidden='true' className='size-3.5' />
+                      ) : (
+                        <Copy aria-hidden='true' className='size-3.5' />
+                      )}
+                    </button>
+                  ) : null}
+                  {node.sourceRepository ? (
+                    <span className='font-mono text-xs text-muted-foreground/65'>
+                      {node.sourceRepository}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              {sourceMetadata.primary.length > 0 || node.sourceRevision ? (
+                <dl className='grid gap-x-8 gap-y-6 sm:grid-cols-2 xl:grid-cols-12'>
+                  {sourceMetadata.primary.map(item => (
+                    <div
+                      key={item.key}
+                      className={cn(
+                        'min-w-0',
+                        normalizeMetadataKey(item.key) === 'title' && 'xl:col-span-4',
+                        normalizeMetadataKey(item.key) === 'id' && 'xl:col-span-5',
+                        !['title', 'id'].includes(normalizeMetadataKey(item.key)) &&
+                          'xl:col-span-3',
+                      )}
+                    >
+                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/65'>
                         {item.label}
                       </dt>
-                      <dd className='mt-1 flex min-w-0 flex-wrap gap-1.5 text-sm text-foreground'>
+                      <dd className='mt-1.5 min-w-0 break-words text-sm text-foreground/85'>
+                        {Array.isArray(item.value) ? (
+                          item.value.length > 0 ? (
+                            <span className='flex flex-wrap gap-x-4 gap-y-2'>
+                              {item.value.map((value, valueIndex) => (
+                                <SourceMetadataValue
+                                  key={`${item.key}-${value}-${valueIndex}`}
+                                  nodesByPath={nodesByPath}
+                                  nodesBySemanticId={nodesBySemanticId}
+                                  onOpenFull={onOpenFull}
+                                  value={value}
+                                />
+                              ))}
+                            </span>
+                          ) : (
+                            'None'
+                          )
+                        ) : (
+                          <SourceMetadataValue
+                            nodesByPath={nodesByPath}
+                            nodesBySemanticId={nodesBySemanticId}
+                            onOpenFull={onOpenFull}
+                            value={item.value}
+                          />
+                        )}
+                      </dd>
+                    </div>
+                  ))}
+                  {node.sourceRevision &&
+                  !sourceMetadata.primary.some(
+                    item => normalizeMetadataKey(item.key) === 'sourcecommit',
+                  ) ? (
+                    <div className='min-w-0 xl:col-span-3'>
+                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/65'>
+                        Source Commit
+                      </dt>
+                      <dd
+                        className='mt-1.5 truncate font-mono text-sm text-foreground/85'
+                        title={node.sourceRevision}
+                      >
+                        {node.sourceRevisionKind === 'git'
+                          ? node.sourceRevision.slice(0, 12)
+                          : 'local workspace'}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : null}
+
+              {sourceMetadata.remaining.length > 0 ? (
+                <dl className='divide-y divide-border/45 border-y border-border/45'>
+                  {sourceMetadata.remaining.map(item => (
+                    <div
+                      key={item.key}
+                      className='grid min-w-0 gap-2 py-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6'
+                    >
+                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/65'>
+                        {item.label}
+                      </dt>
+                      <dd className='flex min-w-0 flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground'>
                         {Array.isArray(item.value) ? (
                           item.value.length > 0 ? (
                             item.value.map((value, valueIndex) => (
-                              <span
+                              <SourceMetadataValue
                                 key={`${item.key}-${value}-${valueIndex}`}
-                                className='max-w-full truncate rounded border border-border/70 bg-card/70 px-2 py-0.5 text-xs text-muted-foreground'
-                              >
-                                {value}
-                              </span>
+                                nodesByPath={nodesByPath}
+                                nodesBySemanticId={nodesBySemanticId}
+                                onOpenFull={onOpenFull}
+                                value={value}
+                              />
                             ))
                           ) : (
-                            <span className='text-muted-foreground'>None</span>
+                            <span>None</span>
                           )
                         ) : (
-                          <span className='min-w-0 break-words text-muted-foreground'>
-                            {item.value || 'None'}
-                          </span>
+                          <SourceMetadataValue
+                            nodesByPath={nodesByPath}
+                            nodesBySemanticId={nodesBySemanticId}
+                            onOpenFull={onOpenFull}
+                            value={item.value}
+                          />
                         )}
                       </dd>
                     </div>
                   ))}
                 </dl>
-              </section>
-            ) : (
-              <p className='text-sm text-muted-foreground'>No source metadata.</p>
-            )
+              ) : null}
+
+              {parsedDocument.metadata.length === 0 && !node.sourcePath ? (
+                <p className='text-sm text-muted-foreground'>No source metadata.</p>
+              ) : null}
+            </section>
           ) : null}
           </div>
 
-          <div
-            aria-controls='full-detail-content-scroll'
-            aria-label='Detail reading position'
-            aria-valuemax={100}
-            aria-valuemin={0}
-            aria-valuenow={Math.round(contentScroll.progress * 100)}
-            className='pointer-events-none absolute bottom-6 right-6 top-6 w-px bg-muted-foreground/15'
-            role='scrollbar'
-          >
-            <span
-              aria-hidden='true'
-              className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-foreground/72 shadow-[0_0_5px_hsl(var(--foreground)/0.08)] transition-[top,height] duration-150 motion-reduce:transition-none'
-              style={{
-                height: `${Math.max(8, contentScroll.visibleRatio * 100)}%`,
-                top: `${contentScroll.progress * Math.max(0, 100 - Math.max(8, contentScroll.visibleRatio * 100))}%`,
-              }}
-            />
-          </div>
+          {contentScroll.isScrollable ? (
+            <div
+              aria-controls='full-detail-content-scroll'
+              aria-label='Detail reading position'
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={Math.round(contentScroll.progress * 100)}
+              className='pointer-events-none absolute bottom-6 right-6 top-6 w-px bg-muted-foreground/15'
+              role='scrollbar'
+            >
+              <span
+                aria-hidden='true'
+                className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-[rgb(140,140,140)] shadow-[0_0_5px_rgb(140_140_140/0.12)] transition-[height] duration-200 motion-reduce:transition-none'
+                style={{
+                  height: `${Math.max(8, contentScroll.visibleRatio * 100)}%`,
+                  top: `${contentScroll.progress * Math.max(0, 100 - Math.max(8, contentScroll.visibleRatio * 100))}%`,
+                }}
+              />
+            </div>
+          ) : null}
         </div>
 
         {childNodes.length > 0 ? (

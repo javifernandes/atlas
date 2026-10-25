@@ -11,6 +11,214 @@ html.dark .shiki span {
   color: var(--shiki-dark) !important;
 }
 
+@keyframes atlas-loading-cycle {
+  0%,
+  84% {
+    opacity: 1;
+  }
+  92%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes atlas-loading-draw-core {
+  0% {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+  15%,
+  92% {
+    stroke-dashoffset: 0;
+  }
+  93%,
+  100% {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes atlas-loading-draw-top-link {
+  0%,
+  14% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+  15% {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+  25%,
+  92% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  93%,
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes atlas-loading-draw-top-node {
+  0%,
+  23% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+  24% {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+  34%,
+  92% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  93%,
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes atlas-loading-draw-left-link {
+  0%,
+  33% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+  34% {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+  44%,
+  92% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  93%,
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes atlas-loading-draw-left-node {
+  0%,
+  42% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+  43% {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+  53%,
+  92% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  93%,
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes atlas-loading-draw-curve-link {
+  0%,
+  52% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+  53% {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+  65%,
+  92% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  93%,
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes atlas-loading-draw-curve-node {
+  0%,
+  63% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+  64% {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+  74%,
+  92% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  93%,
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+}
+
+.atlas-loading-mark {
+  animation: atlas-loading-cycle 5.6s ease-in-out infinite;
+  will-change: opacity;
+}
+
+.atlas-loading-stroke {
+  opacity: 0;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  will-change: stroke-dashoffset;
+}
+
+.atlas-loading-core {
+  animation: atlas-loading-draw-core 5.6s ease-out infinite;
+}
+
+.atlas-loading-link-top {
+  animation: atlas-loading-draw-top-link 5.6s ease-out infinite;
+}
+
+.atlas-loading-node-top {
+  animation: atlas-loading-draw-top-node 5.6s ease-out infinite;
+}
+
+.atlas-loading-link-left {
+  animation: atlas-loading-draw-left-link 5.6s ease-out infinite;
+}
+
+.atlas-loading-node-left {
+  animation: atlas-loading-draw-left-node 5.6s ease-out infinite;
+}
+
+.atlas-loading-link-curve {
+  animation: atlas-loading-draw-curve-link 5.6s ease-out infinite;
+}
+
+.atlas-loading-node-curve {
+  animation: atlas-loading-draw-curve-node 5.6s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-loading-mark,
+  .atlas-loading-stroke {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

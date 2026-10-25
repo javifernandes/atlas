@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -145,13 +145,22 @@ describe('PlanWorkstreamExplorer', () => {
 
     let dialog = screen.getByRole('dialog');
     const detailTitle = within(dialog).getByRole('heading', { name: 'Item A' });
-    const readingPosition = within(dialog).getByRole('scrollbar', {
-      name: 'Detail reading position',
-    });
     const contentViewport = dialog.querySelector('#full-detail-content-scroll');
 
-    expect(readingPosition).toHaveAttribute('aria-valuenow', '0');
+    expect(contentViewport).not.toBeNull();
+    if (!contentViewport) throw new Error('Expected the detail content viewport.');
+    expect(
+      within(dialog).queryByRole('scrollbar', { name: 'Detail reading position' }),
+    ).not.toBeInTheDocument();
     expect(contentViewport).toHaveClass('[scrollbar-width:none]');
+    Object.defineProperties(contentViewport, {
+      clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, value: 800 },
+    });
+    fireEvent.scroll(contentViewport);
+    expect(
+      within(dialog).getByRole('scrollbar', { name: 'Detail reading position' }),
+    ).toHaveAttribute('aria-valuenow', '0');
     const titleRow = detailTitle.parentElement;
 
     expect(titleRow).not.toBeNull();
@@ -228,6 +237,106 @@ describe('PlanWorkstreamExplorer', () => {
       'http://localhost:3000/internal/plans?node=item-a&full=item-a&section=context',
     );
     expect(screen.getByRole('button', { name: 'Permalink copied' })).toBeInTheDocument();
+  });
+
+  it('copies the source file path from the Source section', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a&section=source');
+    const user = userEvent.setup();
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-a'
+          ? {
+              ...node,
+              sourcePath: 'atlas/items/spec-workstream-atlas/item-a.md',
+              sourceRepository: 'javifernandes/atlas',
+              sourceRevision: 'abc123',
+              sourceRevisionKind: 'git',
+            }
+          : node,
+      ),
+    };
+
+    renderExplorer({ value });
+    await user.click(screen.getByRole('button', { name: 'Copy source file path' }));
+
+    expect(await globalThis.navigator.clipboard.readText()).toBe(
+      'atlas/items/spec-workstream-atlas/item-a.md',
+    );
+    expect(screen.getByRole('button', { name: 'Source file path copied' })).toBeInTheDocument();
+  });
+
+  it('renders resolved source relationships as human-readable navigation', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a&section=source');
+    const user = userEvent.setup();
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node => {
+        if (node.id === 'item-a') {
+          return {
+            ...node,
+            markdown: `---
+Supports:
+  - item-c
+RelatedPlans:
+  - ontahi://plans/118-selection-language-editor
+---
+Item A overview text.`,
+          };
+        }
+
+        if (node.id === 'item-b') {
+          return {
+            ...node,
+            path: 'ontahi://plans/118-selection-language-editor',
+            sourceId: 'ontahi',
+          };
+        }
+
+        return node;
+      }),
+    };
+
+    renderExplorer({ value });
+    const dialog = screen.getByRole('dialog');
+
+    expect(within(dialog).getByRole('button', { name: 'Item C' })).toHaveAttribute(
+      'title',
+      'item-c',
+    );
+    expect(within(dialog).getByRole('button', { name: /Item B/ })).toHaveTextContent('ONT-118');
+    expect(
+      within(dialog).queryByText('ontahi://plans/118-selection-language-editor'),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Item C' }));
+    expect(
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'Item C' }),
+    ).toBeInTheDocument();
+  });
+
+  it('syntax-highlights TypeScript code blocks with theme-aware tokens', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-a'
+          ? {
+              ...node,
+              markdown: `\`\`\`ts
+const selection: Selection = Selection.references(Book, refs);
+\`\`\``,
+            }
+          : node,
+      ),
+    };
+
+    const { container } = renderExplorer({ value });
+
+    expect(screen.getByText('TS')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(container.querySelectorAll('.shiki span[style*="--shiki-dark"]')).not.toHaveLength(0);
+    });
   });
 
   it('offers full detail for a source-backed node with an Atlas loading state', async () => {

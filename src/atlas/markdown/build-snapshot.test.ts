@@ -3,6 +3,37 @@ import { describe, expect, it } from 'vitest';
 import { buildPlanWorkstreamSnapshotFromFiles } from './build-snapshot';
 
 describe('plan workstream data', () => {
+  it('projects repository provenance onto source-backed nodes', () => {
+    const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
+      {
+        path: 'atlas/items/domain-operation.md',
+        source: 'ontahi',
+        sourceRepository: 'javifernandes/ontahi',
+        sourceRevision: '0123456789abcdef',
+        sourceRevisionKind: 'git',
+        content: `---
+id: ontahi.model.domain-operation
+kind: concept
+title: Domain Operation
+status: active
+---
+
+Domain behavior.
+`,
+      },
+    ]);
+
+    expect(snapshot.nodes.find(node => node.semanticId === 'ontahi.model.domain-operation')).toEqual(
+      expect.objectContaining({
+        sourceId: 'ontahi',
+        sourcePath: 'atlas/items/domain-operation.md',
+        sourceRepository: 'javifernandes/ontahi',
+        sourceRevision: '0123456789abcdef',
+        sourceRevisionKind: 'git',
+      }),
+    );
+  });
+
   it('materializes conservative exact-title mentions in the semantic snapshot', () => {
     const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
       {
