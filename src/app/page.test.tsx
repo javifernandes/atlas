@@ -10,7 +10,9 @@ vi.mock('@/atlas/server/get-atlas-page-data', () => ({
   getAtlasPageData: getAtlasPageDataMock,
 }));
 vi.mock('@/components/atlas-explorer-client', () => ({
-  AtlasExplorerClient: () => <div>Atlas workspace</div>,
+  AtlasExplorerClient: ({ isAuthenticated }: { isAuthenticated: boolean }) => (
+    <div data-authenticated={String(isAuthenticated)}>Atlas workspace</div>
+  ),
 }));
 vi.mock('@/components/auth/auth-control', () => ({
   AuthControl: ({ variant }: { variant?: string }) => (
@@ -67,6 +69,7 @@ describe('Atlas page access wall', () => {
     render(await AtlasPage({}));
 
     expect(screen.getByText('Atlas workspace')).toBeInTheDocument();
+    expect(screen.getByText('Atlas workspace')).toHaveAttribute('data-authenticated', 'true');
     expect(screen.queryByRole('heading', { name: 'Enter Atlas' })).not.toBeInTheDocument();
     expect(getAtlasPageDataMock).toHaveBeenCalledWith(viewer.id, undefined);
   });
@@ -84,6 +87,7 @@ describe('Atlas page access wall', () => {
     render(await AtlasPage({}));
 
     expect(screen.getByText('Atlas workspace')).toBeInTheDocument();
+    expect(screen.getByText('Atlas workspace')).toHaveAttribute('data-authenticated', 'false');
     expect(getAtlasPageDataMock).toHaveBeenCalledWith(undefined, undefined);
   });
 });

@@ -60,6 +60,7 @@ import { cn } from '@/lib/classes';
 
 type PlanWorkstreamExplorerProps = {
   executionStreams?: AtlasExecutionStreamProjection[];
+  isAuthenticated?: boolean;
   snapshot: PlanWorkstreamSnapshot;
 };
 
@@ -1948,8 +1949,8 @@ const GlobalBoardNodeCard = ({
       ref={element => registerNode(node.id, element)}
       data-board-node-id={node.id}
       className={cn(
-        'grid gap-2 rounded-md border border-border/70 bg-background/55 px-3 py-3 text-left shadow-sm transition-[background-color,border-color,box-shadow] hover:border-primary/45 hover:bg-muted/35',
-        selected && 'border-primary/70 bg-primary/10 shadow-[0_0_0_2px_hsl(var(--primary)/0.18)]',
+        'grid gap-2 px-3 py-3 text-left transition-[background-color,box-shadow] hover:bg-muted/35',
+        selected && 'bg-primary/10 shadow-[inset_2px_0_0_hsl(var(--primary)/0.7)]',
       )}
     >
       <div className='flex min-w-0 items-center gap-2'>
@@ -2005,17 +2006,22 @@ const GlobalBoardNodeList = ({
   snapshotEdges: PlanWorkstreamEdge[];
 }) =>
   nodes.length === 0 ? null : (
-    <div className='grid gap-2'>
+    <div
+      className='overflow-hidden rounded-md border border-border/70 bg-background/40 divide-y divide-border/55'
+      data-board-node-list
+      role='list'
+    >
       {nodes.map(node => (
-        <GlobalBoardNodeCard
-          key={node.id}
-          breadcrumb={getNodeBreadcrumb(node.id, snapshotEdges, nodesById)}
-          markdownContext={markdownContext}
-          node={node}
-          onOpenFull={onOpenFull}
-          registerNode={registerNode}
-          selected={node.id === selectedNodeId}
-        />
+        <div key={node.id} role='listitem'>
+          <GlobalBoardNodeCard
+            breadcrumb={getNodeBreadcrumb(node.id, snapshotEdges, nodesById)}
+            markdownContext={markdownContext}
+            node={node}
+            onOpenFull={onOpenFull}
+            registerNode={registerNode}
+            selected={node.id === selectedNodeId}
+          />
+        </div>
       ))}
     </div>
   );
@@ -4144,6 +4150,7 @@ const SelectionPanel = ({
 
 export const PlanWorkstreamExplorer = ({
   executionStreams = [],
+  isAuthenticated = false,
   snapshot,
 }: PlanWorkstreamExplorerProps) => {
   const { theme, toggleTheme } = useTheme();
@@ -5228,7 +5235,8 @@ export const PlanWorkstreamExplorer = ({
 
     hasAppliedInitialRouteRef.current = true;
     const routeState = readAtlasRouteState();
-    setAtlasView(readAtlasView());
+    const requestedView = readAtlasView();
+    setAtlasView(requestedView === 'sessions' && !isAuthenticated ? 'map' : requestedView);
     const routeSelectedNodeId =
       routeState.selectedNodeId && canvasNodeIds.has(routeState.selectedNodeId)
         ? routeState.selectedNodeId
@@ -5251,12 +5259,13 @@ export const PlanWorkstreamExplorer = ({
         return next;
       });
     }
-  }, [canvasNodeIds, focusNode, nodesById, revealNodePath]);
+  }, [canvasNodeIds, focusNode, isAuthenticated, nodesById, revealNodePath]);
 
   useEffect(() => {
     const handlePopState = () => {
       const routeState = readAtlasRouteState();
-      setAtlasView(readAtlasView());
+      const requestedView = readAtlasView();
+      setAtlasView(requestedView === 'sessions' && !isAuthenticated ? 'map' : requestedView);
       const nextSelectedNodeId =
         routeState.selectedNodeId && canvasNodeIds.has(routeState.selectedNodeId)
           ? routeState.selectedNodeId
@@ -5294,7 +5303,7 @@ export const PlanWorkstreamExplorer = ({
     globalThis.addEventListener('popstate', handlePopState);
 
     return () => globalThis.removeEventListener('popstate', handlePopState);
-  }, [canvasNodeIds, focusNode, nodesById, revealNodePath]);
+  }, [canvasNodeIds, focusNode, isAuthenticated, nodesById, revealNodePath]);
 
   const setPinchGesture = () => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -5660,32 +5669,49 @@ export const PlanWorkstreamExplorer = ({
         ).map(item => {
           const Icon = item.icon;
           const active = atlasView === item.value;
+          const unavailable = item.value === 'sessions' && !isAuthenticated;
 
           return (
-            <button
-              key={item.value}
-              type='button'
-              className={cn(
-                'inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors max-sm:min-w-10 max-sm:px-2',
-                active
-                  ? 'bg-primary/12 text-foreground shadow-sm ring-1 ring-primary/45'
-                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-              )}
-              title={item.label}
-              onClick={() => {
-                setAtlasView(item.value);
-                if (typeof globalThis.window !== 'undefined') {
-                  const nextUrl = new URL(globalThis.location.href);
-                  if (item.value === 'map') nextUrl.searchParams.delete('view');
-                  else nextUrl.searchParams.set('view', item.value);
-                  if (item.value !== 'sessions') nextUrl.searchParams.delete('session');
-                  globalThis.history.replaceState({}, '', nextUrl);
-                }
-              }}
-            >
-              <Icon className='size-4' />
-              <span className='max-sm:sr-only'>{item.label}</span>
-            </button>
+            <span key={item.value} className='group/nav relative'>
+              <button
+                type='button'
+                aria-disabled={unavailable || undefined}
+                aria-describedby={unavailable ? 'sessions-auth-hint' : undefined}
+                className={cn(
+                  'inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors max-sm:min-w-10 max-sm:px-2',
+                  active
+                    ? 'bg-primary/12 text-foreground shadow-sm ring-1 ring-primary/45'
+                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                  unavailable &&
+                    'cursor-not-allowed opacity-45 hover:bg-transparent hover:text-muted-foreground',
+                )}
+                title={unavailable ? undefined : item.label}
+                onClick={() => {
+                  if (unavailable) return;
+
+                  setAtlasView(item.value);
+                  if (typeof globalThis.window !== 'undefined') {
+                    const nextUrl = new URL(globalThis.location.href);
+                    if (item.value === 'map') nextUrl.searchParams.delete('view');
+                    else nextUrl.searchParams.set('view', item.value);
+                    if (item.value !== 'sessions') nextUrl.searchParams.delete('session');
+                    globalThis.history.replaceState({}, '', nextUrl);
+                  }
+                }}
+              >
+                <Icon className='size-4' />
+                <span className='max-sm:sr-only'>{item.label}</span>
+              </button>
+              {unavailable ? (
+                <span
+                  id='sessions-auth-hint'
+                  role='tooltip'
+                  className='pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-max max-w-56 -translate-x-1/2 translate-y-1 rounded-md border border-border/70 bg-popover/95 px-2.5 py-1.5 text-center text-[11px] font-normal leading-4 text-muted-foreground opacity-0 shadow-lg backdrop-blur-md transition-[opacity,transform] group-hover/nav:translate-y-0 group-hover/nav:opacity-100 group-focus-within/nav:translate-y-0 group-focus-within/nav:opacity-100'
+                >
+                  Sign in with GitHub to view your Sessions
+                </span>
+              ) : null}
+            </span>
           );
         })}
       </div>

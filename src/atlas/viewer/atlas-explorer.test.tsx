@@ -124,13 +124,15 @@ const snapshot: PlanWorkstreamSnapshot = {
 };
 
 const renderExplorer = ({
+  isAuthenticated = true,
   value = snapshot,
 }: {
+  isAuthenticated?: boolean;
   value?: PlanWorkstreamSnapshot;
 } = {}) =>
   render(
     <ThemeProvider forcedTheme='dark'>
-      <PlanWorkstreamExplorer snapshot={value} />
+      <PlanWorkstreamExplorer isAuthenticated={isAuthenticated} snapshot={value} />
     </ThemeProvider>,
   );
 
@@ -499,6 +501,39 @@ describe('PlanWorkstreamExplorer', () => {
 
     expect(screen.getByRole('button', { name: 'Completed historical plan' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hide history' })).toBeInTheDocument();
+  });
+
+  it('presents plans as divided rows inside a shared board-column surface', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
+
+    renderExplorer();
+    await user.click(screen.getByRole('button', { name: 'Board' }));
+
+    const itemB = screen.getByRole('button', { name: 'Item B' });
+    const list = itemB.closest('[data-board-node-list]');
+    const row = itemB.closest('[data-board-node-id]');
+
+    expect(list).toHaveClass('divide-y', 'border', 'rounded-md');
+    expect(row).not.toHaveClass('border', 'rounded-md', 'shadow-sm');
+  });
+
+  it('keeps Sessions discoverable but unavailable without GitHub authentication', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?view=sessions');
+    const user = userEvent.setup();
+
+    renderExplorer({ isAuthenticated: false });
+
+    const sessions = screen.getByRole('button', { name: 'Sessions' });
+    expect(sessions).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('tooltip')).toHaveTextContent(
+      'Sign in with GitHub to view your Sessions',
+    );
+
+    await user.click(sessions);
+
+    expect(sessions).not.toHaveClass('bg-primary/12');
+    expect(screen.getByRole('button', { name: 'Map' })).toHaveClass('bg-primary/12');
   });
 
   it('keeps the board plan-only while filtering plans to one project', async () => {
