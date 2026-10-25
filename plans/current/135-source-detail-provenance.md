@@ -90,3 +90,7 @@ repository link so the displayed source path can be pasted directly into an IDE.
 Source relationship values now resolve through canonical paths and semantic IDs. Resolved values
 render as human-readable internal navigation, including the compact qualified code for Plans,
 while unresolved values remain visible as source text rather than being discarded.
+
+Browser code rendering now loads Shiki's web bundle explicitly, so recognized fenced languages
+such as TypeScript produce theme-aware token colors instead of silently remaining in the plain-text
+fallback.

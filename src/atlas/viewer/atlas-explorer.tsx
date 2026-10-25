@@ -2747,7 +2747,7 @@ const HighlightedCodeBlock = ({ code, language }: { code: string; language?: str
 
     const renderHighlightedCode = async () => {
       try {
-        const { codeToHtml } = await import('shiki');
+        const { codeToHtml } = await import('shiki/bundle/web');
         const html = await codeToHtml(code, {
           defaultColor: false,
           lang: mappedLanguage as Parameters<typeof codeToHtml>[1]['lang'],

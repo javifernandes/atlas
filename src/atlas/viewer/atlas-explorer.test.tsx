@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -313,6 +313,30 @@ Item A overview text.`,
     expect(
       within(screen.getByRole('dialog')).getByRole('heading', { name: 'Item C' }),
     ).toBeInTheDocument();
+  });
+
+  it('syntax-highlights TypeScript code blocks with theme-aware tokens', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-a'
+          ? {
+              ...node,
+              markdown: `\`\`\`ts
+const selection: Selection = Selection.references(Book, refs);
+\`\`\``,
+            }
+          : node,
+      ),
+    };
+
+    const { container } = renderExplorer({ value });
+
+    expect(screen.getByText('TS')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(container.querySelectorAll('.shiki span[style*="--shiki-dark"]')).not.toHaveLength(0);
+    });
   });
 
   it('offers full detail for a source-backed node with an Atlas loading state', async () => {
