@@ -73,3 +73,5 @@ from burying the item a person named explicitly.
 Full-detail source loading now uses a small centered Atlas mark with a faint breathing treatment,
 the target item identity, and reduced-motion fallbacks instead of a bare loading sentence. It
 intentionally avoids mechanical rings, orbit effects, or visually dominant progress chrome.
+Source-load failures use a similarly centered, low-contrast empty state with a small information
+icon and calm explanatory copy instead of aggressive destructive typography.

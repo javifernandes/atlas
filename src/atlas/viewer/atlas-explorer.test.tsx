@@ -242,6 +242,27 @@ describe('PlanWorkstreamExplorer', () => {
     fetchMock.mockRestore();
   });
 
+  it('shows source-load failures as a calm centered detail state', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-b');
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 500 }));
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-b' ? { ...node, markdown: undefined } : node,
+      ),
+    };
+
+    renderExplorer({ value });
+
+    const errorState = await screen.findByRole('alert', { name: 'Could not load Item B' });
+    expect(within(errorState).getByText('Source content is unavailable')).toBeInTheDocument();
+    expect(within(errorState).getByText('Item B')).toBeInTheDocument();
+    expect(within(errorState).queryByText(/could not be loaded/i)).not.toBeInTheDocument();
+    fetchMock.mockRestore();
+  });
+
   it('shows every project membership in full detail when Atlas has multiple projects', () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-b');
     const ontahiProject = createNode('ontahi-project', {

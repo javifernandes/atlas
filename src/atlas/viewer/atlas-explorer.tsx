@@ -3443,6 +3443,31 @@ const DetailContentLoading = ({ node }: { node: PlanWorkstreamNode }) => (
   </div>
 );
 
+const DetailContentError = ({ node }: { node: PlanWorkstreamNode }) => (
+  <div
+    role='alert'
+    aria-label={`Could not load ${node.shortTitle}`}
+    className='grid min-h-[min(48vh,420px)] place-items-center'
+  >
+    <div className='flex max-w-sm flex-col items-center gap-3 px-6 text-center'>
+      <span className='grid size-10 place-items-center rounded-full bg-muted/55 text-muted-foreground'>
+        <Info aria-hidden='true' className='size-4' />
+      </span>
+      <div className='grid gap-1.5'>
+        <span className='text-sm font-medium text-foreground/85'>Source content is unavailable</span>
+        <span className='text-xs leading-5 text-muted-foreground'>
+          Atlas couldn’t read this item’s source right now.
+        </span>
+        <PlanTitle
+          className='mt-1 justify-center text-xs text-muted-foreground/75'
+          node={node}
+          titleClassName='line-clamp-1'
+        />
+      </div>
+    </div>
+  </div>
+);
+
 const FullMarkdownModal = ({
   activeTab,
   edges,
@@ -3708,14 +3733,12 @@ const FullMarkdownModal = ({
         >
           {activeTab === 'overview' ? contentStatus === 'loading' ? (
             <DetailContentLoading node={node} />
+          ) : contentStatus === 'error' ? (
+            <DetailContentError node={node} />
           ) : (
             <div className='grid min-w-0 gap-6 px-1 sm:px-2 xl:grid-cols-[minmax(0,1fr)_12rem]'>
               <article className='grid min-w-0 max-w-full gap-5 overflow-hidden break-words xl:pr-2 [&>*]:min-w-0 [&>*]:max-w-full'>
-                {contentStatus === 'error' ? (
-                  <p className='text-sm text-destructive'>Source content could not be loaded.</p>
-                ) : (
-                  renderMarkdownBody(overviewBody, markdownContext)
-                )}
+                {renderMarkdownBody(overviewBody, markdownContext)}
               </article>
               {contentStatus === 'loaded' ? (
                 <MarkdownSectionIndex groups={markdownSectionGroups} />
