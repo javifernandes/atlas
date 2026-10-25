@@ -4076,12 +4076,12 @@ const FullMarkdownModal = ({
             aria-valuemax={100}
             aria-valuemin={0}
             aria-valuenow={Math.round(contentScroll.progress * 100)}
-            className='pointer-events-none absolute bottom-3 right-2 top-3 w-px bg-border/45'
+            className='pointer-events-none absolute bottom-4 right-4 top-4 w-px bg-muted-foreground/20'
             role='scrollbar'
           >
             <span
               aria-hidden='true'
-              className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-sky-300/75 shadow-[0_0_8px_hsl(var(--primary)/0.2)] transition-[top,height] duration-150 motion-reduce:transition-none'
+              className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-foreground/80 shadow-[0_0_7px_hsl(var(--foreground)/0.16)] transition-[top,height] duration-150 motion-reduce:transition-none'
               style={{
                 height: `${Math.max(8, contentScroll.visibleRatio * 100)}%`,
                 top: `${contentScroll.progress * Math.max(0, 100 - Math.max(8, contentScroll.visibleRatio * 100))}%`,
