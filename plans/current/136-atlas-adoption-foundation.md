@@ -354,3 +354,23 @@ propagation, and React graph usage compile and retain their existing tests.
 Atlas-owned Markdown files. The separate `pnpm test:postgres` gate passes all ten cases against a
 temporary PostgreSQL 18 container. Provider packages are now published upstream, but Atlas does not
 select a model provider or introduce LLM-facing behavior in this slice.
+
+### 2026-10-25 — `alpha.15` declaration and application API review
+
+The declaration review adopted Ontahí's unified `entity.ref(...)` surface for the remaining forward
+and cyclic Entity references. References used only as nominal relation targets no longer duplicate
+their complete Field maps, while references traversed by typed Atlas Queries retain the minimum
+Field contract those Queries require. Relations to Entities already declared now target the real
+declaration directly instead of an unnecessary semantic placeholder.
+
+The review deliberately did not mechanically replace persisted scalar foreign-key Fields with
+`field.ref(...)`. Doing that well requires a separately shaped storage migration because it changes
+the semantic value contract and inferred relation/mapping surface, even if the physical columns can
+ultimately remain stable. Likewise, `defineGraphReadPolicy`, model-backed Operations, mutation
+Reactions, and provider adapters solve future remote authorization, automation, and lifecycle
+problems; none removes Atlas's current server-owned projection reads without changing behavior.
+
+The remaining size of `atlas-application.ts` is therefore primarily an ownership/module-boundary
+problem, not obsolete Ontahí plumbing. Slice 3 should separate declarations, read projections, and
+application composition while preserving one `ontahi(...)` root. Focused application, runtime, and
+PostgreSQL mapping tests plus typechecking pass after the declaration cleanup.
