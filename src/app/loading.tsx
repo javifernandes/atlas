@@ -1,4 +1,4 @@
-import { AtlasMark } from '@/components/atlas-mark';
+import { AtlasLoadingMark } from '@/components/atlas-loading-mark';
 
 const Loading = () => (
   <main
@@ -17,7 +17,7 @@ const Loading = () => (
     />
 
     <div className='relative z-10 flex max-w-xl flex-col items-center text-center'>
-      <AtlasMark className='size-36 sm:size-48' priority />
+      <AtlasLoadingMark className='size-36 drop-shadow-[0_0_24px_hsl(var(--primary)/0.08)] sm:size-48' />
       <h1
         id='atlas-loading-title'
         className='mt-3 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl'
@@ -31,15 +31,6 @@ const Loading = () => (
         Shape systems. Navigate structure. Track evolution.
       </p>
 
-      <div aria-hidden='true' className='mt-8 flex items-center gap-2'>
-        {[0, 160, 320].map(delay => (
-          <span
-            key={delay}
-            className='size-1.5 animate-pulse rounded-full bg-primary'
-            style={{ animationDelay: `${delay}ms` }}
-          />
-        ))}
-      </div>
       <span className='sr-only'>Loading Atlas</span>
     </div>
   </main>

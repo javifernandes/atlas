@@ -51,7 +51,11 @@ const AtlasPage = async ({ searchParams }: AtlasPageProps) => {
 
   return (
     <>
-      <AtlasExplorerClient executionStreams={executionStreams} snapshot={snapshot} />
+      <AtlasExplorerClient
+        executionStreams={executionStreams}
+        isAuthenticated={access.viewer !== null}
+        snapshot={snapshot}
+      />
       <AuthControl
         authAvailable={access.authAvailable}
         className='fixed right-4 top-4 z-50'

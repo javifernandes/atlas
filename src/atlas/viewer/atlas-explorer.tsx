@@ -8,6 +8,7 @@ import {
   BookOpen,
   Check,
   Columns3,
+  Copy,
   Crosshair,
   ExternalLink,
   GitBranch,
@@ -50,11 +51,17 @@ import type {
   PlanWorkstreamSnapshot,
 } from '@/atlas/model/snapshot';
 import { ExecutionStreamView } from '@/atlas/viewer/execution-stream-view';
-import { getPlanDisplayId, getPlanDisplayKey, PlanTitle } from '@/atlas/viewer/plan-title';
+import {
+  getPlanDisplayId,
+  getPlanDisplayKey,
+  PlanIdBadge,
+  PlanTitle,
+} from '@/atlas/viewer/plan-title';
 import { cn } from '@/lib/classes';
 
 type PlanWorkstreamExplorerProps = {
   executionStreams?: AtlasExecutionStreamProjection[];
+  isAuthenticated?: boolean;
   snapshot: PlanWorkstreamSnapshot;
 };
 
@@ -171,9 +178,11 @@ type CodeRenderState = {
 };
 
 type MarkdownRenderContext = {
+  nodesById: Map<string, PlanWorkstreamNode>;
   nodesByPath: Map<string, PlanWorkstreamNode>;
   nodesBySemanticId: Map<string, PlanWorkstreamNode>;
   onOpenFull: (nodeId: string) => void;
+  renderedInferredTargetIds?: Set<string>;
   sourceNode: PlanWorkstreamNode;
 };
 
@@ -1909,7 +1918,6 @@ const EvolutionBoardColumn = ({
     <section className='flex min-h-[220px] flex-col border-border/70 lg:min-h-0 lg:border-l lg:pl-4 lg:first:border-l-0 lg:first:pl-0'>
       <header className='shrink-0 pb-3 text-center' title={`${subtitle} ${countLabel}.`}>
         <h3 className='font-mono text-xs uppercase text-foreground'>{title}</h3>
-        <div className='mx-auto mt-2 h-px w-12 bg-border/80' />
       </header>
       <div className='min-h-0 flex-1 lg:overflow-y-auto lg:pr-2'>
         {count > 0 ? <div className='grid gap-2'>{children}</div> : null}
@@ -1943,8 +1951,8 @@ const GlobalBoardNodeCard = ({
       ref={element => registerNode(node.id, element)}
       data-board-node-id={node.id}
       className={cn(
-        'grid gap-2 rounded-md border border-border/70 bg-background/55 px-3 py-3 text-left shadow-sm transition-[background-color,border-color,box-shadow] hover:border-primary/45 hover:bg-muted/35',
-        selected && 'border-primary/70 bg-primary/10 shadow-[0_0_0_2px_hsl(var(--primary)/0.18)]',
+        'grid gap-2 px-3 py-3 text-left transition-[background-color,box-shadow] hover:bg-muted/35',
+        selected && 'bg-primary/10',
       )}
     >
       <div className='flex min-w-0 items-center gap-2'>
@@ -2000,17 +2008,22 @@ const GlobalBoardNodeList = ({
   snapshotEdges: PlanWorkstreamEdge[];
 }) =>
   nodes.length === 0 ? null : (
-    <div className='grid gap-2'>
+    <div
+      className='divide-y divide-border/55'
+      data-board-node-list
+      role='list'
+    >
       {nodes.map(node => (
-        <GlobalBoardNodeCard
-          key={node.id}
-          breadcrumb={getNodeBreadcrumb(node.id, snapshotEdges, nodesById)}
-          markdownContext={markdownContext}
-          node={node}
-          onOpenFull={onOpenFull}
-          registerNode={registerNode}
-          selected={node.id === selectedNodeId}
-        />
+        <div key={node.id} role='listitem'>
+          <GlobalBoardNodeCard
+            breadcrumb={getNodeBreadcrumb(node.id, snapshotEdges, nodesById)}
+            markdownContext={markdownContext}
+            node={node}
+            onOpenFull={onOpenFull}
+            registerNode={registerNode}
+            selected={node.id === selectedNodeId}
+          />
+        </div>
       ))}
     </div>
   );
@@ -2071,7 +2084,10 @@ const GlobalAtlasBoard = ({
       </button>
     </div>
     <div className='flex h-full min-h-0 flex-col px-4 pb-5 pt-40 sm:pt-36 lg:px-6 lg:pt-28'>
-      <div className='min-h-0 flex-1 overflow-y-auto rounded-lg border border-border/60 bg-background/45 p-4 shadow-lg backdrop-blur-sm lg:overflow-hidden'>
+      <div
+        className='min-h-0 flex-1 overflow-y-auto bg-background/45 p-4 backdrop-blur-sm lg:overflow-hidden'
+        data-board-columns
+      >
         <div
           className={cn(
             'grid min-h-full gap-4 lg:h-full lg:min-h-0 lg:gap-0',
@@ -2155,13 +2171,69 @@ const GlobalAtlasBoard = ({
 
 const metadataLabel = (key: string) =>
   key
+    .replaceAll(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replaceAll('_', ' ')
     .replaceAll('-', ' ')
     .replaceAll(/\s+/g, ' ')
     .trim()
     .replaceAll(/\b[a-z]/g, match => match.toUpperCase());
 
-const metadataSectionLabel = (node: PlanWorkstreamNode) =>
-  node.kind === 'plan' ? 'Plan shape' : 'Atlas metadata';
+const normalizeMetadataKey = (key: string) => key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase();
+
+const sourceFileHref = (node: PlanWorkstreamNode) => {
+  if (!node.sourceRepository || !node.sourcePath) return null;
+  const revision = node.sourceRevisionKind === 'git' ? node.sourceRevision : 'main';
+
+  return `https://github.com/${node.sourceRepository}/blob/${encodeURIComponent(revision || 'main')}/${node.sourcePath
+    .split('/')
+    .map(part => encodeURIComponent(part))
+    .join('/')}`;
+};
+
+const resolveSourceMetadataNode = (
+  value: string,
+  nodesByPath: Map<string, PlanWorkstreamNode>,
+  nodesBySemanticId: Map<string, PlanWorkstreamNode>,
+) => {
+  const reference = value.trim().replace(/^['"]|['"]$/g, '');
+
+  return (
+    nodesByPath.get(reference) ??
+    nodesBySemanticId.get(reference) ??
+    (reference.startsWith('atlas:')
+      ? nodesBySemanticId.get(reference.slice('atlas:'.length))
+      : undefined) ??
+    null
+  );
+};
+
+const SourceMetadataValue = ({
+  nodesByPath,
+  nodesBySemanticId,
+  onOpenFull,
+  value,
+}: {
+  nodesByPath: Map<string, PlanWorkstreamNode>;
+  nodesBySemanticId: Map<string, PlanWorkstreamNode>;
+  onOpenFull: (nodeId: string) => void;
+  value: string;
+}) => {
+  const target = resolveSourceMetadataNode(value, nodesByPath, nodesBySemanticId);
+
+  return target ? (
+    <button
+      type='button'
+      className='inline-flex max-w-full items-baseline gap-2 text-left text-foreground/80 transition-colors hover:text-sky-300 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
+      title={value}
+      onClick={() => onOpenFull(target.id)}
+    >
+      <PlanIdBadge className='text-[0.68em]' node={target} variant='text' />
+      <span className='min-w-0 break-words'>{target.shortTitle}</span>
+    </button>
+  ) : (
+    <span className='min-w-0 break-words'>{value || 'None'}</span>
+  );
+};
 
 const parseMarkdownMetadataLines = (lines: string[]) => {
   const metadata = new Map<string, string | string[]>();
@@ -2675,7 +2747,7 @@ const HighlightedCodeBlock = ({ code, language }: { code: string; language?: str
 
     const renderHighlightedCode = async () => {
       try {
-        const { codeToHtml } = await import('shiki');
+        const { codeToHtml } = await import('shiki/bundle/web');
         const html = await codeToHtml(code, {
           defaultColor: false,
           lang: mappedLanguage as Parameters<typeof codeToHtml>[1]['lang'],
@@ -2738,7 +2810,72 @@ const InlinePlanStatusBadge = ({ node }: { node: PlanWorkstreamNode }) =>
     </span>
   ) : null;
 
-const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
+const getInternalLinkLabel = (label: string, node: PlanWorkstreamNode) =>
+  node.kind === 'plan'
+    ? label
+        .replace(/^\d+[a-z]?\.\s+/i, '')
+        .replace(/^Plan\s+\d+[a-z]?:\s+/i, '')
+        .trim()
+    : label;
+
+const escapeRegularExpression = (value: string) =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const renderInferredMentions = (
+  text: string,
+  context: MarkdownRenderContext,
+  keyPrefix: string,
+) => {
+  const mentions = context.sourceNode.inferredMentions ?? [];
+  if (mentions.length === 0) return [text];
+
+  const targetsByText = new Map(
+    mentions
+      .filter(mention => !context.renderedInferredTargetIds?.has(mention.targetNodeId))
+      .map(mention => [mention.matchedText.toLocaleLowerCase(), mention.targetNodeId]),
+  );
+  const terms = [...targetsByText.keys()].sort((left, right) => right.length - left.length);
+  if (terms.length === 0) return [text];
+  const pattern = new RegExp(
+    `(^|[^\\p{L}\\p{N}])(${terms.map(escapeRegularExpression).join('|')})(?=$|[^\\p{L}\\p{N}])`,
+    'giu',
+  );
+  const rendered: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(pattern)) {
+    const prefix = match[1] ?? '';
+    const label = match[2] ?? '';
+    const start = (match.index ?? 0) + prefix.length;
+    const targetId = targetsByText.get(label.toLocaleLowerCase());
+    const target = targetId ? context.nodesById.get(targetId) : null;
+
+    if (!target || context.renderedInferredTargetIds?.has(target.id)) continue;
+    context.renderedInferredTargetIds?.add(target.id);
+    if (start > lastIndex) rendered.push(text.slice(lastIndex, start));
+    rendered.push(
+      <button
+        key={`${keyPrefix}-${start}-${target.id}`}
+        type='button'
+        className='cursor-pointer text-sky-300/90 underline decoration-dotted decoration-sky-300/45 underline-offset-4 transition-colors hover:text-sky-200 hover:decoration-sky-200'
+        title={`Inferred reference · ${target.shortTitle}`}
+        onClick={() => context.onOpenFull(target.id)}
+      >
+        {label}
+      </button>,
+    );
+    lastIndex = start + label.length;
+  }
+
+  if (lastIndex < text.length) rendered.push(text.slice(lastIndex));
+  return rendered.length > 0 ? rendered : [text];
+};
+
+const renderMarkdownInline = (
+  text: string,
+  context: MarkdownRenderContext,
+  allowInferred = true,
+) => {
   const nodes: ReactNode[] = [];
   const pattern =
     /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|(\*\*|__)([\s\S]+?)\6/g;
@@ -2748,7 +2885,12 @@ const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
     const index = match.index ?? 0;
 
     if (index > lastIndex) {
-      nodes.push(text.slice(lastIndex, index));
+      const plainText = text.slice(lastIndex, index);
+      nodes.push(
+        ...(allowInferred
+          ? renderInferredMentions(plainText, context, `mention-${lastIndex}`)
+          : [plainText]),
+      );
     }
 
     if (match[1]) {
@@ -2805,6 +2947,9 @@ const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
             context.nodesBySemanticId,
           );
       const displayLabel = label.replace(/^`|`$/g, '');
+      const internalDisplayLabel = internalNode
+        ? getInternalLinkLabel(displayLabel, internalNode)
+        : displayLabel;
 
       nodes.push(
         isExternal ? (
@@ -2826,8 +2971,9 @@ const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
             onClick={() => context.onOpenFull(internalNode.id)}
           >
             <InlinePlanStatusBadge node={internalNode} />
+            <PlanIdBadge node={internalNode} variant='text' />
             <span className='text-sky-300 underline decoration-sky-300/45 underline-offset-4 transition-colors group-hover:text-sky-200 group-hover:decoration-sky-200'>
-              {displayLabel}
+              {internalDisplayLabel}
             </span>
           </button>
         ) : (
@@ -2846,7 +2992,12 @@ const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
   }
 
   if (lastIndex < text.length) {
-    nodes.push(text.slice(lastIndex));
+    const plainText = text.slice(lastIndex);
+    nodes.push(
+      ...(allowInferred
+        ? renderInferredMentions(plainText, context, `mention-${lastIndex}`)
+        : [plainText]),
+    );
   }
 
   return nodes;
@@ -2860,9 +3011,15 @@ const ShapeContentSummary = ({
   className?: string;
   context: MarkdownRenderContext;
   text: string;
-}) => (
-  <p className={cn('text-muted-foreground', className)}>{renderMarkdownInline(text, context)}</p>
-);
+}) => {
+  const renderContext = { ...context, renderedInferredTargetIds: new Set<string>() };
+
+  return (
+    <p className={cn('text-muted-foreground', className)}>
+      {renderMarkdownInline(text, renderContext)}
+    </p>
+  );
+};
 
 const isListLine = (line: string) => /^\s*[-*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line);
 
@@ -2986,6 +3143,7 @@ const isMarkdownTableStart = (lines: string[], index: number) =>
   isMarkdownTableRow(lines[index] ?? '') && isMarkdownTableSeparator(lines[index + 1] ?? '');
 
 const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
+  context = { ...context, renderedInferredTargetIds: new Set<string>() };
   const lines = body.trim().split('\n');
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -3037,7 +3195,7 @@ const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
             level === 2 ? 'mt-7 text-lg' : 'mt-5 text-sm',
           )}
         >
-          {renderMarkdownInline(content, context)}
+          {renderMarkdownInline(content, context, false)}
         </HeadingTag>,
       );
       index += 1;
@@ -3506,15 +3664,42 @@ const FullMarkdownModal = ({
   contentStatus: NodeContentState['status'];
 }) => {
   const [permalinkCopied, setPermalinkCopied] = useState(false);
+  const [sourceFileCopied, setSourceFileCopied] = useState(false);
+  const [contentScroll, setContentScroll] = useState({
+    isScrollable: false,
+    progress: 0,
+    visibleRatio: 1,
+  });
+  const contentScrollRef = useRef<HTMLDivElement>(null);
   const parsedDocument = useMemo(() => parseMarkdownDocument(node), [node]);
+  const sourceMetadata = useMemo(() => {
+    const visible = parsedDocument.metadata.filter(
+      item => normalizeMetadataKey(item.key) !== 'parent',
+    );
+    const primaryOrder = ['title', 'id', 'kind', 'status', 'horizon', 'typeof', 'sourcecommit'];
+    const primary = primaryOrder.flatMap(key => {
+      const item = visible.find(candidate => normalizeMetadataKey(candidate.key) === key);
+
+      return item ? [item] : [];
+    });
+    const primaryKeys = new Set(primary.map(item => item.key));
+
+    return {
+      primary,
+      remaining: visible.filter(item => !primaryKeys.has(item.key)),
+    };
+  }, [parsedDocument.metadata]);
+  const sourceHref = sourceFileHref(node);
+  const sourceFilePath = node.sourcePath ?? node.sourceFilePath ?? node.path;
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
+      nodesById,
       nodesByPath,
       nodesBySemanticId,
       onOpenFull,
       sourceNode: node,
     }),
-    [node, nodesByPath, nodesBySemanticId, onOpenFull],
+    [node, nodesById, nodesByPath, nodesBySemanticId, onOpenFull],
   );
   const futureSignals = semanticSignals.filter(
     signal => signal.kind === 'future' || signal.kind === 'question',
@@ -3584,7 +3769,69 @@ const FullMarkdownModal = ({
 
   useEffect(() => {
     setPermalinkCopied(false);
+    setSourceFileCopied(false);
   }, [activeTab, node.id]);
+
+  useLayoutEffect(() => {
+    const viewport = contentScrollRef.current;
+    if (!viewport) return;
+
+    viewport.scrollTop = 0;
+    let displayedProgress = 0;
+    let targetProgress = 0;
+    let animationFrame: number | null = null;
+    const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+    const animateProgress = () => {
+      const distance = targetProgress - displayedProgress;
+      displayedProgress =
+        Math.abs(distance) < 0.0005 ? targetProgress : displayedProgress + distance * 0.18;
+      setContentScroll(current => ({ ...current, progress: displayedProgress }));
+
+      if (displayedProgress !== targetProgress) {
+        animationFrame = globalThis.requestAnimationFrame(animateProgress);
+      } else {
+        animationFrame = null;
+      }
+    };
+    const update = (immediate = false) => {
+      const scrollable = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      targetProgress = scrollable > 0 ? viewport.scrollTop / scrollable : 0;
+      const visibleRatio =
+        viewport.scrollHeight > 0
+          ? Math.min(1, viewport.clientHeight / viewport.scrollHeight)
+          : 1;
+
+      if (immediate) {
+        displayedProgress = targetProgress;
+      }
+
+      setContentScroll({
+        isScrollable: scrollable > 1,
+        progress: displayedProgress,
+        visibleRatio,
+      });
+
+      if (!immediate && animationFrame === null) {
+        animationFrame = globalThis.requestAnimationFrame(animateProgress);
+      }
+    };
+    update(true);
+    const handleScroll = () => update(reduceMotion);
+    const handleResize = () => update(true);
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+    const smoothResizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(handleResize);
+    smoothResizeObserver?.observe(viewport);
+    const content = viewport.firstElementChild;
+    if (content) smoothResizeObserver?.observe(content);
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll);
+      smoothResizeObserver?.disconnect();
+      if (animationFrame !== null) globalThis.cancelAnimationFrame(animationFrame);
+    };
+  }, [activeTab, contentStatus, node.id]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -3609,38 +3856,7 @@ const FullMarkdownModal = ({
         className='absolute left-1/2 top-1/2 flex h-[min(88vh,920px)] w-[min(1180px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-border/80 bg-card/95 shadow-2xl'
         onClick={event => event.stopPropagation()}
       >
-        <header className='relative border-b border-border/70 px-5 pb-4 pt-3'>
-          {parentNode ? (
-            <nav aria-label='Parent node' className='flex min-h-7 justify-center px-20'>
-              <a
-                aria-label={`Parent node: ${parentNode.shortTitle}`}
-                className='group/parent inline-flex max-w-[min(20rem,50vw)] items-center gap-2 rounded-full px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
-                href={getNodeHref(parentNode.id)}
-                title={parentNode.path ?? parentNode.semanticId}
-                onClick={event => {
-                  if (
-                    event.button !== 0 ||
-                    event.metaKey ||
-                    event.ctrlKey ||
-                    event.shiftKey ||
-                    event.altKey
-                  ) {
-                    return;
-                  }
-
-                  event.preventDefault();
-                  onOpenFull(parentNode.id);
-                }}
-              >
-                <ArrowUp className='size-3.5 shrink-0 transition-transform group-hover/parent:-translate-y-0.5' />
-                <span className='font-mono text-[9px] uppercase text-muted-foreground/70'>
-                  Parent
-                </span>
-                <PlanTitle node={parentNode} titleClassName='truncate font-medium' />
-              </a>
-            </nav>
-          ) : null}
-
+        <header className='relative border-b border-border/70 px-5 pb-3 pt-3'>
           <div className='absolute right-5 top-3 flex items-center gap-2'>
             {navigationBackNode && navigationBackNode.id !== parentNode?.id ? (
               <IconButton
@@ -3667,8 +3883,8 @@ const FullMarkdownModal = ({
             </IconButton>
           </div>
 
-          <div className={cn('min-w-0', parentNode && 'mt-1')}>
-            <div className='flex flex-wrap items-center gap-2'>
+          <div className='grid min-h-8 grid-cols-[minmax(0,1fr)_auto_minmax(6rem,1fr)] items-center gap-3 pr-24'>
+            <div className='flex min-w-0 flex-wrap items-center gap-2'>
               <span className={cn('size-2 rounded-full', statusDotClassName(node.statusGroup))} />
               <span className='font-mono text-xs uppercase text-muted-foreground'>{node.kind}</span>
               <span className='font-mono text-xs text-muted-foreground'>{node.status}</span>
@@ -3686,51 +3902,88 @@ const FullMarkdownModal = ({
                 </span>
               ))}
             </div>
-            <div className='mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2'>
-              <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
-                <PlanTitle node={node} titleClassName='truncate' />
-              </h2>
-              <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
-                {fullMarkdownModalTabs.map(tab => (
-                  <a
-                    key={tab}
-                    aria-current={activeTab === tab ? 'page' : undefined}
-                    className={cn(
-                      'rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors',
-                      activeTab === tab
-                        ? 'bg-primary/12 text-foreground'
-                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                    )}
-                    href={getTabHref(tab)}
-                    onClick={event => {
-                      if (
-                        event.button !== 0 ||
-                        event.metaKey ||
-                        event.ctrlKey ||
-                        event.shiftKey ||
-                        event.altKey
-                      ) {
-                        return;
-                      }
 
-                      event.preventDefault();
-                      onActiveTabChange(tab);
-                    }}
-                  >
-                    {tab}
-                  </a>
-                ))}
+            {parentNode ? (
+              <nav aria-label='Parent node' className='flex min-w-0 justify-center'>
+                <a
+                  aria-label={`Parent node: ${parentNode.shortTitle}`}
+                  className='group/parent inline-flex max-w-[min(20rem,36vw)] items-center gap-2 rounded-full px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
+                  href={getNodeHref(parentNode.id)}
+                  title={parentNode.path ?? parentNode.semanticId}
+                  onClick={event => {
+                    if (
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    ) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    onOpenFull(parentNode.id);
+                  }}
+                >
+                  <ArrowUp className='size-3.5 shrink-0 transition-transform group-hover/parent:-translate-y-0.5' />
+                  <span className='font-mono text-[9px] uppercase text-muted-foreground/70'>
+                    Parent
+                  </span>
+                  <PlanTitle node={parentNode} titleClassName='truncate font-medium' />
+                </a>
               </nav>
-            </div>
+            ) : (
+              <span />
+            )}
+          </div>
+
+          <div className='mt-1 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1'>
+            <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
+              <PlanTitle node={node} titleClassName='truncate' />
+            </h2>
+            <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
+              {fullMarkdownModalTabs.map(tab => (
+                <a
+                  key={tab}
+                  aria-current={activeTab === tab ? 'page' : undefined}
+                  className={cn(
+                    'rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors',
+                    activeTab === tab
+                      ? 'bg-primary/12 text-foreground'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                  )}
+                  href={getTabHref(tab)}
+                  onClick={event => {
+                    if (
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    ) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    onActiveTabChange(tab);
+                  }}
+                >
+                  {tab}
+                </a>
+              ))}
+            </nav>
           </div>
         </header>
 
-        <div
-          className={cn(
-            'min-h-0 flex-1 px-6 py-6 sm:px-8 lg:px-10',
-            activeTab === 'evolution' ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto',
-          )}
-        >
+        <div className='relative min-h-0 flex-1'>
+          <div
+            ref={contentScrollRef}
+            id='full-detail-content-scroll'
+            className={cn(
+              'h-full px-6 py-6 [scrollbar-width:none] sm:px-8 lg:px-10 [&::-webkit-scrollbar]:hidden',
+              activeTab === 'evolution' ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto',
+            )}
+          >
           {activeTab === 'overview' ? contentStatus === 'loading' ? (
             <DetailContentLoading node={node} />
           ) : contentStatus === 'error' ? (
@@ -3892,44 +4145,186 @@ const FullMarkdownModal = ({
           ) : null}
 
           {activeTab === 'source' ? (
-            parsedDocument.metadata.length > 0 ? (
-              <section className='rounded-md border border-border/70 bg-background/35 p-4'>
-                <h3 className='font-mono text-xs uppercase text-muted-foreground'>
-                  {metadataSectionLabel(node)}
-                </h3>
-                <dl className='mt-3 grid gap-3 sm:grid-cols-2'>
-                  {parsedDocument.metadata.map(item => (
-                    <div key={item.key} className='min-w-0'>
-                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/70'>
+            <section className='mx-auto grid w-full max-w-6xl gap-8 px-1 py-1 sm:px-2'>
+              <div className='grid gap-2 border-b border-border/55 pb-6'>
+                <span className='font-mono text-[10px] uppercase text-muted-foreground/65'>
+                  Source file
+                </span>
+                <div className='flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1'>
+                  {sourceHref ? (
+                    <a
+                      className='group inline-flex min-w-0 items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-sky-300'
+                      href={sourceHref}
+                      rel='noreferrer'
+                      target='_blank'
+                    >
+                      <span className='min-w-0 break-all font-mono'>{node.sourcePath}</span>
+                      <ExternalLink className='size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-sky-300' />
+                    </a>
+                  ) : (
+                    <span className='min-w-0 break-all font-mono text-sm text-foreground'>
+                      {sourceFilePath ?? 'Unknown source'}
+                    </span>
+                  )}
+                  {sourceFilePath ? (
+                    <button
+                      type='button'
+                      aria-label={
+                        sourceFileCopied ? 'Source file path copied' : 'Copy source file path'
+                      }
+                      className='inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/65 transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
+                      title={sourceFileCopied ? 'Copied' : 'Copy source file path'}
+                      onClick={() => {
+                        void globalThis.navigator.clipboard.writeText(sourceFilePath).then(() => {
+                          setSourceFileCopied(true);
+                        });
+                      }}
+                    >
+                      {sourceFileCopied ? (
+                        <Check aria-hidden='true' className='size-3.5' />
+                      ) : (
+                        <Copy aria-hidden='true' className='size-3.5' />
+                      )}
+                    </button>
+                  ) : null}
+                  {node.sourceRepository ? (
+                    <span className='font-mono text-xs text-muted-foreground/65'>
+                      {node.sourceRepository}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              {sourceMetadata.primary.length > 0 || node.sourceRevision ? (
+                <dl className='grid gap-x-8 gap-y-6 sm:grid-cols-2 xl:grid-cols-12'>
+                  {sourceMetadata.primary.map(item => (
+                    <div
+                      key={item.key}
+                      className={cn(
+                        'min-w-0',
+                        normalizeMetadataKey(item.key) === 'title' && 'xl:col-span-4',
+                        normalizeMetadataKey(item.key) === 'id' && 'xl:col-span-5',
+                        !['title', 'id'].includes(normalizeMetadataKey(item.key)) &&
+                          'xl:col-span-3',
+                      )}
+                    >
+                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/65'>
                         {item.label}
                       </dt>
-                      <dd className='mt-1 flex min-w-0 flex-wrap gap-1.5 text-sm text-foreground'>
+                      <dd className='mt-1.5 min-w-0 break-words text-sm text-foreground/85'>
+                        {Array.isArray(item.value) ? (
+                          item.value.length > 0 ? (
+                            <span className='flex flex-wrap gap-x-4 gap-y-2'>
+                              {item.value.map((value, valueIndex) => (
+                                <SourceMetadataValue
+                                  key={`${item.key}-${value}-${valueIndex}`}
+                                  nodesByPath={nodesByPath}
+                                  nodesBySemanticId={nodesBySemanticId}
+                                  onOpenFull={onOpenFull}
+                                  value={value}
+                                />
+                              ))}
+                            </span>
+                          ) : (
+                            'None'
+                          )
+                        ) : (
+                          <SourceMetadataValue
+                            nodesByPath={nodesByPath}
+                            nodesBySemanticId={nodesBySemanticId}
+                            onOpenFull={onOpenFull}
+                            value={item.value}
+                          />
+                        )}
+                      </dd>
+                    </div>
+                  ))}
+                  {node.sourceRevision &&
+                  !sourceMetadata.primary.some(
+                    item => normalizeMetadataKey(item.key) === 'sourcecommit',
+                  ) ? (
+                    <div className='min-w-0 xl:col-span-3'>
+                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/65'>
+                        Source Commit
+                      </dt>
+                      <dd
+                        className='mt-1.5 truncate font-mono text-sm text-foreground/85'
+                        title={node.sourceRevision}
+                      >
+                        {node.sourceRevisionKind === 'git'
+                          ? node.sourceRevision.slice(0, 12)
+                          : 'local workspace'}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : null}
+
+              {sourceMetadata.remaining.length > 0 ? (
+                <dl className='divide-y divide-border/45 border-y border-border/45'>
+                  {sourceMetadata.remaining.map(item => (
+                    <div
+                      key={item.key}
+                      className='grid min-w-0 gap-2 py-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6'
+                    >
+                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/65'>
+                        {item.label}
+                      </dt>
+                      <dd className='flex min-w-0 flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground'>
                         {Array.isArray(item.value) ? (
                           item.value.length > 0 ? (
                             item.value.map((value, valueIndex) => (
-                              <span
+                              <SourceMetadataValue
                                 key={`${item.key}-${value}-${valueIndex}`}
-                                className='max-w-full truncate rounded border border-border/70 bg-card/70 px-2 py-0.5 text-xs text-muted-foreground'
-                              >
-                                {value}
-                              </span>
+                                nodesByPath={nodesByPath}
+                                nodesBySemanticId={nodesBySemanticId}
+                                onOpenFull={onOpenFull}
+                                value={value}
+                              />
                             ))
                           ) : (
-                            <span className='text-muted-foreground'>None</span>
+                            <span>None</span>
                           )
                         ) : (
-                          <span className='min-w-0 break-words text-muted-foreground'>
-                            {item.value || 'None'}
-                          </span>
+                          <SourceMetadataValue
+                            nodesByPath={nodesByPath}
+                            nodesBySemanticId={nodesBySemanticId}
+                            onOpenFull={onOpenFull}
+                            value={item.value}
+                          />
                         )}
                       </dd>
                     </div>
                   ))}
                 </dl>
-              </section>
-            ) : (
-              <p className='text-sm text-muted-foreground'>No source metadata.</p>
-            )
+              ) : null}
+
+              {parsedDocument.metadata.length === 0 && !node.sourcePath ? (
+                <p className='text-sm text-muted-foreground'>No source metadata.</p>
+              ) : null}
+            </section>
+          ) : null}
+          </div>
+
+          {contentScroll.isScrollable ? (
+            <div
+              aria-controls='full-detail-content-scroll'
+              aria-label='Detail reading position'
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={Math.round(contentScroll.progress * 100)}
+              className='pointer-events-none absolute bottom-6 right-6 top-6 w-px bg-muted-foreground/15'
+              role='scrollbar'
+            >
+              <span
+                aria-hidden='true'
+                className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-[rgb(140,140,140)] shadow-[0_0_5px_rgb(140_140_140/0.12)] transition-[height] duration-200 motion-reduce:transition-none'
+                style={{
+                  height: `${Math.max(8, contentScroll.visibleRatio * 100)}%`,
+                  top: `${contentScroll.progress * Math.max(0, 100 - Math.max(8, contentScroll.visibleRatio * 100))}%`,
+                }}
+              />
+            </div>
           ) : null}
         </div>
 
@@ -4006,12 +4401,13 @@ const SelectionPanel = ({
   const { hierarchy, relations } = mergeDrawerRelations(node.id, incoming, outgoing);
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
+      nodesById,
       nodesByPath,
       nodesBySemanticId,
       onOpenFull,
       sourceNode: node,
     }),
-    [node, nodesByPath, nodesBySemanticId, onOpenFull],
+    [node, nodesById, nodesByPath, nodesBySemanticId, onOpenFull],
   );
   const futureSignals = semanticSignals.filter(
     signal => signal.kind === 'future' || signal.kind === 'question',
@@ -4127,6 +4523,7 @@ const SelectionPanel = ({
 
 export const PlanWorkstreamExplorer = ({
   executionStreams = [],
+  isAuthenticated = false,
   snapshot,
 }: PlanWorkstreamExplorerProps) => {
   const { theme, toggleTheme } = useTheme();
@@ -5090,13 +5487,14 @@ export const PlanWorkstreamExplorer = ({
     () =>
       boardSourceNode
         ? {
+            nodesById,
             nodesByPath,
             nodesBySemanticId,
             onOpenFull: openFullNode,
             sourceNode: boardSourceNode,
           }
         : null,
-    [boardSourceNode, nodesByPath, nodesBySemanticId, openFullNode],
+    [boardSourceNode, nodesById, nodesByPath, nodesBySemanticId, openFullNode],
   );
   const registerBoardNode = useCallback((nodeId: string, element: HTMLElement | null) => {
     if (element) {
@@ -5211,7 +5609,8 @@ export const PlanWorkstreamExplorer = ({
 
     hasAppliedInitialRouteRef.current = true;
     const routeState = readAtlasRouteState();
-    setAtlasView(readAtlasView());
+    const requestedView = readAtlasView();
+    setAtlasView(requestedView === 'sessions' && !isAuthenticated ? 'map' : requestedView);
     const routeSelectedNodeId =
       routeState.selectedNodeId && canvasNodeIds.has(routeState.selectedNodeId)
         ? routeState.selectedNodeId
@@ -5234,12 +5633,13 @@ export const PlanWorkstreamExplorer = ({
         return next;
       });
     }
-  }, [canvasNodeIds, focusNode, nodesById, revealNodePath]);
+  }, [canvasNodeIds, focusNode, isAuthenticated, nodesById, revealNodePath]);
 
   useEffect(() => {
     const handlePopState = () => {
       const routeState = readAtlasRouteState();
-      setAtlasView(readAtlasView());
+      const requestedView = readAtlasView();
+      setAtlasView(requestedView === 'sessions' && !isAuthenticated ? 'map' : requestedView);
       const nextSelectedNodeId =
         routeState.selectedNodeId && canvasNodeIds.has(routeState.selectedNodeId)
           ? routeState.selectedNodeId
@@ -5277,7 +5677,7 @@ export const PlanWorkstreamExplorer = ({
     globalThis.addEventListener('popstate', handlePopState);
 
     return () => globalThis.removeEventListener('popstate', handlePopState);
-  }, [canvasNodeIds, focusNode, nodesById, revealNodePath]);
+  }, [canvasNodeIds, focusNode, isAuthenticated, nodesById, revealNodePath]);
 
   const setPinchGesture = () => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -5643,32 +6043,49 @@ export const PlanWorkstreamExplorer = ({
         ).map(item => {
           const Icon = item.icon;
           const active = atlasView === item.value;
+          const unavailable = item.value === 'sessions' && !isAuthenticated;
 
           return (
-            <button
-              key={item.value}
-              type='button'
-              className={cn(
-                'inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors max-sm:min-w-10 max-sm:px-2',
-                active
-                  ? 'bg-primary/12 text-foreground shadow-sm ring-1 ring-primary/45'
-                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-              )}
-              title={item.label}
-              onClick={() => {
-                setAtlasView(item.value);
-                if (typeof globalThis.window !== 'undefined') {
-                  const nextUrl = new URL(globalThis.location.href);
-                  if (item.value === 'map') nextUrl.searchParams.delete('view');
-                  else nextUrl.searchParams.set('view', item.value);
-                  if (item.value !== 'sessions') nextUrl.searchParams.delete('session');
-                  globalThis.history.replaceState({}, '', nextUrl);
-                }
-              }}
-            >
-              <Icon className='size-4' />
-              <span className='max-sm:sr-only'>{item.label}</span>
-            </button>
+            <span key={item.value} className='group/nav relative'>
+              <button
+                type='button'
+                aria-disabled={unavailable || undefined}
+                aria-describedby={unavailable ? 'sessions-auth-hint' : undefined}
+                className={cn(
+                  'inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors max-sm:min-w-10 max-sm:px-2',
+                  active
+                    ? 'bg-primary/12 text-foreground shadow-sm ring-1 ring-primary/45'
+                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                  unavailable &&
+                    'cursor-not-allowed opacity-45 hover:bg-transparent hover:text-muted-foreground',
+                )}
+                title={unavailable ? undefined : item.label}
+                onClick={() => {
+                  if (unavailable) return;
+
+                  setAtlasView(item.value);
+                  if (typeof globalThis.window !== 'undefined') {
+                    const nextUrl = new URL(globalThis.location.href);
+                    if (item.value === 'map') nextUrl.searchParams.delete('view');
+                    else nextUrl.searchParams.set('view', item.value);
+                    if (item.value !== 'sessions') nextUrl.searchParams.delete('session');
+                    globalThis.history.replaceState({}, '', nextUrl);
+                  }
+                }}
+              >
+                <Icon className='size-4' />
+                <span className='max-sm:sr-only'>{item.label}</span>
+              </button>
+              {unavailable ? (
+                <span
+                  id='sessions-auth-hint'
+                  role='tooltip'
+                  className='pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-max max-w-56 -translate-x-1/2 translate-y-1 rounded-md border border-border/70 bg-popover/95 px-2.5 py-1.5 text-center text-[11px] font-normal leading-4 text-muted-foreground opacity-0 shadow-lg backdrop-blur-md transition-[opacity,transform] group-hover/nav:translate-y-0 group-hover/nav:opacity-100 group-focus-within/nav:translate-y-0 group-focus-within/nav:opacity-100'
+                >
+                  Sign in with GitHub to view your Sessions
+                </span>
+              ) : null}
+            </span>
           );
         })}
       </div>

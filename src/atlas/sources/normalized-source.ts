@@ -8,6 +8,9 @@ export type NormalizedAtlasSourceRecord = {
   sourceFilePath?: string;
   sourceId?: string;
   sourcePath: string;
+  sourceRepository?: string;
+  sourceRevision?: string;
+  sourceRevisionKind?: 'git' | 'content-sha256';
 };
 
 const explicitReferencePattern = /^[a-z][a-z0-9+.-]*:\/\//i;
@@ -42,6 +45,9 @@ export const normalizeAtlasSourceRecord = (
     sourceFilePath: file.source ? `${file.source}/${sourcePath}` : undefined,
     sourceId: file.source,
     sourcePath,
+    sourceRepository: file.sourceRepository,
+    sourceRevision: file.sourceRevision,
+    sourceRevisionKind: file.sourceRevisionKind,
   };
 };
 

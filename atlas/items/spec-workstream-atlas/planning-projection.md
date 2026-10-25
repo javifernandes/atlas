@@ -14,6 +14,7 @@ relatedPlans:
   - plans/done/120-board-project-filter.md
   - plans/done/122-plan-centered-execution-projection.md
   - plans/done/125-explicit-session-forking-and-routing.md
+  - plans/done/132-auth-aware-sessions-and-board-density.md
 ---
 
 Planning Projection is the operational view over the same source: map, now/next/later board,
@@ -38,6 +39,14 @@ The Board can also scope that projection to one declared project. Project scope 
 and shaping hierarchy from the project Atlas Item, then projects only Plans from that scope. Lateral
 relations do not pull unrelated projects into the focused view. The all-project portfolio remains
 the default.
+
+Each Board column presents its Plans as rows in one continuous list surface. Item-level hover and
+selection remain visible, but repeated card borders, fills, radii, and shadows should not compete
+with the temporal column structure.
+
+Sessions is authenticated personal execution memory. Anonymous public viewers may see the
+workspace named in navigation for discoverability, but cannot activate it; the control should
+quietly explain that GitHub sign-in is required.
 
 ## Child Items
 

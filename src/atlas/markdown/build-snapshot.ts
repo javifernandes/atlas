@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import {
-  loadAtlasSourceFiles,
+  loadAtlasSourceObservation,
   type AtlasMarkdownFile,
 } from '../sources/markdown-source';
 import {
@@ -44,6 +44,9 @@ export type ParsedPlan = {
   sections: string[];
   sourceId?: string;
   sourcePath: string;
+  sourceRepository?: string;
+  sourceRevision?: string;
+  sourceRevisionKind?: 'git' | 'content-sha256';
   relatedLinks: Array<{ path: string; kind: Extract<PlanRelationKind, 'follow-up' | 'related'> }>;
   parentPlanPath?: string;
   candidateChildren: string[];
@@ -90,6 +93,9 @@ export type ParsedAtlasItem = {
   sections: string[];
   sourceId?: string;
   sourcePath: string;
+  sourceRepository?: string;
+  sourceRevision?: string;
+  sourceRevisionKind?: 'git' | 'content-sha256';
   territory: string;
   workstream?: string;
 };
@@ -411,6 +417,9 @@ const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
     sections: parseSections(file.content),
     sourceId: file.sourceId,
     sourcePath: file.sourcePath,
+    sourceRepository: file.sourceRepository,
+    sourceRevision: file.sourceRevision,
+    sourceRevisionKind: file.sourceRevisionKind,
     relatedLinks: parseRelatedLinks(file),
     parentPlanPath: parseParentPlanPath(file),
     candidateChildren: parseCandidateChildren(file.content),
@@ -515,6 +524,9 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
     sections: parseSections(body),
     sourceId: file.sourceId,
     sourcePath: file.sourcePath,
+    sourceRepository: file.sourceRepository,
+    sourceRevision: file.sourceRevision,
+    sourceRevisionKind: file.sourceRevisionKind,
     territory: title,
   };
 };
@@ -616,6 +628,7 @@ const toPlanNode = (plan: ParsedPlan): PlanWorkstreamNode => ({
   status: plan.status,
   planKey: plan.key,
   sourceId: plan.sourceId ?? 'atlas',
+  sourcePath: plan.sourcePath,
   planKind: plan.planKind,
   scale: plan.scale,
   horizon: plan.horizon,
@@ -625,6 +638,9 @@ const toPlanNode = (plan: ParsedPlan): PlanWorkstreamNode => ({
   workstream: plan.workstream,
   path: plan.path,
   sourceFilePath: plan.sourceFilePath,
+  sourceRepository: plan.sourceRepository,
+  sourceRevision: plan.sourceRevision,
+  sourceRevisionKind: plan.sourceRevisionKind,
   href: plan.href,
   markdown: plan.markdown,
   summary: plan.summary,
@@ -642,10 +658,15 @@ const toAtlasNode = (item: ParsedAtlasItem): PlanWorkstreamNode => ({
   status: item.status,
   horizon: item.horizon,
   semanticId: item.id,
+  sourceId: item.sourceId ?? 'atlas',
+  sourcePath: item.sourcePath,
   territory: item.territory,
   workstream: item.workstream,
   path: item.path,
   sourceFilePath: item.sourceFilePath,
+  sourceRepository: item.sourceRepository,
+  sourceRevision: item.sourceRevision,
+  sourceRevisionKind: item.sourceRevisionKind,
   markdown: item.markdown,
   summary: item.summary,
   sections: item.sections,
@@ -693,6 +714,104 @@ const sortNodes = (nodes: PlanWorkstreamNode[]) =>
 
     return left.shortTitle.localeCompare(right.shortTitle);
   });
+
+const escapeRegularExpression = (value: string) =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const getMentionText = (markdown: string) => {
+  const { body } = parseFrontmatter(markdown);
+  const lines: string[] = [];
+  let fenced = false;
+
+  for (const line of body.split('\n')) {
+    if (/^\s*```/.test(line)) {
+      fenced = !fenced;
+      continue;
+    }
+
+    if (fenced || /^\s*#{1,6}\s+/.test(line)) {
+      continue;
+    }
+
+    lines.push(
+      line
+        .replaceAll(/`[^`]*`/g, ' ')
+        .replaceAll(/!?\[[^\]]*\]\([^)]+\)/g, ' ')
+        .replaceAll(/\[\[[^\]]+\]\]/g, ' '),
+    );
+  }
+
+  return lines.join('\n');
+};
+
+const isEligibleMentionTitle = (title: string) => {
+  const words = title.trim().split(/\s+/);
+
+  return words.length > 1 || title.trim().length >= 10;
+};
+
+const addInferredMentions = (
+  nodes: PlanWorkstreamNode[],
+  documents: PlanWorkstreamNode[],
+) => {
+  const targets = [
+    ...new Map(
+      [...nodes, ...documents]
+        .filter(node => node.kind !== 'root' && node.kind !== 'candidate')
+        .map(node => [node.id, node] as const),
+    ).values(),
+  ];
+  const targetsByTitle = new Map<string, PlanWorkstreamNode[]>();
+
+  for (const target of targets) {
+    const key = target.shortTitle.trim().toLocaleLowerCase();
+    targetsByTitle.set(key, [...(targetsByTitle.get(key) ?? []), target]);
+  }
+
+  const vocabulary = [...targetsByTitle.entries()]
+    .filter(([title, matches]) => matches.length === 1 && isEligibleMentionTitle(title))
+    .map(([, matches]) => matches[0]!)
+    .sort((left, right) => right.shortTitle.length - left.shortTitle.length);
+
+  const enrich = (source: PlanWorkstreamNode): PlanWorkstreamNode => {
+    if (!source.markdown) return source;
+
+    const mentionText = getMentionText(source.markdown);
+    const claimedRanges: Array<{ end: number; start: number }> = [];
+    const inferredMentions: NonNullable<PlanWorkstreamNode['inferredMentions']> = [];
+
+    for (const target of vocabulary) {
+      if (target.id === source.id) continue;
+
+      const pattern = new RegExp(
+        `(^|[^\\p{L}\\p{N}])(${escapeRegularExpression(target.shortTitle)})(?=$|[^\\p{L}\\p{N}])`,
+        'iu',
+      );
+      const match = pattern.exec(mentionText);
+      const start = match ? match.index + (match[1]?.length ?? 0) : -1;
+      const end = start + (match?.[2]?.length ?? 0);
+
+      if (!match?.[2] || claimedRanges.some(range => start < range.end && end > range.start)) {
+        continue;
+      }
+
+      claimedRanges.push({ end, start });
+      inferredMentions.push({
+        confidence: 1,
+        inference: 'exact-title',
+        matchedText: match[2],
+        targetNodeId: target.id,
+      });
+    }
+
+    return inferredMentions.length > 0 ? { ...source, inferredMentions } : source;
+  };
+
+  return {
+    documents: documents.map(enrich),
+    nodes: nodes.map(enrich),
+  };
+};
 
 const buildSemanticMetrics = (nodes: PlanWorkstreamNode[]): PlanWorkstreamMetric[] => {
   const itemNodes = nodes.filter(
@@ -1016,12 +1135,15 @@ const buildSemanticSnapshotFromFiles = (
     };
   });
 
+  const documents = plans.map(toPlanNode);
+  const enriched = addInferredMentions(nodesWithStats, documents);
+
   return {
     generatedAt: new Date().toISOString(),
     metrics: buildSemanticMetrics(nodesWithStats),
     territories,
-    nodes: nodesWithStats,
-    documents: plans.map(toPlanNode),
+    nodes: enriched.nodes,
+    documents: enriched.documents,
     edges,
   };
 };
@@ -1218,11 +1340,14 @@ export const buildPlanWorkstreamSnapshotFromFiles = (
       };
     });
 
+  const enriched = addInferredMentions(nodesWithStats, plans.map(toPlanNode));
+
   return {
     generatedAt: new Date().toISOString(),
     metrics: buildMetrics(nodesWithStats),
     territories,
-    nodes: sortNodes(nodesWithStats),
+    nodes: sortNodes(enriched.nodes),
+    documents: enriched.documents,
     edges,
   };
 };
@@ -1232,7 +1357,7 @@ export const getPlanWorkstreamSnapshot = async (): Promise<PlanWorkstreamSnapsho
   let sourceFiles: AtlasMarkdownFile[] = [];
 
   try {
-    sourceFiles = await loadAtlasSourceFiles({ repoRoot });
+    sourceFiles = (await loadAtlasSourceObservation({ repoRoot })).files;
   } catch (error) {
     process.stderr.write(
       `Failed to load external Atlas sources: ${error instanceof Error ? error.message : String(error)}\n`,

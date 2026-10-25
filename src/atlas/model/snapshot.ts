@@ -55,7 +55,11 @@ export type PlanWorkstreamNode = {
   territory: string;
   workstream?: string;
   path?: string;
+  sourcePath?: string;
   sourceFilePath?: string;
+  sourceRepository?: string;
+  sourceRevision?: string;
+  sourceRevisionKind?: 'git' | 'content-sha256';
   href?: string;
   markdown?: string;
   summary?: string;
@@ -63,6 +67,14 @@ export type PlanWorkstreamNode = {
   exemplars?: string[];
   relatedCount: number;
   candidateCount: number;
+  inferredMentions?: PlanWorkstreamMention[];
+};
+
+export type PlanWorkstreamMention = {
+  confidence: number;
+  inference: 'exact-title';
+  matchedText: string;
+  targetNodeId: string;
 };
 
 export type PlanWorkstreamEdge = {

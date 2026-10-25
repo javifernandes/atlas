@@ -1084,11 +1084,19 @@ const buildAtlasOntahiDatasetFromSource = (
       sourceRecordId: sourceRecord.id,
     };
   };
-  const sourceFiles = records.map(record => ({
-    path: record.sourcePath,
-    content: record.content,
-    source: sourceIdForRecord(record),
-  }));
+  const sourceFiles = records.map(record => {
+    const sourceId = sourceIdForRecord(record);
+    const sourceRevision = sourceRevisionBySourceId.get(sourceId);
+
+    return {
+      path: record.sourcePath,
+      content: record.content,
+      source: sourceId,
+      sourceRepository: sourceRevision?.repository ?? undefined,
+      sourceRevision: sourceRevision?.revision,
+      sourceRevisionKind: sourceRevision?.revisionKind,
+    };
+  });
   const snapshot = buildPlanWorkstreamSnapshotFromFiles(
     sourceFiles.filter(file => file.path.startsWith('plans/')),
     sourceFiles.filter(file => file.path.startsWith('atlas/items/')),
@@ -1943,6 +1951,7 @@ export const createAtlasOntahiApplication = (
   options: {
     invalidatePresentation?: () => void;
     invalidateRepository?: (repositoryFullName: string) => void;
+    loadedSourceRevisions?: AtlasLoadedSourceRevision[];
     observedPullRequests?: AtlasObservedPullRequest[];
   } = {},
 ) => {
@@ -1951,6 +1960,7 @@ export const createAtlasOntahiApplication = (
     source,
     records,
     options.observedPullRequests,
+    options.loadedSourceRevisions,
   );
   const storage = createInMemoryDataGraphStorage({
     dataset,
