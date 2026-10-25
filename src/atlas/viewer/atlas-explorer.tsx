@@ -1915,7 +1915,6 @@ const EvolutionBoardColumn = ({
     <section className='flex min-h-[220px] flex-col border-border/70 lg:min-h-0 lg:border-l lg:pl-4 lg:first:border-l-0 lg:first:pl-0'>
       <header className='shrink-0 pb-3 text-center' title={`${subtitle} ${countLabel}.`}>
         <h3 className='font-mono text-xs uppercase text-foreground'>{title}</h3>
-        <div className='mx-auto mt-2 h-px w-12 bg-border/80' />
       </header>
       <div className='min-h-0 flex-1 lg:overflow-y-auto lg:pr-2'>
         {count > 0 ? <div className='grid gap-2'>{children}</div> : null}
@@ -1950,7 +1949,7 @@ const GlobalBoardNodeCard = ({
       data-board-node-id={node.id}
       className={cn(
         'grid gap-2 px-3 py-3 text-left transition-[background-color,box-shadow] hover:bg-muted/35',
-        selected && 'bg-primary/10 shadow-[inset_2px_0_0_hsl(var(--primary)/0.7)]',
+        selected && 'bg-primary/10',
       )}
     >
       <div className='flex min-w-0 items-center gap-2'>
@@ -2007,7 +2006,7 @@ const GlobalBoardNodeList = ({
 }) =>
   nodes.length === 0 ? null : (
     <div
-      className='overflow-hidden rounded-md border border-border/70 bg-background/40 divide-y divide-border/55'
+      className='divide-y divide-border/55'
       data-board-node-list
       role='list'
     >

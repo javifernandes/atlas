@@ -55,6 +55,7 @@ initial Sessions URL. Authenticated navigation is unchanged.
 Board columns now own one bordered list surface. Plans render as internally divided rows with
 item-level hover and an inset selected marker, eliminating repeated card borders, radii, fills, and
 shadows while preserving summaries, IDs, filtering, history, and full-detail navigation. The Board
-does not wrap the complete column grid in another border, radius, or shadow; column and row structure
-provide the hierarchy without an extra enclosing frame.
+does not wrap the complete column grid or individual column lists in another border, radius, or
+shadow. Only vertical column dividers and horizontal row dividers remain; headers and selection use
+typography and background tone instead of additional rules.
 
