@@ -61,4 +61,3 @@ typography and background tone instead of additional rules.
 
 Map tree nodes preserve lightweight single-click selection and open their full detail directly on
 double click, with regression coverage for that navigation gesture.
-
