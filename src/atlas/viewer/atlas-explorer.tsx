@@ -3421,16 +3421,16 @@ const DetailContentLoading = ({ node }: { node: PlanWorkstreamNode }) => (
     aria-live='polite'
     className='grid min-h-[min(48vh,420px)] place-items-center'
   >
-    <div className='flex flex-col items-center gap-4 text-center'>
-      <div className='relative grid size-24 place-items-center'>
-        <span className='absolute inset-2 rounded-full bg-sky-400/10 blur-xl motion-safe:animate-pulse' />
-        <span className='absolute inset-2 rounded-full border border-sky-400/20' />
-        <span className='absolute inset-0 rounded-full border border-transparent border-t-sky-300/65 border-r-sky-300/15 motion-safe:animate-[spin_2.8s_linear_infinite] motion-reduce:animate-none' />
-        <span className='absolute inset-3 rounded-full border border-dashed border-sky-300/25 motion-safe:animate-[spin_5s_linear_infinite_reverse] motion-reduce:animate-none' />
-        <AtlasMark className='size-11 motion-safe:animate-pulse motion-reduce:animate-none' priority />
+    <div className='flex flex-col items-center gap-3 text-center'>
+      <div className='relative grid size-16 place-items-center'>
+        <span className='absolute inset-3 rounded-full bg-sky-300/8 blur-xl motion-safe:animate-pulse motion-reduce:animate-none' />
+        <AtlasMark
+          className='size-9 opacity-75 motion-safe:animate-[pulse_2.8s_ease-in-out_infinite] motion-reduce:animate-none'
+          priority
+        />
       </div>
       <div className='grid gap-1.5'>
-        <span className='font-mono text-[10px] uppercase tracking-[0.18em] text-sky-300/80'>
+        <span className='font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/65'>
           Loading source
         </span>
         <PlanTitle
