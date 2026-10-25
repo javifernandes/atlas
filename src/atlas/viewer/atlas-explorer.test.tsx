@@ -145,6 +145,13 @@ describe('PlanWorkstreamExplorer', () => {
 
     let dialog = screen.getByRole('dialog');
     const detailTitle = within(dialog).getByRole('heading', { name: 'Item A' });
+    const readingPosition = within(dialog).getByRole('scrollbar', {
+      name: 'Detail reading position',
+    });
+    const contentViewport = dialog.querySelector('#full-detail-content-scroll');
+
+    expect(readingPosition).toHaveAttribute('aria-valuenow', '0');
+    expect(contentViewport).toHaveClass('[scrollbar-width:none]');
     const titleRow = detailTitle.parentElement;
 
     expect(titleRow).not.toBeNull();
@@ -303,6 +310,46 @@ describe('PlanWorkstreamExplorer', () => {
     expect(planId).not.toHaveClass('border', 'bg-sky-400/10', 'rounded-md');
     expect(within(dialog).getByText('Resource Governance')).toBeInTheDocument();
     expect(within(dialog).queryByText('125a. Resource Governance')).not.toBeInTheDocument();
+  });
+
+  it('renders snapshot-inferred item mentions as navigable wiki links', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const user = userEvent.setup();
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-a'
+          ? {
+              ...node,
+              inferredMentions: [
+                {
+                  confidence: 1,
+                  inference: 'exact-title' as const,
+                  matchedText: 'Item C',
+                  targetNodeId: 'item-c',
+                },
+              ],
+              markdown: 'Item C provides the runtime boundary. Item C remains referenced later.',
+            }
+          : node,
+      ),
+    };
+
+    renderExplorer({ value });
+
+    const inferredLink = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Item C',
+    });
+    expect(inferredLink).toHaveAttribute('title', 'Inferred reference · Item C');
+    expect(
+      within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Item C' }),
+    ).toHaveLength(1);
+
+    await user.click(inferredLink);
+
+    expect(
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'Item C' }),
+    ).toBeInTheDocument();
   });
 
   it('shows every project membership in full detail when Atlas has multiple projects', () => {

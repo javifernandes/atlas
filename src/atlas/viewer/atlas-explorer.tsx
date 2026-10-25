@@ -177,9 +177,11 @@ type CodeRenderState = {
 };
 
 type MarkdownRenderContext = {
+  nodesById: Map<string, PlanWorkstreamNode>;
   nodesByPath: Map<string, PlanWorkstreamNode>;
   nodesBySemanticId: Map<string, PlanWorkstreamNode>;
   onOpenFull: (nodeId: string) => void;
+  renderedInferredTargetIds?: Set<string>;
   sourceNode: PlanWorkstreamNode;
 };
 
@@ -2759,7 +2761,64 @@ const getInternalLinkLabel = (label: string, node: PlanWorkstreamNode) =>
         .trim()
     : label;
 
-const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
+const escapeRegularExpression = (value: string) =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const renderInferredMentions = (
+  text: string,
+  context: MarkdownRenderContext,
+  keyPrefix: string,
+) => {
+  const mentions = context.sourceNode.inferredMentions ?? [];
+  if (mentions.length === 0) return [text];
+
+  const targetsByText = new Map(
+    mentions
+      .filter(mention => !context.renderedInferredTargetIds?.has(mention.targetNodeId))
+      .map(mention => [mention.matchedText.toLocaleLowerCase(), mention.targetNodeId]),
+  );
+  const terms = [...targetsByText.keys()].sort((left, right) => right.length - left.length);
+  if (terms.length === 0) return [text];
+  const pattern = new RegExp(
+    `(^|[^\\p{L}\\p{N}])(${terms.map(escapeRegularExpression).join('|')})(?=$|[^\\p{L}\\p{N}])`,
+    'giu',
+  );
+  const rendered: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(pattern)) {
+    const prefix = match[1] ?? '';
+    const label = match[2] ?? '';
+    const start = (match.index ?? 0) + prefix.length;
+    const targetId = targetsByText.get(label.toLocaleLowerCase());
+    const target = targetId ? context.nodesById.get(targetId) : null;
+
+    if (!target || context.renderedInferredTargetIds?.has(target.id)) continue;
+    context.renderedInferredTargetIds?.add(target.id);
+    if (start > lastIndex) rendered.push(text.slice(lastIndex, start));
+    rendered.push(
+      <button
+        key={`${keyPrefix}-${start}-${target.id}`}
+        type='button'
+        className='cursor-pointer text-sky-300/90 underline decoration-dotted decoration-sky-300/45 underline-offset-4 transition-colors hover:text-sky-200 hover:decoration-sky-200'
+        title={`Inferred reference · ${target.shortTitle}`}
+        onClick={() => context.onOpenFull(target.id)}
+      >
+        {label}
+      </button>,
+    );
+    lastIndex = start + label.length;
+  }
+
+  if (lastIndex < text.length) rendered.push(text.slice(lastIndex));
+  return rendered.length > 0 ? rendered : [text];
+};
+
+const renderMarkdownInline = (
+  text: string,
+  context: MarkdownRenderContext,
+  allowInferred = true,
+) => {
   const nodes: ReactNode[] = [];
   const pattern =
     /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|(\*\*|__)([\s\S]+?)\6/g;
@@ -2769,7 +2828,12 @@ const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
     const index = match.index ?? 0;
 
     if (index > lastIndex) {
-      nodes.push(text.slice(lastIndex, index));
+      const plainText = text.slice(lastIndex, index);
+      nodes.push(
+        ...(allowInferred
+          ? renderInferredMentions(plainText, context, `mention-${lastIndex}`)
+          : [plainText]),
+      );
     }
 
     if (match[1]) {
@@ -2871,7 +2935,12 @@ const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
   }
 
   if (lastIndex < text.length) {
-    nodes.push(text.slice(lastIndex));
+    const plainText = text.slice(lastIndex);
+    nodes.push(
+      ...(allowInferred
+        ? renderInferredMentions(plainText, context, `mention-${lastIndex}`)
+        : [plainText]),
+    );
   }
 
   return nodes;
@@ -2885,9 +2954,15 @@ const ShapeContentSummary = ({
   className?: string;
   context: MarkdownRenderContext;
   text: string;
-}) => (
-  <p className={cn('text-muted-foreground', className)}>{renderMarkdownInline(text, context)}</p>
-);
+}) => {
+  const renderContext = { ...context, renderedInferredTargetIds: new Set<string>() };
+
+  return (
+    <p className={cn('text-muted-foreground', className)}>
+      {renderMarkdownInline(text, renderContext)}
+    </p>
+  );
+};
 
 const isListLine = (line: string) => /^\s*[-*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line);
 
@@ -3011,6 +3086,7 @@ const isMarkdownTableStart = (lines: string[], index: number) =>
   isMarkdownTableRow(lines[index] ?? '') && isMarkdownTableSeparator(lines[index + 1] ?? '');
 
 const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
+  context = { ...context, renderedInferredTargetIds: new Set<string>() };
   const lines = body.trim().split('\n');
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -3062,7 +3138,7 @@ const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
             level === 2 ? 'mt-7 text-lg' : 'mt-5 text-sm',
           )}
         >
-          {renderMarkdownInline(content, context)}
+          {renderMarkdownInline(content, context, false)}
         </HeadingTag>,
       );
       index += 1;
@@ -3531,15 +3607,18 @@ const FullMarkdownModal = ({
   contentStatus: NodeContentState['status'];
 }) => {
   const [permalinkCopied, setPermalinkCopied] = useState(false);
+  const [contentScroll, setContentScroll] = useState({ progress: 0, visibleRatio: 1 });
+  const contentScrollRef = useRef<HTMLDivElement>(null);
   const parsedDocument = useMemo(() => parseMarkdownDocument(node), [node]);
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
+      nodesById,
       nodesByPath,
       nodesBySemanticId,
       onOpenFull,
       sourceNode: node,
     }),
-    [node, nodesByPath, nodesBySemanticId, onOpenFull],
+    [node, nodesById, nodesByPath, nodesBySemanticId, onOpenFull],
   );
   const futureSignals = semanticSignals.filter(
     signal => signal.kind === 'future' || signal.kind === 'question',
@@ -3610,6 +3689,36 @@ const FullMarkdownModal = ({
   useEffect(() => {
     setPermalinkCopied(false);
   }, [activeTab, node.id]);
+
+  useLayoutEffect(() => {
+    const viewport = contentScrollRef.current;
+    if (!viewport) return;
+
+    viewport.scrollTop = 0;
+    const update = () => {
+      const scrollable = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      setContentScroll({
+        progress: scrollable > 0 ? viewport.scrollTop / scrollable : 0,
+        visibleRatio:
+          viewport.scrollHeight > 0
+            ? Math.min(1, viewport.clientHeight / viewport.scrollHeight)
+            : 1,
+      });
+    };
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+
+    update();
+    viewport.addEventListener('scroll', update, { passive: true });
+    resizeObserver?.observe(viewport);
+    const content = viewport.firstElementChild;
+    if (content) resizeObserver?.observe(content);
+
+    return () => {
+      viewport.removeEventListener('scroll', update);
+      resizeObserver?.disconnect();
+    };
+  }, [activeTab, contentStatus, node.id]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -3750,12 +3859,15 @@ const FullMarkdownModal = ({
           </div>
         </header>
 
-        <div
-          className={cn(
-            'min-h-0 flex-1 px-6 py-6 sm:px-8 lg:px-10',
-            activeTab === 'evolution' ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto',
-          )}
-        >
+        <div className='relative min-h-0 flex-1'>
+          <div
+            ref={contentScrollRef}
+            id='full-detail-content-scroll'
+            className={cn(
+              'h-full px-6 py-6 [scrollbar-width:none] sm:px-8 lg:px-10 [&::-webkit-scrollbar]:hidden',
+              activeTab === 'evolution' ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto',
+            )}
+          >
           {activeTab === 'overview' ? contentStatus === 'loading' ? (
             <DetailContentLoading node={node} />
           ) : contentStatus === 'error' ? (
@@ -3956,6 +4068,26 @@ const FullMarkdownModal = ({
               <p className='text-sm text-muted-foreground'>No source metadata.</p>
             )
           ) : null}
+          </div>
+
+          <div
+            aria-controls='full-detail-content-scroll'
+            aria-label='Detail reading position'
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={Math.round(contentScroll.progress * 100)}
+            className='pointer-events-none absolute bottom-6 right-6 top-6 w-px bg-muted-foreground/15'
+            role='scrollbar'
+          >
+            <span
+              aria-hidden='true'
+              className='absolute left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-foreground/72 shadow-[0_0_5px_hsl(var(--foreground)/0.08)] transition-[top,height] duration-150 motion-reduce:transition-none'
+              style={{
+                height: `${Math.max(8, contentScroll.visibleRatio * 100)}%`,
+                top: `${contentScroll.progress * Math.max(0, 100 - Math.max(8, contentScroll.visibleRatio * 100))}%`,
+              }}
+            />
+          </div>
         </div>
 
         {childNodes.length > 0 ? (
@@ -4031,12 +4163,13 @@ const SelectionPanel = ({
   const { hierarchy, relations } = mergeDrawerRelations(node.id, incoming, outgoing);
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
+      nodesById,
       nodesByPath,
       nodesBySemanticId,
       onOpenFull,
       sourceNode: node,
     }),
-    [node, nodesByPath, nodesBySemanticId, onOpenFull],
+    [node, nodesById, nodesByPath, nodesBySemanticId, onOpenFull],
   );
   const futureSignals = semanticSignals.filter(
     signal => signal.kind === 'future' || signal.kind === 'question',
@@ -5116,13 +5249,14 @@ export const PlanWorkstreamExplorer = ({
     () =>
       boardSourceNode
         ? {
+            nodesById,
             nodesByPath,
             nodesBySemanticId,
             onOpenFull: openFullNode,
             sourceNode: boardSourceNode,
           }
         : null,
-    [boardSourceNode, nodesByPath, nodesBySemanticId, openFullNode],
+    [boardSourceNode, nodesById, nodesByPath, nodesBySemanticId, openFullNode],
   );
   const registerBoardNode = useCallback((nodeId: string, element: HTMLElement | null) => {
     if (element) {
