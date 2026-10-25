@@ -95,4 +95,3 @@ renders those facts as dotted, navigable wiki links. Extraction ignores frontmat
 fenced and inline code, explicit Markdown links, and explicit wiki links; it rejects self-links,
 ambiguous titles, and short single-word vocabulary. Aliases, backlinks, section-level occurrence
 coordinates, and search weighting remain open slices.
-
