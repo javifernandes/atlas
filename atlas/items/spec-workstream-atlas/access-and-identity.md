@@ -9,6 +9,7 @@ supports:
   - spec-workstream-atlas
   - spec-workstream-atlas.assisted-editing.operation-command-interface
 relatedPlans:
+  - plans/done/137-workspace-ownership-v0.md
   - plans/current/123-persistent-users-and-linked-accounts-v0.md
   - plans/current/119-atlas-authentication-and-workspace-visibility-v0.md
   - ontahi://plans/130-ontahi-authentication-principal-and-invocation-context
@@ -64,3 +65,8 @@ AtlasWorkspace -> ClientApplication
 `Project` remains a semantic root inside an Atlas workspace rather than becoming the tenancy or
 authentication boundary. Client Applications authenticate as service Principals and receive
 workspace- or resource-scoped grants separately from the user who registered them.
+
+The first durable ownership implementation is
+[[spec-workstream-atlas.access-identity.workspace|Workspace]]. It migrates the existing deployment
+projection into one default Workspace and replaces authenticated-by-default admission with active
+Membership. Sharing and dynamic source registration extend that boundary after isolation is proven.

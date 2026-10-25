@@ -4,10 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCurrentPrincipal, type Principal } from '@ontahi/core/runtime/server';
 
 const getAtlasRequestAccessMock = vi.hoisted(() => vi.fn());
+const getAtlasWorkspaceForUserMock = vi.hoisted(() => vi.fn());
 const dispatchOperationMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/auth/server', () => ({
   getAtlasRequestAccess: getAtlasRequestAccessMock,
+}));
+vi.mock('@/atlas/workspace/workspace-access', () => ({
+  getAtlasWorkspaceForUser: getAtlasWorkspaceForUserMock,
 }));
 vi.mock('@/atlas/server/atlas-runtime', () => ({
   dispatchAtlasBridgeOperationRequest: dispatchOperationMock,
@@ -28,6 +32,7 @@ describe('Atlas Operation bridge route', () => {
       viewer: { id: 'user-1' },
       visibility: 'public',
     });
+    getAtlasWorkspaceForUserMock.mockReset().mockResolvedValue({ id: 'workspace-1' });
     dispatchOperationMock.mockReset().mockImplementation(async () => {
       observedPrincipal = getCurrentPrincipal();
       return {
@@ -91,5 +96,29 @@ describe('Atlas Operation bridge route', () => {
 
     expect(response.status).toBe(401);
     expect(dispatchOperationMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects authenticated private access without an active Workspace membership', async () => {
+    getAtlasRequestAccessMock.mockResolvedValue({
+      authAvailable: true,
+      canRead: true,
+      configurationError: null,
+      principal: { issuer: 'atlas', kind: 'user', subject: 'user-2' },
+      viewer: { id: 'user-2' },
+      visibility: 'private',
+    });
+    getAtlasWorkspaceForUserMock.mockResolvedValue(null);
+
+    const response = await POST(
+      new Request('http://atlas.test/operations', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(dispatchOperationMock).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({ error: 'not_authorized' });
   });
 });

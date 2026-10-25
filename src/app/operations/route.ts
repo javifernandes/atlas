@@ -2,6 +2,7 @@ import { createNextOperationInvocationRouteHandler } from '@ontahi/runtime-nextj
 
 import { getAtlasRequestAccess } from '@/auth/server';
 import { dispatchAtlasBridgeOperationRequest } from '@/atlas/server/atlas-runtime';
+import { getAtlasWorkspaceForUser } from '@/atlas/workspace/workspace-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,20 @@ export const POST = async (request: Request) => {
         message: access.configurationError ?? 'Sign in to access this private Atlas.',
       },
       { status: access.configurationError ? 503 : 401 },
+    );
+  }
+
+  if (
+    access.visibility === 'private'
+    && access.viewer
+    && !(await getAtlasWorkspaceForUser(access.viewer.id))
+  ) {
+    return Response.json(
+      {
+        error: 'not_authorized',
+        message: 'An active Workspace membership is required.',
+      },
+      { status: 403 },
     );
   }
 

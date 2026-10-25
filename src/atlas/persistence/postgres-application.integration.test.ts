@@ -18,6 +18,10 @@ import {
 } from '../domain/atlas-application';
 import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
+import {
+  createAtlasWorkspaceAccessStore,
+  DEFAULT_ATLAS_WORKSPACE_ID,
+} from '../workspace/workspace-access';
 import { readAtlasAuthConfiguration } from '../../auth/config';
 import { createAtlasAuth, createAtlasAuthOptions } from '../../auth/server';
 import { runAtlasMigrations } from './migrations';
@@ -154,6 +158,7 @@ Durable Atlas projection.
         '008-explicit-execution-stream-forks.sql',
         '009-session-archive-and-last-activity.sql',
         '010-github-merge-catch-up.sql',
+        '011-workspace-ownership.sql',
       ],
       skipped: [],
     });
@@ -331,6 +336,52 @@ Durable Atlas projection.
         },
       ],
     });
+  }, postgresTestTimeout);
+
+  it('claims the default Workspace once and denies users from another Workspace', async () => {
+    const owner = await pool.query<{ id: string }>(
+      `SELECT id FROM atlas_auth_users WHERE email = 'persistent-user@example.com'`,
+    );
+    const ownerId = owner.rows[0]!.id;
+    const outsiderId = randomUUID();
+    const otherWorkspaceId = randomUUID();
+    await pool.query(
+      `
+        INSERT INTO atlas_auth_users (id, name, email, email_verified)
+        VALUES ($1, 'Outside User', 'outside@example.com', true)
+      `,
+      [outsiderId],
+    );
+    const store = createAtlasWorkspaceAccessStore(pool);
+
+    await expect(store.resolveForUser(ownerId)).resolves.toMatchObject({
+      id: DEFAULT_ATLAS_WORKSPACE_ID,
+      name: 'Atlas',
+      role: 'owner',
+      slug: 'atlas',
+      visibility: 'private',
+      members: [expect.objectContaining({ userId: ownerId, role: 'owner' })],
+    });
+    await pool.query(
+      `
+        INSERT INTO atlas_workspaces (id, slug, name, visibility)
+        VALUES ($1, 'other-workspace', 'Other Workspace', 'private')
+      `,
+      [otherWorkspaceId],
+    );
+    await pool.query(
+      `
+        INSERT INTO atlas_workspace_memberships (workspace_id, user_id, role, status)
+        VALUES ($1, $2, 'viewer', 'active')
+      `,
+      [otherWorkspaceId, outsiderId],
+    );
+    await expect(store.resolveForUser(outsiderId)).resolves.toBeNull();
+    await expect(
+      pool.query(
+        `SELECT count(*)::int AS count FROM atlas_workspace_memberships WHERE role = 'owner'`,
+      ),
+    ).resolves.toMatchObject({ rows: [{ count: 1 }] });
   }, postgresTestTimeout);
 
   it('reconciles repeatedly without duplicating the current graph', async () => {

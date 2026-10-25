@@ -269,6 +269,25 @@ const atlasAuthAccountFields = {
   updatedAt: field.nonEmptyString({ trim: true }),
 };
 
+const atlasWorkspaceFields = {
+  id: field.id(),
+  slug: field.nonEmptyString({ trim: true }),
+  name: field.nonEmptyString({ trim: true }),
+  visibility: field.enum(['private', 'public']),
+  createdAt: field.nonEmptyString({ trim: true }),
+  updatedAt: field.nonEmptyString({ trim: true }),
+};
+
+const atlasWorkspaceMembershipFields = {
+  id: field.id(),
+  workspaceId: field.id(),
+  userId: field.id(),
+  role: field.enum(['owner', 'editor', 'viewer']),
+  status: field.enum(['active', 'suspended']),
+  createdAt: field.nonEmptyString({ trim: true }),
+  updatedAt: field.nonEmptyString({ trim: true }),
+};
+
 const atlasExecutionStreamFields = {
   id: field.id(),
   userId: field.id(),
@@ -356,6 +375,9 @@ const AtlasItemRef = entity.ref('AtlasItem', { fields: atlasItemFields });
 const AtlasPlanRef = entity.ref('AtlasPlan');
 const EvidenceBindingRef = entity.ref('EvidenceBinding');
 const AtlasAuthAccountRef = entity.ref('AtlasAuthAccount', { fields: atlasAuthAccountFields });
+const AtlasWorkspaceMembershipRef = entity.ref('AtlasWorkspaceMembership', {
+  fields: atlasWorkspaceMembershipFields,
+});
 const AtlasExecutionStreamRef = entity.ref('AtlasExecutionStream', {
   fields: atlasExecutionStreamFields,
 });
@@ -374,6 +396,7 @@ export const AtlasUser = entity({
   },
   relations: {
     accounts: relation.hasMany(AtlasAuthAccountRef, { via: 'userId' }),
+    workspaceMemberships: relation.hasMany(AtlasWorkspaceMembershipRef, { via: 'userId' }),
     executionStreams: relation.hasMany(AtlasExecutionStreamRef, { via: 'userId' }),
   },
 });
@@ -387,6 +410,33 @@ export const AtlasAuthAccount = entity({
     layer: 'atlas.identity',
   },
   relations: {
+    user: relation.belongsTo(AtlasUser, { via: 'userId' }),
+  },
+});
+
+export const AtlasWorkspace = entity({
+  name: 'AtlasWorkspace',
+  fields: atlasWorkspaceFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.workspace',
+  },
+  relations: {
+    memberships: relation.hasMany(AtlasWorkspaceMembershipRef, { via: 'workspaceId' }),
+  },
+});
+
+export const AtlasWorkspaceMembership = entity({
+  name: 'AtlasWorkspaceMembership',
+  fields: atlasWorkspaceMembershipFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.workspace',
+  },
+  relations: {
+    workspace: relation.belongsTo(AtlasWorkspace, { via: 'workspaceId' }),
     user: relation.belongsTo(AtlasUser, { via: 'userId' }),
   },
 });
@@ -1686,6 +1736,8 @@ export type AtlasEvidenceProjection = {
 export const atlasEntities = [
   AtlasUser,
   AtlasAuthAccount,
+  AtlasWorkspace,
+  AtlasWorkspaceMembership,
   AtlasExecutionStream,
   AtlasExecutionStreamActivity,
   AtlasExecutionStreamRoot,
