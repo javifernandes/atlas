@@ -15,6 +15,10 @@ relatedPlans:
 
 Atlas Experiences are the human workflows the atlas should support: navigating the map, authoring the model, planning work, closing plans, reviewing evidence, and reading history.
 
+Full detail keeps semantic content and its source provenance on one continuous reading surface.
+The Source view exposes the authoritative repository file and observed revision without repeating
+hierarchy already expressed by detail navigation.
+
 Long-form full-detail reading should preserve native scrolling input while using quiet Atlas-owned
 position feedback instead of visually dominant platform scrollbar chrome. The indicator should
 communicate both viewport scale and current position without becoming another panel boundary.

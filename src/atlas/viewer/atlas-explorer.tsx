@@ -2170,13 +2170,24 @@ const GlobalAtlasBoard = ({
 
 const metadataLabel = (key: string) =>
   key
+    .replaceAll(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replaceAll('_', ' ')
     .replaceAll('-', ' ')
     .replaceAll(/\s+/g, ' ')
     .trim()
     .replaceAll(/\b[a-z]/g, match => match.toUpperCase());
 
-const metadataSectionLabel = (node: PlanWorkstreamNode) =>
-  node.kind === 'plan' ? 'Plan shape' : 'Atlas metadata';
+const normalizeMetadataKey = (key: string) => key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase();
+
+const sourceFileHref = (node: PlanWorkstreamNode) => {
+  if (!node.sourceRepository || !node.sourcePath) return null;
+  const revision = node.sourceRevisionKind === 'git' ? node.sourceRevision : 'main';
+
+  return `https://github.com/${node.sourceRepository}/blob/${encodeURIComponent(revision || 'main')}/${node.sourcePath
+    .split('/')
+    .map(part => encodeURIComponent(part))
+    .join('/')}`;
+};
 
 const parseMarkdownMetadataLines = (lines: string[]) => {
   const metadata = new Map<string, string | string[]>();
@@ -3610,6 +3621,24 @@ const FullMarkdownModal = ({
   const [contentScroll, setContentScroll] = useState({ progress: 0, visibleRatio: 1 });
   const contentScrollRef = useRef<HTMLDivElement>(null);
   const parsedDocument = useMemo(() => parseMarkdownDocument(node), [node]);
+  const sourceMetadata = useMemo(() => {
+    const visible = parsedDocument.metadata.filter(
+      item => normalizeMetadataKey(item.key) !== 'parent',
+    );
+    const primaryOrder = ['title', 'id', 'kind', 'status', 'horizon', 'typeof', 'sourcecommit'];
+    const primary = primaryOrder.flatMap(key => {
+      const item = visible.find(candidate => normalizeMetadataKey(candidate.key) === key);
+
+      return item ? [item] : [];
+    });
+    const primaryKeys = new Set(primary.map(item => item.key));
+
+    return {
+      primary,
+      remaining: visible.filter(item => !primaryKeys.has(item.key)),
+    };
+  }, [parsedDocument.metadata]);
+  const sourceHref = sourceFileHref(node);
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
       nodesById,
@@ -4029,44 +4058,116 @@ const FullMarkdownModal = ({
           ) : null}
 
           {activeTab === 'source' ? (
-            parsedDocument.metadata.length > 0 ? (
-              <section className='rounded-md border border-border/70 bg-background/35 p-4'>
-                <h3 className='font-mono text-xs uppercase text-muted-foreground'>
-                  {metadataSectionLabel(node)}
-                </h3>
-                <dl className='mt-3 grid gap-3 sm:grid-cols-2'>
-                  {parsedDocument.metadata.map(item => (
-                    <div key={item.key} className='min-w-0'>
-                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/70'>
+            <section className='mx-auto grid w-full max-w-6xl gap-8 px-1 py-1 sm:px-2'>
+              <div className='grid gap-2 border-b border-border/55 pb-6'>
+                <span className='font-mono text-[10px] uppercase text-muted-foreground/65'>
+                  Source file
+                </span>
+                <div className='flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1'>
+                  {sourceHref ? (
+                    <a
+                      className='group inline-flex min-w-0 items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-sky-300'
+                      href={sourceHref}
+                      rel='noreferrer'
+                      target='_blank'
+                    >
+                      <span className='min-w-0 break-all font-mono'>{node.sourcePath}</span>
+                      <ExternalLink className='size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-sky-300' />
+                    </a>
+                  ) : (
+                    <span className='min-w-0 break-all font-mono text-sm text-foreground'>
+                      {node.sourcePath ?? node.sourceFilePath ?? node.path ?? 'Unknown source'}
+                    </span>
+                  )}
+                  {node.sourceRepository ? (
+                    <span className='font-mono text-xs text-muted-foreground/65'>
+                      {node.sourceRepository}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              {sourceMetadata.primary.length > 0 || node.sourceRevision ? (
+                <dl className='grid gap-x-8 gap-y-6 sm:grid-cols-2 xl:grid-cols-12'>
+                  {sourceMetadata.primary.map(item => (
+                    <div
+                      key={item.key}
+                      className={cn(
+                        'min-w-0',
+                        normalizeMetadataKey(item.key) === 'title' && 'xl:col-span-4',
+                        normalizeMetadataKey(item.key) === 'id' && 'xl:col-span-5',
+                        !['title', 'id'].includes(normalizeMetadataKey(item.key)) &&
+                          'xl:col-span-3',
+                      )}
+                    >
+                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/65'>
                         {item.label}
                       </dt>
-                      <dd className='mt-1 flex min-w-0 flex-wrap gap-1.5 text-sm text-foreground'>
+                      <dd className='mt-1.5 min-w-0 break-words text-sm text-foreground/85'>
+                        {Array.isArray(item.value)
+                          ? item.value.join(', ') || 'None'
+                          : item.value || 'None'}
+                      </dd>
+                    </div>
+                  ))}
+                  {node.sourceRevision &&
+                  !sourceMetadata.primary.some(
+                    item => normalizeMetadataKey(item.key) === 'sourcecommit',
+                  ) ? (
+                    <div className='min-w-0 xl:col-span-3'>
+                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/65'>
+                        Source Commit
+                      </dt>
+                      <dd
+                        className='mt-1.5 truncate font-mono text-sm text-foreground/85'
+                        title={node.sourceRevision}
+                      >
+                        {node.sourceRevisionKind === 'git'
+                          ? node.sourceRevision.slice(0, 12)
+                          : 'local workspace'}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : null}
+
+              {sourceMetadata.remaining.length > 0 ? (
+                <dl className='divide-y divide-border/45 border-y border-border/45'>
+                  {sourceMetadata.remaining.map(item => (
+                    <div
+                      key={item.key}
+                      className='grid min-w-0 gap-2 py-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6'
+                    >
+                      <dt className='font-mono text-[10px] uppercase text-muted-foreground/65'>
+                        {item.label}
+                      </dt>
+                      <dd className='flex min-w-0 flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground'>
                         {Array.isArray(item.value) ? (
                           item.value.length > 0 ? (
                             item.value.map((value, valueIndex) => (
                               <span
                                 key={`${item.key}-${value}-${valueIndex}`}
-                                className='max-w-full truncate rounded border border-border/70 bg-card/70 px-2 py-0.5 text-xs text-muted-foreground'
+                                className='max-w-full break-words'
                               >
                                 {value}
                               </span>
                             ))
                           ) : (
-                            <span className='text-muted-foreground'>None</span>
+                            <span>None</span>
                           )
                         ) : (
-                          <span className='min-w-0 break-words text-muted-foreground'>
-                            {item.value || 'None'}
-                          </span>
+                          <span className='min-w-0 break-words'>{item.value || 'None'}</span>
                         )}
                       </dd>
                     </div>
                   ))}
                 </dl>
-              </section>
-            ) : (
-              <p className='text-sm text-muted-foreground'>No source metadata.</p>
-            )
+              ) : null}
+
+              {parsedDocument.metadata.length === 0 && !node.sourcePath ? (
+                <p className='text-sm text-muted-foreground'>No source metadata.</p>
+              ) : null}
+            </section>
           ) : null}
           </div>
 

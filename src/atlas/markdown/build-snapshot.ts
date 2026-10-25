@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import {
-  loadAtlasSourceFiles,
+  loadAtlasSourceObservation,
   type AtlasMarkdownFile,
 } from '../sources/markdown-source';
 import {
@@ -44,6 +44,9 @@ export type ParsedPlan = {
   sections: string[];
   sourceId?: string;
   sourcePath: string;
+  sourceRepository?: string;
+  sourceRevision?: string;
+  sourceRevisionKind?: 'git' | 'content-sha256';
   relatedLinks: Array<{ path: string; kind: Extract<PlanRelationKind, 'follow-up' | 'related'> }>;
   parentPlanPath?: string;
   candidateChildren: string[];
@@ -90,6 +93,9 @@ export type ParsedAtlasItem = {
   sections: string[];
   sourceId?: string;
   sourcePath: string;
+  sourceRepository?: string;
+  sourceRevision?: string;
+  sourceRevisionKind?: 'git' | 'content-sha256';
   territory: string;
   workstream?: string;
 };
@@ -411,6 +417,9 @@ const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
     sections: parseSections(file.content),
     sourceId: file.sourceId,
     sourcePath: file.sourcePath,
+    sourceRepository: file.sourceRepository,
+    sourceRevision: file.sourceRevision,
+    sourceRevisionKind: file.sourceRevisionKind,
     relatedLinks: parseRelatedLinks(file),
     parentPlanPath: parseParentPlanPath(file),
     candidateChildren: parseCandidateChildren(file.content),
@@ -515,6 +524,9 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
     sections: parseSections(body),
     sourceId: file.sourceId,
     sourcePath: file.sourcePath,
+    sourceRepository: file.sourceRepository,
+    sourceRevision: file.sourceRevision,
+    sourceRevisionKind: file.sourceRevisionKind,
     territory: title,
   };
 };
@@ -616,6 +628,7 @@ const toPlanNode = (plan: ParsedPlan): PlanWorkstreamNode => ({
   status: plan.status,
   planKey: plan.key,
   sourceId: plan.sourceId ?? 'atlas',
+  sourcePath: plan.sourcePath,
   planKind: plan.planKind,
   scale: plan.scale,
   horizon: plan.horizon,
@@ -625,6 +638,9 @@ const toPlanNode = (plan: ParsedPlan): PlanWorkstreamNode => ({
   workstream: plan.workstream,
   path: plan.path,
   sourceFilePath: plan.sourceFilePath,
+  sourceRepository: plan.sourceRepository,
+  sourceRevision: plan.sourceRevision,
+  sourceRevisionKind: plan.sourceRevisionKind,
   href: plan.href,
   markdown: plan.markdown,
   summary: plan.summary,
@@ -642,10 +658,15 @@ const toAtlasNode = (item: ParsedAtlasItem): PlanWorkstreamNode => ({
   status: item.status,
   horizon: item.horizon,
   semanticId: item.id,
+  sourceId: item.sourceId ?? 'atlas',
+  sourcePath: item.sourcePath,
   territory: item.territory,
   workstream: item.workstream,
   path: item.path,
   sourceFilePath: item.sourceFilePath,
+  sourceRepository: item.sourceRepository,
+  sourceRevision: item.sourceRevision,
+  sourceRevisionKind: item.sourceRevisionKind,
   markdown: item.markdown,
   summary: item.summary,
   sections: item.sections,
@@ -1336,7 +1357,7 @@ export const getPlanWorkstreamSnapshot = async (): Promise<PlanWorkstreamSnapsho
   let sourceFiles: AtlasMarkdownFile[] = [];
 
   try {
-    sourceFiles = await loadAtlasSourceFiles({ repoRoot });
+    sourceFiles = (await loadAtlasSourceObservation({ repoRoot })).files;
   } catch (error) {
     process.stderr.write(
       `Failed to load external Atlas sources: ${error instanceof Error ? error.message : String(error)}\n`,
