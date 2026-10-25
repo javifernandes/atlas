@@ -696,8 +696,13 @@ describe('PlanWorkstreamExplorer', () => {
     expect(results.length).toBeGreaterThan(1);
     expect(results[0]).toHaveAttribute('aria-selected', 'true');
 
+    await user.keyboard('{ArrowUp}');
+    expect(results[0]).toHaveAttribute('aria-selected', 'true');
+
     await user.keyboard('{ArrowDown}');
     expect(results[1]).toHaveAttribute('aria-selected', 'true');
+    expect(results[0]).not.toHaveClass('bg-muted/70');
+    expect(results[0]).not.toHaveClass('hover:bg-muted/70');
     expect(searchInput).toHaveAttribute('aria-activedescendant', results[1]?.id);
 
     await user.keyboard('{ArrowUp}');

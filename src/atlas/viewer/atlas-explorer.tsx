@@ -4071,6 +4071,7 @@ export const PlanWorkstreamExplorer = ({
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const [searchNavigationMode, setSearchNavigationMode] = useState<'keyboard' | 'pointer'>('pointer');
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(() =>
     getInitialExpandedNodeIds(snapshot.nodes, snapshot.edges),
   );
@@ -4097,6 +4098,7 @@ export const PlanWorkstreamExplorer = ({
   );
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchResultsViewportRef = useRef<HTMLDivElement>(null);
   const searchResultRefs = useRef(new Map<number, HTMLButtonElement>());
   const boardNodeRefs = useRef(new Map<string, HTMLElement>());
   const requestedNodeContentIdsRef = useRef(new Set<string>());
@@ -4558,8 +4560,23 @@ export const PlanWorkstreamExplorer = ({
   }, [searchMatches.length, searchOpen]);
 
   useEffect(() => {
-    searchResultRefs.current.get(activeSearchIndex)?.scrollIntoView?.({ block: 'nearest' });
-  }, [activeSearchIndex]);
+    if (searchNavigationMode !== 'keyboard') return;
+
+    const viewport = searchResultsViewportRef.current;
+    const result = searchResultRefs.current.get(activeSearchIndex);
+    if (!viewport || !result) return;
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const resultRect = result.getBoundingClientRect();
+    const edgePadding = 6;
+    const topDelta = resultRect.top - viewportRect.top - edgePadding;
+    const bottomDelta = resultRect.bottom - viewportRect.bottom + edgePadding;
+    const delta = topDelta < 0 ? topDelta : bottomDelta > 0 ? bottomDelta : 0;
+
+    if (delta !== 0) {
+      viewport.scrollBy?.({ behavior: 'smooth', top: delta });
+    }
+  }, [activeSearchIndex, searchNavigationMode]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -4569,6 +4586,7 @@ export const PlanWorkstreamExplorer = ({
 
       event.preventDefault();
       setActiveSearchIndex(0);
+      setSearchNavigationMode('pointer');
       setSearchOpen(true);
     };
 
@@ -5638,6 +5656,7 @@ export const PlanWorkstreamExplorer = ({
                 onChange={event => {
                   setQuery(event.target.value);
                   setActiveSearchIndex(0);
+                  setSearchNavigationMode('pointer');
                 }}
                 onKeyDown={event => {
                   if (event.key === 'Escape') {
@@ -5649,15 +5668,15 @@ export const PlanWorkstreamExplorer = ({
 
                   if (event.key === 'ArrowDown' && searchMatches.length > 0) {
                     event.preventDefault();
-                    setActiveSearchIndex(current => (current + 1) % searchMatches.length);
+                    setSearchNavigationMode('keyboard');
+                    setActiveSearchIndex(current => Math.min(current + 1, searchMatches.length - 1));
                     return;
                   }
 
                   if (event.key === 'ArrowUp' && searchMatches.length > 0) {
                     event.preventDefault();
-                    setActiveSearchIndex(
-                      current => (current - 1 + searchMatches.length) % searchMatches.length,
-                    );
+                    setSearchNavigationMode('keyboard');
+                    setActiveSearchIndex(current => Math.max(current - 1, 0));
                     return;
                   }
 
@@ -5678,6 +5697,7 @@ export const PlanWorkstreamExplorer = ({
                 axis='vertical'
                 className='mt-2'
                 viewportClassName='max-h-[min(60vh,560px)] overflow-y-auto rounded-lg p-1'
+                viewportRef={searchResultsViewportRef}
                 viewportProps={{
                   id: 'atlas-search-results',
                   role: 'listbox',
@@ -5702,12 +5722,16 @@ export const PlanWorkstreamExplorer = ({
                         data-node-id={node.id}
                         type='button'
                         className={cn(
-                          'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/70 focus:outline-none',
+                          'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors focus:outline-none',
+                          searchNavigationMode === 'pointer' && 'hover:bg-muted/70',
                           active && 'bg-muted/70',
                         )}
                         title={sourceParts?.source}
                         onClick={() => selectSearchMatch(node)}
-                        onMouseEnter={() => setActiveSearchIndex(resultIndex)}
+                        onMouseMove={() => {
+                          setSearchNavigationMode('pointer');
+                          setActiveSearchIndex(resultIndex);
+                        }}
                       >
                         <span
                           className={cn(

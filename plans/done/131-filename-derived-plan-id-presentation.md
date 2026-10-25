@@ -64,3 +64,6 @@ number aliases, while legacy snapshots retain path-based fallbacks. `pnpm verify
 Scrollable item panels now share a subtle overflow affordance that dims the obscured edge and shows
 the number of remaining items with a directional arrow. The search results exercise the vertical
 form, while child navigation exercises horizontal start/end forms.
+The hint's dimming is localized behind its badge rather than spanning the viewport. Keyboard result
+navigation clamps at list boundaries, clears pointer-hover styling while active, and scrolls only
+the exact distance needed to reveal the adjacent result.

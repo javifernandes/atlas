@@ -4,6 +4,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react'
 import {
   type HTMLAttributes,
   type ReactNode,
+  type MutableRefObject,
   useCallback,
   useEffect,
   useRef,
@@ -20,6 +21,7 @@ type ScrollableOverflowProps = {
   className?: string;
   contentClassName?: string;
   viewportClassName?: string;
+  viewportRef?: MutableRefObject<HTMLDivElement | null>;
   viewportProps?: HTMLAttributes<HTMLDivElement>;
 };
 
@@ -61,18 +63,24 @@ const OverflowHint = ({
       className={cn(
         'pointer-events-none absolute z-20 flex',
         axis === 'vertical' && side === 'start' &&
-          'inset-x-0 top-0 h-14 items-start justify-center bg-gradient-to-b from-card via-card/85 to-transparent pt-1.5',
+          'left-1/2 top-0 -translate-x-1/2 items-start justify-center',
         axis === 'vertical' && side === 'end' &&
-          'inset-x-0 bottom-0 h-14 items-end justify-center bg-gradient-to-t from-card via-card/85 to-transparent pb-1.5',
+          'bottom-0 left-1/2 -translate-x-1/2 items-end justify-center',
         axis === 'horizontal' && side === 'start' &&
-          'inset-y-0 left-0 w-24 items-center justify-start bg-gradient-to-r from-card via-card/85 to-transparent pl-1.5',
+          'left-0 top-1/2 -translate-y-1/2 items-center justify-start',
         axis === 'horizontal' && side === 'end' &&
-          'inset-y-0 right-0 w-24 items-center justify-end bg-gradient-to-l from-card via-card/85 to-transparent pr-1.5',
+          'right-0 top-1/2 -translate-y-1/2 items-center justify-end',
       )}
     >
-      <span className='inline-flex items-center gap-1 rounded-full border border-border/55 bg-background/72 px-2 py-1 font-mono text-[9px] text-muted-foreground shadow-sm backdrop-blur-md'>
-        <Icon aria-hidden='true' className='size-3' />
-        {count} more
+      <span className='relative isolate px-8 py-3'>
+        <span
+          aria-hidden='true'
+          className='absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,hsl(var(--card)/0.98)_0%,hsl(var(--card)/0.76)_42%,transparent_76%)]'
+        />
+        <span className='inline-flex items-center gap-1 rounded-full border border-border/55 bg-background/72 px-2 py-1 font-mono text-[9px] text-muted-foreground shadow-sm backdrop-blur-md'>
+          <Icon aria-hidden='true' className='size-3' />
+          {count} more
+        </span>
       </span>
     </div>
   );
@@ -85,6 +93,7 @@ export const ScrollableOverflow = ({
   contentClassName,
   viewportClassName,
   viewportProps,
+  viewportRef: externalViewportRef,
 }: ScrollableOverflowProps) => {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -138,7 +147,14 @@ export const ScrollableOverflow = ({
 
   return (
     <div className={cn('relative min-h-0 min-w-0', className)}>
-      <div {...viewportProps} ref={viewportRef} className={viewportClassName}>
+      <div
+        {...viewportProps}
+        ref={element => {
+          viewportRef.current = element;
+          if (externalViewportRef) externalViewportRef.current = element;
+        }}
+        className={viewportClassName}
+      >
         <div ref={contentRef} className={contentClassName}>
           {children}
         </div>
