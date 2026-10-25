@@ -13,6 +13,7 @@ relatedPlans:
   - bookops://plans/133-atlas-standalone-extraction
   - plans/done/101-workstream-atlas-semantic-source.md
   - plans/current/119-atlas-authentication-and-workspace-visibility-v0.md
+  - plans/current/136-atlas-adoption-foundation.md
 ---
 
 The Workstream Atlas is the emerging tool and language for navigating product, framework, UX, design, management, and implementation concerns as one semantic map.

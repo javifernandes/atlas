@@ -13,7 +13,6 @@ import {
   entity,
   ontahi,
   relation,
-  semanticEntityRef,
   type OntahiCapabilities,
 } from '@ontahi/core/runtime/server';
 import { Effect } from 'effect';
@@ -353,29 +352,17 @@ const AtlasPlanLinkProposalSchema = graphSchema.value('AtlasPlanLinkProposal', {
   status: field.enum(['already-linked', 'proposed']),
 });
 
-const AtlasItemRef = semanticEntityRef('AtlasItem', { fields: atlasItemFields });
-const AtlasPlanRef = semanticEntityRef('AtlasPlan', { fields: atlasPlanFields });
-const EvidenceBindingRef = semanticEntityRef('EvidenceBinding', { fields: evidenceBindingFields });
-const SourceRevisionRef = semanticEntityRef('AtlasSourceRevision', {
-  fields: sourceRevisionFields,
-});
-const SourceRecordRef = semanticEntityRef('AtlasSourceRecord', { fields: sourceRecordFields });
-const ProjectionRevisionRef = semanticEntityRef('ProjectionRevision', {
-  fields: projectionRevisionFields,
-});
-const AtlasAuthAccountRef = semanticEntityRef('AtlasAuthAccount', {
-  fields: atlasAuthAccountFields,
-});
-const AtlasExecutionStreamRef = semanticEntityRef('AtlasExecutionStream', {
+const AtlasItemRef = entity.ref('AtlasItem', { fields: atlasItemFields });
+const AtlasPlanRef = entity.ref('AtlasPlan');
+const EvidenceBindingRef = entity.ref('EvidenceBinding');
+const AtlasAuthAccountRef = entity.ref('AtlasAuthAccount', { fields: atlasAuthAccountFields });
+const AtlasExecutionStreamRef = entity.ref('AtlasExecutionStream', {
   fields: atlasExecutionStreamFields,
 });
-const AtlasExecutionStreamActivityRef = semanticEntityRef('AtlasExecutionStreamActivity', {
-  fields: atlasExecutionStreamActivityFields,
-});
-const AtlasExecutionStreamRootRef = semanticEntityRef('AtlasExecutionStreamRoot', {
+const AtlasExecutionStreamActivityRef = entity.ref('AtlasExecutionStreamActivity');
+const AtlasExecutionStreamRootRef = entity.ref('AtlasExecutionStreamRoot', {
   fields: atlasExecutionStreamRootFields,
 });
-const PullRequestRef = semanticEntityRef('PullRequest', { fields: pullRequestFields });
 
 export const AtlasUser = entity({
   name: 'AtlasUser',
@@ -423,8 +410,8 @@ export const AtlasPlan = entity({
   relations: {
     parent: relation.belongsTo(AtlasPlanRef, { via: 'parentPlanId' }),
     children: relation.hasMany(AtlasPlanRef, { via: 'parentPlanId' }),
-    sourceRevision: relation.belongsTo(SourceRevisionRef, { via: 'sourceRevisionId' }),
-    sourceRecord: relation.belongsTo(SourceRecordRef, { via: 'sourceRecordId' }),
+    sourceRevision: relation.belongsTo(AtlasSourceRevision, { via: 'sourceRevisionId' }),
+    sourceRecord: relation.belongsTo(AtlasSourceRecord, { via: 'sourceRecordId' }),
   },
 });
 
@@ -705,8 +692,8 @@ export const AtlasShapingBinding = entity({
   relations: {
     item: relation.belongsTo(AtlasItemRef, { via: 'itemId' }),
     plan: relation.belongsTo(AtlasPlan, { via: 'planId' }),
-    sourceRevision: relation.belongsTo(SourceRevisionRef, { via: 'sourceRevisionId' }),
-    sourceRecord: relation.belongsTo(SourceRecordRef, { via: 'sourceRecordId' }),
+    sourceRevision: relation.belongsTo(AtlasSourceRevision, { via: 'sourceRevisionId' }),
+    sourceRecord: relation.belongsTo(AtlasSourceRecord, { via: 'sourceRecordId' }),
   },
 });
 
@@ -716,8 +703,8 @@ export const AtlasSupportBinding = entity({
   relations: {
     source: relation.belongsTo(AtlasItemRef, { via: 'sourceItemId' }),
     target: relation.belongsTo(AtlasItemRef, { via: 'targetItemId' }),
-    sourceRevision: relation.belongsTo(SourceRevisionRef, { via: 'sourceRevisionId' }),
-    sourceRecord: relation.belongsTo(SourceRecordRef, { via: 'sourceRecordId' }),
+    sourceRevision: relation.belongsTo(AtlasSourceRevision, { via: 'sourceRevisionId' }),
+    sourceRecord: relation.belongsTo(AtlasSourceRecord, { via: 'sourceRecordId' }),
   },
 });
 
@@ -727,8 +714,8 @@ export const AtlasPlanRelationBinding = entity({
   relations: {
     source: relation.belongsTo(AtlasPlan, { via: 'sourcePlanId' }),
     target: relation.belongsTo(AtlasPlan, { via: 'targetPlanId' }),
-    sourceRevision: relation.belongsTo(SourceRevisionRef, { via: 'sourceRevisionId' }),
-    sourceRecord: relation.belongsTo(SourceRecordRef, { via: 'sourceRecordId' }),
+    sourceRevision: relation.belongsTo(AtlasSourceRevision, { via: 'sourceRevisionId' }),
+    sourceRecord: relation.belongsTo(AtlasSourceRecord, { via: 'sourceRecordId' }),
   },
 });
 
@@ -792,7 +779,7 @@ export const AtlasExecutionStreamActivity = entity({
   },
   relations: {
     stream: relation.belongsTo(AtlasExecutionStream, { via: 'streamId' }),
-    pullRequest: relation.belongsTo(PullRequestRef, { via: 'pullRequestId' }),
+    pullRequest: relation.belongsTo(PullRequest, { via: 'pullRequestId' }),
     plan: relation.belongsTo(AtlasPlan, { via: 'planId' }),
   },
 });
@@ -815,8 +802,8 @@ export const AtlasItem = entity({
     shapingBindings: relation.hasMany(AtlasShapingBinding, { via: 'itemId' }),
     outgoingSupportBindings: relation.hasMany(AtlasSupportBinding, { via: 'sourceItemId' }),
     incomingSupportBindings: relation.hasMany(AtlasSupportBinding, { via: 'targetItemId' }),
-    sourceRevision: relation.belongsTo(SourceRevisionRef, { via: 'sourceRevisionId' }),
-    sourceRecord: relation.belongsTo(SourceRecordRef, { via: 'sourceRecordId' }),
+    sourceRevision: relation.belongsTo(AtlasSourceRevision, { via: 'sourceRevisionId' }),
+    sourceRecord: relation.belongsTo(AtlasSourceRecord, { via: 'sourceRecordId' }),
   },
   operations: ({ self, entities, operation, app }) => ({
     proposePlanLink: operation({
@@ -884,10 +871,10 @@ export const ProjectionSourceRevision = entity({
   name: 'ProjectionSourceRevision',
   fields: projectionSourceRevisionFields,
   relations: {
-    projectionRevision: relation.belongsTo(ProjectionRevisionRef, {
+    projectionRevision: relation.belongsTo(ProjectionRevision, {
       via: 'projectionRevisionId',
     }),
-    sourceRevision: relation.belongsTo(SourceRevisionRef, { via: 'sourceRevisionId' }),
+    sourceRevision: relation.belongsTo(AtlasSourceRevision, { via: 'sourceRevisionId' }),
   },
 });
 
@@ -900,7 +887,7 @@ export const WebhookDelivery = entity({
   name: 'WebhookDelivery',
   fields: webhookDeliveryFields,
   relations: {
-    projectionRevision: relation.belongsTo(ProjectionRevisionRef, {
+    projectionRevision: relation.belongsTo(ProjectionRevision, {
       via: 'projectionRevisionId',
     }),
   },
