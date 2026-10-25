@@ -8,6 +8,11 @@ type PlanTitleProps = {
   titleClassName?: string;
 };
 
+type PlanIdBadgeProps = {
+  className?: string;
+  node: PlanWorkstreamNode;
+};
+
 export const getPlanDisplayKey = (node: PlanWorkstreamNode) => {
   if (node.kind !== 'plan') return null;
 
@@ -43,22 +48,27 @@ export const getPlanDisplayId = (node: PlanWorkstreamNode) => {
   return prefix ? `${prefix}-${key.toUpperCase()}` : key.toUpperCase();
 };
 
-export const PlanTitle = ({ className, keyClassName, node, titleClassName }: PlanTitleProps) => {
+export const PlanIdBadge = ({ className, node }: PlanIdBadgeProps) => {
   const planId = getPlanDisplayId(node);
+  if (!planId) return null;
 
   return (
+    <span
+      aria-label={`Plan ${planId}`}
+      className={cn(
+        'shrink-0 rounded-md border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 font-mono text-[0.78em] font-semibold leading-none tracking-tight text-sky-300',
+        className,
+      )}
+    >
+      {planId}
+    </span>
+  );
+};
+
+export const PlanTitle = ({ className, keyClassName, node, titleClassName }: PlanTitleProps) => {
+  return (
     <span className={cn('inline-flex min-w-0 items-baseline gap-2', className)}>
-      {planId ? (
-        <span
-          aria-label={`Plan ${planId}`}
-          className={cn(
-            'shrink-0 rounded-md border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 font-mono text-[0.78em] font-semibold leading-none tracking-tight text-sky-300',
-            keyClassName,
-          )}
-        >
-          {planId}
-        </span>
-      ) : null}
+      <PlanIdBadge className={keyClassName} node={node} />
       <span className={cn('min-w-0', titleClassName)}>{node.shortTitle}</span>
     </span>
   );

@@ -263,6 +263,44 @@ describe('PlanWorkstreamExplorer', () => {
     fetchMock.mockRestore();
   });
 
+  it('renders federated Plan IDs as badges inside Markdown links', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const relatedPlan = {
+      ...createNode('related-plan', {
+        kind: 'plan',
+        markdown: '# Resource Governance',
+        semanticId: 'bookops://plans/125a-resource-governance',
+        shortTitle: 'Resource Governance',
+        statusGroup: 'backlog',
+      }),
+      path: 'bookops://plans/125a-resource-governance',
+      planKey: '125a',
+      sourceId: 'bookops',
+    };
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: [
+        ...snapshot.nodes.map(node =>
+          node.id === 'item-a'
+            ? {
+                ...node,
+                markdown:
+                  '[125a. Resource Governance](bookops://plans/125a-resource-governance)',
+              }
+            : node,
+        ),
+        relatedPlan,
+      ],
+    };
+
+    renderExplorer({ value });
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByLabelText('Plan BOK-125A')).toBeInTheDocument();
+    expect(within(dialog).getByText('Resource Governance')).toBeInTheDocument();
+    expect(within(dialog).queryByText('125a. Resource Governance')).not.toBeInTheDocument();
+  });
+
   it('shows every project membership in full detail when Atlas has multiple projects', () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-b');
     const ontahiProject = createNode('ontahi-project', {

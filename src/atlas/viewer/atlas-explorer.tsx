@@ -50,7 +50,12 @@ import type {
   PlanWorkstreamSnapshot,
 } from '@/atlas/model/snapshot';
 import { ExecutionStreamView } from '@/atlas/viewer/execution-stream-view';
-import { getPlanDisplayId, getPlanDisplayKey, PlanTitle } from '@/atlas/viewer/plan-title';
+import {
+  getPlanDisplayId,
+  getPlanDisplayKey,
+  PlanIdBadge,
+  PlanTitle,
+} from '@/atlas/viewer/plan-title';
 import { cn } from '@/lib/classes';
 
 type PlanWorkstreamExplorerProps = {
@@ -2738,6 +2743,14 @@ const InlinePlanStatusBadge = ({ node }: { node: PlanWorkstreamNode }) =>
     </span>
   ) : null;
 
+const getInternalLinkLabel = (label: string, node: PlanWorkstreamNode) =>
+  node.kind === 'plan'
+    ? label
+        .replace(/^\d+[a-z]?\.\s+/i, '')
+        .replace(/^Plan\s+\d+[a-z]?:\s+/i, '')
+        .trim()
+    : label;
+
 const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
   const nodes: ReactNode[] = [];
   const pattern =
@@ -2805,6 +2818,9 @@ const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
             context.nodesBySemanticId,
           );
       const displayLabel = label.replace(/^`|`$/g, '');
+      const internalDisplayLabel = internalNode
+        ? getInternalLinkLabel(displayLabel, internalNode)
+        : displayLabel;
 
       nodes.push(
         isExternal ? (
@@ -2826,8 +2842,9 @@ const renderMarkdownInline = (text: string, context: MarkdownRenderContext) => {
             onClick={() => context.onOpenFull(internalNode.id)}
           >
             <InlinePlanStatusBadge node={internalNode} />
+            <PlanIdBadge className='text-[0.72em]' node={internalNode} />
             <span className='text-sky-300 underline decoration-sky-300/45 underline-offset-4 transition-colors group-hover:text-sky-200 group-hover:decoration-sky-200'>
-              {displayLabel}
+              {internalDisplayLabel}
             </span>
           </button>
         ) : (

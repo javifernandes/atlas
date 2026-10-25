@@ -75,3 +75,5 @@ the target item identity, and reduced-motion fallbacks instead of a bare loading
 intentionally avoids mechanical rings, orbit effects, or visually dominant progress chrome.
 Source-load failures use a similarly centered, low-contrast empty state with a small information
 icon and calm explanatory copy instead of aggressive destructive typography.
+Resolved Plan links inside rendered Markdown use the same federated ID badge and remove the local
+numeric prefix from link text, keeping related-plan lists consistent with the rest of the UI.
