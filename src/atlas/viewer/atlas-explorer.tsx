@@ -2190,6 +2190,51 @@ const sourceFileHref = (node: PlanWorkstreamNode) => {
     .join('/')}`;
 };
 
+const resolveSourceMetadataNode = (
+  value: string,
+  nodesByPath: Map<string, PlanWorkstreamNode>,
+  nodesBySemanticId: Map<string, PlanWorkstreamNode>,
+) => {
+  const reference = value.trim().replace(/^['"]|['"]$/g, '');
+
+  return (
+    nodesByPath.get(reference) ??
+    nodesBySemanticId.get(reference) ??
+    (reference.startsWith('atlas:')
+      ? nodesBySemanticId.get(reference.slice('atlas:'.length))
+      : undefined) ??
+    null
+  );
+};
+
+const SourceMetadataValue = ({
+  nodesByPath,
+  nodesBySemanticId,
+  onOpenFull,
+  value,
+}: {
+  nodesByPath: Map<string, PlanWorkstreamNode>;
+  nodesBySemanticId: Map<string, PlanWorkstreamNode>;
+  onOpenFull: (nodeId: string) => void;
+  value: string;
+}) => {
+  const target = resolveSourceMetadataNode(value, nodesByPath, nodesBySemanticId);
+
+  return target ? (
+    <button
+      type='button'
+      className='inline-flex max-w-full items-baseline gap-2 text-left text-foreground/80 transition-colors hover:text-sky-300 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
+      title={value}
+      onClick={() => onOpenFull(target.id)}
+    >
+      <PlanIdBadge className='text-[0.68em]' node={target} variant='text' />
+      <span className='min-w-0 break-words'>{target.shortTitle}</span>
+    </button>
+  ) : (
+    <span className='min-w-0 break-words'>{value || 'None'}</span>
+  );
+};
+
 const parseMarkdownMetadataLines = (lines: string[]) => {
   const metadata = new Map<string, string | string[]>();
   let currentListKey: string | null = null;
@@ -4164,9 +4209,30 @@ const FullMarkdownModal = ({
                         {item.label}
                       </dt>
                       <dd className='mt-1.5 min-w-0 break-words text-sm text-foreground/85'>
-                        {Array.isArray(item.value)
-                          ? item.value.join(', ') || 'None'
-                          : item.value || 'None'}
+                        {Array.isArray(item.value) ? (
+                          item.value.length > 0 ? (
+                            <span className='flex flex-wrap gap-x-4 gap-y-2'>
+                              {item.value.map((value, valueIndex) => (
+                                <SourceMetadataValue
+                                  key={`${item.key}-${value}-${valueIndex}`}
+                                  nodesByPath={nodesByPath}
+                                  nodesBySemanticId={nodesBySemanticId}
+                                  onOpenFull={onOpenFull}
+                                  value={value}
+                                />
+                              ))}
+                            </span>
+                          ) : (
+                            'None'
+                          )
+                        ) : (
+                          <SourceMetadataValue
+                            nodesByPath={nodesByPath}
+                            nodesBySemanticId={nodesBySemanticId}
+                            onOpenFull={onOpenFull}
+                            value={item.value}
+                          />
+                        )}
                       </dd>
                     </div>
                   ))}
@@ -4205,18 +4271,24 @@ const FullMarkdownModal = ({
                         {Array.isArray(item.value) ? (
                           item.value.length > 0 ? (
                             item.value.map((value, valueIndex) => (
-                              <span
+                              <SourceMetadataValue
                                 key={`${item.key}-${value}-${valueIndex}`}
-                                className='max-w-full break-words'
-                              >
-                                {value}
-                              </span>
+                                nodesByPath={nodesByPath}
+                                nodesBySemanticId={nodesBySemanticId}
+                                onOpenFull={onOpenFull}
+                                value={value}
+                              />
                             ))
                           ) : (
                             <span>None</span>
                           )
                         ) : (
-                          <span className='min-w-0 break-words'>{item.value || 'None'}</span>
+                          <SourceMetadataValue
+                            nodesByPath={nodesByPath}
+                            nodesBySemanticId={nodesBySemanticId}
+                            onOpenFull={onOpenFull}
+                            value={item.value}
+                          />
                         )}
                       </dd>
                     </div>

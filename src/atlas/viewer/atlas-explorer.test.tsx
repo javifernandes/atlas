@@ -266,6 +266,55 @@ describe('PlanWorkstreamExplorer', () => {
     expect(screen.getByRole('button', { name: 'Source file path copied' })).toBeInTheDocument();
   });
 
+  it('renders resolved source relationships as human-readable navigation', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a&section=source');
+    const user = userEvent.setup();
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node => {
+        if (node.id === 'item-a') {
+          return {
+            ...node,
+            markdown: `---
+Supports:
+  - item-c
+RelatedPlans:
+  - ontahi://plans/118-selection-language-editor
+---
+Item A overview text.`,
+          };
+        }
+
+        if (node.id === 'item-b') {
+          return {
+            ...node,
+            path: 'ontahi://plans/118-selection-language-editor',
+            sourceId: 'ontahi',
+          };
+        }
+
+        return node;
+      }),
+    };
+
+    renderExplorer({ value });
+    const dialog = screen.getByRole('dialog');
+
+    expect(within(dialog).getByRole('button', { name: 'Item C' })).toHaveAttribute(
+      'title',
+      'item-c',
+    );
+    expect(within(dialog).getByRole('button', { name: /Item B/ })).toHaveTextContent('ONT-118');
+    expect(
+      within(dialog).queryByText('ontahi://plans/118-selection-language-editor'),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Item C' }));
+    expect(
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'Item C' }),
+    ).toBeInTheDocument();
+  });
+
   it('offers full detail for a source-backed node with an Atlas loading state', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?node=item-b');
     const user = userEvent.setup();

@@ -23,6 +23,8 @@ for the browser to build an exact source-control link.
 - Show the source file and observed revision, with the filename linking to GitHub.
 - Let readers copy the repository-relative source path for direct IDE navigation.
 - Preserve list metadata below the scalar summary without adding card borders.
+- Resolve metadata references into human-readable, navigable Atlas item names when their targets
+  exist in the projected graph.
 - Refine the full-detail reading rail so its current viewport remains legible across themes and
   follows scrolling without discrete jumps, while staying absent when the content does not
   overflow.
@@ -84,3 +86,7 @@ geometry stable throughout the short splash interval.
 The reading-position rail now renders only for genuinely overflowing detail content, removing the
 inactive track from short tabs. Source provenance also exposes a quiet copy action beside the
 repository link so the displayed source path can be pasted directly into an IDE.
+
+Source relationship values now resolve through canonical paths and semantic IDs. Resolved values
+render as human-readable internal navigation, including the compact qualified code for Plans,
+while unresolved values remain visible as source text rather than being discarded.
