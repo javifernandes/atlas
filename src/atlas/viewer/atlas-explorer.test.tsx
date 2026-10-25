@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { PlanWorkstreamExplorer } from './atlas-explorer';
 
@@ -221,8 +221,10 @@ describe('PlanWorkstreamExplorer', () => {
     expect(screen.getByRole('button', { name: 'Permalink copied' })).toBeInTheDocument();
   });
 
-  it('offers full detail for a source-backed node whose Markdown is loaded on demand', () => {
+  it('offers full detail for a source-backed node with an Atlas loading state', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?node=item-b');
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
     const value: PlanWorkstreamSnapshot = {
       ...snapshot,
       nodes: snapshot.nodes.map(node =>
@@ -232,7 +234,33 @@ describe('PlanWorkstreamExplorer', () => {
 
     renderExplorer({ value });
 
-    expect(screen.getByRole('button', { name: 'See full' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'See full' }));
+
+    const loading = screen.getByRole('status', { name: 'Loading Item B' });
+    expect(within(loading).getByText('Loading source')).toBeInTheDocument();
+    expect(within(loading).getByText('Item B')).toBeInTheDocument();
+    fetchMock.mockRestore();
+  });
+
+  it('shows source-load failures as a calm centered detail state', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-b');
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 500 }));
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-b' ? { ...node, markdown: undefined } : node,
+      ),
+    };
+
+    renderExplorer({ value });
+
+    const errorState = await screen.findByRole('alert', { name: 'Could not load Item B' });
+    expect(within(errorState).getByText('Source content is unavailable')).toBeInTheDocument();
+    expect(within(errorState).getByText('Item B')).toBeInTheDocument();
+    expect(within(errorState).queryByText(/could not be loaded/i)).not.toBeInTheDocument();
+    fetchMock.mockRestore();
   });
 
   it('shows every project membership in full detail when Atlas has multiple projects', () => {
@@ -363,6 +391,8 @@ describe('PlanWorkstreamExplorer', () => {
     expect(
       new URL(childLink.getAttribute('href') ?? '', 'http://atlas.local').searchParams.get('full'),
     ).toBe('item-c');
+    expect(childLink).toHaveClass('rounded-full');
+    expect(within(childLink).getByText('system-primitive')).toBeInTheDocument();
 
     await user.click(childLink);
 
@@ -535,7 +565,7 @@ describe('PlanWorkstreamExplorer', () => {
     expect(screen.getByRole('button', { name: 'BookOps next plan' })).toBeInTheDocument();
   });
 
-  it('returns to the map when Board search selects a structural item', async () => {
+  it('opens a Board search result directly in full detail without changing workspace', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans');
     const user = userEvent.setup();
 
@@ -547,14 +577,14 @@ describe('PlanWorkstreamExplorer', () => {
     await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
     const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
 
-    await user.type(within(searchDialog).getByRole('textbox', { name: 'Search atlas' }), 'Item A');
-    await user.click(within(searchDialog).getByRole('button', { name: /Item A/ }));
+    await user.type(within(searchDialog).getByRole('combobox', { name: 'Search atlas' }), 'Item A');
+    await user.click(within(searchDialog).getByRole('option', { name: /Item A/ }));
 
-    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Board' })).toHaveClass('bg-primary/12');
+    expect(new URLSearchParams(globalThis.location.search).get('view')).toBe('board');
     expect(
-      screen.queryByRole('combobox', { name: 'Filter board by project' }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Item A' })).toBeInTheDocument();
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'Item A' }),
+    ).toBeInTheDocument();
   });
 
   it('renders Plans as visually distinct temporal nodes in the Map', () => {
@@ -632,7 +662,7 @@ describe('PlanWorkstreamExplorer', () => {
   });
 
   it('opens the search palette with Command-K and renders URI schemes as source badges', async () => {
-    globalThis.history.replaceState({}, '', '/internal/plans');
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();
     const federatedPlan = {
       ...createNode('federated-plan', {
@@ -646,12 +676,13 @@ describe('PlanWorkstreamExplorer', () => {
 
     renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, federatedPlan] } });
     expect(screen.getByRole('button', { name: 'Open Atlas search' })).toHaveTextContent('Atlas');
-    expect(screen.queryByRole('textbox', { name: 'Search atlas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Search atlas' })).not.toBeInTheDocument();
 
     fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
 
-    const searchInput = screen.getByRole('textbox', { name: 'Search atlas' });
-    expect(screen.getByRole('dialog', { name: 'Search Atlas' })).toBeInTheDocument();
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
+    const searchInput = within(searchDialog).getByRole('combobox', { name: 'Search atlas' });
+    expect(searchDialog.parentElement).toHaveClass('z-[100]');
     expect(searchInput).toHaveFocus();
 
     await user.type(searchInput, '68');
@@ -659,7 +690,7 @@ describe('PlanWorkstreamExplorer', () => {
     const result = screen.getByTitle(
       'bookops://plans/68-unified-application-architecture-surface',
     );
-    expect(within(result).getByText('68')).toBeInTheDocument();
+    expect(within(result).getByText('BOK-68')).toBeInTheDocument();
     expect(within(result).getByText('bookops')).toBeInTheDocument();
     expect(within(result).queryByText('bookops://')).not.toBeInTheDocument();
     expect(
@@ -669,9 +700,79 @@ describe('PlanWorkstreamExplorer', () => {
       'title',
       'bookops://plans/68-unified-application-architecture-surface',
     );
+    expect(result.lastElementChild).toHaveTextContent('plan');
 
-    await user.keyboard('{Escape}');
+    await user.click(result);
     expect(screen.queryByRole('dialog', { name: 'Search Atlas' })).not.toBeInTheDocument();
+    const detailDialog = screen.getByRole('dialog');
+    expect(within(detailDialog).getByLabelText('Plan BOK-68')).toBeInTheDocument();
+    expect(within(detailDialog).getByText('Federated plan details.')).toBeInTheDocument();
+  });
+
+  it('moves through search results with arrow keys and opens the active result with Enter', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
+
+    renderExplorer();
+    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
+    const searchInput = within(searchDialog).getByRole('combobox', { name: 'Search atlas' });
+    await user.type(searchInput, 'Item');
+
+    const results = within(searchDialog).getAllByRole('option');
+    expect(results.length).toBeGreaterThan(1);
+    expect(results[0]).toHaveAttribute('aria-selected', 'true');
+
+    await user.keyboard('{ArrowUp}');
+    expect(results[0]).toHaveAttribute('aria-selected', 'true');
+
+    await user.keyboard('{ArrowDown}');
+    expect(results[1]).toHaveAttribute('aria-selected', 'true');
+    expect(results[0]).not.toHaveClass('bg-muted/70');
+    expect(results[0]).not.toHaveClass('hover:bg-muted/70');
+    expect(searchInput).toHaveAttribute('aria-activedescendant', results[1]?.id);
+
+    await user.keyboard('{ArrowUp}');
+    expect(results[0]).toHaveAttribute('aria-selected', 'true');
+
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(screen.queryByRole('dialog', { name: 'Search Atlas' })).not.toBeInTheDocument();
+    expect(new URLSearchParams(globalThis.location.search).get('full')).toBe(
+      results[1]?.getAttribute('data-node-id'),
+    );
+  });
+
+  it('ranks an exact item title ahead of incidental source-path matches', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
+    const ontahiModel = createNode('ontahi-model', {
+      kind: 'model',
+      markdown: '# Ontahi Model',
+      semanticId: 'ontahi://atlas/model',
+      shortTitle: 'Ontahi Model',
+    });
+    const incidentalMatch = createNode('incidental-model-match', {
+      kind: 'concept',
+      markdown: '# Implementation Surface',
+      semanticId: 'atlas://atlas/ontahi-model/implementation-surface',
+      shortTitle: 'Implementation Surface',
+    });
+
+    renderExplorer({
+      value: { ...snapshot, nodes: [...snapshot.nodes, incidentalMatch, ontahiModel] },
+    });
+    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
+    await user.type(
+      within(searchDialog).getByRole('combobox', { name: 'Search atlas' }),
+      'ontahi model',
+    );
+
+    const results = within(searchDialog).getAllByRole('option');
+    expect(results[0]).toHaveAttribute('data-node-id', ontahiModel.id);
+    expect(results[0]).toHaveAttribute('aria-selected', 'true');
   });
 
   it('renders explicit merged PR evidence as an attachment outside evolution stages', async () => {

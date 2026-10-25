@@ -29,6 +29,7 @@ import type {
   PlanWorkstreamSnapshot,
 } from '../model/snapshot';
 import { cn } from '@/lib/classes';
+import { PlanTitle } from '@/atlas/viewer/plan-title';
 
 type ExecutionStreamViewProps = {
   executionStreams: AtlasExecutionStreamProjection[];
@@ -1045,9 +1046,11 @@ export const ExecutionStreamView = ({
                                 <ExecutionNodeState focused={focused} node={node} />
                               </span>
                               <span className='min-w-0'>
-                                <span className='block truncate text-sm font-medium'>
-                                  {node.shortTitle}
-                                </span>
+                                <PlanTitle
+                                  className='flex text-sm font-medium'
+                                  node={node}
+                                  titleClassName='truncate'
+                                />
                                 <span className='mt-0.5 block truncate text-[11px] text-muted-foreground'>
                                   {planSourceLabel(node)}
                                 </span>
@@ -1241,7 +1244,11 @@ export const ExecutionStreamView = ({
                           checked={forkPlanIds.has(node.id)}
                           onChange={() => toggleForkPlan(node.id)}
                         />
-                        <span className='min-w-0 flex-1 truncate text-sm'>{node.shortTitle}</span>
+                        <PlanTitle
+                          className='min-w-0 flex-1 text-sm'
+                          node={node}
+                          titleClassName='truncate'
+                        />
                         <span className='text-[11px] text-muted-foreground'>
                           {node.statusGroup}
                         </span>

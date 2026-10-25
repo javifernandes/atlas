@@ -91,6 +91,8 @@ Define Plan as the first pilot.
     const plan99 = snapshot.nodes.find(
       node => node.id === 'plan:plans/backlog/99-semantic-editorial-workflows.md',
     );
+    expect(plan99?.planKey).toBe('99');
+    expect(plan99?.sourceId).toBe('atlas');
 
     expect(plan99).toMatchObject({
       candidateCount: 2,

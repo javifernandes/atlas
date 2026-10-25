@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  ArrowDown,
   ArrowRight,
   ArrowUp,
   BookOpen,
@@ -37,6 +38,7 @@ import {
 
 import { AtlasMark } from '@/components/atlas-mark';
 import { MermaidDiagram } from '@/components/mermaid-diagram';
+import { ScrollableOverflow } from '@/components/scrollable-overflow';
 import { useTheme } from '@/components/theme-provider';
 import type { AtlasExecutionStreamProjection } from '@/atlas/model/execution-stream';
 import type {
@@ -48,6 +50,7 @@ import type {
   PlanWorkstreamSnapshot,
 } from '@/atlas/model/snapshot';
 import { ExecutionStreamView } from '@/atlas/viewer/execution-stream-view';
+import { getPlanDisplayId, getPlanDisplayKey, PlanTitle } from '@/atlas/viewer/plan-title';
 import { cn } from '@/lib/classes';
 
 type PlanWorkstreamExplorerProps = {
@@ -708,15 +711,7 @@ const normalizeSearchValue = (value: string) =>
     .toLowerCase();
 
 const getPlanNumber = (node: PlanWorkstreamNode) => {
-  if (node.kind !== 'plan') {
-    return null;
-  }
-
-  return (
-    (node.path ?? node.semanticId ?? node.shortTitle)
-      .match(/(?:^|\/)(\d+[a-z]*)[-–]/i)?.[1]
-      ?.toLowerCase() ?? null
-  );
+  return getPlanDisplayKey(node)?.toLowerCase() ?? null;
 };
 
 const getPlanNumberAliases = (planNumber: string) => {
@@ -741,7 +736,7 @@ const getPlanSearchTokens = (node: PlanWorkstreamNode) => {
     return [];
   }
 
-  return getPlanNumberAliases(planNumber).flatMap(alias => [
+  const localAliases = getPlanNumberAliases(planNumber).flatMap(alias => [
     alias,
     `#${alias}`,
     `p${alias}`,
@@ -749,6 +744,11 @@ const getPlanSearchTokens = (node: PlanWorkstreamNode) => {
     `plan-${alias}`,
     `plan:${alias}`,
   ]);
+  const displayId = getPlanDisplayId(node)?.toLowerCase();
+
+  return displayId
+    ? [...localAliases, displayId, `#${displayId}`, `plan ${displayId}`, `plan:${displayId}`]
+    : localAliases;
 };
 
 const getSearchText = (node: PlanWorkstreamNode) =>
@@ -763,6 +763,8 @@ const getSearchText = (node: PlanWorkstreamNode) =>
       node.codename,
       node.territory,
       node.workstream,
+      node.summary,
+      ...node.sections,
       ...(node.exemplars ?? []),
       ...getPlanSearchTokens(node),
     ]
@@ -771,26 +773,23 @@ const getSearchText = (node: PlanWorkstreamNode) =>
   );
 
 const getSearchMatchRank = (node: PlanWorkstreamNode, query: string) => {
-  if (node.kind !== 'plan') {
-    return 1;
+  const title = normalizeSearchValue(node.shortTitle || node.title).trim();
+  const fullTitle = normalizeSearchValue(node.title).trim();
+  const terms = query.split(/\s+/).filter(Boolean);
+  const titleTerms = new Set(title.split(/\s+/).filter(Boolean));
+
+  if (title === query || fullTitle === query) return 0;
+
+  if (node.kind === 'plan' && getPlanNumber(node) && getPlanSearchTokens(node).includes(query)) {
+    return 0;
   }
 
-  const planNumber = getPlanNumber(node);
+  if (title.startsWith(query) || fullTitle.startsWith(query)) return 1;
+  if (title.includes(query) || fullTitle.includes(query)) return 2;
+  if (terms.every(term => titleTerms.has(term))) return 3;
+  if (terms.every(term => title.includes(term) || fullTitle.includes(term))) return 4;
 
-  if (!planNumber) {
-    return 1;
-  }
-
-  const exactPlanQueries = getPlanNumberAliases(planNumber).flatMap(alias => [
-    alias,
-    `#${alias}`,
-    `p${alias}`,
-    `plan ${alias}`,
-    `plan-${alias}`,
-    `plan:${alias}`,
-  ]);
-
-  return exactPlanQueries.includes(query) ? 0 : 1;
+  return 5;
 };
 
 type HierarchyIndex = {
@@ -940,7 +939,13 @@ const getSearchMatches = (nodes: PlanWorkstreamNode[], query: string) => {
       text: getSearchText(node),
     }))
     .filter(match => match.node.kind !== 'root' && terms.every(term => match.text.includes(term)))
-    .sort((left, right) => left.rank - right.rank || left.index - right.index)
+    .sort(
+      (left, right) =>
+        left.rank - right.rank ||
+        left.node.shortTitle.length - right.node.shortTitle.length ||
+        left.node.shortTitle.localeCompare(right.node.shortTitle) ||
+        left.index - right.index,
+    )
     .map(match => match.node)
     .slice(0, searchMatchLimit);
 };
@@ -1264,7 +1269,11 @@ const NodeCard = ({
         {getNodeStatusLabel(node)}
       </span>
     </div>
-    <div className='mt-1.5 line-clamp-2 text-sm font-medium leading-snug'>{node.shortTitle}</div>
+    <PlanTitle
+      className='mt-1.5 text-sm font-medium leading-snug'
+      node={node}
+      titleClassName='line-clamp-2'
+    />
   </div>
 );
 
@@ -1350,7 +1359,11 @@ const RelationList = ({
               className={cn('size-1.5 shrink-0 rounded-full', relationDotClassName(relation.kind))}
             />
             <span className='font-mono'>{label}</span>
-            <span className='truncate'>{otherNode?.shortTitle ?? relation.otherNodeId}</span>
+            {otherNode ? (
+              <PlanTitle node={otherNode} titleClassName='truncate' />
+            ) : (
+              <span className='truncate'>{relation.otherNodeId}</span>
+            )}
           </button>
         );
       })}
@@ -1443,7 +1456,7 @@ const SemanticSignalList = ({
                     title={sourceNode.path ?? sourceNode.semanticId}
                     onClick={() => onOpenFull(sourceNode.id)}
                   >
-                    {sourceNode.shortTitle}
+                    <PlanTitle node={sourceNode} titleClassName='truncate' />
                   </button>
                 </>
               ) : null}
@@ -1744,7 +1757,7 @@ const EvolutionEntryList = ({
               className='line-clamp-2 text-left text-sm font-medium text-foreground transition-colors hover:text-sky-300'
               onClick={() => onOpenFull(entry.node.id)}
             >
-              {entry.node.shortTitle}
+              <PlanTitle node={entry.node} titleClassName='line-clamp-2' />
             </button>
             {entry.node.summary ? (
               <ShapeContentSummary
@@ -1944,7 +1957,7 @@ const GlobalBoardNodeCard = ({
           {breadcrumb.slice(-3).map((crumb, crumbIndex) => (
             <Fragment key={crumb.id}>
               {crumbIndex > 0 ? <span className='text-muted-foreground/45'>/</span> : null}
-              <span className='truncate'>{crumb.shortTitle}</span>
+              <PlanTitle node={crumb} titleClassName='truncate' />
             </Fragment>
           ))}
         </div>
@@ -1955,7 +1968,7 @@ const GlobalBoardNodeCard = ({
         className='line-clamp-2 text-left text-sm font-medium leading-snug text-foreground transition-colors hover:text-sky-300'
         onClick={() => onOpenFull(node.id)}
       >
-        {node.shortTitle}
+        <PlanTitle node={node} titleClassName='line-clamp-2' />
       </button>
 
       {node.summary ? (
@@ -3401,6 +3414,60 @@ const MarkdownSectionIndex = ({ groups }: { groups: MarkdownSectionGroup[] }) =>
   );
 };
 
+const DetailContentLoading = ({ node }: { node: PlanWorkstreamNode }) => (
+  <div
+    role='status'
+    aria-label={`Loading ${node.shortTitle}`}
+    aria-live='polite'
+    className='grid min-h-[min(48vh,420px)] place-items-center'
+  >
+    <div className='flex flex-col items-center gap-3 text-center'>
+      <div className='relative grid size-16 place-items-center'>
+        <span className='absolute inset-3 rounded-full bg-sky-300/8 blur-xl motion-safe:animate-pulse motion-reduce:animate-none' />
+        <AtlasMark
+          className='size-9 opacity-75 motion-safe:animate-[pulse_2.8s_ease-in-out_infinite] motion-reduce:animate-none'
+          priority
+        />
+      </div>
+      <div className='grid gap-1.5'>
+        <span className='font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/65'>
+          Loading source
+        </span>
+        <PlanTitle
+          className='justify-center text-sm font-medium text-muted-foreground'
+          node={node}
+          titleClassName='line-clamp-1'
+        />
+      </div>
+    </div>
+  </div>
+);
+
+const DetailContentError = ({ node }: { node: PlanWorkstreamNode }) => (
+  <div
+    role='alert'
+    aria-label={`Could not load ${node.shortTitle}`}
+    className='grid min-h-[min(48vh,420px)] place-items-center'
+  >
+    <div className='flex max-w-sm flex-col items-center gap-3 px-6 text-center'>
+      <span className='grid size-10 place-items-center rounded-full bg-muted/55 text-muted-foreground'>
+        <Info aria-hidden='true' className='size-4' />
+      </span>
+      <div className='grid gap-1.5'>
+        <span className='text-sm font-medium text-foreground/85'>Source content is unavailable</span>
+        <span className='text-xs leading-5 text-muted-foreground'>
+          Atlas couldn’t read this item’s source right now.
+        </span>
+        <PlanTitle
+          className='mt-1 justify-center text-xs text-muted-foreground/75'
+          node={node}
+          titleClassName='line-clamp-1'
+        />
+      </div>
+    </div>
+  </div>
+);
+
 const FullMarkdownModal = ({
   activeTab,
   edges,
@@ -3569,7 +3636,7 @@ const FullMarkdownModal = ({
                 <span className='font-mono text-[9px] uppercase text-muted-foreground/70'>
                   Parent
                 </span>
-                <span className='truncate font-medium'>{parentNode.shortTitle}</span>
+                <PlanTitle node={parentNode} titleClassName='truncate font-medium' />
               </a>
             </nav>
           ) : null}
@@ -3615,13 +3682,13 @@ const FullMarkdownModal = ({
                   <span className='font-mono text-[9px] uppercase text-muted-foreground'>
                     Project
                   </span>
-                  <span className='truncate font-medium'>{project.shortTitle}</span>
+                  <PlanTitle node={project} titleClassName='truncate font-medium' />
                 </span>
               ))}
             </div>
             <div className='mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2'>
               <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
-                {node.shortTitle}
+                <PlanTitle node={node} titleClassName='truncate' />
               </h2>
               <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
                 {fullMarkdownModalTabs.map(tab => (
@@ -3664,16 +3731,14 @@ const FullMarkdownModal = ({
             activeTab === 'evolution' ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto',
           )}
         >
-          {activeTab === 'overview' ? (
+          {activeTab === 'overview' ? contentStatus === 'loading' ? (
+            <DetailContentLoading node={node} />
+          ) : contentStatus === 'error' ? (
+            <DetailContentError node={node} />
+          ) : (
             <div className='grid min-w-0 gap-6 px-1 sm:px-2 xl:grid-cols-[minmax(0,1fr)_12rem]'>
               <article className='grid min-w-0 max-w-full gap-5 overflow-hidden break-words xl:pr-2 [&>*]:min-w-0 [&>*]:max-w-full'>
-                {contentStatus === 'loading' ? (
-                  <p className='text-sm text-muted-foreground'>Loading source content…</p>
-                ) : contentStatus === 'error' ? (
-                  <p className='text-sm text-destructive'>Source content could not be loaded.</p>
-                ) : (
-                  renderMarkdownBody(overviewBody, markdownContext)
-                )}
+                {renderMarkdownBody(overviewBody, markdownContext)}
               </article>
               {contentStatus === 'loaded' ? (
                 <MarkdownSectionIndex groups={markdownSectionGroups} />
@@ -3783,7 +3848,7 @@ const FullMarkdownModal = ({
                               title={crumb.path ?? crumb.semanticId}
                               onClick={() => onOpenFull(crumb.id)}
                             >
-                              <span className='truncate'>{crumb.shortTitle}</span>
+                              <PlanTitle node={crumb} titleClassName='truncate' />
                             </button>
                           </Fragment>
                         ))}
@@ -3871,21 +3936,18 @@ const FullMarkdownModal = ({
         {childNodes.length > 0 ? (
           <nav
             aria-label='Child nodes'
-            className='relative shrink-0 bg-gradient-to-t from-card via-card/95 to-transparent px-5 pb-4 pt-4 sm:px-8'
+            className='relative shrink-0 border-t border-border/70 bg-card/90 px-5 py-3 sm:px-8'
           >
-            <div className='mb-1.5 text-center font-mono text-[9px] uppercase tracking-wide text-muted-foreground/55'>
-              Children
-            </div>
-            <div className='relative'>
-              <div className='pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-card to-transparent' />
-              <div className='pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-card to-transparent' />
-              <div className='scroll-smooth overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-                <div className='flex w-max min-w-full snap-x snap-mandatory justify-center gap-2 px-3'>
+            <ScrollableOverflow
+              axis='horizontal'
+              viewportClassName='scroll-smooth overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+              contentClassName='flex w-max min-w-full snap-x snap-mandatory justify-center gap-1.5'
+            >
                   {childNodes.map(child => (
                     <a
                       key={child.id}
                       aria-label={`Child node: ${child.shortTitle}`}
-                      className='group/child grid w-52 shrink-0 snap-start gap-1 rounded-lg bg-muted/25 px-3 py-2 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
+                      className='group/child inline-flex max-w-[min(20rem,70vw)] shrink-0 snap-start items-center gap-2 rounded-full px-3 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground focus-visible:bg-muted/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35'
                       href={getNodeHref(child.id)}
                       title={child.path ?? child.semanticId}
                       onClick={event => {
@@ -3903,24 +3965,14 @@ const FullMarkdownModal = ({
                         onOpenFull(child.id);
                       }}
                     >
-                      <span className='flex min-w-0 items-center gap-2 font-mono text-[9px] uppercase text-muted-foreground/65'>
-                        <span
-                          className={cn(
-                            'size-1.5 shrink-0 rounded-full',
-                            statusDotClassName(child.statusGroup),
-                          )}
-                        />
-                        <span className='truncate'>{child.kind}</span>
-                        <span className='ml-auto shrink-0 normal-case'>{getNodeStatusLabel(child)}</span>
+                      <ArrowDown className='size-3.5 shrink-0 transition-transform group-hover/child:translate-y-0.5' />
+                      <span className='shrink-0 font-mono text-[9px] uppercase text-muted-foreground/70'>
+                        {child.kind}
                       </span>
-                      <span className='truncate text-xs font-medium text-foreground transition-colors group-hover/child:text-primary'>
-                        {child.shortTitle}
-                      </span>
+                      <PlanTitle node={child} titleClassName='truncate font-medium' />
                     </a>
                   ))}
-                </div>
-              </div>
-            </div>
+            </ScrollableOverflow>
           </nav>
         ) : null}
       </div>
@@ -3980,7 +4032,7 @@ const SelectionPanel = ({
               <span className='font-mono text-xs text-muted-foreground'>{node.status}</span>
             </div>
             <h2 className='mt-2 line-clamp-2 text-lg font-semibold leading-tight'>
-              {node.shortTitle}
+              <PlanTitle node={node} titleClassName='line-clamp-2' />
             </h2>
           </div>
           <IconButton label='Clear selection' onClick={onClose}>
@@ -4082,6 +4134,8 @@ export const PlanWorkstreamExplorer = ({
   const [atlasView, setAtlasView] = useState<AtlasView>('map');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const [searchNavigationMode, setSearchNavigationMode] = useState<'keyboard' | 'pointer'>('pointer');
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(() =>
     getInitialExpandedNodeIds(snapshot.nodes, snapshot.edges),
   );
@@ -4108,6 +4162,8 @@ export const PlanWorkstreamExplorer = ({
   );
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchResultsViewportRef = useRef<HTMLDivElement>(null);
+  const searchResultRefs = useRef(new Map<number, HTMLButtonElement>());
   const boardNodeRefs = useRef(new Map<string, HTMLElement>());
   const requestedNodeContentIdsRef = useRef(new Set<string>());
   const viewportRef = useRef<Viewport>(fallbackViewport);
@@ -4559,12 +4615,42 @@ export const PlanWorkstreamExplorer = ({
   }, [searchOpen]);
 
   useEffect(() => {
+    if (!searchOpen || searchMatches.length === 0) {
+      setActiveSearchIndex(0);
+      return;
+    }
+
+    setActiveSearchIndex(current => Math.min(current, searchMatches.length - 1));
+  }, [searchMatches.length, searchOpen]);
+
+  useEffect(() => {
+    if (searchNavigationMode !== 'keyboard') return;
+
+    const viewport = searchResultsViewportRef.current;
+    const result = searchResultRefs.current.get(activeSearchIndex);
+    if (!viewport || !result) return;
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const resultRect = result.getBoundingClientRect();
+    const edgePadding = 6;
+    const topDelta = resultRect.top - viewportRect.top - edgePadding;
+    const bottomDelta = resultRect.bottom - viewportRect.bottom + edgePadding;
+    const delta = topDelta < 0 ? topDelta : bottomDelta > 0 ? bottomDelta : 0;
+
+    if (delta !== 0) {
+      viewport.scrollBy?.({ behavior: 'smooth', top: delta });
+    }
+  }, [activeSearchIndex, searchNavigationMode]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() !== 'k' || (!event.metaKey && !event.ctrlKey) || event.altKey) {
         return;
       }
 
       event.preventDefault();
+      setActiveSearchIndex(0);
+      setSearchNavigationMode('pointer');
       setSearchOpen(true);
     };
 
@@ -5020,16 +5106,6 @@ export const PlanWorkstreamExplorer = ({
 
     boardNodeRefs.current.delete(nodeId);
   }, []);
-  const scrollBoardNodeIntoView = useCallback((nodeId: string) => {
-    globalThis.requestAnimationFrame(() => {
-      boardNodeRefs.current.get(nodeId)?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'center',
-      });
-    });
-  }, []);
-
   const clearEdgeHoverHideTimeout = () => {
     if (edgeHoverHideTimeoutRef.current === null) {
       return;
@@ -5079,28 +5155,7 @@ export const PlanWorkstreamExplorer = ({
   const selectSearchMatch = (node: PlanWorkstreamNode) => {
     setQuery('');
     setSearchOpen(false);
-
-    if (atlasView === 'board' && node.kind === 'plan') {
-      if (boardProjectNodeIds && !boardProjectNodeIds.has(node.id)) {
-        setSelectedBoardProjectId('');
-      }
-
-      setSelectedNodeId(node.id);
-      setDetailOpen(false);
-      setFullNodeId(null);
-      setFullNodeHistoryIds([]);
-      setHoveredNodeId(null);
-      writeAtlasRouteState({
-        fullNodeId: null,
-        fullNodeTab: defaultFullMarkdownModalTab,
-        selectedNodeId: node.id,
-      });
-      scrollBoardNodeIntoView(node.id);
-      return;
-    }
-
-    setAtlasView('map');
-    selectNode(node.id, { focus: true });
+    openFullNode(node.id);
   };
 
   const toggleExpandedNode = (nodeId: string) => {
@@ -5566,7 +5621,7 @@ export const PlanWorkstreamExplorer = ({
             </span>
             <ArrowRight className='size-3 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-sky-300' />
             <span className='min-w-0 truncate font-medium text-foreground transition-colors group-hover:text-sky-300'>
-              {edgeHoverTargetNode.shortTitle}
+              <PlanTitle node={edgeHoverTargetNode} titleClassName='truncate' />
             </span>
           </button>
         </div>
@@ -5631,7 +5686,7 @@ export const PlanWorkstreamExplorer = ({
 
       {searchOpen ? (
         <div
-          className='pointer-events-auto absolute inset-0 z-[80] flex items-start justify-center bg-background/80 px-4 pt-[min(14vh,120px)] backdrop-blur-md'
+          className='pointer-events-auto absolute inset-0 z-[100] flex items-start justify-center bg-background/80 px-4 pt-[min(14vh,120px)] backdrop-blur-md'
           onMouseDown={event => {
             if (event.target !== event.currentTarget) {
               return;
@@ -5652,9 +5707,21 @@ export const PlanWorkstreamExplorer = ({
               <input
                 ref={searchInputRef}
                 aria-label='Search atlas'
+                aria-activedescendant={
+                  query.trim() && searchMatches[activeSearchIndex]
+                    ? `atlas-search-result-${activeSearchIndex}`
+                    : undefined
+                }
+                aria-controls='atlas-search-results'
+                aria-expanded={Boolean(query.trim())}
+                role='combobox'
                 className='h-11 w-full rounded-lg border border-border/70 bg-background/75 pl-10 pr-16 text-sm outline-none ring-offset-background transition-shadow placeholder:text-muted-foreground focus:ring-2 focus:ring-ring'
                 value={query}
-                onChange={event => setQuery(event.target.value)}
+                onChange={event => {
+                  setQuery(event.target.value);
+                  setActiveSearchIndex(0);
+                  setSearchNavigationMode('pointer');
+                }}
                 onKeyDown={event => {
                   if (event.key === 'Escape') {
                     event.preventDefault();
@@ -5663,9 +5730,23 @@ export const PlanWorkstreamExplorer = ({
                     return;
                   }
 
-                  if (event.key === 'Enter' && searchMatches[0]) {
+                  if (event.key === 'ArrowDown' && searchMatches.length > 0) {
                     event.preventDefault();
-                    selectSearchMatch(searchMatches[0]);
+                    setSearchNavigationMode('keyboard');
+                    setActiveSearchIndex(current => Math.min(current + 1, searchMatches.length - 1));
+                    return;
+                  }
+
+                  if (event.key === 'ArrowUp' && searchMatches.length > 0) {
+                    event.preventDefault();
+                    setSearchNavigationMode('keyboard');
+                    setActiveSearchIndex(current => Math.max(current - 1, 0));
+                    return;
+                  }
+
+                  if (event.key === 'Enter' && searchMatches[activeSearchIndex]) {
+                    event.preventDefault();
+                    selectSearchMatch(searchMatches[activeSearchIndex]);
                   }
                 }}
                 placeholder='Search Atlas'
@@ -5676,19 +5757,45 @@ export const PlanWorkstreamExplorer = ({
             </div>
 
             {query.trim() ? (
-              <div className='mt-2 max-h-[min(60vh,560px)] overflow-y-auto rounded-lg p-1'>
+              <ScrollableOverflow
+                axis='vertical'
+                className='mt-2'
+                viewportClassName='max-h-[min(60vh,560px)] overflow-y-auto rounded-lg p-1'
+                viewportRef={searchResultsViewportRef}
+                viewportProps={{
+                  id: 'atlas-search-results',
+                  role: 'listbox',
+                  'aria-label': 'Atlas search results',
+                }}
+              >
                 {searchMatches.length > 0 ? (
-                  searchMatches.map(node => {
+                  searchMatches.map((node, resultIndex) => {
                     const sourceParts = getSearchSourceParts(node);
-                    const planNumber = getPlanNumber(node);
+                    const active = resultIndex === activeSearchIndex;
 
                     return (
                       <button
                         key={node.id}
+                        ref={element => {
+                          if (element) searchResultRefs.current.set(resultIndex, element);
+                          else searchResultRefs.current.delete(resultIndex);
+                        }}
+                        id={`atlas-search-result-${resultIndex}`}
+                        role='option'
+                        aria-selected={active}
+                        data-node-id={node.id}
                         type='button'
-                        className='grid w-full grid-cols-[auto_1fr] items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/70 focus:bg-muted/70 focus:outline-none'
+                        className={cn(
+                          'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors focus:outline-none',
+                          searchNavigationMode === 'pointer' && 'hover:bg-muted/70',
+                          active && 'bg-muted/70',
+                        )}
                         title={sourceParts?.source}
                         onClick={() => selectSearchMatch(node)}
+                        onMouseMove={() => {
+                          setSearchNavigationMode('pointer');
+                          setActiveSearchIndex(resultIndex);
+                        }}
                       >
                         <span
                           className={cn(
@@ -5698,17 +5805,14 @@ export const PlanWorkstreamExplorer = ({
                         />
                         <span className='min-w-0'>
                           <span className='flex min-w-0 items-start gap-2'>
-                            {planNumber ? (
-                              <span className='shrink-0 rounded-md border border-primary/35 bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-semibold leading-none text-primary'>
-                                {planNumber}
-                              </span>
-                            ) : null}
-                            <span className='line-clamp-2 text-sm font-medium leading-snug'>
-                              {node.shortTitle}
-                            </span>
+                            <PlanTitle
+                              className='text-sm font-medium leading-snug'
+                              keyClassName='text-xs'
+                              node={node}
+                              titleClassName='line-clamp-2'
+                            />
                           </span>
                           <span className='mt-1.5 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground'>
-                            <span className='shrink-0 font-mono uppercase'>{node.kind}</span>
                             {sourceParts?.scheme ? (
                               <span className='shrink-0 rounded border border-border/80 bg-muted/80 px-1.5 py-0.5 font-mono text-[9px] leading-none text-foreground/80'>
                                 {sourceParts.scheme}
@@ -5719,13 +5823,16 @@ export const PlanWorkstreamExplorer = ({
                             ) : null}
                           </span>
                         </span>
+                        <span className='pt-0.5 font-mono text-[10px] uppercase text-muted-foreground'>
+                          {node.kind}
+                        </span>
                       </button>
                     );
                   })
                 ) : (
                   <div className='px-3 py-3 text-sm text-muted-foreground'>No matches</div>
                 )}
-              </div>
+              </ScrollableOverflow>
             ) : (
               <div className='px-3 py-5 text-center text-xs text-muted-foreground'>
                 Search by title, type, status, or source URI

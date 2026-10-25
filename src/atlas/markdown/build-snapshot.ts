@@ -614,6 +614,8 @@ const toPlanNode = (plan: ParsedPlan): PlanWorkstreamNode => ({
   shortTitle: plan.shortTitle,
   statusGroup: plan.statusGroup,
   status: plan.status,
+  planKey: plan.key,
+  sourceId: plan.sourceId ?? 'atlas',
   planKind: plan.planKind,
   scale: plan.scale,
   horizon: plan.horizon,
