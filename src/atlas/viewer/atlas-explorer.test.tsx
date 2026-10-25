@@ -513,9 +513,11 @@ describe('PlanWorkstreamExplorer', () => {
     const itemB = screen.getByRole('button', { name: 'Item B' });
     const list = itemB.closest('[data-board-node-list]');
     const row = itemB.closest('[data-board-node-id]');
+    const boardColumns = itemB.closest('[data-board-columns]');
 
     expect(list).toHaveClass('divide-y', 'border', 'rounded-md');
     expect(row).not.toHaveClass('border', 'rounded-md', 'shadow-sm');
+    expect(boardColumns).not.toHaveClass('border', 'rounded-lg', 'shadow-lg');
   });
 
   it('keeps Sessions discoverable but unavailable without GitHub authentication', async () => {

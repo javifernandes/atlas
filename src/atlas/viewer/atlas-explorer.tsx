@@ -2082,7 +2082,10 @@ const GlobalAtlasBoard = ({
       </button>
     </div>
     <div className='flex h-full min-h-0 flex-col px-4 pb-5 pt-40 sm:pt-36 lg:px-6 lg:pt-28'>
-      <div className='min-h-0 flex-1 overflow-y-auto rounded-lg border border-border/60 bg-background/45 p-4 shadow-lg backdrop-blur-sm lg:overflow-hidden'>
+      <div
+        className='min-h-0 flex-1 overflow-y-auto bg-background/45 p-4 backdrop-blur-sm lg:overflow-hidden'
+        data-board-columns
+      >
         <div
           className={cn(
             'grid min-h-full gap-4 lg:h-full lg:min-h-0 lg:gap-0',
