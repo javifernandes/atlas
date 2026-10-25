@@ -94,3 +94,7 @@ while unresolved values remain visible as source text rather than being discarde
 Browser code rendering now loads Shiki's web bundle explicitly, so recognized fenced languages
 such as TypeScript produce theme-aware token colors instead of silently remaining in the plain-text
 fallback.
+
+The detail header now uses its first row for item metadata, centered parent navigation, and actions.
+The title and section navigation sit directly beneath it with a tighter vertical rhythm, reducing
+unused header height without removing context.

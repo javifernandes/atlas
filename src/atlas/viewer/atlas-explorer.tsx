@@ -3856,38 +3856,7 @@ const FullMarkdownModal = ({
         className='absolute left-1/2 top-1/2 flex h-[min(88vh,920px)] w-[min(1180px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-border/80 bg-card/95 shadow-2xl'
         onClick={event => event.stopPropagation()}
       >
-        <header className='relative border-b border-border/70 px-5 pb-4 pt-3'>
-          {parentNode ? (
-            <nav aria-label='Parent node' className='flex min-h-7 justify-center px-20'>
-              <a
-                aria-label={`Parent node: ${parentNode.shortTitle}`}
-                className='group/parent inline-flex max-w-[min(20rem,50vw)] items-center gap-2 rounded-full px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
-                href={getNodeHref(parentNode.id)}
-                title={parentNode.path ?? parentNode.semanticId}
-                onClick={event => {
-                  if (
-                    event.button !== 0 ||
-                    event.metaKey ||
-                    event.ctrlKey ||
-                    event.shiftKey ||
-                    event.altKey
-                  ) {
-                    return;
-                  }
-
-                  event.preventDefault();
-                  onOpenFull(parentNode.id);
-                }}
-              >
-                <ArrowUp className='size-3.5 shrink-0 transition-transform group-hover/parent:-translate-y-0.5' />
-                <span className='font-mono text-[9px] uppercase text-muted-foreground/70'>
-                  Parent
-                </span>
-                <PlanTitle node={parentNode} titleClassName='truncate font-medium' />
-              </a>
-            </nav>
-          ) : null}
-
+        <header className='relative border-b border-border/70 px-5 pb-3 pt-3'>
           <div className='absolute right-5 top-3 flex items-center gap-2'>
             {navigationBackNode && navigationBackNode.id !== parentNode?.id ? (
               <IconButton
@@ -3914,8 +3883,8 @@ const FullMarkdownModal = ({
             </IconButton>
           </div>
 
-          <div className={cn('min-w-0', parentNode && 'mt-1')}>
-            <div className='flex flex-wrap items-center gap-2'>
+          <div className='grid min-h-8 grid-cols-[minmax(0,1fr)_auto_minmax(6rem,1fr)] items-center gap-3 pr-24'>
+            <div className='flex min-w-0 flex-wrap items-center gap-2'>
               <span className={cn('size-2 rounded-full', statusDotClassName(node.statusGroup))} />
               <span className='font-mono text-xs uppercase text-muted-foreground'>{node.kind}</span>
               <span className='font-mono text-xs text-muted-foreground'>{node.status}</span>
@@ -3933,42 +3902,76 @@ const FullMarkdownModal = ({
                 </span>
               ))}
             </div>
-            <div className='mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2'>
-              <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
-                <PlanTitle node={node} titleClassName='truncate' />
-              </h2>
-              <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
-                {fullMarkdownModalTabs.map(tab => (
-                  <a
-                    key={tab}
-                    aria-current={activeTab === tab ? 'page' : undefined}
-                    className={cn(
-                      'rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors',
-                      activeTab === tab
-                        ? 'bg-primary/12 text-foreground'
-                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                    )}
-                    href={getTabHref(tab)}
-                    onClick={event => {
-                      if (
-                        event.button !== 0 ||
-                        event.metaKey ||
-                        event.ctrlKey ||
-                        event.shiftKey ||
-                        event.altKey
-                      ) {
-                        return;
-                      }
 
-                      event.preventDefault();
-                      onActiveTabChange(tab);
-                    }}
-                  >
-                    {tab}
-                  </a>
-                ))}
+            {parentNode ? (
+              <nav aria-label='Parent node' className='flex min-w-0 justify-center'>
+                <a
+                  aria-label={`Parent node: ${parentNode.shortTitle}`}
+                  className='group/parent inline-flex max-w-[min(20rem,36vw)] items-center gap-2 rounded-full px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
+                  href={getNodeHref(parentNode.id)}
+                  title={parentNode.path ?? parentNode.semanticId}
+                  onClick={event => {
+                    if (
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    ) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    onOpenFull(parentNode.id);
+                  }}
+                >
+                  <ArrowUp className='size-3.5 shrink-0 transition-transform group-hover/parent:-translate-y-0.5' />
+                  <span className='font-mono text-[9px] uppercase text-muted-foreground/70'>
+                    Parent
+                  </span>
+                  <PlanTitle node={parentNode} titleClassName='truncate font-medium' />
+                </a>
               </nav>
-            </div>
+            ) : (
+              <span />
+            )}
+          </div>
+
+          <div className='mt-1 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1'>
+            <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
+              <PlanTitle node={node} titleClassName='truncate' />
+            </h2>
+            <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
+              {fullMarkdownModalTabs.map(tab => (
+                <a
+                  key={tab}
+                  aria-current={activeTab === tab ? 'page' : undefined}
+                  className={cn(
+                    'rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors',
+                    activeTab === tab
+                      ? 'bg-primary/12 text-foreground'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                  )}
+                  href={getTabHref(tab)}
+                  onClick={event => {
+                    if (
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    ) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    onActiveTabChange(tab);
+                  }}
+                >
+                  {tab}
+                </a>
+              ))}
+            </nav>
           </div>
         </header>
 
