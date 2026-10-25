@@ -4076,7 +4076,7 @@ const FullMarkdownModal = ({
             aria-valuemax={100}
             aria-valuemin={0}
             aria-valuenow={Math.round(contentScroll.progress * 100)}
-            className='pointer-events-none absolute bottom-4 right-4 top-4 w-px bg-muted-foreground/12'
+            className='pointer-events-none absolute bottom-6 right-6 top-6 w-px bg-muted-foreground/12'
             role='scrollbar'
           >
             <span

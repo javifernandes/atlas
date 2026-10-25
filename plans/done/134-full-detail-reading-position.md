@@ -29,5 +29,6 @@ the visible proportion and current reading position, reset on item or tab change
 under reduced-motion preferences. The rail sits inset from the content edge; its passive range is a
 dim neutral gray and its active range uses a restrained translucent light gray rather than a
 semantic product accent or a high-contrast white marker. The passive rail remains substantially
-dimmer so the active reading range stays legible without becoming bright.
+dimmer so the active reading range stays legible without becoming bright. Generous right, top, and
+bottom insets keep the rail detached from the modal frame.
 
