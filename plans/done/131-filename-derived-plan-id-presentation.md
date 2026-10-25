@@ -57,5 +57,6 @@ title treatment renders collision-safe IDs (`ATL-…`, `BOK-…`, and `ONT-…`)
 detail, search, relationship, and Session surfaces. Full detail uses the same qualified heading,
 child navigation now mirrors the lightweight parent treatment while using each child's item type
 instead of a repeated relation label, and global search layers above an
-open detail modal and replaces it directly on selection. Search accepts qualified IDs and local
+open detail modal and replaces it directly on selection. Search exposes item types at the right
+edge of each result and supports active-result navigation with arrow keys and Enter. It accepts qualified IDs and local
 number aliases, while legacy snapshots retain path-based fallbacks. `pnpm verify` passes.

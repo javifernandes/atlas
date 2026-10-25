@@ -549,8 +549,8 @@ describe('PlanWorkstreamExplorer', () => {
     await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
     const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
 
-    await user.type(within(searchDialog).getByRole('textbox', { name: 'Search atlas' }), 'Item A');
-    await user.click(within(searchDialog).getByRole('button', { name: /Item A/ }));
+    await user.type(within(searchDialog).getByRole('combobox', { name: 'Search atlas' }), 'Item A');
+    await user.click(within(searchDialog).getByRole('option', { name: /Item A/ }));
 
     expect(screen.getByRole('button', { name: 'Board' })).toHaveClass('bg-primary/12');
     expect(new URLSearchParams(globalThis.location.search).get('view')).toBe('board');
@@ -648,12 +648,12 @@ describe('PlanWorkstreamExplorer', () => {
 
     renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, federatedPlan] } });
     expect(screen.getByRole('button', { name: 'Open Atlas search' })).toHaveTextContent('Atlas');
-    expect(screen.queryByRole('textbox', { name: 'Search atlas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Search atlas' })).not.toBeInTheDocument();
 
     fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
 
     const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
-    const searchInput = within(searchDialog).getByRole('textbox', { name: 'Search atlas' });
+    const searchInput = within(searchDialog).getByRole('combobox', { name: 'Search atlas' });
     expect(searchDialog.parentElement).toHaveClass('z-[100]');
     expect(searchInput).toHaveFocus();
 
@@ -672,12 +672,42 @@ describe('PlanWorkstreamExplorer', () => {
       'title',
       'bookops://plans/68-unified-application-architecture-surface',
     );
+    expect(result.lastElementChild).toHaveTextContent('plan');
 
     await user.click(result);
     expect(screen.queryByRole('dialog', { name: 'Search Atlas' })).not.toBeInTheDocument();
     const detailDialog = screen.getByRole('dialog');
     expect(within(detailDialog).getByLabelText('Plan BOK-68')).toBeInTheDocument();
     expect(within(detailDialog).getByText('Federated plan details.')).toBeInTheDocument();
+  });
+
+  it('moves through search results with arrow keys and opens the active result with Enter', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
+
+    renderExplorer();
+    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
+    const searchInput = within(searchDialog).getByRole('combobox', { name: 'Search atlas' });
+    await user.type(searchInput, 'Item');
+
+    const results = within(searchDialog).getAllByRole('option');
+    expect(results.length).toBeGreaterThan(1);
+    expect(results[0]).toHaveAttribute('aria-selected', 'true');
+
+    await user.keyboard('{ArrowDown}');
+    expect(results[1]).toHaveAttribute('aria-selected', 'true');
+    expect(searchInput).toHaveAttribute('aria-activedescendant', results[1]?.id);
+
+    await user.keyboard('{ArrowUp}');
+    expect(results[0]).toHaveAttribute('aria-selected', 'true');
+
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(screen.queryByRole('dialog', { name: 'Search Atlas' })).not.toBeInTheDocument();
+    expect(new URLSearchParams(globalThis.location.search).get('full')).toBe(
+      results[1]?.getAttribute('data-node-id'),
+    );
   });
 
   it('renders explicit merged PR evidence as an attachment outside evolution stages', async () => {

@@ -4069,6 +4069,7 @@ export const PlanWorkstreamExplorer = ({
   const [atlasView, setAtlasView] = useState<AtlasView>('map');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(() =>
     getInitialExpandedNodeIds(snapshot.nodes, snapshot.edges),
   );
@@ -4095,6 +4096,7 @@ export const PlanWorkstreamExplorer = ({
   );
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchResultRefs = useRef(new Map<number, HTMLButtonElement>());
   const boardNodeRefs = useRef(new Map<string, HTMLElement>());
   const requestedNodeContentIdsRef = useRef(new Set<string>());
   const viewportRef = useRef<Viewport>(fallbackViewport);
@@ -4546,12 +4548,26 @@ export const PlanWorkstreamExplorer = ({
   }, [searchOpen]);
 
   useEffect(() => {
+    if (!searchOpen || searchMatches.length === 0) {
+      setActiveSearchIndex(0);
+      return;
+    }
+
+    setActiveSearchIndex(current => Math.min(current, searchMatches.length - 1));
+  }, [searchMatches.length, searchOpen]);
+
+  useEffect(() => {
+    searchResultRefs.current.get(activeSearchIndex)?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeSearchIndex]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() !== 'k' || (!event.metaKey && !event.ctrlKey) || event.altKey) {
         return;
       }
 
       event.preventDefault();
+      setActiveSearchIndex(0);
       setSearchOpen(true);
     };
 
@@ -5608,9 +5624,20 @@ export const PlanWorkstreamExplorer = ({
               <input
                 ref={searchInputRef}
                 aria-label='Search atlas'
+                aria-activedescendant={
+                  query.trim() && searchMatches[activeSearchIndex]
+                    ? `atlas-search-result-${activeSearchIndex}`
+                    : undefined
+                }
+                aria-controls='atlas-search-results'
+                aria-expanded={Boolean(query.trim())}
+                role='combobox'
                 className='h-11 w-full rounded-lg border border-border/70 bg-background/75 pl-10 pr-16 text-sm outline-none ring-offset-background transition-shadow placeholder:text-muted-foreground focus:ring-2 focus:ring-ring'
                 value={query}
-                onChange={event => setQuery(event.target.value)}
+                onChange={event => {
+                  setQuery(event.target.value);
+                  setActiveSearchIndex(0);
+                }}
                 onKeyDown={event => {
                   if (event.key === 'Escape') {
                     event.preventDefault();
@@ -5619,9 +5646,23 @@ export const PlanWorkstreamExplorer = ({
                     return;
                   }
 
-                  if (event.key === 'Enter' && searchMatches[0]) {
+                  if (event.key === 'ArrowDown' && searchMatches.length > 0) {
                     event.preventDefault();
-                    selectSearchMatch(searchMatches[0]);
+                    setActiveSearchIndex(current => (current + 1) % searchMatches.length);
+                    return;
+                  }
+
+                  if (event.key === 'ArrowUp' && searchMatches.length > 0) {
+                    event.preventDefault();
+                    setActiveSearchIndex(
+                      current => (current - 1 + searchMatches.length) % searchMatches.length,
+                    );
+                    return;
+                  }
+
+                  if (event.key === 'Enter' && searchMatches[activeSearchIndex]) {
+                    event.preventDefault();
+                    selectSearchMatch(searchMatches[activeSearchIndex]);
                   }
                 }}
                 placeholder='Search Atlas'
@@ -5632,18 +5673,36 @@ export const PlanWorkstreamExplorer = ({
             </div>
 
             {query.trim() ? (
-              <div className='mt-2 max-h-[min(60vh,560px)] overflow-y-auto rounded-lg p-1'>
+              <div
+                id='atlas-search-results'
+                role='listbox'
+                aria-label='Atlas search results'
+                className='mt-2 max-h-[min(60vh,560px)] overflow-y-auto rounded-lg p-1'
+              >
                 {searchMatches.length > 0 ? (
-                  searchMatches.map(node => {
+                  searchMatches.map((node, resultIndex) => {
                     const sourceParts = getSearchSourceParts(node);
+                    const active = resultIndex === activeSearchIndex;
 
                     return (
                       <button
                         key={node.id}
+                        ref={element => {
+                          if (element) searchResultRefs.current.set(resultIndex, element);
+                          else searchResultRefs.current.delete(resultIndex);
+                        }}
+                        id={`atlas-search-result-${resultIndex}`}
+                        role='option'
+                        aria-selected={active}
+                        data-node-id={node.id}
                         type='button'
-                        className='grid w-full grid-cols-[auto_1fr] items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/70 focus:bg-muted/70 focus:outline-none'
+                        className={cn(
+                          'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/70 focus:outline-none',
+                          active && 'bg-muted/70',
+                        )}
                         title={sourceParts?.source}
                         onClick={() => selectSearchMatch(node)}
+                        onMouseEnter={() => setActiveSearchIndex(resultIndex)}
                       >
                         <span
                           className={cn(
@@ -5661,7 +5720,6 @@ export const PlanWorkstreamExplorer = ({
                             />
                           </span>
                           <span className='mt-1.5 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground'>
-                            <span className='shrink-0 font-mono uppercase'>{node.kind}</span>
                             {sourceParts?.scheme ? (
                               <span className='shrink-0 rounded border border-border/80 bg-muted/80 px-1.5 py-0.5 font-mono text-[9px] leading-none text-foreground/80'>
                                 {sourceParts.scheme}
@@ -5671,6 +5729,9 @@ export const PlanWorkstreamExplorer = ({
                               <span className='truncate font-mono'>{sourceParts.location}</span>
                             ) : null}
                           </span>
+                        </span>
+                        <span className='pt-0.5 font-mono text-[10px] uppercase text-muted-foreground'>
+                          {node.kind}
                         </span>
                       </button>
                     );
