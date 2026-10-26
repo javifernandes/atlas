@@ -2,16 +2,9 @@ import { createNextRuntimeProtocolRouteHandler } from '@ontahi/runtime-nextjs/ru
 
 import { getAtlasRequestAccess } from '@/auth/server';
 import { dispatchAtlasRuntimeRequest } from '@/atlas/server/atlas-runtime';
+import { getAtlasWorkspaceForUser } from '@/atlas/workspace/workspace-access';
 
 export const dynamic = 'force-dynamic';
-
-const handleRuntimeRequest = createNextRuntimeProtocolRouteHandler({
-  dispatcher: dispatchAtlasRuntimeRequest,
-  context: async request => {
-    const access = await getAtlasRequestAccess(request.headers);
-    return { principal: access.principal };
-  },
-});
 
 export const POST = async (request: Request) => {
   const access = await getAtlasRequestAccess(request.headers);
@@ -26,5 +19,22 @@ export const POST = async (request: Request) => {
     );
   }
 
-  return handleRuntimeRequest(request);
+  if (
+    access.visibility === 'private'
+    && access.viewer
+    && !(await getAtlasWorkspaceForUser(access.viewer.id))
+  ) {
+    return Response.json(
+      {
+        error: 'not_authorized',
+        message: 'An active Workspace membership is required.',
+      },
+      { status: 403 },
+    );
+  }
+
+  return createNextRuntimeProtocolRouteHandler({
+    dispatcher: dispatchAtlasRuntimeRequest,
+    context: () => ({ principal: access.principal }),
+  })(request);
 };

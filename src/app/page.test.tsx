@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getAtlasRequestAccessMock = vi.hoisted(() => vi.fn());
 const getAtlasPageDataMock = vi.hoisted(() => vi.fn());
+const getAtlasWorkspaceForUserMock = vi.hoisted(() => vi.fn());
 
 vi.mock('next/headers', () => ({ headers: () => new Headers() }));
 vi.mock('@/auth/server', () => ({ getAtlasRequestAccess: getAtlasRequestAccessMock }));
 vi.mock('@/atlas/server/get-atlas-page-data', () => ({
   getAtlasPageData: getAtlasPageDataMock,
+}));
+vi.mock('@/atlas/workspace/workspace-access', () => ({
+  getAtlasWorkspaceForUser: getAtlasWorkspaceForUserMock,
 }));
 vi.mock('@/components/atlas-explorer-client', () => ({
   AtlasExplorerClient: ({ isAuthenticated }: { isAuthenticated: boolean }) => (
@@ -35,6 +39,14 @@ describe('Atlas page access wall', () => {
     getAtlasPageDataMock.mockReset().mockResolvedValue({
       executionStreams: [],
       snapshot: {},
+    });
+    getAtlasWorkspaceForUserMock.mockReset().mockResolvedValue({
+      id: 'workspace-1',
+      members: [],
+      name: 'Atlas',
+      role: 'owner',
+      slug: 'atlas',
+      visibility: 'private',
     });
   });
 
@@ -89,5 +101,22 @@ describe('Atlas page access wall', () => {
     expect(screen.getByText('Atlas workspace')).toBeInTheDocument();
     expect(screen.getByText('Atlas workspace')).toHaveAttribute('data-authenticated', 'false');
     expect(getAtlasPageDataMock).toHaveBeenCalledWith(undefined, undefined);
+  });
+
+  it('denies an authenticated non-member before loading projection data', async () => {
+    getAtlasRequestAccessMock.mockResolvedValue({
+      authAvailable: true,
+      canRead: true,
+      configurationError: null,
+      principal: { issuer: 'atlas', kind: 'user', subject: viewer.id },
+      viewer,
+      visibility: 'private',
+    });
+    getAtlasWorkspaceForUserMock.mockResolvedValue(null);
+
+    render(await AtlasPage({}));
+
+    expect(screen.getByRole('heading', { name: 'No active membership' })).toBeInTheDocument();
+    expect(getAtlasPageDataMock).not.toHaveBeenCalled();
   });
 });
