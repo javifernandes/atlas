@@ -121,3 +121,13 @@ export const getAtlasRequestAccess = async (headers: Headers): Promise<AtlasRead
 
   return decideAtlasReadAccess(configuration, await readAtlasViewer(headers));
 };
+
+export const getAtlasRuntimeInvocationContext = async (request: Request) => {
+  const access = await getAtlasRequestAccess(request.headers);
+
+  if (access.configurationError) {
+    throw new AtlasAuthConfigurationError(access.configurationError);
+  }
+
+  return { principal: access.principal };
+};

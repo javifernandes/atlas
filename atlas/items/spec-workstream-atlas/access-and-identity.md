@@ -9,6 +9,7 @@ supports:
   - spec-workstream-atlas
   - spec-workstream-atlas.assisted-editing.operation-command-interface
 relatedPlans:
+  - plans/done/138-ontahi-unified-runtime-bridge.md
   - plans/done/137-workspace-ownership-v0.md
   - plans/current/123-persistent-users-and-linked-accounts-v0.md
   - plans/current/119-atlas-authentication-and-workspace-visibility-v0.md
@@ -70,3 +71,8 @@ The first durable ownership implementation is
 [[spec-workstream-atlas.access-identity.workspace|Workspace]]. It migrates the existing deployment
 projection into one default Workspace and replaces authenticated-by-default admission with active
 Membership. Sharing and dynamic source registration extend that boundary after isolation is proven.
+
+Runtime transport does not decide Workspace authorization. The Next.js `/runtime` route derives a
+trusted Principal and delegates to the composed Ontahí application receiver; Graph policies and
+Operation requirements own resource authorization. Server-rendered compatibility reads retain an
+explicit page boundary until they migrate to policy-scoped Graph Queries.

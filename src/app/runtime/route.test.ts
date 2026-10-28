@@ -1,116 +1,95 @@
 // @vitest-environment node
 
+import {
+  createRuntimeProtocolRequest,
+  createRuntimeProtocolResponse,
+  toOperationProtocolRequest,
+} from '@ontahi/core/runtime/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const getAtlasRequestAccessMock = vi.hoisted(() => vi.fn());
-const getAtlasWorkspaceForUserMock = vi.hoisted(() => vi.fn());
+const getAtlasRuntimeInvocationContextMock = vi.hoisted(() => vi.fn());
+const getAtlasServerApplicationMock = vi.hoisted(() => vi.fn());
+const dispatcherMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/auth/server', () => ({
-  getAtlasRequestAccess: getAtlasRequestAccessMock,
+  getAtlasRuntimeInvocationContext: getAtlasRuntimeInvocationContextMock,
 }));
-vi.mock('@/atlas/workspace/workspace-access', () => ({
-  getAtlasWorkspaceForUser: getAtlasWorkspaceForUserMock,
+vi.mock('@/atlas/server/atlas-composition', () => ({
+  getAtlasServerApplication: getAtlasServerApplicationMock,
 }));
 
 import { POST } from './route';
 
+const operationRequest = createRuntimeProtocolRequest({
+  id: 'atlas-operation-1',
+  family: 'operation',
+  body: toOperationProtocolRequest({
+    kind: 'invoke',
+    operationId: 'AtlasExecutionStream.close',
+    input: { id: 'stream-1' },
+  }),
+});
+
+const request = (body: unknown) =>
+  new Request('http://atlas.test/runtime', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
 describe('Atlas Runtime Protocol route', () => {
   beforeEach(() => {
-    getAtlasRequestAccessMock.mockReset().mockResolvedValue({
-      authAvailable: false,
-      canRead: true,
-      configurationError: null,
-      principal: null,
-      viewer: null,
-      visibility: 'public',
-    });
-    getAtlasWorkspaceForUserMock.mockReset().mockResolvedValue({ id: 'workspace-1' });
-  });
-
-  it('maps an invalid envelope to a protocol-aware HTTP response', async () => {
-    const response = await POST(
-      new Request('http://atlas.test/runtime', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: '{}',
+    dispatcherMock.mockReset().mockImplementation(async input =>
+      createRuntimeProtocolResponse(input, {
+        kind: 'invocation-result',
+        result: { ok: true, kind: 'success', value: { id: 'stream-1', closed: true } },
       }),
     );
+    getAtlasServerApplicationMock.mockReset().mockResolvedValue({
+      runtimeProtocol: { dispatcher: dispatcherMock },
+    });
+    getAtlasRuntimeInvocationContextMock.mockReset().mockResolvedValue({
+      principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+    });
+  });
+
+  it('rejects an invalid envelope before loading Atlas or resolving identity', async () => {
+    const response = await POST(request({}));
 
     expect(response.status).toBe(400);
+    expect(getAtlasServerApplicationMock).not.toHaveBeenCalled();
+    expect(getAtlasRuntimeInvocationContextMock).not.toHaveBeenCalled();
+    expect(dispatcherMock).not.toHaveBeenCalled();
+  });
+
+  it('mounts the lazy application receiver with trusted Atlas context', async () => {
+    const response = await POST(request(operationRequest));
+
+    expect(response.status).toBe(200);
+    expect(getAtlasServerApplicationMock).toHaveBeenCalledOnce();
+    expect(getAtlasRuntimeInvocationContextMock).toHaveBeenCalledOnce();
+    expect(dispatcherMock).toHaveBeenCalledWith(
+      operationRequest,
+      { principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' } },
+      { signal: expect.any(AbortSignal) },
+    );
     await expect(response.json()).resolves.toMatchObject({
-      protocol: 'ontahi.runtime',
-      version: 1,
-      kind: 'protocol-error',
-      error: { code: 'invalid_envelope' },
+      family: 'operation',
+      body: { result: { ok: true, value: { closed: true } } },
     });
   });
 
-  it('rejects anonymous access to a private Atlas before dispatch', async () => {
-    getAtlasRequestAccessMock.mockResolvedValue({
-      authAvailable: true,
-      canRead: false,
-      configurationError: null,
-      principal: null,
-      viewer: null,
-      visibility: 'private',
-    });
-
-    const response = await POST(
-      new Request('http://atlas.test/runtime', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: '{}',
-      }),
+  it('fails closed when trusted Atlas context cannot be resolved', async () => {
+    getAtlasRuntimeInvocationContextMock.mockRejectedValue(
+      new Error('Private Atlas visibility requires GitHub OAuth.'),
     );
 
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toMatchObject({ error: 'not_authenticated' });
-  });
-
-  it('fails closed when private authentication is misconfigured', async () => {
-    getAtlasRequestAccessMock.mockResolvedValue({
-      authAvailable: false,
-      canRead: false,
-      configurationError: 'Private Atlas visibility requires GitHub OAuth.',
-      principal: null,
-      viewer: null,
-      visibility: 'private',
-    });
-
-    const response = await POST(
-      new Request('http://atlas.test/runtime', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: '{}',
-      }),
-    );
+    const response = await POST(request(operationRequest));
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
-      error: 'atlas_auth_misconfigured',
+      error: { code: 'dispatch_unavailable' },
     });
-  });
-
-  it('rejects authenticated private access without an active Workspace membership', async () => {
-    getAtlasRequestAccessMock.mockResolvedValue({
-      authAvailable: true,
-      canRead: true,
-      configurationError: null,
-      principal: { issuer: 'atlas', kind: 'user', subject: 'user-2' },
-      viewer: { id: 'user-2' },
-      visibility: 'private',
-    });
-    getAtlasWorkspaceForUserMock.mockResolvedValue(null);
-
-    const response = await POST(
-      new Request('http://atlas.test/runtime', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: '{}',
-      }),
-    );
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ error: 'not_authorized' });
+    expect(dispatcherMock).not.toHaveBeenCalled();
   });
 });
