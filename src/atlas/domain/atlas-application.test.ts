@@ -4,6 +4,7 @@ import { createInMemoryDataGraphStorage } from '@ontahi/core/data-graph';
 import {
   createRuntimeProtocolDispatcher,
   createRuntimeProtocolRequest,
+  toOperationProtocolRequest,
 } from '@ontahi/core/runtime/protocol';
 import {
   createOperationInvocationDispatcher,
@@ -255,6 +256,41 @@ relatedPlans:
         () => atlas.application.checkPermission(closeStream, { id: 'stream-1' }),
       ),
     ).resolves.toEqual({ allowed: true });
+    await expect(
+      atlas.runtimeProtocol.dispatcher(
+        createRuntimeProtocolRequest({
+          id: 'close-permission',
+          family: 'operation',
+          body: toOperationProtocolRequest({
+            kind: 'check-permission',
+            operationId: closeStream.id,
+            input: { id: 'stream-1' },
+          }),
+        }),
+        { principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' } },
+      ),
+    ).resolves.toMatchObject({
+      body: { kind: 'permission-result', result: { allowed: true } },
+    });
+    await expect(
+      atlas.runtimeProtocol.dispatcher(
+        createRuntimeProtocolRequest({
+          id: 'server-only-reconcile',
+          family: 'operation',
+          body: toOperationProtocolRequest({
+            kind: 'invoke',
+            operationId: 'ProjectionRevision.reconcile',
+            input: { trigger: 'manual' },
+          }),
+        }),
+        { principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' } },
+      ),
+    ).resolves.toMatchObject({
+      body: {
+        kind: 'invocation-result',
+        result: { ok: false, kind: 'rejected', reason: 'unknown_operation' },
+      },
+    });
   });
 
   it('forks selected source-tree Plans transactionally for the authenticated owner', async () => {

@@ -10,10 +10,11 @@ import {
   selectionNot,
 } from '@ontahi/core/data-graph';
 import {
+  createApplicationRuntimeProtocol,
   entity,
   ontahi,
   relation,
-  type OntahiCapabilities,
+  type Principal,
 } from '@ontahi/core/runtime/server';
 import { Effect } from 'effect';
 
@@ -45,7 +46,7 @@ import {
   type AtlasPlanLinkProposal,
 } from './plan-link-proposal';
 
-export type AtlasCapabilities = OntahiCapabilities & {
+export type AtlasCapabilities = {
   runtime: {
     projection: {
       reconcile(input: AtlasReconciliationRequest): Effect.Effect<AtlasReconciliationResult>;
@@ -1765,9 +1766,16 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
     capabilities: input.capabilities,
     entities: atlasEntities,
   });
+  const runtimeProtocol = createApplicationRuntimeProtocol<{
+    principal: Principal | null;
+  }>({
+    application,
+    policies: [],
+  });
 
   return {
     application,
+    runtimeProtocol,
     getUserIdentity: (id: string) =>
       application.graph.read(atlasUserIdentityQuery(id), {
         scope: 'atlas.identity.user',
