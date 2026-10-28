@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Effect } from 'effect';
-import { createInMemoryDataGraphStorage } from '@ontahi/core/data-graph';
+import { createInMemoryDataGraphStorage, toGraphReadRequest } from '@ontahi/core/data-graph';
 import {
   createRuntimeProtocolDispatcher,
   createRuntimeProtocolRequest,
@@ -19,6 +19,10 @@ import { createAtlasGitHubWebhookIngressProvider } from '../github/webhook-ingre
 import { createAtlasGitHubWebhookSignature } from '../github/webhook-signature';
 import type { AtlasMarkdownFile } from '../sources/markdown-source';
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
+import {
+  workspaceMembersQuery,
+  workspaceSettingsQuery,
+} from '../workspace/workspace-client-query';
 import {
   buildAtlasOntahiDataset,
   createAtlasOntahiApplication,
@@ -267,7 +271,10 @@ relatedPlans:
             input: { id: 'stream-1' },
           }),
         }),
-        { principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' } },
+        {
+          principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+          workspace: null,
+        },
       ),
     ).resolves.toMatchObject({
       body: { kind: 'permission-result', result: { allowed: true } },
@@ -283,7 +290,10 @@ relatedPlans:
             input: { trigger: 'manual' },
           }),
         }),
-        { principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' } },
+        {
+          principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+          workspace: null,
+        },
       ),
     ).resolves.toMatchObject({
       body: {
@@ -291,6 +301,100 @@ relatedPlans:
         result: { ok: false, kind: 'rejected', reason: 'unknown_operation' },
       },
     });
+  });
+
+  it('scopes Workspace settings reads to the trusted active Workspace authority', async () => {
+    const dataset = {
+      AtlasWorkspace: [
+        { id: 'workspace-1', slug: 'atlas', name: 'Atlas', visibility: 'private' },
+        { id: 'workspace-2', slug: 'other', name: 'Other', visibility: 'private' },
+      ],
+      AtlasWorkspaceMembership: [
+        {
+          id: 'membership-1',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          role: 'owner',
+          status: 'active',
+        },
+        {
+          id: 'membership-2',
+          workspaceId: 'workspace-2',
+          userId: 'user-2',
+          role: 'owner',
+          status: 'active',
+        },
+        {
+          id: 'membership-3',
+          workspaceId: 'workspace-1',
+          userId: 'user-3',
+          role: 'viewer',
+          status: 'suspended',
+        },
+      ],
+      AtlasUser: [
+        { id: 'user-1', name: 'Owner', email: 'owner@example.com', image: null },
+        { id: 'user-2', name: 'Other Owner', email: 'other@example.com', image: null },
+        { id: 'user-3', name: 'Suspended', email: 'suspended@example.com', image: null },
+      ],
+    };
+    const atlas = createAtlasOntahiApplicationWithStorage({
+      storage: createInMemoryDataGraphStorage({ dataset }),
+      capabilities: {
+        runtime: {
+          projection: { reconcile: () => Effect.die('unused') },
+          proposals: { linkPlanToItem: () => Effect.die('unused') },
+        },
+      },
+    });
+    const request = createRuntimeProtocolRequest({
+      id: 'workspace-settings',
+      family: 'graph.read',
+      body: toGraphReadRequest(workspaceSettingsQuery, 'run'),
+    });
+
+    await expect(
+      atlas.runtimeProtocol.dispatcher(request, {
+        principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+        workspace: { id: 'workspace-1', role: 'owner' },
+      }),
+    ).resolves.toMatchObject({
+      family: 'graph.read',
+      body: {
+        kind: 'graph-read-result',
+        value: [
+          {
+            id: 'workspace-1',
+          },
+        ],
+      },
+    });
+    const membersRequest = createRuntimeProtocolRequest({
+      id: 'workspace-members',
+      family: 'graph.read',
+      body: toGraphReadRequest(workspaceMembersQuery, 'run'),
+    });
+    const response = await atlas.runtimeProtocol.dispatcher(membersRequest, {
+      principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+      workspace: { id: 'workspace-1', role: 'owner' },
+    });
+    expect(response).toMatchObject({
+      body: {
+        kind: 'graph-read-result',
+        value: [
+          expect.objectContaining({
+            id: 'membership-1',
+            user: expect.objectContaining({ email: 'owner@example.com' }),
+          }),
+        ],
+      },
+    });
+    expect(JSON.stringify(response)).not.toContain('other@example.com');
+    expect(JSON.stringify(response)).not.toContain('suspended@example.com');
+
+    await expect(
+      atlas.runtimeProtocol.dispatcher(request, { principal: null, workspace: null }),
+    ).resolves.toMatchObject({ body: { kind: 'graph-read-result', value: [] } });
   });
 
   it('forks selected source-tree Plans transactionally for the authenticated owner', async () => {
