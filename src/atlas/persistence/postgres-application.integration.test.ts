@@ -360,7 +360,10 @@ Durable Atlas projection.
       role: 'owner',
       slug: 'atlas',
       visibility: 'private',
-      members: [expect.objectContaining({ userId: ownerId, role: 'owner' })],
+    });
+    await expect(store.resolveAuthorityForUser(ownerId)).resolves.toEqual({
+      id: DEFAULT_ATLAS_WORKSPACE_ID,
+      role: 'owner',
     });
     await pool.query(
       `

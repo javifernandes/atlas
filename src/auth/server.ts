@@ -2,6 +2,7 @@ import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import type { Pool } from 'pg';
 
 import { getAtlasPostgresPool } from '../database/postgres-pool';
+import { getAtlasWorkspaceAuthorityForUser } from '../atlas/workspace/workspace-access';
 
 import { decideAtlasReadAccess, type AtlasReadAccess, type AtlasViewer } from './access';
 import {
@@ -129,5 +130,10 @@ export const getAtlasRuntimeInvocationContext = async (request: Request) => {
     throw new AtlasAuthConfigurationError(access.configurationError);
   }
 
-  return { principal: access.principal };
+  return {
+    principal: access.principal,
+    workspace: access.viewer
+      ? await getAtlasWorkspaceAuthorityForUser(access.viewer.id)
+      : null,
+  };
 };

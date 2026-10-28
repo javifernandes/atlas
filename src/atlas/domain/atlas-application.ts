@@ -14,7 +14,6 @@ import {
   entity,
   ontahi,
   relation,
-  type Principal,
 } from '@ontahi/core/runtime/server';
 import { Effect } from 'effect';
 
@@ -41,6 +40,16 @@ import {
 } from '../model/execution-stream';
 import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
 import type { AtlasLoadedSourceRevision } from '../sources/markdown-source';
+import {
+  AtlasAuthAccount,
+  AtlasUser,
+  AtlasWorkspace,
+  AtlasWorkspaceMembership,
+} from '../workspace/workspace-entities';
+import {
+  atlasWorkspaceReadPolicies,
+  type AtlasRuntimeAuthority,
+} from '../workspace/workspace-read-policies';
 import {
   proposePlanLink,
   type AtlasPlanLinkProposal,
@@ -250,45 +259,6 @@ const webhookDeliveryFields = {
   projectionRevisionId: field.nullable(field.id()),
 };
 
-const atlasUserFields = {
-  id: field.id(),
-  name: field.nonEmptyString({ trim: true }),
-  email: field.nonEmptyString({ trim: true }),
-  emailVerified: field.boolean(),
-  image: field.nullable(field.string()),
-  createdAt: field.nonEmptyString({ trim: true }),
-  updatedAt: field.nonEmptyString({ trim: true }),
-};
-
-const atlasAuthAccountFields = {
-  id: field.id(),
-  issuer: field.nonEmptyString({ trim: true }),
-  accountId: field.nonEmptyString({ trim: true }),
-  providerId: field.nonEmptyString({ trim: true }),
-  userId: field.id(),
-  createdAt: field.nonEmptyString({ trim: true }),
-  updatedAt: field.nonEmptyString({ trim: true }),
-};
-
-const atlasWorkspaceFields = {
-  id: field.id(),
-  slug: field.nonEmptyString({ trim: true }),
-  name: field.nonEmptyString({ trim: true }),
-  visibility: field.enum(['private', 'public']),
-  createdAt: field.nonEmptyString({ trim: true }),
-  updatedAt: field.nonEmptyString({ trim: true }),
-};
-
-const atlasWorkspaceMembershipFields = {
-  id: field.id(),
-  workspaceId: field.id(),
-  userId: field.id(),
-  role: field.enum(['owner', 'editor', 'viewer']),
-  status: field.enum(['active', 'suspended']),
-  createdAt: field.nonEmptyString({ trim: true }),
-  updatedAt: field.nonEmptyString({ trim: true }),
-};
-
 const atlasExecutionStreamFields = {
   id: field.id(),
   userId: field.id(),
@@ -375,71 +345,12 @@ const AtlasPlanLinkProposalSchema = graphSchema.value('AtlasPlanLinkProposal', {
 const AtlasItemRef = entity.ref('AtlasItem', { fields: atlasItemFields });
 const AtlasPlanRef = entity.ref('AtlasPlan');
 const EvidenceBindingRef = entity.ref('EvidenceBinding');
-const AtlasAuthAccountRef = entity.ref('AtlasAuthAccount', { fields: atlasAuthAccountFields });
-const AtlasWorkspaceMembershipRef = entity.ref('AtlasWorkspaceMembership', {
-  fields: atlasWorkspaceMembershipFields,
-});
 const AtlasExecutionStreamRef = entity.ref('AtlasExecutionStream', {
   fields: atlasExecutionStreamFields,
 });
 const AtlasExecutionStreamActivityRef = entity.ref('AtlasExecutionStreamActivity');
 const AtlasExecutionStreamRootRef = entity.ref('AtlasExecutionStreamRoot', {
   fields: atlasExecutionStreamRootFields,
-});
-
-export const AtlasUser = entity({
-  name: 'AtlasUser',
-  fields: atlasUserFields,
-  domainOperationDefaults: {
-    authority: 'server',
-    exposure: 'server-only',
-    layer: 'atlas.identity',
-  },
-  relations: {
-    accounts: relation.hasMany(AtlasAuthAccountRef, { via: 'userId' }),
-    workspaceMemberships: relation.hasMany(AtlasWorkspaceMembershipRef, { via: 'userId' }),
-    executionStreams: relation.hasMany(AtlasExecutionStreamRef, { via: 'userId' }),
-  },
-});
-
-export const AtlasAuthAccount = entity({
-  name: 'AtlasAuthAccount',
-  fields: atlasAuthAccountFields,
-  domainOperationDefaults: {
-    authority: 'server',
-    exposure: 'server-only',
-    layer: 'atlas.identity',
-  },
-  relations: {
-    user: relation.belongsTo(AtlasUser, { via: 'userId' }),
-  },
-});
-
-export const AtlasWorkspace = entity({
-  name: 'AtlasWorkspace',
-  fields: atlasWorkspaceFields,
-  domainOperationDefaults: {
-    authority: 'server',
-    exposure: 'server-only',
-    layer: 'atlas.workspace',
-  },
-  relations: {
-    memberships: relation.hasMany(AtlasWorkspaceMembershipRef, { via: 'workspaceId' }),
-  },
-});
-
-export const AtlasWorkspaceMembership = entity({
-  name: 'AtlasWorkspaceMembership',
-  fields: atlasWorkspaceMembershipFields,
-  domainOperationDefaults: {
-    authority: 'server',
-    exposure: 'server-only',
-    layer: 'atlas.workspace',
-  },
-  relations: {
-    workspace: relation.belongsTo(AtlasWorkspace, { via: 'workspaceId' }),
-    user: relation.belongsTo(AtlasUser, { via: 'userId' }),
-  },
 });
 
 export const AtlasSourceRevision = entity({
@@ -1766,11 +1677,9 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
     capabilities: input.capabilities,
     entities: atlasEntities,
   });
-  const runtimeProtocol = createApplicationRuntimeProtocol<{
-    principal: Principal | null;
-  }>({
+  const runtimeProtocol = createApplicationRuntimeProtocol<AtlasRuntimeAuthority>({
     application,
-    policies: [],
+    policies: atlasWorkspaceReadPolicies,
   });
 
   return {

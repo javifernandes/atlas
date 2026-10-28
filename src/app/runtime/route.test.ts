@@ -50,6 +50,7 @@ describe('Atlas Runtime Protocol route', () => {
     });
     getAtlasRuntimeInvocationContextMock.mockReset().mockResolvedValue({
       principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+      workspace: { id: 'workspace-1', role: 'owner' },
     });
   });
 
@@ -70,7 +71,10 @@ describe('Atlas Runtime Protocol route', () => {
     expect(getAtlasRuntimeInvocationContextMock).toHaveBeenCalledOnce();
     expect(dispatcherMock).toHaveBeenCalledWith(
       operationRequest,
-      { principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' } },
+      {
+        principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+        workspace: { id: 'workspace-1', role: 'owner' },
+      },
       { signal: expect.any(AbortSignal) },
     );
     await expect(response.json()).resolves.toMatchObject({
