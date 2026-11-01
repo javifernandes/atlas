@@ -202,7 +202,18 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
                 >
                   <div className='min-w-0'>
                     <p className='truncate text-sm font-medium'>
-                      {source.repository ?? source.sourceId}
+                      {source.provider === 'github' && source.repository ? (
+                        <a
+                          className='hover:text-primary hover:underline'
+                          href={`https://github.com/${source.repository}`}
+                          rel='noreferrer'
+                          target='_blank'
+                        >
+                          {source.repository} ↗
+                        </a>
+                      ) : (
+                        source.repository ?? source.sourceId
+                      )}
                     </p>
                     <p className='truncate text-xs text-muted-foreground'>
                       {source.provider} · {source.ref}

@@ -184,7 +184,10 @@ describe('WorkspaceSettings', () => {
     expect(screen.getByText('/atlas · private')).toBeInTheDocument();
     expect(screen.getByText('owner@example.com')).toBeInTheDocument();
     expect(screen.getByText('reader@example.com')).toBeInTheDocument();
-    expect(screen.getByText('javifernandes/atlas')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'javifernandes/atlas ↗' })).toHaveAttribute(
+      'href',
+      'https://github.com/javifernandes/atlas',
+    );
     expect(screen.getByText('approval required')).toBeInTheDocument();
     expect(screen.queryByText(/source:/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add repository' })).not.toBeInTheDocument();

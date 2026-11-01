@@ -228,7 +228,8 @@ The unavailable repository mutation is presented as upcoming capability rather t
 action, pending the owner-authorized registration Operation and GitHub installation selector.
 
 Source cards display the provider, repository, and ref without repeating Atlas's internal
-`sourceId`. Contributor handles link to their provider profile. The review population is defined by
+`sourceId`; GitHub repositories link to their provider page. Contributor handles link to their
+provider profile. The review population is defined by
 missing Workspace access rather than missing Atlas identity: a linked Atlas User without Membership
 still remains visible as an admission candidate, while a linked Member is folded into the Member
 row.
