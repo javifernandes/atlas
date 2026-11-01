@@ -4,6 +4,14 @@ import { getAtlasPostgresPool } from '@/database/postgres-pool';
 
 export const DEFAULT_ATLAS_WORKSPACE_ID = '00000000-0000-4000-8000-000000000137';
 
+export const LOCAL_ATLAS_WORKSPACE: AtlasWorkspaceAccess = {
+  id: DEFAULT_ATLAS_WORKSPACE_ID,
+  name: 'Atlas',
+  role: 'owner',
+  slug: 'atlas',
+  visibility: 'private',
+};
+
 export type AtlasWorkspaceRole = 'owner' | 'editor' | 'viewer';
 
 export type AtlasWorkspaceAccess = {
@@ -158,7 +166,7 @@ export const getAtlasWorkspaceForUser = async (
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
-    return null;
+    return LOCAL_ATLAS_WORKSPACE;
   }
 
   return createAtlasWorkspaceAccessStore(
@@ -171,7 +179,12 @@ export const getAtlasWorkspaceAuthorityForUser = async (
 ): Promise<AtlasWorkspaceAuthority | null> => {
   const connectionString = process.env.DATABASE_URL;
 
-  if (!connectionString) return null;
+  if (!connectionString) {
+    return {
+      id: LOCAL_ATLAS_WORKSPACE.id,
+      role: LOCAL_ATLAS_WORKSPACE.role,
+    };
+  }
 
   return createAtlasWorkspaceAccessStore(
     getAtlasPostgresPool(connectionString),

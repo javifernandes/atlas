@@ -84,31 +84,39 @@ export const atlasAuthDatabaseHooks = {
 
 export const createAtlasAuthPersistenceOptions = (
   database?: Pool,
-): BetterAuthOptions => ({
-  advanced: {
-    database: {
-      generateId: 'uuid',
-      joins: true,
+): BetterAuthOptions => {
+  // Better Auth's built-in memory adapter registers its models under the canonical
+  // user/session/account/verification names. Atlas' physical table and column mapping is only
+  // meaningful for PostgreSQL; applying it to the memory adapter makes OAuth callbacks query
+  // models that do not exist (for example atlas_auth_accounts).
+  const databaseModels = database ? atlasAuthDatabaseModels : undefined;
+
+  return {
+    advanced: {
+      database: {
+        generateId: 'uuid',
+        joins: true,
+      },
     },
-  },
-  account: {
-    ...atlasAuthDatabaseModels.account,
-    accountLinking: atlasAccountLinkingPolicy,
-    storeAccountCookie: false,
-    updateAccountOnSignIn: false,
-  },
-  database,
-  databaseHooks: atlasAuthDatabaseHooks,
-  session: {
-    ...atlasAuthDatabaseModels.session,
-    cookieCache: {
-      // Better Auth decodes an existing session_data cookie before checking enabled. Keep the
-      // stateless JWE codec during the PostgreSQL rollout so prior cookies expire as sessions
-      // instead of being parsed as compact Base64 and crashing the request.
-      enabled: !database,
-      strategy: 'jwe',
+    account: {
+      ...databaseModels?.account,
+      accountLinking: atlasAccountLinkingPolicy,
+      storeAccountCookie: false,
+      updateAccountOnSignIn: false,
     },
-  },
-  user: atlasAuthDatabaseModels.user,
-  verification: atlasAuthDatabaseModels.verification,
-});
+    database,
+    databaseHooks: atlasAuthDatabaseHooks,
+    session: {
+      ...databaseModels?.session,
+      cookieCache: {
+        // Better Auth decodes an existing session_data cookie before checking enabled. Keep the
+        // stateless JWE codec during the PostgreSQL rollout so prior cookies expire as sessions
+        // instead of being parsed as compact Base64 and crashing the request.
+        enabled: !database,
+        strategy: 'jwe',
+      },
+    },
+    user: databaseModels?.user,
+    verification: databaseModels?.verification,
+  };
+};

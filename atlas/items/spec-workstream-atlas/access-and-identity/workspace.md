@@ -9,6 +9,7 @@ supports:
   - spec-workstream-atlas.access-identity
   - spec-workstream-atlas
 relatedPlans:
+  - plans/current/141-read-only-plan-assistant.md
   - plans/current/140-workspace-sources-and-contributor-discovery.md
   - plans/done/139-workspace-members-settings.md
   - plans/done/137-workspace-ownership-v0.md
@@ -58,3 +59,15 @@ Membership as trusted authority; portable Queries do not carry a caller-selected
 role. Workspace, Membership, and member profile populations remain independently default-deny.
 Atlas keeps identity and Membership as separate authorized roots until Ontahí defines policy-scope
 intersection for relations materialized inside Views.
+
+Model configuration is also Workspace-shaped administration, but provider credentials are not
+ordinary Workspace fields. The first Plan assistant uses server deployment configuration while the
+future BYOK form should bind a Workspace to encrypted secret material or a host secret reference,
+safe provider/model metadata, usage policy, and explicit capability grants. Model execution never
+inherits Workspace access from a caller-supplied ID; Atlas reauthorizes the authenticated User's
+active Membership at the Operation boundary.
+
+When Atlas runs locally without PostgreSQL, an authenticated in-memory User receives ephemeral
+owner authority over the same canonical default Workspace. This is a development compatibility
+form, not persisted Membership or a deployed admission policy; configuring `DATABASE_URL` restores
+the durable Membership requirement.

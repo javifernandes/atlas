@@ -4,6 +4,7 @@ import { createAtlasOntahiApplication } from '../domain/atlas-application';
 import { githubRepositoryCacheTag } from '../github/repository';
 import { createAtlasPostgresComposition, getAtlasRepoRoot } from './atlas-postgres-composition';
 import { loadAtlasProjectionInput } from './load-atlas-projection';
+import { createAtlasModelProvider } from './model-provider';
 
 type AtlasServerApplication =
   | ReturnType<typeof createAtlasOntahiApplication>
@@ -41,6 +42,7 @@ const createMemoryComposition = async () => {
   const projection = await loadAtlasProjectionInput({ repoRoot: getAtlasRepoRoot() });
 
   return createAtlasOntahiApplication(projection.records, {
+    assistantProvider: createAtlasModelProvider(),
     loadedSourceRevisions: projection.sourceRevisions,
     observedPullRequests: projection.observedPullRequests,
     invalidateRepository,

@@ -132,6 +132,8 @@ export const getAtlasRuntimeInvocationContext = async (request: Request) => {
 
   return {
     principal: access.principal,
+    resourceEvidenceDisclosure:
+      process.env.NODE_ENV === 'production' ? 'none' as const : 'debug' as const,
     workspace: access.viewer
       ? await getAtlasWorkspaceAuthorityForUser(access.viewer.id)
       : null,
