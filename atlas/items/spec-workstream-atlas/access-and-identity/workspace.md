@@ -9,6 +9,7 @@ supports:
   - spec-workstream-atlas.access-identity
   - spec-workstream-atlas
 relatedPlans:
+  - plans/current/140-workspace-sources-and-contributor-discovery.md
   - plans/done/139-workspace-members-settings.md
   - plans/done/137-workspace-ownership-v0.md
   - plans/current/136-atlas-adoption-foundation.md
@@ -33,12 +34,23 @@ bind to the authenticated User that proves control of the invitation. Email is n
 identity. Dynamic source configuration will belong to a Workspace separately from observed source
 revisions and projection records.
 
+A Workspace Source may also yield observed contributor candidates. Those candidates are a scoped
+[[spec-workstream-atlas.atlas-model.participation|Participation]] projection, not Memberships.
+Repository activity may nominate a provider identity for invitation or approval, but it cannot grant
+Workspace access without the configured admission policy and a proven link to an Atlas User.
+
 ## Evolution
 
 Workspace ownership V0 persists the default Workspace and Memberships, gates private projection,
 Runtime, and operation access, and exposes a read-only settings surface. The compatibility
 projection belongs exclusively to the default Workspace until source registration introduces
 per-Workspace partitions. Invitation and Membership mutation lifecycles remain the next extension.
+
+The next adoption slice introduces Workspace-owned Source registrations before invitation
+mutations, then derives contributors from attributable provider evidence. Members, invitations, and
+observed contributors remain visibly separate populations in settings. The default contributor
+admission policy requires owner approval; any later automatic admission is limited to a viewer role
+and a proven linked provider account.
 
 The settings surface reads Workspace identity and active Memberships through policy-scoped Ontahí
 Graph Queries over the shared Runtime Protocol. The receiver derives Principal and active

@@ -6,6 +6,8 @@ import {
   AtlasUser,
   AtlasWorkspace,
   AtlasWorkspaceMembership,
+  AtlasWorkspaceSource,
+  AtlasWorkspaceContributor,
 } from './workspace-entities';
 
 export type AtlasRuntimeAuthority = {
@@ -25,6 +27,20 @@ const membershipScope = ({ authority }: { authority: AtlasRuntimeAuthority }) =>
     ? Selection.where(AtlasWorkspaceMembership, membership =>
         membership.workspaceId.eq(authority.workspace!.id),
       ).and(membership => membership.status.eq('active'))
+    : noSelection;
+
+const sourceScope = ({ authority }: { authority: AtlasRuntimeAuthority }) =>
+  authority.workspace
+    ? Selection.where(AtlasWorkspaceSource, source =>
+        source.workspaceId.eq(authority.workspace!.id),
+      )
+    : noSelection;
+
+const contributorScope = ({ authority }: { authority: AtlasRuntimeAuthority }) =>
+  authority.workspace
+    ? Selection.where(AtlasWorkspaceContributor, contributor =>
+        contributor.workspaceId.eq(authority.workspace!.id),
+      )
     : noSelection;
 
 export const atlasWorkspaceMemberReadPolicy = {
@@ -81,8 +97,50 @@ export const atlasWorkspaceReadPolicy = {
   scope: workspaceScope,
 } satisfies GraphReadPolicy<typeof AtlasWorkspace, AtlasRuntimeAuthority>;
 
+export const atlasWorkspaceSourceReadPolicy = {
+  entity: AtlasWorkspaceSource,
+  modes: ['run'],
+  cardinalities: ['many'],
+  maxLimit: 100,
+  fields: {
+    id: { select: true },
+    workspaceId: { select: true },
+    sourceId: { select: true },
+    provider: { select: true },
+    repository: { select: true },
+    ref: { select: true },
+    status: { select: true },
+    contributorAccess: { select: true },
+  },
+  scope: sourceScope,
+} satisfies GraphReadPolicy<typeof AtlasWorkspaceSource, AtlasRuntimeAuthority>;
+
+export const atlasWorkspaceContributorReadPolicy = {
+  entity: AtlasWorkspaceContributor,
+  modes: ['run'],
+  cardinalities: ['many'],
+  maxLimit: 200,
+  fields: {
+    id: { select: true },
+    workspaceId: { select: true },
+    workspaceSourceId: { select: true },
+    sourceId: { select: true },
+    provider: { select: true },
+    providerAccountId: { select: true },
+    login: { select: true },
+    avatarUrl: { select: true },
+    kind: { select: true },
+    contributionCount: { select: true },
+    lastContributedAt: { select: true },
+    linkedUserId: { select: true },
+  },
+  scope: contributorScope,
+} satisfies GraphReadPolicy<typeof AtlasWorkspaceContributor, AtlasRuntimeAuthority>;
+
 export const atlasWorkspaceReadPolicies = [
   atlasWorkspaceReadPolicy,
   atlasWorkspaceMembershipReadPolicy,
   atlasWorkspaceMemberReadPolicy,
+  atlasWorkspaceSourceReadPolicy,
+  atlasWorkspaceContributorReadPolicy,
 ] as const;

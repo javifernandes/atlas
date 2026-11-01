@@ -40,9 +40,43 @@ export const atlasWorkspaceMembershipFields = {
   updatedAt: field.nonEmptyString({ trim: true }),
 };
 
+export const atlasWorkspaceSourceFields = {
+  id: field.id(),
+  workspaceId: field.id(),
+  sourceId: field.nonEmptyString({ trim: true }),
+  provider: field.enum(['github', 'local']),
+  repository: field.nullable(field.string()),
+  ref: field.nonEmptyString({ trim: true }),
+  status: field.enum(['active', 'paused']),
+  contributorAccess: field.enum(['off', 'approval-required', 'automatic-viewer']),
+  createdAt: field.nonEmptyString({ trim: true }),
+  updatedAt: field.nonEmptyString({ trim: true }),
+};
+
+export const atlasWorkspaceContributorFields = {
+  id: field.id(),
+  workspaceId: field.id(),
+  workspaceSourceId: field.id(),
+  sourceId: field.nonEmptyString({ trim: true }),
+  provider: field.enum(['github']),
+  providerAccountId: field.nonEmptyString({ trim: true }),
+  login: field.nonEmptyString({ trim: true }),
+  avatarUrl: field.nullable(field.string()),
+  kind: field.enum(['person', 'bot']),
+  contributionCount: field.number(),
+  lastContributedAt: field.nonEmptyString({ trim: true }),
+  linkedUserId: field.nullable(field.id()),
+};
+
 const AtlasAuthAccountRef = entity.ref('AtlasAuthAccount', { fields: atlasAuthAccountFields });
 const AtlasWorkspaceMembershipRef = entity.ref('AtlasWorkspaceMembership', {
   fields: atlasWorkspaceMembershipFields,
+});
+const AtlasWorkspaceSourceRef = entity.ref('AtlasWorkspaceSource', {
+  fields: atlasWorkspaceSourceFields,
+});
+const AtlasWorkspaceContributorRef = entity.ref('AtlasWorkspaceContributor', {
+  fields: atlasWorkspaceContributorFields,
 });
 const AtlasExecutionStreamRef = entity.ref('AtlasExecutionStream');
 
@@ -84,6 +118,8 @@ export const AtlasWorkspace = entity({
   },
   relations: {
     memberships: relation.hasMany(AtlasWorkspaceMembershipRef, { via: 'workspaceId' }),
+    sources: relation.hasMany(AtlasWorkspaceSourceRef, { via: 'workspaceId' }),
+    contributors: relation.hasMany(AtlasWorkspaceContributorRef, { via: 'workspaceId' }),
   },
 });
 
@@ -98,5 +134,36 @@ export const AtlasWorkspaceMembership = entity({
   relations: {
     workspace: relation.belongsTo(AtlasWorkspace, { via: 'workspaceId' }),
     user: relation.belongsTo(AtlasUser, { via: 'userId' }),
+  },
+});
+
+export const AtlasWorkspaceSource = entity({
+  name: 'AtlasWorkspaceSource',
+  fields: atlasWorkspaceSourceFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.workspace',
+  },
+  relations: {
+    workspace: relation.belongsTo(AtlasWorkspace, { via: 'workspaceId' }),
+    contributors: relation.hasMany(AtlasWorkspaceContributorRef, {
+      via: 'workspaceSourceId',
+    }),
+  },
+});
+
+export const AtlasWorkspaceContributor = entity({
+  name: 'AtlasWorkspaceContributor',
+  fields: atlasWorkspaceContributorFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.workspace',
+  },
+  relations: {
+    workspace: relation.belongsTo(AtlasWorkspace, { via: 'workspaceId' }),
+    source: relation.belongsTo(AtlasWorkspaceSource, { via: 'workspaceSourceId' }),
+    linkedUser: relation.belongsTo(AtlasUser, { via: 'linkedUserId' }),
   },
 });

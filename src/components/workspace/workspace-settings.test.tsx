@@ -38,7 +38,9 @@ describe('WorkspaceSettings', () => {
     const membersRefetch = vi.fn();
     useGraphQueryMock
       .mockReturnValueOnce(queryResult({ isError: true, refetch: workspaceRefetch }))
-      .mockReturnValueOnce(queryResult({ refetch: membersRefetch }));
+      .mockReturnValueOnce(queryResult({ refetch: membersRefetch }))
+      .mockReturnValueOnce(queryResult())
+      .mockReturnValueOnce(queryResult());
 
     render(<WorkspaceSettings viewer={viewer} />);
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
@@ -50,6 +52,8 @@ describe('WorkspaceSettings', () => {
 
   it('renders the denied state when authority exposes no Workspace', () => {
     useGraphQueryMock
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
       .mockReturnValueOnce(queryResult({ data: [] }))
       .mockReturnValueOnce(queryResult({ data: [] }));
 
@@ -91,6 +95,39 @@ describe('WorkspaceSettings', () => {
             },
           ],
         }),
+      )
+      .mockReturnValueOnce(
+        queryResult({
+          data: [
+            {
+              contributorAccess: 'approval-required',
+              id: 'source-1',
+              provider: 'github',
+              ref: 'main',
+              repository: 'javifernandes/atlas',
+              sourceId: 'atlas',
+              status: 'active',
+            },
+          ],
+        }),
+      )
+      .mockReturnValueOnce(
+        queryResult({
+          data: [
+            {
+              avatarUrl: 'https://avatars.example/javi.png',
+              contributionCount: 3,
+              id: 'contributor-1',
+              kind: 'person',
+              lastContributedAt: '2026-11-01T00:00:00.000Z',
+              linkedUserId: null,
+              login: 'javi',
+              provider: 'github',
+              providerAccountId: '42',
+              sourceId: 'atlas',
+            },
+          ],
+        }),
       );
 
     render(<WorkspaceSettings viewer={viewer} />);
@@ -99,5 +136,10 @@ describe('WorkspaceSettings', () => {
     expect(screen.getByText('/atlas · private · your role: owner')).toBeInTheDocument();
     expect(screen.getByText('owner@example.com')).toBeInTheDocument();
     expect(screen.getByText('reader@example.com')).toBeInTheDocument();
+    expect(screen.getByText('javifernandes/atlas')).toBeInTheDocument();
+    expect(screen.getByText('approval required')).toBeInTheDocument();
+    expect(screen.getByText('@javi')).toBeInTheDocument();
+    expect(screen.getByText(/3 merged PRs in atlas/)).toBeInTheDocument();
+    expect(screen.getByText('no Atlas account')).toBeInTheDocument();
   });
 });

@@ -8,6 +8,7 @@ horizon: now
 supports:
   - spec-workstream-atlas
 relatedPlans:
+  - plans/current/140-workspace-sources-and-contributor-discovery.md
   - plans/done/104-atlas-source-shape-v0.md
   - plans/done/101-workstream-atlas-semantic-source.md
   - plans/backlog/105-atlas-shaping.md
@@ -38,3 +39,4 @@ It is not a complete metamodel yet. It is the smallest shared vocabulary needed 
 13. [`Implementation Surface`](./atlas-model/implementation-surface.md)
 14. [`Projection Revision`](./atlas-model/projection-revision.md)
 15. [`Execution Stream`](./atlas-model/execution-stream.md)
+16. [`Participation`](./atlas-model/participation.md)

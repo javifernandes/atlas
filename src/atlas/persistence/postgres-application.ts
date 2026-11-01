@@ -26,6 +26,7 @@ import {
 } from '../model/execution-stream';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import type { AtlasProjectionInput } from '../server/load-atlas-projection';
+import { deriveWorkspaceContributors } from '../workspace/workspace-contributors';
 import { atlasPostgresMappingOverrides } from './postgres-mapping';
 import {
   instrumentAtlasPostgresPool,
@@ -864,6 +865,39 @@ export const createAtlasPostgresApplication = (input: {
                 conflictOn: ['id'],
                 strategy: 'merge',
               }).run();
+            }
+
+            const workspaceSources = yield* entities.AtlasWorkspaceSource.all()
+              .select(source => ({
+                id: source.id,
+                sourceId: source.sourceId,
+                workspaceId: source.workspaceId,
+              }))
+              .run();
+            const githubAccounts = yield* entities.AtlasAuthAccount.where(account =>
+              account.providerId.eq('github'),
+            )
+              .select(account => ({ accountId: account.accountId, userId: account.userId }))
+              .run();
+            const successfulSources = workspaceSources.filter(source =>
+              projection.evidenceSourceIds.includes(source.sourceId),
+            );
+            const contributors = deriveWorkspaceContributors({
+              linkedUserIdByGithubAccountId: new Map(
+                githubAccounts.map(account => [account.accountId, account.userId]),
+              ),
+              pullRequests: observedPullRequests,
+              sources: successfulSources,
+            });
+            for (const source of successfulSources) {
+              yield* entities.AtlasWorkspaceContributor.where(contributor =>
+                contributor.workspaceSourceId.eq(source.id),
+              )
+                .delete()
+                .run();
+            }
+            if (contributors.length > 0) {
+              yield* entities.AtlasWorkspaceContributor.insertMany(contributors).run();
             }
             if (dataset.EvidenceBinding.length > 0) {
               yield* entities.EvidenceBinding.upsertMany(dataset.EvidenceBinding, {
