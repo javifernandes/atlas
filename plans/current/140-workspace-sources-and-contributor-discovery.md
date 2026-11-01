@@ -214,3 +214,9 @@ provider observation is degraded.
 
 Workspace Settings renders contributor avatars and explanations separately from Membership. No
 contributor row grants access or creates a Membership.
+
+Production Graph Reads exposed a PostgreSQL portability mismatch: `timestamptz` values arrive from
+`pg` as JavaScript `Date` objects, while Atlas datetime fields and the Runtime Protocol are portable
+ISO strings. Atlas now normalizes PostgreSQL result rows, including transaction clients, before they
+enter the Data Graph. This keeps the durable timestamp column and prevents settings responses from
+being rejected as non-portable without weakening the protocol boundary.

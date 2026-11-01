@@ -26,6 +26,7 @@ import {
 } from '../markdown/build-snapshot';
 import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
+import { retrieveRelevantPlanDocuments } from '../model/plan-assistant';
 import type {
   AtlasExecutionStreamProjection,
 } from '../model/execution-stream';
@@ -47,6 +48,7 @@ import {
   AtlasWorkspaceMembership,
   AtlasWorkspaceSource,
   AtlasWorkspaceContributor,
+  type AtlasWorkspaceCapabilities,
 } from '../workspace/workspace-entities';
 import { deriveWorkspaceContributors } from '../workspace/workspace-contributors';
 import {
@@ -60,6 +62,7 @@ import {
 
 export type AtlasCapabilities = {
   runtime: {
+    assistant?: NonNullable<AtlasWorkspaceCapabilities['runtime']['assistant']>;
     projection: {
       reconcile(input: AtlasReconciliationRequest): Effect.Effect<AtlasReconciliationResult>;
     };
@@ -1927,6 +1930,7 @@ export const createAtlasOntahiApplicationWithStorage = <
 export const createAtlasOntahiApplication = (
   records: NormalizedAtlasSourceRecord[],
   options: {
+    assistantProvider?: NonNullable<AtlasWorkspaceCapabilities['runtime']['assistant']>['provider'];
     invalidatePresentation?: () => void;
     invalidateRepository?: (repositoryFullName: string) => void;
     loadedSourceRevisions?: AtlasLoadedSourceRevision[];
@@ -1951,6 +1955,34 @@ export const createAtlasOntahiApplication = (
     storage,
     capabilities: {
       runtime: {
+        assistant: {
+          provider: options.assistantProvider ?? null,
+          authorize: (_userId, workspaceId) =>
+            Effect.succeed(
+              workspaceId === '00000000-0000-4000-8000-000000000137',
+            ),
+          retrievePlans: question =>
+            Effect.sync(() => {
+              const recordsById = new Map(
+                dataset.AtlasSourceRecord.map(record => [record.id, record]),
+              );
+              return retrieveRelevantPlanDocuments(
+                question,
+                dataset.AtlasPlan.flatMap(plan => {
+                  const record = recordsById.get(plan.sourceRecordId);
+                  return record
+                    ? [{
+                        id: plan.id,
+                        path: plan.path,
+                        title: plan.title,
+                        status: plan.status,
+                        markdown: record.content,
+                      }]
+                    : [];
+                }),
+              );
+            }),
+        },
         projection: {
           reconcile: request =>
             Effect.sync(() => {

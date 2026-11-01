@@ -10,6 +10,8 @@ import { AuthControl } from '@/components/auth/auth-control';
 import { AuthLanding } from '@/components/auth/auth-landing';
 import { WorkspaceAccessDenied } from '@/components/workspace/workspace-access-denied';
 import { WorkspaceControl } from '@/components/workspace/workspace-control';
+import { PlanAssistant } from '@/components/plan-assistant';
+import { readAtlasModelConfiguration } from '@/atlas/server/model-provider';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +75,9 @@ const AtlasPage = async ({ searchParams }: AtlasPageProps) => {
         viewer={access.viewer}
       />
       {workspace ? <WorkspaceControl workspace={workspace} /> : null}
+      {workspace && readAtlasModelConfiguration().enabled ? (
+        <PlanAssistant workspaceId={workspace.id} />
+      ) : null}
     </>
   );
 };

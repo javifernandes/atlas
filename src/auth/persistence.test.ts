@@ -28,7 +28,7 @@ describe('Atlas persistent user model', () => {
     });
   });
 
-  it('binds Better Auth to Atlas-owned table and column names', () => {
+  it('binds PostgreSQL auth to Atlas-owned table and column names', () => {
     expect(atlasAuthDatabaseModels).toMatchObject({
       account: {
         fields: { accountId: 'account_id', userId: 'user_id' },
@@ -39,7 +39,8 @@ describe('Atlas persistent user model', () => {
       verification: { modelName: 'atlas_auth_verifications' },
     });
 
-    expect(createAtlasAuthOptions(configuredAuth)).toMatchObject({
+    const postgres = {} as Pool;
+    expect(createAtlasAuthOptions(configuredAuth, postgres)).toMatchObject({
       account: {
         accountLinking: atlasAccountLinkingPolicy,
         modelName: 'atlas_auth_accounts',
@@ -47,17 +48,27 @@ describe('Atlas persistent user model', () => {
         updateAccountOnSignIn: false,
       },
       advanced: { database: { generateId: 'uuid', joins: true } },
-      database: undefined,
+      database: postgres,
       databaseHooks: expect.any(Object),
       session: { modelName: 'atlas_auth_sessions' },
       user: { modelName: 'atlas_auth_users' },
       verification: { modelName: 'atlas_auth_verifications' },
     });
-    expect(createAtlasAuthPersistenceOptions()).toMatchObject({
+    expect(createAtlasAuthPersistenceOptions(postgres)).toMatchObject({
       account: { accountLinking: atlasAccountLinkingPolicy },
-      database: undefined,
+      database: postgres,
       user: { modelName: 'atlas_auth_users' },
     });
+  });
+
+  it('keeps canonical model names for Better Auth\'s local memory adapter', () => {
+    const local = createAtlasAuthOptions(configuredAuth);
+
+    expect(local.database).toBeUndefined();
+    expect(local.account).not.toHaveProperty('modelName');
+    expect(local.session).not.toHaveProperty('modelName');
+    expect(local.user).not.toHaveProperty('modelName');
+    expect(local.verification).toBeUndefined();
   });
 
   it('keeps the encrypted session cookie codec stable while moving to PostgreSQL', () => {

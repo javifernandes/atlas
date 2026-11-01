@@ -6,6 +6,7 @@ import type { Pool } from 'pg';
 import type { AtlasReconciliationRequest } from '../domain/atlas-application';
 import { createAtlasPostgresApplication } from '../persistence/postgres-application';
 import { loadAtlasProjectionInput } from './load-atlas-projection';
+import { createAtlasModelProvider } from './model-provider';
 
 export const getAtlasRepoRoot = () => {
   const cwd = process.cwd();
@@ -29,6 +30,7 @@ export const createAtlasPostgresComposition = (input: {
   const repoRoot = input.repoRoot ?? getAtlasRepoRoot();
 
   return createAtlasPostgresApplication({
+    assistantProvider: createAtlasModelProvider(),
     pool: input.pool,
     loadProjection: async (request: AtlasReconciliationRequest) => {
       if (request.webhook) {

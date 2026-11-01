@@ -25,9 +25,11 @@ import {
   resolveExecutionStreamPlanContext,
 } from '../model/execution-stream';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
+import type { ModelProvider } from '@ontahi/core/runtime/server';
 import type { AtlasProjectionInput } from '../server/load-atlas-projection';
 import { deriveWorkspaceContributors } from '../workspace/workspace-contributors';
 import { atlasPostgresMappingOverrides } from './postgres-mapping';
+import { createPortableAtlasPostgresPool } from './postgres-portability';
 import {
   instrumentAtlasPostgresPool,
   withAtlasPostgresQueryContext,
@@ -246,6 +248,7 @@ const retainEvidenceFromFailedSources = (input: {
 };
 
 export const createAtlasPostgresApplication = (input: {
+  assistantProvider?: ModelProvider | null;
   invalidatePresentation?: () => void;
   loadProjection: (request: AtlasReconciliationRequest) => Promise<AtlasProjectionInput>;
   observePostgresQueries?: boolean;
@@ -259,6 +262,57 @@ export const createAtlasPostgresApplication = (input: {
 
   const capabilities: AtlasCapabilities = {
     runtime: {
+      assistant: {
+        provider: input.assistantProvider ?? null,
+        authorize: (userId, workspaceId) =>
+          Effect.promise(async () => {
+            const result = await input.pool.query<{ authorized: boolean }>(
+              `
+                SELECT EXISTS (
+                  SELECT 1
+                  FROM atlas_workspace_memberships
+                  WHERE user_id = $1
+                    AND workspace_id = $2
+                    AND status = 'active'
+                ) AS authorized
+              `,
+              [userId, workspaceId],
+            );
+            return result.rows[0]?.authorized === true;
+          }),
+        retrievePlans: question =>
+          Effect.promise(async () => {
+            const result = await input.pool.query<{
+              id: string;
+              path: string;
+              title: string;
+              status: string;
+              markdown: string;
+            }>(
+              `
+                SELECT
+                  plan.id,
+                  plan.path,
+                  plan.title,
+                  plan.status,
+                  record.content AS markdown
+                FROM atlas_plans AS plan
+                JOIN atlas_source_records AS record ON record.id = plan.source_record_id
+                WHERE to_tsvector('simple', plan.title || ' ' || plan.path || ' ' || record.content)
+                  @@ plainto_tsquery('simple', $1)
+                ORDER BY
+                  ts_rank(
+                    to_tsvector('simple', plan.title || ' ' || plan.path || ' ' || record.content),
+                    plainto_tsquery('simple', $1)
+                  ) DESC,
+                  plan.path ASC
+                LIMIT 8
+              `,
+              [question],
+            );
+            return result.rows;
+          }),
+      },
       projection: {
         reconcile: request => Effect.suspend(() => reconcileProjection(request)),
       },
@@ -267,10 +321,12 @@ export const createAtlasPostgresApplication = (input: {
       },
     },
   };
-  const pool = instrumentAtlasPostgresPool(input.pool, {
-    enabled: input.observePostgresQueries,
-    observe: input.onPostgresQuery,
-  });
+  const pool = createPortableAtlasPostgresPool(
+    instrumentAtlasPostgresPool(input.pool, {
+      enabled: input.observePostgresQueries,
+      observe: input.onPostgresQuery,
+    }),
+  );
   const atlas = createAtlasOntahiApplicationWithStorage({
     storage: createPostgresDataGraphStorage({
       pool,
