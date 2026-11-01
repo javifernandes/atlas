@@ -9,6 +9,7 @@ supports:
   - spec-workstream-atlas.access-identity
   - spec-workstream-atlas
 relatedPlans:
+  - plans/next/142-workspace-administration-settings.md
   - plans/current/141-read-only-plan-assistant.md
   - plans/current/140-workspace-sources-and-contributor-discovery.md
   - plans/done/139-workspace-members-settings.md
@@ -71,3 +72,8 @@ When Atlas runs locally without PostgreSQL, an authenticated in-memory User rece
 owner authority over the same canonical default Workspace. This is a development compatibility
 form, not persisted Membership or a deployed admission policy; configuring `DATABASE_URL` restores
 the durable Membership requirement.
+
+Workspace administration evolves beyond the current read model through explicit owner-authorized
+Operations. General identity and visibility, dynamic Source registration, and destructive lifecycle
+actions remain separate interaction zones with progressively stronger confirmation and invariant
+requirements. The Workspace slug is its stable human-readable address, not a repository Source key.
