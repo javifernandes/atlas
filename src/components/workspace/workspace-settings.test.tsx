@@ -181,7 +181,7 @@ describe('WorkspaceSettings', () => {
     render(<WorkspaceSettings viewer={viewer} />);
 
     expect(screen.getByRole('heading', { name: 'Atlas' })).toBeInTheDocument();
-    expect(screen.getByText('/atlas · private · your role: owner')).toBeInTheDocument();
+    expect(screen.getByText('/atlas · private')).toBeInTheDocument();
     expect(screen.getByText('owner@example.com')).toBeInTheDocument();
     expect(screen.getByText('reader@example.com')).toBeInTheDocument();
     expect(screen.getByText('javifernandes/atlas')).toBeInTheDocument();

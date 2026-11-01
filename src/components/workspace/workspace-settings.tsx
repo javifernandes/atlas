@@ -143,7 +143,6 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
         roleOrder[left.role] - roleOrder[right.role] ||
         left.user.name.localeCompare(right.user.name),
     );
-  const viewerMembership = memberships.find(membership => membership.userId === viewer.id);
   const sources = [...(sourcesQuery.data ?? [])].sort((left, right) =>
     left.sourceId.localeCompare(right.sourceId),
   );
@@ -171,8 +170,7 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
           </p>
           <h1 className='text-3xl font-semibold'>{workspace.name}</h1>
           <p className='text-sm text-muted-foreground'>
-            /{workspace.slug} · {workspace.visibility} · your role:{' '}
-            {viewerMembership?.role ?? 'member'}
+            /{workspace.slug} · {workspace.visibility}
           </p>
         </header>
 
