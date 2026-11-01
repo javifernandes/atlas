@@ -226,3 +226,9 @@ linked to a Workspace Member enrich that Member with one GitHub identity and an 
 Sources where they participated; only unlinked identities remain in the contributor-review list.
 The unavailable repository mutation is presented as upcoming capability rather than as a disabled
 action, pending the owner-authorized registration Operation and GitHub installation selector.
+
+Source cards display the provider, repository, and ref without repeating Atlas's internal
+`sourceId`. Contributor handles link to their provider profile. The review population is defined by
+missing Workspace access rather than missing Atlas identity: a linked Atlas User without Membership
+still remains visible as an admission candidate, while a linked Member is folded into the Member
+row.

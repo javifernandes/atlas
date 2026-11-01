@@ -143,7 +143,6 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
         roleOrder[left.role] - roleOrder[right.role] ||
         left.user.name.localeCompare(right.user.name),
     );
-  const viewerMembership = memberships.find(membership => membership.userId === viewer.id);
   const sources = [...(sourcesQuery.data ?? [])].sort((left, right) =>
     left.sourceId.localeCompare(right.sourceId),
   );
@@ -153,7 +152,11 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
       contributor.linkedUserId ? [[contributor.linkedUserId, contributor] as const] : [],
     ),
   );
-  const unlinkedContributors = contributorGroups.filter(contributor => !contributor.linkedUserId);
+  const memberUserIds = new Set(memberships.map(membership => membership.userId));
+  const contributorsToReview = contributorGroups.filter(
+    contributor =>
+      !contributor.linkedUserId || !memberUserIds.has(contributor.linkedUserId),
+  );
 
   return (
     <main className='min-h-screen bg-background px-6 py-12 text-foreground'>
@@ -167,8 +170,7 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
           </p>
           <h1 className='text-3xl font-semibold'>{workspace.name}</h1>
           <p className='text-sm text-muted-foreground'>
-            /{workspace.slug} · {workspace.visibility} · your role:{' '}
-            {viewerMembership?.role ?? 'member'}
+            /{workspace.slug} · {workspace.visibility}
           </p>
         </header>
 
@@ -203,7 +205,7 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
                       {source.repository ?? source.sourceId}
                     </p>
                     <p className='truncate text-xs text-muted-foreground'>
-                      {source.provider} · {source.ref} · source: {source.sourceId}
+                      {source.provider} · {source.ref}
                     </p>
                   </div>
                   <div className='flex items-center gap-3 font-mono text-[11px] uppercase text-muted-foreground'>
@@ -256,7 +258,15 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
                       </p>
                       {participation ? (
                         <p className='truncate text-xs text-muted-foreground'>
-                          @{participation.login} · {participationSummary(participation)}
+                          <a
+                            className='hover:text-foreground hover:underline'
+                            href={`https://github.com/${encodeURIComponent(participation.login)}`}
+                            rel='noreferrer'
+                            target='_blank'
+                          >
+                            @{participation.login}
+                          </a>{' '}
+                          · {participationSummary(participation)}
                         </p>
                       ) : null}
                     </div>
@@ -274,16 +284,16 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
           <div>
             <h2 className='text-lg font-medium'>Contributors to review</h2>
             <p className='text-sm text-muted-foreground'>
-              Observed repository participants without a linked Workspace member.
+              Observed repository participants who do not have Workspace access.
             </p>
           </div>
           <div className='overflow-hidden rounded-lg border border-border'>
-            {unlinkedContributors.length === 0 ? (
+            {contributorsToReview.length === 0 ? (
               <p className='px-4 py-6 text-sm text-muted-foreground'>
-                All observed contributors are already linked to Workspace members.
+                All observed contributors already have Workspace access.
               </p>
             ) : (
-              unlinkedContributors.map(contributor => (
+              contributorsToReview.map(contributor => (
                 <div
                   className='flex items-center justify-between gap-4 border-b border-border/70 px-4 py-3 last:border-b-0'
                   key={contributor.id}
@@ -305,7 +315,16 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
                       </span>
                     )}
                     <div className='min-w-0'>
-                      <p className='truncate text-sm font-medium'>@{contributor.login}</p>
+                      <p className='truncate text-sm font-medium'>
+                        <a
+                          className='hover:text-primary hover:underline'
+                          href={`https://github.com/${encodeURIComponent(contributor.login)}`}
+                          rel='noreferrer'
+                          target='_blank'
+                        >
+                          @{contributor.login}
+                        </a>
+                      </p>
                       <p className='truncate text-xs text-muted-foreground'>
                         {participationSummary(contributor)} · latest{' '}
                         {new Date(contributor.lastContributedAt).toLocaleDateString()}
@@ -314,7 +333,9 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
                   </div>
                   <div className='flex shrink-0 items-center gap-2 font-mono text-[11px] uppercase text-muted-foreground'>
                     {contributor.kind === 'bot' ? <span>bot</span> : null}
-                    <span>no Atlas account</span>
+                    <span>
+                      {contributor.linkedUserId ? 'Atlas account linked' : 'no Atlas account'}
+                    </span>
                   </div>
                 </div>
               ))
