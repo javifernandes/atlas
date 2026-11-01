@@ -220,3 +220,9 @@ Production Graph Reads exposed a PostgreSQL portability mismatch: `timestamptz` 
 ISO strings. Atlas now normalizes PostgreSQL result rows, including transaction clients, before they
 enter the Data Graph. This keeps the durable timestamp column and prevents settings responses from
 being rejected as non-portable without weakening the protocol boundary.
+
+The settings projection now collapses Source-scoped participation into people. Contributor rows
+linked to a Workspace Member enrich that Member with one GitHub identity and an aggregate of the
+Sources where they participated; only unlinked identities remain in the contributor-review list.
+The unavailable repository mutation is presented as upcoming capability rather than as a disabled
+action, pending the owner-authorized registration Operation and GitHub installation selector.

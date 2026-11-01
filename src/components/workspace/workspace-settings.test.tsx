@@ -126,6 +126,42 @@ describe('WorkspaceSettings', () => {
               providerAccountId: '42',
               sourceId: 'atlas',
             },
+            {
+              avatarUrl: 'https://avatars.example/javifernandes.png',
+              contributionCount: 42,
+              id: 'contributor-linked-atlas',
+              kind: 'person',
+              lastContributedAt: '2026-11-01T00:00:00.000Z',
+              linkedUserId: viewer.id,
+              login: 'javifernandes',
+              provider: 'github',
+              providerAccountId: '84',
+              sourceId: 'atlas',
+            },
+            {
+              avatarUrl: 'https://avatars.example/javifernandes.png',
+              contributionCount: 110,
+              id: 'contributor-linked-ontahi',
+              kind: 'person',
+              lastContributedAt: '2026-10-31T00:00:00.000Z',
+              linkedUserId: viewer.id,
+              login: 'javifernandes',
+              provider: 'github',
+              providerAccountId: '84',
+              sourceId: 'ontahi',
+            },
+            {
+              avatarUrl: 'https://avatars.example/javifernandes.png',
+              contributionCount: 3,
+              id: 'contributor-linked-bookops',
+              kind: 'person',
+              lastContributedAt: '2026-09-19T00:00:00.000Z',
+              linkedUserId: viewer.id,
+              login: 'javifernandes',
+              provider: 'github',
+              providerAccountId: '84',
+              sourceId: 'bookops',
+            },
           ],
         }),
       );
@@ -138,8 +174,14 @@ describe('WorkspaceSettings', () => {
     expect(screen.getByText('reader@example.com')).toBeInTheDocument();
     expect(screen.getByText('javifernandes/atlas')).toBeInTheDocument();
     expect(screen.getByText('approval required')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add repository' })).not.toBeInTheDocument();
+    expect(screen.getByText('Connections coming next')).toBeInTheDocument();
+    expect(screen.getAllByText(/@javifernandes/)).toHaveLength(1);
+    expect(
+      screen.getByText(/155 merged PRs across atlas, bookops, ontahi/),
+    ).toBeInTheDocument();
     expect(screen.getByText('@javi')).toBeInTheDocument();
-    expect(screen.getByText(/3 merged PRs in atlas/)).toBeInTheDocument();
+    expect(screen.getByText(/3 merged PRs across atlas/)).toBeInTheDocument();
     expect(screen.getByText('no Atlas account')).toBeInTheDocument();
   });
 });

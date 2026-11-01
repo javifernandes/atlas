@@ -15,6 +15,60 @@ import { WorkspaceAccessDenied } from './workspace-access-denied';
 
 const roleOrder = { owner: 0, editor: 1, viewer: 2 } as const;
 
+type WorkspaceContributorRow = {
+  avatarUrl: string | null;
+  contributionCount: number;
+  id: string;
+  kind: 'person' | 'bot';
+  lastContributedAt: string;
+  linkedUserId: string | null;
+  login: string;
+  provider: 'github';
+  providerAccountId: string;
+  sourceId: string;
+};
+
+const groupContributorRows = (rows: WorkspaceContributorRow[]) => {
+  const groups = new Map<
+    string,
+    WorkspaceContributorRow & { sourceIds: string[] }
+  >();
+
+  for (const row of rows) {
+    const key = row.linkedUserId
+      ? `user:${row.linkedUserId}`
+      : `${row.provider}:${row.providerAccountId}`;
+    const current = groups.get(key);
+    if (!current) {
+      groups.set(key, { ...row, sourceIds: [row.sourceId] });
+      continue;
+    }
+
+    current.contributionCount += row.contributionCount;
+    if (!current.sourceIds.includes(row.sourceId)) current.sourceIds.push(row.sourceId);
+    if (row.lastContributedAt > current.lastContributedAt) {
+      current.avatarUrl = row.avatarUrl;
+      current.lastContributedAt = row.lastContributedAt;
+      current.login = row.login;
+    }
+  }
+
+  return [...groups.values()]
+    .map(group => ({ ...group, sourceIds: group.sourceIds.sort() }))
+    .sort(
+      (left, right) =>
+        right.lastContributedAt.localeCompare(left.lastContributedAt) ||
+        left.login.localeCompare(right.login),
+    );
+};
+
+const participationSummary = (
+  contributor: ReturnType<typeof groupContributorRows>[number],
+) =>
+  `${contributor.contributionCount} ${
+    contributor.contributionCount === 1 ? 'merged PR' : 'merged PRs'
+  } across ${contributor.sourceIds.join(', ')}`;
+
 export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
   const workspaceQuery = useGraphQuery(workspaceSettingsQuery);
   const membersQuery = useGraphQuery(workspaceMembersQuery);
@@ -93,11 +147,13 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
   const sources = [...(sourcesQuery.data ?? [])].sort((left, right) =>
     left.sourceId.localeCompare(right.sourceId),
   );
-  const contributors = [...(contributorsQuery.data ?? [])].sort(
-    (left, right) =>
-      right.lastContributedAt.localeCompare(left.lastContributedAt) ||
-      left.login.localeCompare(right.login),
+  const contributorGroups = groupContributorRows(contributorsQuery.data ?? []);
+  const linkedContributorsByUserId = new Map(
+    contributorGroups.flatMap(contributor =>
+      contributor.linkedUserId ? [[contributor.linkedUserId, contributor] as const] : [],
+    ),
   );
+  const unlinkedContributors = contributorGroups.filter(contributor => !contributor.linkedUserId);
 
   return (
     <main className='min-h-screen bg-background px-6 py-12 text-foreground'>
@@ -124,14 +180,12 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
                 Repositories observed inside this Workspace.
               </p>
             </div>
-            <button
-              className='cursor-not-allowed rounded-md border border-border px-3 py-2 text-sm text-muted-foreground'
-              disabled
-              title='Repository connection arrives in the next source-registration slice'
-              type='button'
+            <span
+              className='rounded-full border border-border px-3 py-1 font-mono text-[11px] uppercase text-muted-foreground'
+              title='An authorized repository connection flow is not implemented yet'
             >
-              Add repository
-            </button>
+              Connections coming next
+            </span>
           </div>
           <div className='overflow-hidden rounded-lg border border-border'>
             {sources.length === 0 ? (
@@ -166,43 +220,70 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
           <div>
             <h2 className='text-lg font-medium'>Members</h2>
             <p className='text-sm text-muted-foreground'>
-              Membership is explicit. Repository contributors will appear separately for review.
+              People with explicit Workspace access, enriched by linked repository activity.
             </p>
           </div>
           <div className='overflow-hidden rounded-lg border border-border'>
-            {memberships.map(membership => (
-              <div
-                className='flex items-center justify-between gap-4 border-b border-border/70 px-4 py-3 last:border-b-0'
-                key={membership.id}
-              >
-                <div className='min-w-0'>
-                  <p className='truncate text-sm font-medium'>{membership.user.name}</p>
-                  <p className='truncate text-xs text-muted-foreground'>
-                    {membership.user.email}
-                  </p>
+            {memberships.map(membership => {
+              const participation = linkedContributorsByUserId.get(membership.userId);
+              const avatarUrl = membership.user.image ?? participation?.avatarUrl;
+
+              return (
+                <div
+                  className='flex items-center justify-between gap-4 border-b border-border/70 px-4 py-3 last:border-b-0'
+                  key={membership.id}
+                >
+                  <div className='flex min-w-0 items-center gap-3'>
+                    {avatarUrl ? (
+                      // Provider avatars are presentation evidence attached to the linked User.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        alt=''
+                        className='h-9 w-9 rounded-full bg-muted object-cover'
+                        height={36}
+                        src={avatarUrl}
+                        width={36}
+                      />
+                    ) : (
+                      <span className='grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium uppercase'>
+                        {membership.user.name.slice(0, 1)}
+                      </span>
+                    )}
+                    <div className='min-w-0'>
+                      <p className='truncate text-sm font-medium'>{membership.user.name}</p>
+                      <p className='truncate text-xs text-muted-foreground'>
+                        {membership.user.email}
+                      </p>
+                      {participation ? (
+                        <p className='truncate text-xs text-muted-foreground'>
+                          @{participation.login} · {participationSummary(participation)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <span className='font-mono text-xs uppercase text-muted-foreground'>
+                    {membership.role}
+                  </span>
                 </div>
-                <span className='font-mono text-xs uppercase text-muted-foreground'>
-                  {membership.role}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
         <section className='grid gap-3'>
           <div>
-            <h2 className='text-lg font-medium'>Contributors</h2>
+            <h2 className='text-lg font-medium'>Contributors to review</h2>
             <p className='text-sm text-muted-foreground'>
-              Participation derived from merged Pull Requests. Contributors are not Members.
+              Observed repository participants without a linked Workspace member.
             </p>
           </div>
           <div className='overflow-hidden rounded-lg border border-border'>
-            {contributors.length === 0 ? (
+            {unlinkedContributors.length === 0 ? (
               <p className='px-4 py-6 text-sm text-muted-foreground'>
-                No attributable contributors have been observed yet.
+                All observed contributors are already linked to Workspace members.
               </p>
             ) : (
-              contributors.map(contributor => (
+              unlinkedContributors.map(contributor => (
                 <div
                   className='flex items-center justify-between gap-4 border-b border-border/70 px-4 py-3 last:border-b-0'
                   key={contributor.id}
@@ -226,16 +307,14 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
                     <div className='min-w-0'>
                       <p className='truncate text-sm font-medium'>@{contributor.login}</p>
                       <p className='truncate text-xs text-muted-foreground'>
-                        {contributor.contributionCount}{' '}
-                        {contributor.contributionCount === 1 ? 'merged PR' : 'merged PRs'} in{' '}
-                        {contributor.sourceId} · latest{' '}
+                        {participationSummary(contributor)} · latest{' '}
                         {new Date(contributor.lastContributedAt).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
                   <div className='flex shrink-0 items-center gap-2 font-mono text-[11px] uppercase text-muted-foreground'>
                     {contributor.kind === 'bot' ? <span>bot</span> : null}
-                    <span>{contributor.linkedUserId ? 'linked' : 'no Atlas account'}</span>
+                    <span>no Atlas account</span>
                   </div>
                 </div>
               ))
