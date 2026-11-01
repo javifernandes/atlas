@@ -162,6 +162,18 @@ describe('WorkspaceSettings', () => {
               providerAccountId: '84',
               sourceId: 'bookops',
             },
+            {
+              avatarUrl: null,
+              contributionCount: 2,
+              id: 'contributor-linked-without-membership',
+              kind: 'person',
+              lastContributedAt: '2026-10-20T00:00:00.000Z',
+              linkedUserId: 'user-3',
+              login: 'atlas-friend',
+              provider: 'github',
+              providerAccountId: '126',
+              sourceId: 'atlas',
+            },
           ],
         }),
       );
@@ -174,14 +186,25 @@ describe('WorkspaceSettings', () => {
     expect(screen.getByText('reader@example.com')).toBeInTheDocument();
     expect(screen.getByText('javifernandes/atlas')).toBeInTheDocument();
     expect(screen.getByText('approval required')).toBeInTheDocument();
+    expect(screen.queryByText(/source:/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add repository' })).not.toBeInTheDocument();
     expect(screen.getByText('Connections coming next')).toBeInTheDocument();
     expect(screen.getAllByText(/@javifernandes/)).toHaveLength(1);
     expect(
       screen.getByText(/155 merged PRs across atlas, bookops, ontahi/),
     ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '@javifernandes' })).toHaveAttribute(
+      'href',
+      'https://github.com/javifernandes',
+    );
     expect(screen.getByText('@javi')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '@javi' })).toHaveAttribute(
+      'href',
+      'https://github.com/javi',
+    );
     expect(screen.getByText(/3 merged PRs across atlas/)).toBeInTheDocument();
     expect(screen.getByText('no Atlas account')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '@atlas-friend' })).toBeInTheDocument();
+    expect(screen.getByText('Atlas account linked')).toBeInTheDocument();
   });
 });
