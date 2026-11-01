@@ -313,6 +313,23 @@ export const createAtlasPostgresApplication = (input: {
             return result.rows;
           }),
       },
+      workspaceAuthorization: {
+        roleFor: (userId, workspaceId) =>
+          Effect.promise(async () => {
+            const result = await input.pool.query<{ role: 'owner' | 'editor' | 'viewer' }>(
+              `
+                SELECT role
+                FROM atlas_workspace_memberships
+                WHERE user_id = $1
+                  AND workspace_id = $2
+                  AND status = 'active'
+                LIMIT 1
+              `,
+              [userId, workspaceId],
+            );
+            return result.rows[0]?.role ?? null;
+          }),
+      },
       projection: {
         reconcile: request => Effect.suspend(() => reconcileProjection(request)),
       },

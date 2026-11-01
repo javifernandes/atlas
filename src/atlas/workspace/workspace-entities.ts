@@ -17,6 +17,12 @@ import {
   type AtlasPlanAssistantOutput,
   type AtlasPlanAssistantDocument,
 } from '../model/plan-assistant';
+import {
+  AtlasWorkspaceUpdateVisibilityInputSchema,
+  AtlasWorkspaceUpdateVisibilityOutputSchema,
+} from '../model/workspace-administration';
+
+export type AtlasWorkspaceRole = 'owner' | 'editor' | 'viewer';
 
 export type AtlasWorkspaceCapabilities = {
   runtime: {
@@ -24,6 +30,9 @@ export type AtlasWorkspaceCapabilities = {
       provider: ModelProvider | null;
       authorize(userId: string, workspaceId: string): Effect.Effect<boolean>;
       retrievePlans(question: string): Effect.Effect<AtlasPlanAssistantDocument[]>;
+    };
+    workspaceAuthorization: {
+      roleFor(userId: string, workspaceId: string): Effect.Effect<AtlasWorkspaceRole | null>;
     };
   };
 };
@@ -151,7 +160,7 @@ export const AtlasWorkspace = entity({
   uses: {
     capabilities: {} as AtlasWorkspaceCapabilities,
   },
-  operations: ({ operation, app }) => {
+  operations: ({ operation, app, commands }) => {
     const askWithModel = app.runtime.assistant?.provider
       ? modelOperation({
           provider: app.runtime.assistant.provider,
@@ -223,6 +232,40 @@ export const AtlasWorkspace = entity({
                 'assistant_unavailable',
                 'The Atlas Plan assistant is not configured.',
               ),
+      }),
+      updateVisibility: operation.atomic({
+        description: 'Change Workspace visibility under active owner authority.',
+        exposure: 'bridge',
+        bridge: {},
+        input: AtlasWorkspaceUpdateVisibilityInputSchema,
+        output: AtlasWorkspaceUpdateVisibilityOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const principal = getCurrentInvocationContext()?.principal;
+            const role =
+              principal?.kind === 'user'
+                ? yield* app.runtime.workspaceAuthorization.roleFor(
+                    principal.subject,
+                    input.workspace.id,
+                  )
+                : null;
+            if (role !== 'owner') {
+              return yield* failOperation(
+                'workspace_owner_required',
+                'Only an active Workspace owner can change visibility.',
+              );
+            }
+
+            yield* commands
+              .where(workspace => workspace.id.eq(input.workspace.id))
+              .update({
+                visibility: input.visibility,
+                updatedAt: new Date().toISOString(),
+              })
+              .run();
+
+            return { id: input.workspace.id, visibility: input.visibility };
+          }),
       }),
     };
   },

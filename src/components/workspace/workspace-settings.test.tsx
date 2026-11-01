@@ -1,9 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const useGraphQueryMock = vi.hoisted(() => vi.fn());
+const useOperationMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@ontahi/react/graph', () => ({ useGraphQuery: useGraphQueryMock }));
+vi.mock('@ontahi/react/graph', () => ({
+  useGraphQuery: useGraphQueryMock,
+  useOperation: useOperationMock,
+}));
 
 import { WorkspaceSettings } from './workspace-settings';
 
@@ -23,7 +27,17 @@ const queryResult = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('WorkspaceSettings', () => {
-  beforeEach(() => useGraphQueryMock.mockReset());
+  beforeEach(() => {
+    useGraphQueryMock.mockReset();
+    useOperationMock.mockReset();
+    useOperationMock.mockReturnValue({
+      executeAsync: vi.fn().mockResolvedValue({
+        ok: true,
+        value: { id: 'workspace-1', visibility: 'public' },
+      }),
+      isExecuting: false,
+    });
+  });
 
   it('renders a loading state while the authorized Graph Query is pending', () => {
     useGraphQueryMock.mockReturnValue(queryResult({ isLoading: true }));
@@ -63,6 +77,7 @@ describe('WorkspaceSettings', () => {
   });
 
   it('renders only memberships returned by the authorized Graph Query', () => {
+    const workspaceRefetch = vi.fn().mockResolvedValue(undefined);
     useGraphQueryMock
       .mockReturnValueOnce(
         queryResult({
@@ -74,6 +89,7 @@ describe('WorkspaceSettings', () => {
               visibility: 'private',
             },
           ],
+          refetch: workspaceRefetch,
         }),
       )
       .mockReturnValueOnce(
@@ -209,5 +225,18 @@ describe('WorkspaceSettings', () => {
     expect(screen.getByText('no Atlas account')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '@atlas-friend' })).toBeInTheDocument();
     expect(screen.getByText('Atlas account linked')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Workspace access'), {
+      target: { value: 'public' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save visibility' }));
+
+    return waitFor(() => {
+      expect(useOperationMock.mock.results[0]?.value.executeAsync).toHaveBeenCalledWith({
+        workspace: { id: 'workspace-1' },
+        visibility: 'public',
+      });
+      expect(workspaceRefetch).toHaveBeenCalledOnce();
+    });
   });
 });
