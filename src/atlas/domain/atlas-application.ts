@@ -45,7 +45,10 @@ import {
   AtlasUser,
   AtlasWorkspace,
   AtlasWorkspaceMembership,
+  AtlasWorkspaceSource,
+  AtlasWorkspaceContributor,
 } from '../workspace/workspace-entities';
+import { deriveWorkspaceContributors } from '../workspace/workspace-contributors';
 import {
   atlasWorkspaceReadPolicies,
   type AtlasRuntimeAuthority,
@@ -1057,6 +1060,18 @@ const buildAtlasOntahiDatasetFromSource = (
       .join('\0'),
   );
   const projectionRevisionId = `projection:in-memory:${sourceRevisionSetHash}`;
+  const workspaceSources = sourceRevisions.map(revision => ({
+    id: `workspace-source:${revision.sourceId}`,
+    workspaceId: '00000000-0000-4000-8000-000000000137',
+    sourceId: revision.sourceId,
+    provider: revision.repository ? ('github' as const) : ('local' as const),
+    repository: revision.repository ?? null,
+    ref: revision.revisionKind === 'git' ? revision.revision : 'main',
+    status: 'active' as const,
+    contributorAccess: 'approval-required' as const,
+    createdAt: revision.observedAt,
+    updatedAt: revision.observedAt,
+  }));
 
   const dataset = {
     AtlasUser: [],
@@ -1064,6 +1079,11 @@ const buildAtlasOntahiDatasetFromSource = (
     AtlasExecutionStream: [],
     AtlasExecutionStreamActivity: [],
     AtlasExecutionStreamRoot: [],
+    AtlasWorkspaceSource: workspaceSources,
+    AtlasWorkspaceContributor: deriveWorkspaceContributors({
+      sources: workspaceSources,
+      pullRequests: observedPullRequests,
+    }),
     AtlasSourceRevision: sourceRevisions,
     AtlasSourceRecord: sourceRecords,
     AtlasItem: items.map(item => ({
@@ -1650,6 +1670,8 @@ export const atlasEntities = [
   AtlasAuthAccount,
   AtlasWorkspace,
   AtlasWorkspaceMembership,
+  AtlasWorkspaceSource,
+  AtlasWorkspaceContributor,
   AtlasExecutionStream,
   AtlasExecutionStreamActivity,
   AtlasExecutionStreamRoot,

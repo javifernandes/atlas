@@ -5,6 +5,8 @@ export const atlasPostgresMappingOverrides = {
   AtlasAuthAccount: { table: 'atlas_auth_accounts' },
   AtlasWorkspace: { table: 'atlas_workspaces' },
   AtlasWorkspaceMembership: { table: 'atlas_workspace_memberships' },
+  AtlasWorkspaceSource: { table: 'atlas_workspace_sources' },
+  AtlasWorkspaceContributor: { table: 'atlas_workspace_contributors' },
   AtlasExecutionStream: { table: 'atlas_execution_streams' },
   AtlasExecutionStreamActivity: { table: 'atlas_execution_stream_activities' },
   AtlasExecutionStreamRoot: { table: 'atlas_execution_stream_roots' },

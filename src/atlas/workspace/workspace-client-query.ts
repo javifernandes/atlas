@@ -28,6 +28,32 @@ const AtlasWorkspaceSchema = defineEntitySchema('AtlasWorkspace', {
   visibility: field.enum(['private', 'public']),
 }).hasMany('memberships', AtlasWorkspaceMembershipSchema, { via: 'workspaceId' });
 
+const AtlasWorkspaceSourceSchema = defineEntitySchema('AtlasWorkspaceSource', {
+  id: field.id(),
+  workspaceId: field.id(),
+  sourceId: field.nonEmptyString({ trim: true }),
+  provider: field.enum(['github', 'local']),
+  repository: field.nullable(field.string()),
+  ref: field.nonEmptyString({ trim: true }),
+  status: field.enum(['active', 'paused']),
+  contributorAccess: field.enum(['off', 'approval-required', 'automatic-viewer']),
+});
+
+const AtlasWorkspaceContributorSchema = defineEntitySchema('AtlasWorkspaceContributor', {
+  id: field.id(),
+  workspaceId: field.id(),
+  workspaceSourceId: field.id(),
+  sourceId: field.nonEmptyString({ trim: true }),
+  provider: field.enum(['github']),
+  providerAccountId: field.nonEmptyString({ trim: true }),
+  login: field.nonEmptyString({ trim: true }),
+  avatarUrl: field.nullable(field.string()),
+  kind: field.enum(['person', 'bot']),
+  contributionCount: field.number(),
+  lastContributedAt: field.nonEmptyString({ trim: true }),
+  linkedUserId: field.nullable(field.id()),
+});
+
 const Workspace = defineClientEntity(AtlasWorkspaceSchema);
 const WorkspaceSettings = Workspace.view('AtlasWorkspaceSettings', {
   id: true,
@@ -52,3 +78,34 @@ const WorkspaceMember = Membership.view('AtlasWorkspaceMember', {
 
 export const workspaceSettingsQuery = Workspace.all().as(WorkspaceSettings).limit(1);
 export const workspaceMembersQuery = Membership.all().as(WorkspaceMember).limit(100);
+
+const Source = defineClientEntity(AtlasWorkspaceSourceSchema);
+const WorkspaceSource = Source.view('AtlasWorkspaceSourceSettings', {
+  id: true,
+  sourceId: true,
+  provider: true,
+  repository: true,
+  ref: true,
+  status: true,
+  contributorAccess: true,
+});
+
+export const workspaceSourcesQuery = Source.all().as(WorkspaceSource).limit(100);
+
+const Contributor = defineClientEntity(AtlasWorkspaceContributorSchema);
+const WorkspaceContributor = Contributor.view('AtlasWorkspaceContributorSettings', {
+  id: true,
+  sourceId: true,
+  provider: true,
+  providerAccountId: true,
+  login: true,
+  avatarUrl: true,
+  kind: true,
+  contributionCount: true,
+  lastContributedAt: true,
+  linkedUserId: true,
+});
+
+export const workspaceContributorsQuery = Contributor.all()
+  .as(WorkspaceContributor)
+  .limit(200);

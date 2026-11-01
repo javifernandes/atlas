@@ -309,6 +309,21 @@ resource or latency constraint.
 
 ## Closure / Evolution
 
+### 2026-11-01 — Sources and participation checkpoint
+
+The next collaboration slice is now shaped in
+[`Workspace Sources And Contributor Discovery`](./140-workspace-sources-and-contributor-discovery.md).
+Source registration moves ahead of invitation UX because the Workspace-owned repository binding
+defines which observed people are relevant. Contributor candidates remain evidence-derived
+Participation rather than Membership: repository activity may support review, invitation, or an
+explicit admission policy, but does not authorize access by itself.
+
+The same model pressure extends beyond Workspace Sources. Atlas should eventually answer who
+participated in an Item or Plan from attributable file history, explicit evidence, and transitive
+shaping relations. That broader projection is recorded in
+[`Participation`](../../atlas/items/spec-workstream-atlas/atlas-model/participation.md) while the
+current implementation remains scoped to Source contributors.
+
 ### 2026-10-25 — initial adoption assessment
 
 The first repository assessment established that Atlas has a credible federated and durable base,

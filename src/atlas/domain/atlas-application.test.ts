@@ -22,6 +22,8 @@ import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
 import {
   workspaceMembersQuery,
   workspaceSettingsQuery,
+  workspaceSourcesQuery,
+  workspaceContributorsQuery,
 } from '../workspace/workspace-client-query';
 import {
   buildAtlasOntahiDataset,
@@ -337,6 +339,58 @@ relatedPlans:
         { id: 'user-2', name: 'Other Owner', email: 'other@example.com', image: null },
         { id: 'user-3', name: 'Suspended', email: 'suspended@example.com', image: null },
       ],
+      AtlasWorkspaceSource: [
+        {
+          id: 'source-1',
+          workspaceId: 'workspace-1',
+          sourceId: 'atlas',
+          provider: 'github',
+          repository: 'javifernandes/atlas',
+          ref: 'main',
+          status: 'active',
+          contributorAccess: 'approval-required',
+        },
+        {
+          id: 'source-2',
+          workspaceId: 'workspace-2',
+          sourceId: 'other',
+          provider: 'github',
+          repository: 'example/other',
+          ref: 'main',
+          status: 'active',
+          contributorAccess: 'off',
+        },
+      ],
+      AtlasWorkspaceContributor: [
+        {
+          id: 'contributor-1',
+          workspaceId: 'workspace-1',
+          workspaceSourceId: 'source-1',
+          sourceId: 'atlas',
+          provider: 'github',
+          providerAccountId: '42',
+          login: 'owner',
+          avatarUrl: null,
+          kind: 'person',
+          contributionCount: 2,
+          lastContributedAt: '2026-11-01T00:00:00.000Z',
+          linkedUserId: 'user-1',
+        },
+        {
+          id: 'contributor-2',
+          workspaceId: 'workspace-2',
+          workspaceSourceId: 'source-2',
+          sourceId: 'other',
+          provider: 'github',
+          providerAccountId: '84',
+          login: 'other-owner',
+          avatarUrl: null,
+          kind: 'person',
+          contributionCount: 1,
+          lastContributedAt: '2026-11-01T00:00:00.000Z',
+          linkedUserId: 'user-2',
+        },
+      ],
     };
     const atlas = createAtlasOntahiApplicationWithStorage({
       storage: createInMemoryDataGraphStorage({ dataset }),
@@ -391,6 +445,44 @@ relatedPlans:
     });
     expect(JSON.stringify(response)).not.toContain('other@example.com');
     expect(JSON.stringify(response)).not.toContain('suspended@example.com');
+
+    const sourcesResponse = await atlas.runtimeProtocol.dispatcher(
+      createRuntimeProtocolRequest({
+        id: 'workspace-sources',
+        family: 'graph.read',
+        body: toGraphReadRequest(workspaceSourcesQuery, 'run'),
+      }),
+      {
+        principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+        workspace: { id: 'workspace-1', role: 'owner' },
+      },
+    );
+    expect(sourcesResponse).toMatchObject({
+      body: {
+        kind: 'graph-read-result',
+        value: [expect.objectContaining({ repository: 'javifernandes/atlas' })],
+      },
+    });
+    expect(JSON.stringify(sourcesResponse)).not.toContain('example/other');
+
+    const contributorsResponse = await atlas.runtimeProtocol.dispatcher(
+      createRuntimeProtocolRequest({
+        id: 'workspace-contributors',
+        family: 'graph.read',
+        body: toGraphReadRequest(workspaceContributorsQuery, 'run'),
+      }),
+      {
+        principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+        workspace: { id: 'workspace-1', role: 'owner' },
+      },
+    );
+    expect(contributorsResponse).toMatchObject({
+      body: {
+        kind: 'graph-read-result',
+        value: [expect.objectContaining({ login: 'owner', contributionCount: 2 })],
+      },
+    });
+    expect(JSON.stringify(contributorsResponse)).not.toContain('other-owner');
 
     await expect(
       atlas.runtimeProtocol.dispatcher(request, { principal: null, workspace: null }),

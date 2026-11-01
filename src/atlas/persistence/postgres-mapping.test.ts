@@ -26,6 +26,12 @@ describe('Atlas PostgreSQL identity mappings', () => {
     const streamActivity = mappings.find(
       mapping => mapping.entity.name === 'AtlasExecutionStreamActivity',
     );
+    const workspaceSource = mappings.find(
+      mapping => mapping.entity.name === 'AtlasWorkspaceSource',
+    );
+    const workspaceContributor = mappings.find(
+      mapping => mapping.entity.name === 'AtlasWorkspaceContributor',
+    );
 
     expect(user).toMatchObject({
       table: 'atlas_auth_users',
@@ -70,6 +76,25 @@ describe('Atlas PostgreSQL identity mappings', () => {
         pullRequestId: 'pull_request_id',
         planId: 'plan_id',
         occurredAt: 'occurred_at',
+      },
+    });
+    expect(workspaceSource).toMatchObject({
+      table: 'atlas_workspace_sources',
+      columns: {
+        workspaceId: 'workspace_id',
+        sourceId: 'source_id',
+        contributorAccess: 'contributor_access',
+      },
+    });
+    expect(workspaceContributor).toMatchObject({
+      table: 'atlas_workspace_contributors',
+      columns: {
+        workspaceId: 'workspace_id',
+        workspaceSourceId: 'workspace_source_id',
+        providerAccountId: 'provider_account_id',
+        contributionCount: 'contribution_count',
+        lastContributedAt: 'last_contributed_at',
+        linkedUserId: 'linked_user_id',
       },
     });
   });
