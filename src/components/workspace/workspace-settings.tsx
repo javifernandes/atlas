@@ -1,8 +1,10 @@
 'use client';
 
-import { useGraphQuery } from '@ontahi/react/graph';
+import { useGraphQuery, useOperation } from '@ontahi/react/graph';
 import Link from 'next/link';
+import { useState } from 'react';
 
+import { AtlasWorkspaceAdministrationClient } from '@/atlas/client/workspace-administration';
 import {
   workspaceContributorsQuery,
   workspaceMembersQuery,
@@ -68,6 +70,85 @@ const participationSummary = (
   `${contributor.contributionCount} ${
     contributor.contributionCount === 1 ? 'merged PR' : 'merged PRs'
   } across ${contributor.sourceIds.join(', ')}`;
+
+const WorkspaceVisibilitySettings = ({
+  canManage,
+  onChanged,
+  workspace,
+}: {
+  canManage: boolean;
+  onChanged: () => Promise<unknown>;
+  workspace: { id: string; visibility: 'private' | 'public' };
+}) => {
+  const updateVisibility = useOperation(
+    AtlasWorkspaceAdministrationClient.domain.updateVisibility,
+  );
+  const [visibility, setVisibility] = useState(workspace.visibility);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!canManage || visibility === workspace.visibility || updateVisibility.isExecuting) return;
+    setMessage(null);
+    try {
+      const result = await updateVisibility.executeAsync({
+        workspace: { id: workspace.id },
+        visibility,
+      });
+      if (!result.ok) throw new Error(result.message);
+      await onChanged();
+      setMessage('Visibility updated.');
+    } catch (cause) {
+      setMessage(
+        cause instanceof Error ? cause.message : 'Atlas could not update Workspace visibility.',
+      );
+    }
+  };
+
+  return (
+    <section className='grid gap-3'>
+      <div>
+        <h2 className='text-lg font-medium'>Visibility</h2>
+        <p className='text-sm text-muted-foreground'>
+          Choose who can discover and read this Workspace.
+        </p>
+      </div>
+      <div className='grid gap-4 rounded-lg border border-border p-4 sm:grid-cols-[1fr_auto] sm:items-end'>
+        <label className='grid gap-2 text-sm font-medium'>
+          Workspace access
+          <select
+            className='h-10 rounded-md border border-border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60'
+            disabled={!canManage || updateVisibility.isExecuting}
+            onChange={event => setVisibility(event.target.value as 'private' | 'public')}
+            value={visibility}
+          >
+            <option value='private'>Private — members only</option>
+            <option value='public'>Public — visible to everyone</option>
+          </select>
+        </label>
+        <button
+          className='h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50'
+          disabled={
+            !canManage || visibility === workspace.visibility || updateVisibility.isExecuting
+          }
+          onClick={() => void save()}
+          type='button'
+        >
+          {updateVisibility.isExecuting ? 'Saving…' : 'Save visibility'}
+        </button>
+        {!canManage ? (
+          <p className='text-xs text-muted-foreground sm:col-span-2'>
+            Only a Workspace owner can change visibility.
+          </p>
+        ) : null}
+        {message ? (
+          <p className='text-xs text-muted-foreground sm:col-span-2' role='status'>
+            {message}
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+};
 
 export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
   const workspaceQuery = useGraphQuery(workspaceSettingsQuery);
@@ -153,6 +234,7 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
     ),
   );
   const memberUserIds = new Set(memberships.map(membership => membership.userId));
+  const viewerMembership = memberships.find(membership => membership.userId === viewer.id);
   const contributorsToReview = contributorGroups.filter(
     contributor =>
       !contributor.linkedUserId || !memberUserIds.has(contributor.linkedUserId),
@@ -173,6 +255,12 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
             /{workspace.slug} · {workspace.visibility}
           </p>
         </header>
+
+        <WorkspaceVisibilitySettings
+          canManage={viewerMembership?.role === 'owner'}
+          onChanged={workspaceQuery.refetch}
+          workspace={workspace}
+        />
 
         <section className='grid gap-3'>
           <div className='flex items-end justify-between gap-4'>

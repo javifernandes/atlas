@@ -9,7 +9,7 @@ supports:
   - spec-workstream-atlas.access-identity
   - spec-workstream-atlas
 relatedPlans:
-  - plans/next/142-workspace-administration-settings.md
+  - plans/current/142-workspace-administration-settings.md
   - plans/current/141-read-only-plan-assistant.md
   - plans/current/140-workspace-sources-and-contributor-discovery.md
   - plans/done/139-workspace-members-settings.md
@@ -77,3 +77,9 @@ Workspace administration evolves beyond the current read model through explicit 
 Operations. General identity and visibility, dynamic Source registration, and destructive lifecycle
 actions remain separate interaction zones with progressively stronger confirmation and invariant
 requirements. The Workspace slug is its stable human-readable address, not a repository Source key.
+
+The first mutation form resolves `Principal -> active Membership -> role` through a server-only
+Atlas capability and requires `owner` inside the Workspace Operation. Client role state may disable
+controls for clarity but never grants authority. This is the application-level precursor to a
+future Ontahí policy model where Operations declare required capabilities and the runtime can keep
+authorization reads and mutations within one execution boundary.

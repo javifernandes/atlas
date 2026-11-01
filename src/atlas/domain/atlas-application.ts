@@ -49,6 +49,7 @@ import {
   AtlasWorkspaceSource,
   AtlasWorkspaceContributor,
   type AtlasWorkspaceCapabilities,
+  type AtlasWorkspaceRole,
 } from '../workspace/workspace-entities';
 import { deriveWorkspaceContributors } from '../workspace/workspace-contributors';
 import {
@@ -63,6 +64,7 @@ import {
 export type AtlasCapabilities = {
   runtime: {
     assistant?: NonNullable<AtlasWorkspaceCapabilities['runtime']['assistant']>;
+    workspaceAuthorization: AtlasWorkspaceCapabilities['runtime']['workspaceAuthorization'];
     projection: {
       reconcile(input: AtlasReconciliationRequest): Effect.Effect<AtlasReconciliationResult>;
     };
@@ -1931,6 +1933,10 @@ export const createAtlasOntahiApplication = (
   records: NormalizedAtlasSourceRecord[],
   options: {
     assistantProvider?: NonNullable<AtlasWorkspaceCapabilities['runtime']['assistant']>['provider'];
+    workspaceRoleFor?: (
+      userId: string,
+      workspaceId: string,
+    ) => Effect.Effect<AtlasWorkspaceRole | null>;
     invalidatePresentation?: () => void;
     invalidateRepository?: (repositoryFullName: string) => void;
     loadedSourceRevisions?: AtlasLoadedSourceRevision[];
@@ -1982,6 +1988,16 @@ export const createAtlasOntahiApplication = (
                 }),
               );
             }),
+        },
+        workspaceAuthorization: {
+          roleFor:
+            options.workspaceRoleFor ??
+            ((_userId, workspaceId) =>
+              Effect.succeed(
+                workspaceId === '00000000-0000-4000-8000-000000000137'
+                  ? 'owner'
+                  : null,
+              )),
         },
         projection: {
           reconcile: request =>

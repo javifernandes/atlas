@@ -398,6 +398,7 @@ relatedPlans:
         runtime: {
           projection: { reconcile: () => Effect.die('unused') },
           proposals: { linkPlanToItem: () => Effect.die('unused') },
+          workspaceAuthorization: { roleFor: () => Effect.succeed(null) },
         },
       },
     });
@@ -558,6 +559,7 @@ Parent plan: [Streams](124-streams.md)
         runtime: {
           projection: { reconcile: () => Effect.die('unused') },
           proposals: { linkPlanToItem: () => Effect.die('unused') },
+          workspaceAuthorization: { roleFor: () => Effect.succeed(null) },
         },
       },
     });

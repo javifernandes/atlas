@@ -1,6 +1,6 @@
 # 142. Workspace Administration Settings
 
-Status: next
+Status: current
 
 Definition level: shaping
 
@@ -23,7 +23,7 @@ need uniqueness, redirect, and permalink decisions rather than being treated as 
 
 Related work:
 
-1. [`Workspace Sources And Contributor Discovery`](../current/140-workspace-sources-and-contributor-discovery.md)
+1. [`Workspace Sources And Contributor Discovery`](140-workspace-sources-and-contributor-discovery.md)
 2. [`Workspace Ownership V0`](../done/137-workspace-ownership-v0.md)
 3. [`Workspace`](../../atlas/items/spec-workstream-atlas/access-and-identity/workspace.md)
 
@@ -66,8 +66,11 @@ Workspace Settings
 ```
 
 Every mutation is a typed Workspace Domain Operation over the shared Runtime Protocol. The receiver
-derives the authenticated Principal and active owner Membership. Operations recheck invariants in
-the same transaction as the write.
+derives the authenticated Principal and active owner Membership. The first Atlas-specific form
+resolves `Principal -> Workspace Membership -> role` in a server capability and checks the required
+role inside the Operation; clients never provide trusted role state. A later Ontahí form should make
+that policy declarative and allow authorization reads to participate in the same transaction as the
+write rather than hiding application-specific policy inside every Operation.
 
 Visibility changes should explain their effective boundary. Public means readable without
 Membership; private means active Membership is required. Source credentials and provider
@@ -77,9 +80,10 @@ installation access remain private regardless of Workspace visibility.
 
 ### Slice 1 — General
 
-- [ ] Add owner-authorized `updateWorkspaceProfile` for name and visibility.
+- [x] Add owner-authorized `updateVisibility` as the first narrow administration Operation.
 - [ ] Decide whether slug mutation ships now or remains immutable until Workspace routing exists.
-- [ ] Add optimistic/pending/error/success states without replacing the policy-scoped read model.
+- [x] Add pending/error/success states without replacing the policy-scoped read model.
+- [ ] Extend the General Operation to name after validating the visibility authorization pattern.
 - [ ] Record who changed visibility and when.
 
 ### Slice 2 — repository connection
@@ -98,7 +102,7 @@ installation access remain private regardless of Workspace visibility.
 
 ## Verification
 
-- [ ] Non-owners cannot invoke any administration Operation.
+- [x] Non-owners cannot invoke the visibility administration Operation.
 - [ ] Visibility changes immediately affect page and Runtime access consistently.
 - [ ] Repository choices are limited to installations the owner may administer.
 - [ ] Duplicate or inaccessible repositories are rejected without partial registration.
@@ -124,5 +128,13 @@ installation access remain private regardless of Workspace visibility.
 
 ## Closure / Evolution
 
-Not started. The first implementation slice should make visibility genuinely editable and establish
-the mutation authorization pattern before repository registration or destructive lifecycle work.
+In progress. The first implementation slice makes visibility editable through the Ontahí Runtime
+Protocol and establishes an Atlas-specific role capability: the authenticated User is resolved to
+an active Workspace Membership at execution time and only `owner` may mutate visibility. The UI's
+role check is presentation only; the Operation repeats the authoritative server check.
+
+This slice intentionally leaves an Ontahí generalization seam. Authorization lookup currently sits
+behind an Atlas runtime capability and may use a database connection outside the graph mutation's
+transaction. A future Ontahí policy primitive should express required Workspace capabilities and
+provide one execution context for policy reads and writes before the pattern expands to Source and
+Danger Zone Operations.
