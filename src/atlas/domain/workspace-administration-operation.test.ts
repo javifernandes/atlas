@@ -9,6 +9,50 @@ const principal = {
   principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
 } as never;
 
+describe('AtlasWorkspace.create', () => {
+  it('creates a private Workspace and its owner Membership for the authenticated User', async () => {
+    const workspaceCreated = vi.fn(() => Effect.void);
+    const atlas = createAtlasOntahiApplication([], { workspaceCreated });
+    const operation = atlas.application.graph.entities.AtlasWorkspace.domain.create;
+
+    const result = await withInvocationContext(principal, () =>
+      atlas.application.invokeOperation(operation, {
+        name: 'My Project',
+        slug: 'My Project',
+      }),
+    );
+
+    expect(result, JSON.stringify(result)).toMatchObject({
+      ok: true,
+      value: { name: 'My Project', slug: 'my-project', visibility: 'private' },
+    });
+    expect(workspaceCreated).toHaveBeenCalledWith({
+      userId: 'user-1',
+      workspace: expect.objectContaining({ name: 'My Project', slug: 'my-project' }),
+    });
+  });
+
+  it('rejects duplicate slugs and anonymous creation', async () => {
+    const atlas = createAtlasOntahiApplication([]);
+    const operation = atlas.application.graph.entities.AtlasWorkspace.domain.create;
+    const input = { name: 'My Project', slug: 'my-project' };
+
+    await expect(
+      withInvocationContext(principal, () => atlas.application.invokeOperation(operation, input)),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      withInvocationContext(principal, () => atlas.application.invokeOperation(operation, input)),
+    ).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'workspace_slug_taken' },
+    });
+    await expect(atlas.application.invokeOperation(operation, input)).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'not_authenticated' },
+    });
+  });
+});
+
 describe('AtlasWorkspace.updateVisibility', () => {
   it('lets an active owner update Workspace visibility', async () => {
     const roleFor = vi.fn(() => Effect.succeed<'owner' | null>('owner'));

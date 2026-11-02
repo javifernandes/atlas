@@ -10,7 +10,19 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 
-const fetchRuntimeTransport = createFetchRuntimeTransport({ endpoint: '/runtime' });
+const selectedWorkspaceSlug = () => {
+  if (typeof globalThis.location === 'undefined') return null;
+  const match = globalThis.location.pathname.match(/^\/w\/([^/]+)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+};
+
+const fetchRuntimeTransport = createFetchRuntimeTransport({
+  endpoint: '/runtime',
+  requestInit: () => {
+    const slug = selectedWorkspaceSlug();
+    return slug ? { headers: { 'x-atlas-workspace-slug': slug } } : {};
+  },
+});
 const atlasRuntimeTransport = createDiagnosticRuntimeTransportRouter({
   diagnostics:
     process.env.NODE_ENV === 'production'

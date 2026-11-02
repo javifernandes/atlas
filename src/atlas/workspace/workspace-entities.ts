@@ -8,6 +8,7 @@ import {
   type ModelProvider,
 } from '@ontahi/core/runtime/server';
 import { Effect } from 'effect';
+import { randomUUID } from 'node:crypto';
 
 import {
   AtlasPlanAssistantInputSchema,
@@ -18,11 +19,14 @@ import {
   type AtlasPlanAssistantDocument,
 } from '../model/plan-assistant';
 import {
+  AtlasWorkspaceCreateInputSchema,
+  AtlasWorkspaceCreateOutputSchema,
   AtlasWorkspaceUpdateVisibilityInputSchema,
   AtlasWorkspaceUpdateVisibilityOutputSchema,
+  normalizeWorkspaceSlug,
 } from '../model/workspace-administration';
 
-export type AtlasWorkspaceRole = 'owner' | 'editor' | 'viewer';
+export type AtlasWorkspaceRole = 'owner' | 'collaborator' | 'viewer';
 
 export type AtlasWorkspaceCapabilities = {
   runtime: {
@@ -33,6 +37,12 @@ export type AtlasWorkspaceCapabilities = {
     };
     workspaceAuthorization: {
       roleFor(userId: string, workspaceId: string): Effect.Effect<AtlasWorkspaceRole | null>;
+    };
+    workspaceAdministration?: {
+      created(input: {
+        userId: string;
+        workspace: { id: string; name: string; slug: string; visibility: 'private' };
+      }): Effect.Effect<void>;
     };
   };
 };
@@ -70,7 +80,7 @@ export const atlasWorkspaceMembershipFields = {
   id: field.id(),
   workspaceId: field.id(),
   userId: field.id(),
-  role: field.enum(['owner', 'editor', 'viewer']),
+  role: field.enum(['owner', 'collaborator', 'viewer']),
   status: field.enum(['active', 'suspended']),
   createdAt: field.nonEmptyString({ trim: true }),
   updatedAt: field.nonEmptyString({ trim: true }),
@@ -159,8 +169,9 @@ export const AtlasWorkspace = entity({
   },
   uses: {
     capabilities: {} as AtlasWorkspaceCapabilities,
+    entities: { memberships: AtlasWorkspaceMembershipRef },
   },
-  operations: ({ operation, app, commands }) => {
+  operations: ({ operation, app, commands, entities }) => {
     const askWithModel = app.runtime.assistant?.provider
       ? modelOperation({
           provider: app.runtime.assistant.provider,
@@ -219,6 +230,77 @@ export const AtlasWorkspace = entity({
       });
 
     return {
+      create: operation({
+        description: 'Create a Workspace and grant its authenticated creator owner Membership.',
+        exposure: 'bridge',
+        bridge: {},
+        input: AtlasWorkspaceCreateInputSchema,
+        output: AtlasWorkspaceCreateOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const principal = getCurrentInvocationContext()?.principal;
+            if (principal?.kind !== 'user') {
+              return yield* failOperation(
+                'not_authenticated',
+                'Sign in before creating a Workspace.',
+              );
+            }
+
+            const name = input.name.trim();
+            const slug = normalizeWorkspaceSlug(input.slug);
+            if (name.length > 80 || slug.length < 2) {
+              return yield* failOperation(
+                'invalid_workspace',
+                'Use a name up to 80 characters and a slug with at least 2 letters or numbers.',
+              );
+            }
+
+            const existing = yield* commands
+              .where(workspace => workspace.slug.eq(slug))
+              .limit(1)
+              .run();
+            if (existing[0]) {
+              return yield* failOperation(
+                'workspace_slug_taken',
+                'That Workspace address is already in use.',
+              );
+            }
+
+            const id = randomUUID();
+            const membershipId = randomUUID();
+            const timestamp = new Date().toISOString();
+            yield* app.graph.transaction(
+              Effect.gen(function* () {
+                yield* commands
+                  .insert({
+                    id,
+                    slug,
+                    name,
+                    visibility: 'private',
+                    createdAt: timestamp,
+                    updatedAt: timestamp,
+                  })
+                  .run();
+                yield* entities.memberships.insert({
+                  id: membershipId,
+                  workspaceId: id,
+                  userId: principal.subject,
+                  role: 'owner',
+                  status: 'active',
+                  createdAt: timestamp,
+                  updatedAt: timestamp,
+                }).run();
+              }),
+            );
+
+            yield* app.runtime.workspaceAdministration?.created({
+              userId: principal.subject,
+              workspace: { id, name, slug, visibility: 'private' },
+            }) ?? Effect.void;
+
+            return { id, name, slug, visibility: 'private' as const };
+          }),
+      }),
       askPlans: operation({
         description: 'Answer a read-only question from bounded Workspace Plan context.',
         exposure: 'bridge',

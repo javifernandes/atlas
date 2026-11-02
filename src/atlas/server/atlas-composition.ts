@@ -5,6 +5,8 @@ import { githubRepositoryCacheTag } from '../github/repository';
 import { createAtlasPostgresComposition, getAtlasRepoRoot } from './atlas-postgres-composition';
 import { loadAtlasProjectionInput } from './load-atlas-projection';
 import { createAtlasModelProvider } from './model-provider';
+import { registerLocalWorkspace } from '../workspace/local-workspace-registry';
+import { Effect } from 'effect';
 
 type AtlasServerApplication =
   | ReturnType<typeof createAtlasOntahiApplication>
@@ -45,6 +47,8 @@ const createMemoryComposition = async () => {
     assistantProvider: createAtlasModelProvider(),
     loadedSourceRevisions: projection.sourceRevisions,
     observedPullRequests: projection.observedPullRequests,
+    workspaceCreated: ({ userId, workspace }) =>
+      Effect.sync(() => registerLocalWorkspace(userId, { ...workspace, role: 'owner' })),
     invalidateRepository,
     invalidatePresentation: () => {
       state.application = undefined;

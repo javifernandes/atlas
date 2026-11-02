@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 
 import { getAtlasPostgresPool } from '@/database/postgres-pool';
+import { listLocalWorkspaces } from './local-workspace-registry';
 
 export const DEFAULT_ATLAS_WORKSPACE_ID = '00000000-0000-4000-8000-000000000137';
 
@@ -12,7 +13,7 @@ export const LOCAL_ATLAS_WORKSPACE: AtlasWorkspaceAccess = {
   visibility: 'private',
 };
 
-export type AtlasWorkspaceRole = 'owner' | 'editor' | 'viewer';
+export type AtlasWorkspaceRole = 'owner' | 'collaborator' | 'viewer';
 
 export type AtlasWorkspaceAccess = {
   id: string;
@@ -35,6 +36,7 @@ type WorkspaceAccessRow = {
 const readWorkspaceAuthority = async (
   query: Pick<Pool, 'query'>['query'],
   userId: string,
+  slug?: string,
 ): Promise<AtlasWorkspaceAuthority | null> => {
   const accessResult = await query<AtlasWorkspaceAuthority>(
     `
@@ -44,14 +46,14 @@ const readWorkspaceAuthority = async (
       FROM atlas_workspace_memberships AS membership
       JOIN atlas_workspaces AS workspace ON workspace.id = membership.workspace_id
       WHERE membership.user_id = $1
-        AND membership.workspace_id = $2
         AND membership.status = 'active'
+        AND ($2::text IS NULL OR workspace.slug = $2)
       ORDER BY
-        CASE membership.role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END,
+        CASE membership.role WHEN 'owner' THEN 0 WHEN 'collaborator' THEN 1 ELSE 2 END,
         membership.created_at ASC
       LIMIT 1
     `,
-    [userId, DEFAULT_ATLAS_WORKSPACE_ID],
+    [userId, slug ?? null],
   );
   return accessResult.rows[0] ?? null;
 };
@@ -59,6 +61,7 @@ const readWorkspaceAuthority = async (
 const readWorkspaceAccess = async (
   query: Pick<Pool, 'query'>['query'],
   userId: string,
+  slug?: string,
 ): Promise<AtlasWorkspaceAccess | null> => {
   const accessResult = await query<WorkspaceAccessRow>(
     `
@@ -71,122 +74,89 @@ const readWorkspaceAccess = async (
       FROM atlas_workspace_memberships AS membership
       JOIN atlas_workspaces AS workspace ON workspace.id = membership.workspace_id
       WHERE membership.user_id = $1
-        AND membership.workspace_id = $2
         AND membership.status = 'active'
+        AND ($2::text IS NULL OR workspace.slug = $2)
       ORDER BY
-        CASE membership.role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END,
+        CASE membership.role WHEN 'owner' THEN 0 WHEN 'collaborator' THEN 1 ELSE 2 END,
         membership.created_at ASC
       LIMIT 1
     `,
-    [userId, DEFAULT_ATLAS_WORKSPACE_ID],
+    [userId, slug ?? null],
   );
   return accessResult.rows[0] ?? null;
 };
 
-export const createAtlasWorkspaceAccessStore = (pool: Pick<Pool, 'connect' | 'query'>) => ({
-  resolveAuthorityForUser: async (userId: string): Promise<AtlasWorkspaceAuthority | null> => {
-    const existing = await readWorkspaceAuthority(pool.query.bind(pool), userId);
+const listWorkspaceAccess = async (
+  query: Pick<Pool, 'query'>['query'],
+  userId: string,
+): Promise<AtlasWorkspaceAccess[]> => {
+  const result = await query<WorkspaceAccessRow>(
+    `
+      SELECT
+        workspace.id,
+        workspace.slug,
+        workspace.name,
+        workspace.visibility,
+        membership.role
+      FROM atlas_workspace_memberships AS membership
+      JOIN atlas_workspaces AS workspace ON workspace.id = membership.workspace_id
+      WHERE membership.user_id = $1
+        AND membership.status = 'active'
+      ORDER BY workspace.name ASC, workspace.slug ASC
+    `,
+    [userId],
+  );
+  return result.rows;
+};
 
-    if (existing) return existing;
-
-    const client = await pool.connect();
-
-    try {
-      await client.query('BEGIN');
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('atlas:default-workspace-owner'))");
-      await client.query(
-        `
-          INSERT INTO atlas_workspace_memberships (workspace_id, user_id, role, status)
-          SELECT $1, users.id, 'owner', 'active'
-          FROM atlas_auth_users AS users
-          WHERE users.id = $2
-            AND NOT EXISTS (
-              SELECT 1
-              FROM atlas_workspace_memberships
-              WHERE workspace_id = $1
-            )
-          ON CONFLICT (workspace_id, user_id) DO NOTHING
-        `,
-        [DEFAULT_ATLAS_WORKSPACE_ID, userId],
-      );
-      const authority = await readWorkspaceAuthority(client.query.bind(client), userId);
-      await client.query('COMMIT');
-
-      return authority;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  },
-  resolveForUser: async (userId: string): Promise<AtlasWorkspaceAccess | null> => {
-    const existing = await readWorkspaceAccess(pool.query.bind(pool), userId);
-
-    if (existing) {
-      return existing;
-    }
-
-    const client = await pool.connect();
-
-    try {
-      await client.query('BEGIN');
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('atlas:default-workspace-owner'))");
-      await client.query(
-        `
-          INSERT INTO atlas_workspace_memberships (workspace_id, user_id, role, status)
-          SELECT $1, users.id, 'owner', 'active'
-          FROM atlas_auth_users AS users
-          WHERE users.id = $2
-            AND NOT EXISTS (
-              SELECT 1
-              FROM atlas_workspace_memberships
-              WHERE workspace_id = $1
-            )
-          ON CONFLICT (workspace_id, user_id) DO NOTHING
-        `,
-        [DEFAULT_ATLAS_WORKSPACE_ID, userId],
-      );
-      const access = await readWorkspaceAccess(client.query.bind(client), userId);
-      await client.query('COMMIT');
-
-      return access;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  },
+export const createAtlasWorkspaceAccessStore = (pool: Pick<Pool, 'query'>) => ({
+  listForUser: (userId: string) => listWorkspaceAccess(pool.query.bind(pool), userId),
+  resolveAuthorityForUser: (userId: string, slug?: string) =>
+    readWorkspaceAuthority(pool.query.bind(pool), userId, slug),
+  resolveForUser: (userId: string, slug?: string) =>
+    readWorkspaceAccess(pool.query.bind(pool), userId, slug),
 });
 
 export const getAtlasWorkspaceForUser = async (
   userId: string,
+  slug?: string,
 ): Promise<AtlasWorkspaceAccess | null> => {
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
-    return LOCAL_ATLAS_WORKSPACE;
+    const workspaces = [LOCAL_ATLAS_WORKSPACE, ...listLocalWorkspaces(userId)];
+    return slug
+      ? (workspaces.find(workspace => workspace.slug === slug) ?? null)
+      : (workspaces[0] ?? null);
   }
 
   return createAtlasWorkspaceAccessStore(
     getAtlasPostgresPool(connectionString),
-  ).resolveForUser(userId);
+  ).resolveForUser(userId, slug);
+};
+
+export const listAtlasWorkspacesForUser = async (
+  userId: string,
+): Promise<AtlasWorkspaceAccess[]> => {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) return [LOCAL_ATLAS_WORKSPACE, ...listLocalWorkspaces(userId)];
+  return createAtlasWorkspaceAccessStore(
+    getAtlasPostgresPool(connectionString),
+  ).listForUser(userId);
 };
 
 export const getAtlasWorkspaceAuthorityForUser = async (
   userId: string,
+  slug?: string,
 ): Promise<AtlasWorkspaceAuthority | null> => {
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
-    return {
-      id: LOCAL_ATLAS_WORKSPACE.id,
-      role: LOCAL_ATLAS_WORKSPACE.role,
-    };
+    const workspace = await getAtlasWorkspaceForUser(userId, slug);
+    return workspace ? { id: workspace.id, role: workspace.role } : null;
   }
 
   return createAtlasWorkspaceAccessStore(
     getAtlasPostgresPool(connectionString),
-  ).resolveAuthorityForUser(userId);
+  ).resolveAuthorityForUser(userId, slug);
 };

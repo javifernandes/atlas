@@ -63,7 +63,7 @@ Related work:
 ## Non-Goals
 
 1. Do not infer Membership merely from commit authorship, Pull Request activity, or repository access.
-2. Do not grant `owner` or `editor` automatically.
+2. Do not grant `owner` or `collaborator` automatically.
 3. Do not build generic provider plugin infrastructure before a second provider requires it.
 4. Do not implement Item- or Plan-level participant avatars in the first Source slice.
 5. Do not require a full repository-history import before the first GitHub evidence projection is

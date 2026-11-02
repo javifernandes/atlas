@@ -17,7 +17,7 @@ const AtlasWorkspaceMembershipSchema = defineEntitySchema('AtlasWorkspaceMembers
   id: field.id(),
   workspaceId: field.id(),
   userId: field.id(),
-  role: field.enum(['owner', 'editor', 'viewer']),
+  role: field.enum(['owner', 'collaborator', 'viewer']),
   status: field.enum(['active', 'suspended']),
 }).belongsTo('user', AtlasUserSchema, { via: 'userId' });
 

@@ -125,6 +125,7 @@ export const getAtlasRequestAccess = async (headers: Headers): Promise<AtlasRead
 
 export const getAtlasRuntimeInvocationContext = async (request: Request) => {
   const access = await getAtlasRequestAccess(request.headers);
+  const workspaceSlug = request.headers.get('x-atlas-workspace-slug')?.trim() || undefined;
 
   if (access.configurationError) {
     throw new AtlasAuthConfigurationError(access.configurationError);
@@ -135,7 +136,7 @@ export const getAtlasRuntimeInvocationContext = async (request: Request) => {
     resourceEvidenceDisclosure:
       process.env.NODE_ENV === 'production' ? 'none' as const : 'debug' as const,
     workspace: access.viewer
-      ? await getAtlasWorkspaceAuthorityForUser(access.viewer.id)
+      ? await getAtlasWorkspaceAuthorityForUser(access.viewer.id, workspaceSlug)
       : null,
   };
 };

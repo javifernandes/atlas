@@ -15,7 +15,7 @@ import type { AtlasViewer } from '@/auth/access';
 
 import { WorkspaceAccessDenied } from './workspace-access-denied';
 
-const roleOrder = { owner: 0, editor: 1, viewer: 2 } as const;
+const roleOrder = { owner: 0, collaborator: 1, viewer: 2 } as const;
 
 type WorkspaceContributorRow = {
   avatarUrl: string | null;
@@ -244,7 +244,7 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
     <main className='min-h-screen bg-background px-6 py-12 text-foreground'>
       <div className='mx-auto grid w-full max-w-3xl gap-8'>
         <header className='grid gap-2'>
-          <Link className='text-sm text-muted-foreground hover:text-foreground' href='/'>
+          <Link className='text-sm text-muted-foreground hover:text-foreground' href={`/w/${workspace.slug}`}>
             ← Back to Atlas
           </Link>
           <p className='font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground'>

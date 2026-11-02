@@ -28,7 +28,7 @@ export const AuthLanding = ({
         </p>
         <h1 className='mb-0 mt-3 text-3xl font-semibold tracking-tight'>Enter Atlas</h1>
         <p className='mb-0 mt-3 max-w-sm text-sm leading-6 text-muted-foreground'>
-          Sign in with GitHub to explore the shared Atlas, Ontahí, and BookOps workspace.
+          Sign in with GitHub to create or enter your project Workspaces.
         </p>
       </div>
 

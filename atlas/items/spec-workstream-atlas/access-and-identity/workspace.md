@@ -9,6 +9,7 @@ supports:
   - spec-workstream-atlas.access-identity
   - spec-workstream-atlas
 relatedPlans:
+  - plans/current/143-dynamic-workspace-onboarding.md
   - plans/current/142-workspace-administration-settings.md
   - plans/current/141-read-only-plan-assistant.md
   - plans/current/140-workspace-sources-and-contributor-discovery.md
@@ -23,7 +24,7 @@ stable [[spec-workstream-atlas.access-identity.persistent-user|Persistent User]]
 
 The first implementation migrates the deployment-wide Atlas projection into one stable default
 Workspace. An active Membership, not authentication alone, grants private read access. Roles begin
-as `owner`, `editor`, and `viewer`; administration belongs to the Workspace owner rather than a
+as `owner`, `collaborator`, and `viewer`; administration belongs to the Workspace owner rather than a
 global Atlas administrator.
 
 ```text
@@ -83,3 +84,10 @@ Atlas capability and requires `owner` inside the Workspace Operation. Client rol
 controls for clarity but never grants authority. This is the application-level precursor to a
 future Ontahí policy model where Operations declare required capabilities and the runtime can keep
 authorization reads and mutations within one execution boundary.
+
+Workspace selection is dynamic per authenticated User rather than deployment-global. A User with no
+active Membership creates a Workspace and receives its owner Membership in the same transaction;
+new identities never claim the migrated Atlas Workspace implicitly. Stable slug routes select a
+candidate Workspace, but the server admits that selection only when an active Membership links the
+current Principal to it. The original `/atlas` data remains ordinary backfilled tenant data while
+new Workspaces begin empty until they register their own Sources.
