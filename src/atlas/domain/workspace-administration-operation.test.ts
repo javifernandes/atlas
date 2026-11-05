@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAtlasOntahiApplication } from './atlas-application';
 import { ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE } from '../github/user-repositories';
 import { ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE } from '../workspace/workspace-source-reconciliation';
+import { atlasWorkspaceSourceImportReadPolicy } from '../workspace/workspace-read-policies';
 
 const workspaceId = '00000000-0000-4000-8000-000000000137';
 const principal = {
@@ -442,5 +443,14 @@ describe('AtlasWorkspace.reconcileSources', () => {
           .select(sourceImport => ({ error: sourceImport.error, status: sourceImport.status })),
       ),
     ).resolves.toEqual([{ error: 'GitHub tree unavailable', status: 'failed' }]);
+  });
+});
+
+describe('Workspace Source import read policy', () => {
+  it('allows the Settings history query to order imports by start time', () => {
+    expect(atlasWorkspaceSourceImportReadPolicy.fields.startedAt).toEqual({
+      order: true,
+      select: true,
+    });
   });
 });

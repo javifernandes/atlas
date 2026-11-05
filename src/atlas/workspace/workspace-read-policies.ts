@@ -158,7 +158,7 @@ export const atlasWorkspaceSourceImportReadPolicy = {
     repository: { select: true },
     observedRevision: { select: true },
     status: { select: true },
-    startedAt: { select: true },
+    startedAt: { select: true, order: true },
     completedAt: { select: true },
     error: { select: true },
     diagnosticsJson: { select: true },
