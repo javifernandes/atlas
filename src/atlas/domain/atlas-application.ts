@@ -64,6 +64,7 @@ import {
 export type AtlasCapabilities = {
   runtime: {
     assistant?: NonNullable<AtlasWorkspaceCapabilities['runtime']['assistant']>;
+    workspaceAdministration?: AtlasWorkspaceCapabilities['runtime']['workspaceAdministration'];
     workspaceAuthorization: AtlasWorkspaceCapabilities['runtime']['workspaceAuthorization'];
     projection: {
       reconcile(input: AtlasReconciliationRequest): Effect.Effect<AtlasReconciliationResult>;
@@ -1937,6 +1938,12 @@ export const createAtlasOntahiApplication = (
       userId: string,
       workspaceId: string,
     ) => Effect.Effect<AtlasWorkspaceRole | null>;
+    workspaceCreated?: NonNullable<
+      AtlasWorkspaceCapabilities['runtime']['workspaceAdministration']
+    >['created'];
+    workspaceDeleted?: NonNullable<
+      AtlasWorkspaceCapabilities['runtime']['workspaceAdministration']
+    >['deleted'];
     invalidatePresentation?: () => void;
     invalidateRepository?: (repositoryFullName: string) => void;
     loadedSourceRevisions?: AtlasLoadedSourceRevision[];
@@ -1999,6 +2006,9 @@ export const createAtlasOntahiApplication = (
                   : null,
               )),
         },
+        workspaceAdministration: options.workspaceCreated || options.workspaceDeleted
+          ? { created: options.workspaceCreated, deleted: options.workspaceDeleted }
+          : undefined,
         projection: {
           reconcile: request =>
             Effect.sync(() => {

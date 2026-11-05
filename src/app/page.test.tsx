@@ -3,15 +3,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getAtlasRequestAccessMock = vi.hoisted(() => vi.fn());
 const getAtlasPageDataMock = vi.hoisted(() => vi.fn());
-const getAtlasWorkspaceForUserMock = vi.hoisted(() => vi.fn());
+const listAtlasWorkspacesForUserMock = vi.hoisted(() => vi.fn());
+const prewarmAtlasServerApplicationMock = vi.hoisted(() => vi.fn());
 
 vi.mock('next/headers', () => ({ headers: () => new Headers() }));
 vi.mock('@/auth/server', () => ({ getAtlasRequestAccess: getAtlasRequestAccessMock }));
 vi.mock('@/atlas/server/get-atlas-page-data', () => ({
   getAtlasPageData: getAtlasPageDataMock,
 }));
+vi.mock('@/atlas/server/atlas-composition', () => ({
+  prewarmAtlasServerApplication: prewarmAtlasServerApplicationMock,
+}));
 vi.mock('@/atlas/workspace/workspace-access', () => ({
-  getAtlasWorkspaceForUser: getAtlasWorkspaceForUserMock,
+  listAtlasWorkspacesForUser: listAtlasWorkspacesForUserMock,
+}));
+vi.mock('@/components/workspace/workspace-onboarding', () => ({
+  WorkspaceOnboarding: ({ userName }: { userName: string }) => <div>Create a Workspace, {userName}</div>,
 }));
 vi.mock('@/components/atlas-explorer-client', () => ({
   AtlasExplorerClient: ({ isAuthenticated }: { isAuthenticated: boolean }) => (
@@ -30,7 +37,7 @@ const viewer = {
   email: 'javi@example.com',
   id: 'atlas-user-1',
   image: null,
-  name: 'Javi',
+  name: 'Javi Fernandes',
 };
 
 describe('Atlas page access wall', () => {
@@ -40,14 +47,10 @@ describe('Atlas page access wall', () => {
       executionStreams: [],
       snapshot: {},
     });
-    getAtlasWorkspaceForUserMock.mockReset().mockResolvedValue({
-      id: 'workspace-1',
-      members: [],
-      name: 'Atlas',
-      role: 'owner',
-      slug: 'atlas',
-      visibility: 'private',
-    });
+    listAtlasWorkspacesForUserMock.mockReset().mockResolvedValue([{
+      id: 'workspace-1', name: 'Atlas', role: 'owner', slug: 'atlas', visibility: 'private',
+    }]);
+    prewarmAtlasServerApplicationMock.mockReset();
   });
 
   it('renders the login landing without loading projection data for an anonymous visitor', async () => {
@@ -66,9 +69,10 @@ describe('Atlas page access wall', () => {
     expect(screen.getByRole('button', { name: 'Continue with GitHub' })).toBeInTheDocument();
     expect(screen.queryByText('Atlas workspace')).not.toBeInTheDocument();
     expect(getAtlasPageDataMock).not.toHaveBeenCalled();
+    expect(prewarmAtlasServerApplicationMock).not.toHaveBeenCalled();
   });
 
-  it('loads Atlas at the same URL after authentication', async () => {
+  it('renders the Workspace home after authentication', async () => {
     getAtlasRequestAccessMock.mockResolvedValue({
       authAvailable: true,
       canRead: true,
@@ -79,11 +83,15 @@ describe('Atlas page access wall', () => {
     });
 
     render(await AtlasPage({}));
-
-    expect(screen.getByText('Atlas workspace')).toBeInTheDocument();
-    expect(screen.getByText('Atlas workspace')).toHaveAttribute('data-authenticated', 'true');
-    expect(screen.queryByRole('heading', { name: 'Enter Atlas' })).not.toBeInTheDocument();
-    expect(getAtlasPageDataMock).toHaveBeenCalledWith(viewer.id, undefined);
+    expect(screen.getByRole('heading', { name: 'Your Workspaces' })).toBeInTheDocument();
+    expect(screen.getByText('Welcome back, Javi. Choose a Workspace or create one.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Atlas/ })).toHaveAttribute('href', '/w/atlas');
+    expect(screen.getByRole('link', { name: 'Create Workspace' })).toHaveAttribute(
+      'href',
+      '/workspaces/new',
+    );
+    expect(getAtlasPageDataMock).not.toHaveBeenCalled();
+    expect(prewarmAtlasServerApplicationMock).toHaveBeenCalledOnce();
   });
 
   it('retains the explicit anonymous public bypass for local development', async () => {
@@ -103,7 +111,7 @@ describe('Atlas page access wall', () => {
     expect(getAtlasPageDataMock).toHaveBeenCalledWith(undefined, undefined);
   });
 
-  it('denies an authenticated non-member before loading projection data', async () => {
+  it('shows onboarding to an authenticated User without Memberships', async () => {
     getAtlasRequestAccessMock.mockResolvedValue({
       authAvailable: true,
       canRead: true,
@@ -112,11 +120,12 @@ describe('Atlas page access wall', () => {
       viewer,
       visibility: 'private',
     });
-    getAtlasWorkspaceForUserMock.mockResolvedValue(null);
+    listAtlasWorkspacesForUserMock.mockResolvedValue([]);
 
     render(await AtlasPage({}));
 
-    expect(screen.getByRole('heading', { name: 'No active membership' })).toBeInTheDocument();
+    expect(screen.getByText('Create a Workspace, Javi Fernandes')).toBeInTheDocument();
     expect(getAtlasPageDataMock).not.toHaveBeenCalled();
+    expect(prewarmAtlasServerApplicationMock).toHaveBeenCalledOnce();
   });
 });

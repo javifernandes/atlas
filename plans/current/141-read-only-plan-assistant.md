@@ -70,6 +70,12 @@ Future Workspace BYOK should persist only encrypted secret material or a host se
 safe metadata such as provider, model, status, and key suffix. Usage policy, budgets, and who may use
 the provider remain explicit Workspace administration concerns.
 
+The intended onboarding interaction makes this optional configuration a distinct step after Source
+selection: `Off` remains a valid explicit choice; `On` selects a provider, model, and
+provider-specific parameters before the final Workspace summary. Atlas must not render that form as
+functional until the server can write encrypted secret material without returning it through Graph
+reads or Runtime Protocol responses.
+
 ## Execution Slices
 
 ### Slice 1 — bounded model-backed Operation

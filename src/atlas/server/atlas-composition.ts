@@ -5,6 +5,12 @@ import { githubRepositoryCacheTag } from '../github/repository';
 import { createAtlasPostgresComposition, getAtlasRepoRoot } from './atlas-postgres-composition';
 import { loadAtlasProjectionInput } from './load-atlas-projection';
 import { createAtlasModelProvider } from './model-provider';
+import {
+  registerLocalWorkspace,
+  unregisterLocalWorkspace,
+} from '../workspace/local-workspace-registry';
+import { listAtlasWorkspacesForUser } from '../workspace/workspace-access';
+import { Effect } from 'effect';
 
 type AtlasServerApplication =
   | ReturnType<typeof createAtlasOntahiApplication>
@@ -45,6 +51,15 @@ const createMemoryComposition = async () => {
     assistantProvider: createAtlasModelProvider(),
     loadedSourceRevisions: projection.sourceRevisions,
     observedPullRequests: projection.observedPullRequests,
+    workspaceCreated: ({ userId, workspace }) =>
+      Effect.sync(() => registerLocalWorkspace(userId, { ...workspace, role: 'owner' })),
+    workspaceDeleted: ({ userId, workspaceId }) =>
+      Effect.sync(() => unregisterLocalWorkspace(userId, workspaceId)),
+    workspaceRoleFor: (userId, workspaceId) =>
+      Effect.promise(async () =>
+        (await listAtlasWorkspacesForUser(userId)).find(workspace => workspace.id === workspaceId)
+          ?.role ?? null,
+      ),
     invalidateRepository,
     invalidatePresentation: () => {
       state.application = undefined;
@@ -80,4 +95,11 @@ export const getAtlasServerApplication = () => {
     });
 
   return state.application;
+};
+
+export const prewarmAtlasServerApplication = () => {
+  if (resolveStorageMode() !== 'memory') return;
+  void getAtlasServerApplication().catch(error => {
+    console.error('Atlas local runtime prewarm failed.', error);
+  });
 };

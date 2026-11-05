@@ -1,0 +1,25 @@
+import { headers } from 'next/headers';
+
+import { getAtlasRequestAccess } from '@/auth/server';
+import { prewarmAtlasServerApplication } from '@/atlas/server/atlas-composition';
+import { AuthLanding } from '@/components/auth/auth-landing';
+import { WorkspaceOnboarding } from '@/components/workspace/workspace-onboarding';
+
+export const dynamic = 'force-dynamic';
+
+const NewWorkspacePage = async () => {
+  const access = await getAtlasRequestAccess(headers());
+  if (!access.canRead || !access.viewer) {
+    return (
+      <AuthLanding
+        authAvailable={access.authAvailable}
+        configurationError={access.configurationError}
+        viewer={access.viewer}
+      />
+    );
+  }
+  prewarmAtlasServerApplication();
+  return <WorkspaceOnboarding userName={access.viewer.name} />;
+};
+
+export default NewWorkspacePage;

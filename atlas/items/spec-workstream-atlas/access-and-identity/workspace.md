@@ -9,6 +9,7 @@ supports:
   - spec-workstream-atlas.access-identity
   - spec-workstream-atlas
 relatedPlans:
+  - plans/current/143-dynamic-workspace-onboarding.md
   - plans/current/142-workspace-administration-settings.md
   - plans/current/141-read-only-plan-assistant.md
   - plans/current/140-workspace-sources-and-contributor-discovery.md
@@ -23,7 +24,7 @@ stable [[spec-workstream-atlas.access-identity.persistent-user|Persistent User]]
 
 The first implementation migrates the deployment-wide Atlas projection into one stable default
 Workspace. An active Membership, not authentication alone, grants private read access. Roles begin
-as `owner`, `editor`, and `viewer`; administration belongs to the Workspace owner rather than a
+as `owner`, `collaborator`, and `viewer`; administration belongs to the Workspace owner rather than a
 global Atlas administrator.
 
 ```text
@@ -83,3 +84,30 @@ Atlas capability and requires `owner` inside the Workspace Operation. Client rol
 controls for clarity but never grants authority. This is the application-level precursor to a
 future Ontahí policy model where Operations declare required capabilities and the runtime can keep
 authorization reads and mutations within one execution boundary.
+
+Workspace selection is dynamic per authenticated User rather than deployment-global. A User with no
+active Membership creates a Workspace and receives its owner Membership in the same transaction;
+new identities never claim the migrated Atlas Workspace implicitly. Stable slug routes select a
+candidate Workspace, but the server admits that selection only when an active Membership links the
+current Principal to it. The original `/atlas` data remains ordinary backfilled tenant data while
+new Workspaces begin empty until they register their own Sources.
+
+An owner registers a GitHub Source only through a server-authorized Workspace Operation. Atlas
+discovers repositories through the authenticated User's incrementally authorized provider account,
+derives the Source key and default branch from canonical repository metadata, and rejects both
+duplicates and caller-forged repository names outside that provider list. Delegated provider tokens
+are encrypted at rest and never cross the Runtime Protocol. Registration records desired configuration;
+turning it into a Workspace-partitioned Plan and Item projection remains a separate reconciliation
+responsibility.
+
+The route-resolved Membership is also the presentation authority for owner controls. A missing User
+profile join may degrade member presentation, especially in local memory mode, but it never erases
+the creator's owner role or disables authorized administration. Provider installation authority is
+separate: it governs which repositories Atlas may read, not who owns the Workspace.
+
+Workspace deletion is an owner-authorized lifecycle Operation over the Workspace aggregate. It
+requires the authenticated owner to repeat the exact Workspace slug, removes Memberships, Sources,
+and derived Contributors with the Workspace, and leaves the Atlas User, GitHub repositories, and
+provider authorization untouched. The first form is immediate rather than recoverable in-product;
+durable deployments rely on database backup until retention and restoration become explicit model
+concepts.

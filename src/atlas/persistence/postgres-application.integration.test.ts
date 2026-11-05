@@ -338,7 +338,7 @@ Durable Atlas projection.
     });
   }, postgresTestTimeout);
 
-  it('claims the default Workspace once and denies users from another Workspace', async () => {
+  it('lists dynamic Workspaces without letting later users claim the migrated Atlas Workspace', async () => {
     const owner = await pool.query<{ id: string }>(
       `SELECT id FROM atlas_auth_users WHERE email = 'persistent-user@example.com'`,
     );
@@ -379,7 +379,15 @@ Durable Atlas projection.
       `,
       [otherWorkspaceId, outsiderId],
     );
-    await expect(store.resolveForUser(outsiderId)).resolves.toBeNull();
+    await expect(store.resolveForUser(outsiderId)).resolves.toMatchObject({
+      id: otherWorkspaceId,
+      role: 'viewer',
+      slug: 'other-workspace',
+    });
+    await expect(store.resolveForUser(outsiderId, 'atlas')).resolves.toBeNull();
+    await expect(store.listForUser(outsiderId)).resolves.toMatchObject([
+      { id: otherWorkspaceId, slug: 'other-workspace' },
+    ]);
     await expect(
       pool.query(
         `SELECT count(*)::int AS count FROM atlas_workspace_memberships WHERE role = 'owner'`,

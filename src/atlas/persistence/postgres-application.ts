@@ -316,7 +316,7 @@ export const createAtlasPostgresApplication = (input: {
       workspaceAuthorization: {
         roleFor: (userId, workspaceId) =>
           Effect.promise(async () => {
-            const result = await input.pool.query<{ role: 'owner' | 'editor' | 'viewer' }>(
+            const result = await input.pool.query<{ role: 'owner' | 'collaborator' | 'viewer' }>(
               `
                 SELECT role
                 FROM atlas_workspace_memberships
