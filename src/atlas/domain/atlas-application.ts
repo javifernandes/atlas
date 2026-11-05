@@ -1941,6 +1941,9 @@ export const createAtlasOntahiApplication = (
     workspaceCreated?: NonNullable<
       AtlasWorkspaceCapabilities['runtime']['workspaceAdministration']
     >['created'];
+    workspaceDeleted?: NonNullable<
+      AtlasWorkspaceCapabilities['runtime']['workspaceAdministration']
+    >['deleted'];
     invalidatePresentation?: () => void;
     invalidateRepository?: (repositoryFullName: string) => void;
     loadedSourceRevisions?: AtlasLoadedSourceRevision[];
@@ -2003,8 +2006,8 @@ export const createAtlasOntahiApplication = (
                   : null,
               )),
         },
-        workspaceAdministration: options.workspaceCreated
-          ? { created: options.workspaceCreated }
+        workspaceAdministration: options.workspaceCreated || options.workspaceDeleted
+          ? { created: options.workspaceCreated, deleted: options.workspaceDeleted }
           : undefined,
         projection: {
           reconcile: request =>

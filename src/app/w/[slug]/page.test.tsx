@@ -21,6 +21,9 @@ vi.mock('@/components/atlas-explorer-client', () => ({
   AtlasExplorerClient: () => <div>Canonical projection</div>,
 }));
 vi.mock('@/components/workspace/workspace-control', () => ({ WorkspaceControl: () => null }));
+vi.mock('@/components/workspace/workspace-source-connection', () => ({
+  WorkspaceSourceConnection: () => <div>Connect repository form</div>,
+}));
 
 import WorkspacePage from './page';
 
@@ -52,7 +55,7 @@ describe('dynamic Workspace page', () => {
     render(await WorkspacePage({ params: { slug: 'acme' } }));
 
     expect(screen.getByRole('heading', { name: 'Acme' })).toBeInTheDocument();
-    expect(screen.getByText(/Repository connection is the next/)).toBeInTheDocument();
+    expect(screen.getByText('Connect repository form')).toBeInTheDocument();
     expect(getAtlasPageDataMock).not.toHaveBeenCalled();
   });
 

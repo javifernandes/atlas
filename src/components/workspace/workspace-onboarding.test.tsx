@@ -25,10 +25,12 @@ describe('WorkspaceOnboarding', () => {
   });
 
   it('derives a slug and enters the newly created Workspace', async () => {
-    render(<WorkspaceOnboarding userName='Ada' />);
+    render(<WorkspaceOnboarding userName='Ada Lovelace' />);
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Acme Plans' } });
-    expect(screen.getByLabelText('Address')).toHaveValue('acme-plans');
+    expect(screen.getByRole('heading', { name: 'Welcome, Ada' })).toBeInTheDocument();
+    expect(screen.getByText('/w/acme-plans')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Address' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Create Workspace' }));
 
     await waitFor(() => {

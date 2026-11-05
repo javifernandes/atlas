@@ -79,7 +79,7 @@ control links back to that home, switches directly to another Workspace, or open
 
 ### Slice 2 — routing and onboarding
 
-- [x] Add no-Membership onboarding with name and slug inputs.
+- [x] Add no-Membership onboarding that derives a unique server-validated slug from the Workspace name.
 - [x] Add `/w/:slug` and `/w/:slug/settings` routes.
 - [x] Carry the selected slug into Runtime requests and resolve it against active Membership.
 - [x] Add a compact Workspace selector for Users with multiple Memberships.
@@ -124,7 +124,9 @@ control links back to that home, switches directly to another Workspace, or open
 
 In progress. Atlas now creates Workspace plus owner Membership through one typed Operation and graph
 transaction, routes selected Workspaces by slug, scopes Runtime requests through active Membership,
-and provides a Workspace home, selector, and explicit new-Workspace route. The migrated Atlas tenant alone renders
+and provides a Workspace home, selector, and explicit new-Workspace route. The creation UI treats
+the slug as a derived Workspace URL rather than a second naming concept; the server remains the
+authority for global uniqueness. The migrated Atlas tenant alone renders
 the compatibility projection; other Workspaces remain empty rather than observing its data.
 
 Persistent access no longer auto-claims the Atlas Workspace. Memory mode intentionally retains its
@@ -133,3 +135,17 @@ process-local registry, so local development can exercise multi-Workspace UX wit
 provide durable tenancy. PostgreSQL integration coverage was updated, but the local integration run
 could not start because no container runtime was available; unit, routing, and Operation coverage
 still exercise the new boundary.
+
+Dogfooding exposed a local cold-start coupling: the first Workspace administration Operation waited
+for memory composition to load Markdown plus remote merged-PR evidence, taking roughly 27 seconds
+while later Runtime requests completed in tens of milliseconds. Atlas now prewarms memory
+composition when an authenticated User reaches Workspace home or onboarding and makes the delayed
+state explicit in the creation control. This is a mitigation, not the durable boundary: onboarding
+and administration should eventually start independently from the repository projection read
+model.
+
+The Source step now behaves as a multi-repository picker rather than a single-selection form. Each
+GitHub repository owns its `Add`/pending/added state, successful additions remain visible in place,
+and a separate `Continue` action closes the Source step. The temporary completion surface is honest
+that Workspace LLM configuration is still a later security slice; the target onboarding sequence is
+Workspace identity -> Sources -> optional Model Connection -> summary -> open Workspace.

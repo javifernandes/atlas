@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { readAtlasAuthConfiguration } from '@/auth/config';
 import { getAtlasRequestAccess } from '@/auth/server';
 import { getAtlasPageData } from '@/atlas/server/get-atlas-page-data';
+import { prewarmAtlasServerApplication } from '@/atlas/server/atlas-composition';
 import { listAtlasWorkspacesForUser } from '@/atlas/workspace/workspace-access';
 import { AtlasExplorerClient } from '@/components/atlas-explorer-client';
 import { AuthControl } from '@/components/auth/auth-control';
@@ -45,6 +46,7 @@ const AtlasPage = async ({ searchParams }: AtlasPageProps) => {
   }
 
   if (access.viewer) {
+    prewarmAtlasServerApplication();
     const workspaces = await listAtlasWorkspacesForUser(access.viewer.id);
     if (workspaces.length === 0) return <WorkspaceOnboarding userName={access.viewer.name} />;
     return (

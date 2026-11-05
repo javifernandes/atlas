@@ -89,7 +89,7 @@ installation access remain private regardless of Workspace visibility.
 ### Slice 2 — repository connection
 
 - [ ] Add an owner-authorized `registerWorkspaceSource` Operation.
-- [ ] List repositories accessible through an authorized GitHub App installation.
+- [x] List repositories accessible through the authenticated User's incrementally authorized GitHub account.
 - [ ] Select repository and default ref, reject duplicate registrations, and trigger reconciliation.
 - [ ] Add pause/remove lifecycle without deleting historical evidence.
 
@@ -97,8 +97,12 @@ installation access remain private regardless of Workspace visibility.
 
 - [ ] Define transfer eligibility and guarantee that a Workspace retains exactly one owner.
 - [ ] Add typed ownership transfer with explicit target and confirmation.
-- [ ] Define deletion dependencies, retention, and recoverability before implementing deletion.
-- [ ] Require exact slug confirmation and server-side owner reauthorization for deletion.
+- [x] Define the first deletion boundary as immediate removal of Atlas-owned Workspace data; provider
+      repositories and installations remain untouched. Recovery depends on database backup rather
+      than an in-product retention window in this first slice.
+- [x] Require exact slug confirmation and server-side owner reauthorization for deletion.
+- [x] Implement owner-authorized deletion of Workspace, Memberships, Sources, and derived
+      contributors, then return the User to Workspace home.
 
 ## Verification
 
@@ -107,9 +111,9 @@ installation access remain private regardless of Workspace visibility.
 - [ ] Repository choices are limited to installations the owner may administer.
 - [ ] Duplicate or inaccessible repositories are rejected without partial registration.
 - [ ] Ownership transfer cannot leave the Workspace ownerless.
-- [ ] Delete presents an accurate dependency summary and cannot target another Workspace.
+- [x] Delete presents an accurate dependency summary and cannot target another Workspace.
 - [ ] Audit evidence identifies actor, Operation, target, and result.
-- [ ] `pnpm verify` passes.
+- [x] `pnpm verify` passes.
 
 ## Decisions
 
@@ -117,6 +121,9 @@ installation access remain private regardless of Workspace visibility.
 2. Repository registration is a provider-backed Operation, not a free-form URL field.
 3. Visibility, transfer, and deletion require owner authority at execution time.
 4. Danger Zone actions deserve dedicated Operations and confirmations rather than a generic update.
+5. The first delete is a hard delete of the Workspace aggregate. Database foreign keys and the
+   Operation's explicit memory-storage deletes cover Memberships, Sources, and Contributors; GitHub
+   repositories, provider grants, Atlas User identity, and cross-Workspace data are never deleted.
 
 ## Open Questions
 
@@ -138,3 +145,10 @@ behind an Atlas runtime capability and may use a database connection outside the
 transaction. A future Ontahí policy primitive should express required Workspace capabilities and
 provide one execution context for policy reads and writes before the pattern expands to Source and
 Danger Zone Operations.
+
+The first Danger Zone slice adds a dedicated `AtlasWorkspace.delete` Operation. It repeats owner
+authorization on the server, loads the target Workspace rather than trusting client identity,
+requires an exact slug confirmation, and removes Contributors, Sources, Memberships, and the
+Workspace in one graph transaction. PostgreSQL foreign keys retain cascade protection while the
+explicit child deletes preserve the same aggregate behavior in memory storage. The settings UI
+shows the currently authorized dependency counts and returns to Workspace home after success.

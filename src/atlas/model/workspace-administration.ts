@@ -22,6 +22,43 @@ export const AtlasWorkspaceUpdateVisibilityOutputSchema = graphSchema.object({
   visibility: field.enum(['private', 'public']),
 });
 
+export const AtlasWorkspaceDeleteInputSchema = graphSchema.object({
+  workspace: graphSchema.object({ id: field.id() }),
+  confirmationSlug: field.nonEmptyString({ trim: true }),
+});
+
+export const AtlasWorkspaceDeleteOutputSchema = graphSchema.object({
+  id: field.id(),
+  slug: field.nonEmptyString({ trim: true }),
+});
+
+export const AtlasWorkspaceRegisterSourceInputSchema = graphSchema.object({
+  workspace: graphSchema.object({ id: field.id() }),
+  repository: field.nonEmptyString({ trim: true }),
+});
+
+export const AtlasWorkspaceRegisterSourceOutputSchema = graphSchema.object({
+  id: field.id(),
+  sourceId: field.nonEmptyString({ trim: true }),
+  repository: field.nonEmptyString({ trim: true }),
+  ref: field.nonEmptyString({ trim: true }),
+});
+
+export const AtlasWorkspaceRepositoryChoiceSchema = graphSchema.object({
+  defaultRef: field.nonEmptyString({ trim: true }),
+  fullName: field.nonEmptyString({ trim: true }),
+  isPrivate: field.boolean(),
+});
+
+export const AtlasWorkspaceListRepositoriesInputSchema = graphSchema.object({
+  workspace: graphSchema.object({ id: field.id() }),
+});
+
+export const AtlasWorkspaceListRepositoriesOutputSchema = graphSchema.object({
+  authorizationRequired: field.boolean(),
+  repositories: graphSchema.array(AtlasWorkspaceRepositoryChoiceSchema),
+});
+
 export type AtlasWorkspaceUpdateVisibilityInput = GraphSchemaValue<
   typeof AtlasWorkspaceUpdateVisibilityInputSchema
 >;

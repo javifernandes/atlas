@@ -91,3 +91,23 @@ new identities never claim the migrated Atlas Workspace implicitly. Stable slug 
 candidate Workspace, but the server admits that selection only when an active Membership links the
 current Principal to it. The original `/atlas` data remains ordinary backfilled tenant data while
 new Workspaces begin empty until they register their own Sources.
+
+An owner registers a GitHub Source only through a server-authorized Workspace Operation. Atlas
+discovers repositories through the authenticated User's incrementally authorized provider account,
+derives the Source key and default branch from canonical repository metadata, and rejects both
+duplicates and caller-forged repository names outside that provider list. Delegated provider tokens
+are encrypted at rest and never cross the Runtime Protocol. Registration records desired configuration;
+turning it into a Workspace-partitioned Plan and Item projection remains a separate reconciliation
+responsibility.
+
+The route-resolved Membership is also the presentation authority for owner controls. A missing User
+profile join may degrade member presentation, especially in local memory mode, but it never erases
+the creator's owner role or disables authorized administration. Provider installation authority is
+separate: it governs which repositories Atlas may read, not who owns the Workspace.
+
+Workspace deletion is an owner-authorized lifecycle Operation over the Workspace aggregate. It
+requires the authenticated owner to repeat the exact Workspace slug, removes Memberships, Sources,
+and derived Contributors with the Workspace, and leaves the Atlas User, GitHub repositories, and
+provider authorization untouched. The first form is immediate rather than recoverable in-product;
+durable deployments rely on database backup until retention and restoration become explicit model
+concepts.

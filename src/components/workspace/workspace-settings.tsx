@@ -2,6 +2,7 @@
 
 import { useGraphQuery, useOperation } from '@ontahi/react/graph';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { AtlasWorkspaceAdministrationClient } from '@/atlas/client/workspace-administration';
@@ -14,6 +15,7 @@ import {
 import type { AtlasViewer } from '@/auth/access';
 
 import { WorkspaceAccessDenied } from './workspace-access-denied';
+import { WorkspaceSourceConnection } from './workspace-source-connection';
 
 const roleOrder = { owner: 0, collaborator: 1, viewer: 2 } as const;
 
@@ -150,7 +152,105 @@ const WorkspaceVisibilitySettings = ({
   );
 };
 
-export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
+const WorkspaceDangerZone = ({
+  canManage,
+  contributorCount,
+  memberCount,
+  sourceCount,
+  workspace,
+}: {
+  canManage: boolean;
+  contributorCount: number;
+  memberCount: number;
+  sourceCount: number;
+  workspace: { id: string; name: string; slug: string };
+}) => {
+  const deleteWorkspace = useOperation(AtlasWorkspaceAdministrationClient.domain.delete);
+  const router = useRouter();
+  const [confirmationSlug, setConfirmationSlug] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+
+  const remove = async () => {
+    if (
+      !canManage ||
+      confirmationSlug !== workspace.slug ||
+      deleteWorkspace.isExecuting
+    ) return;
+    setMessage(null);
+    try {
+      const result = await deleteWorkspace.executeAsync({
+        workspace: { id: workspace.id },
+        confirmationSlug,
+      });
+      if (!result.ok) throw new Error(result.message);
+      router.push('/');
+      router.refresh();
+    } catch (cause) {
+      setMessage(
+        cause instanceof Error ? cause.message : 'Atlas could not delete this Workspace.',
+      );
+    }
+  };
+
+  return (
+    <section className='grid gap-3 border-t border-destructive/40 pt-8'>
+      <div>
+        <h2 className='text-lg font-medium text-destructive'>Danger Zone</h2>
+        <p className='text-sm text-muted-foreground'>
+          Destructive Workspace lifecycle actions live here.
+        </p>
+      </div>
+      <div className='grid gap-4 rounded-lg border border-destructive/50 p-4'>
+        <div className='grid gap-1'>
+          <h3 className='text-sm font-medium'>Delete {workspace.name}</h3>
+          <p className='text-sm leading-6 text-muted-foreground'>
+            Permanently removes this Workspace, {memberCount}{' '}
+            {memberCount === 1 ? 'membership' : 'memberships'}, {sourceCount}{' '}
+            {sourceCount === 1 ? 'Source' : 'Sources'}, and {contributorCount} derived{' '}
+            {contributorCount === 1 ? 'contributor' : 'contributors'}. GitHub repositories and
+            your Atlas account are not deleted.
+          </p>
+        </div>
+        <label className='grid gap-2 text-sm font-medium'>
+          Type <span className='font-mono text-destructive'>{workspace.slug}</span> to confirm
+          <input
+            autoComplete='off'
+            className='h-10 rounded-md border border-destructive/50 bg-background px-3 font-normal outline-none focus:border-destructive disabled:opacity-60'
+            disabled={!canManage || deleteWorkspace.isExecuting}
+            onChange={event => setConfirmationSlug(event.target.value)}
+            value={confirmationSlug}
+          />
+        </label>
+        <button
+          className='h-10 justify-self-start rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground disabled:cursor-not-allowed disabled:opacity-50'
+          disabled={
+            !canManage ||
+            confirmationSlug !== workspace.slug ||
+            deleteWorkspace.isExecuting
+          }
+          onClick={() => void remove()}
+          type='button'
+        >
+          {deleteWorkspace.isExecuting ? 'Deleting…' : 'Delete Workspace'}
+        </button>
+        {!canManage ? (
+          <p className='text-xs text-muted-foreground'>
+            Only a Workspace owner can delete this Workspace.
+          </p>
+        ) : null}
+        {message ? <p className='text-xs text-destructive' role='alert'>{message}</p> : null}
+      </div>
+    </section>
+  );
+};
+
+export const WorkspaceSettings = ({
+  viewer,
+  workspaceRole,
+}: {
+  viewer: AtlasViewer;
+  workspaceRole?: 'owner' | 'collaborator' | 'viewer';
+}) => {
   const workspaceQuery = useGraphQuery(workspaceSettingsQuery);
   const membersQuery = useGraphQuery(workspaceMembersQuery);
   const sourcesQuery = useGraphQuery(workspaceSourcesQuery);
@@ -213,12 +313,10 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
   if (!workspace) return <WorkspaceAccessDenied viewer={viewer} />;
 
   const memberships = (membersQuery.data ?? [])
-    .filter(
-      (
-        membership,
-      ): membership is typeof membership & { user: NonNullable<typeof membership.user> } =>
-        membership.user !== null,
-    )
+    .flatMap(membership => {
+      const user = membership.user ?? (membership.userId === viewer.id ? viewer : null);
+      return user ? [{ ...membership, user }] : [];
+    })
     .sort(
       (left, right) =>
         roleOrder[left.role] - roleOrder[right.role] ||
@@ -235,6 +333,7 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
   );
   const memberUserIds = new Set(memberships.map(membership => membership.userId));
   const viewerMembership = memberships.find(membership => membership.userId === viewer.id);
+  const canManage = (workspaceRole ?? viewerMembership?.role) === 'owner';
   const contributorsToReview = contributorGroups.filter(
     contributor =>
       !contributor.linkedUserId || !memberUserIds.has(contributor.linkedUserId),
@@ -257,12 +356,12 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
         </header>
 
         <WorkspaceVisibilitySettings
-          canManage={viewerMembership?.role === 'owner'}
+          canManage={canManage}
           onChanged={workspaceQuery.refetch}
           workspace={workspace}
         />
 
-        <section className='grid gap-3'>
+        <section className='grid gap-3' id='sources'>
           <div className='flex items-end justify-between gap-4'>
             <div>
               <h2 className='text-lg font-medium'>Sources</h2>
@@ -270,13 +369,12 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
                 Repositories observed inside this Workspace.
               </p>
             </div>
-            <span
-              className='rounded-full border border-border px-3 py-1 font-mono text-[11px] uppercase text-muted-foreground'
-              title='An authorized repository connection flow is not implemented yet'
-            >
-              Connections coming next
-            </span>
           </div>
+          <WorkspaceSourceConnection
+            canManage={canManage}
+            onConnected={sourcesQuery.refetch}
+            workspaceId={workspace.id}
+          />
           <div className='overflow-hidden rounded-lg border border-border'>
             {sources.length === 0 ? (
               <p className='px-4 py-6 text-sm text-muted-foreground'>
@@ -441,6 +539,14 @@ export const WorkspaceSettings = ({ viewer }: { viewer: AtlasViewer }) => {
             )}
           </div>
         </section>
+
+        <WorkspaceDangerZone
+          canManage={canManage}
+          contributorCount={contributorsQuery.data?.length ?? 0}
+          memberCount={memberships.length}
+          sourceCount={sources.length}
+          workspace={workspace}
+        />
       </div>
     </main>
   );

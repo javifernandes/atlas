@@ -149,10 +149,20 @@ artifacts. Atlas should preserve the evidence path so a face or name can explain
 
 ### Slice 3 — reviewed connection and admission
 
-- [ ] Add an owner-authorized Source registration Operation over the Ontahi bridge.
-- [ ] Select repositories from an authorized GitHub App installation.
+- [x] Add an owner-authorized Source registration Operation over the Ontahi bridge.
+- [x] Select repositories from the authenticated User's authorized GitHub repository list.
 - [ ] Add invitation/approval Operations and lifecycle state.
 - [ ] Implement `automatic-viewer` only for proven linked provider accounts with auditable provenance.
+
+### Slice 4 — Source activation and cancellation boundary
+
+- [ ] Turn a registered Source into a Workspace-partitioned reconciliation run with observable
+      pending, running, completed, failed, and cancelled states.
+- [ ] Let an owner cancel an in-flight Source import and explicitly clean up partial derived state.
+- [ ] Keep Source registration, imported projection state, and reconciliation execution records as
+      separate lifecycle concepts.
+- [ ] Require the first implementation to declare manual cancellation and compensation behavior;
+      do not depend on automatic reversal of arbitrary effects.
 
 ## Verification
 
@@ -188,6 +198,9 @@ artifacts. Atlas should preserve the evidence path so a face or name can explain
 4. How should contributor removal behave when participation disappears from a rolling observation
    window but historical evidence remains?
 5. Should Item/Plan participation be materialized or computed from evidence when requested?
+6. When an owner removes a Source while reconciliation is running, should removal first request
+   cancellation and wait for compensation, or mark the registration as retiring until cleanup
+   converges asynchronously?
 
 ## Closure / Evolution
 
@@ -233,3 +246,29 @@ provider profile. The review population is defined by
 missing Workspace access rather than missing Atlas identity: a linked Atlas User without Membership
 still remains visible as an admission candidate, while a linked Member is folded into the Member
 row.
+
+### 2026-11-03 — first repository connection
+
+Workspace owners can now register a GitHub repository through a typed bridge Operation. Atlas
+validates that GitHub can read `owner/repository`, adopts its canonical full name and default branch,
+rejects duplicate Workspace registrations, and persists the Source with approval-required
+contributor admission. The empty Workspace embeds this connection step directly instead of
+diverting first-time setup through the full Settings surface.
+
+Repository choice is not free text. Atlas requests delegated repository access incrementally,
+stores the resulting OAuth credential encrypted, and lists only repositories returned by GitHub for
+the authenticated User. The picker is searchable and registration rejects a forged repository that
+was not part of that authorized list. A later GitHub App installation picker may narrow provider
+access further, but it is no longer a prerequisite for a coherent first user-scoped flow.
+
+Owner affordances use the server-resolved Workspace Membership from the route boundary. They do not
+depend on the client Graph View successfully joining the Membership to a presentation profile; in
+local memory mode that profile may be absent even though the creator's owner Membership exists.
+
+Repository selection also exposes the next execution boundary. Registration alone is immediate;
+future activation may start a durable reconciliation that fetches, parses, derives, and publishes a
+Workspace projection. Deselecting or removing a Source during that work must therefore mean more
+than deleting configuration: Atlas needs an explicit cancellation request and deterministic cleanup
+of partial derived state. The first safe form is manual compensation declared by the reconciliation
+operation, with idempotent checkpoints and an execution journal. Automatic inversion of Ontahi
+mutations or external effects is a later runtime direction, not a prerequisite for Source import.

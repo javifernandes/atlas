@@ -6,6 +6,8 @@ import type { AtlasViewer } from '@/auth/access';
 
 import { AuthControl } from '../auth/auth-control';
 
+const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
+
 export const WorkspaceHome = ({
   authAvailable,
   viewer,
@@ -22,7 +24,7 @@ export const WorkspaceHome = ({
           <p className='font-mono text-xs uppercase tracking-[0.18em] text-primary'>Atlas</p>
           <h1 className='text-3xl font-semibold'>Your Workspaces</h1>
           <p className='text-sm text-muted-foreground'>
-            Welcome back, {viewer.name}. Choose a project or start a new one.
+            Welcome back, {firstName(viewer.name)}. Choose a Workspace or create one.
           </p>
         </div>
         <AuthControl authAvailable={authAvailable} viewer={viewer} />

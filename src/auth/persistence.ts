@@ -54,34 +54,6 @@ export const atlasAuthDatabaseModels = {
   },
 } as const;
 
-type ProviderAccountTokens = {
-  accessToken?: string | null;
-  accessTokenExpiresAt?: Date | null;
-  idToken?: string | null;
-  refreshToken?: string | null;
-  refreshTokenExpiresAt?: Date | null;
-};
-
-export const discardProviderTokens = <T extends ProviderAccountTokens>(account: T) => ({
-  ...account,
-  accessToken: null,
-  accessTokenExpiresAt: null,
-  idToken: null,
-  refreshToken: null,
-  refreshTokenExpiresAt: null,
-});
-
-export const atlasAuthDatabaseHooks = {
-  account: {
-    create: {
-      before: async account => ({ data: discardProviderTokens(account) }),
-    },
-    update: {
-      before: async account => ({ data: discardProviderTokens(account) }),
-    },
-  },
-} satisfies NonNullable<BetterAuthOptions['databaseHooks']>;
-
 export const createAtlasAuthPersistenceOptions = (
   database?: Pool,
 ): BetterAuthOptions => {
@@ -101,11 +73,11 @@ export const createAtlasAuthPersistenceOptions = (
     account: {
       ...databaseModels?.account,
       accountLinking: atlasAccountLinkingPolicy,
+      encryptOAuthTokens: true,
       storeAccountCookie: false,
-      updateAccountOnSignIn: false,
+      updateAccountOnSignIn: true,
     },
     database,
-    databaseHooks: atlasAuthDatabaseHooks,
     session: {
       ...databaseModels?.session,
       cookieCache: {

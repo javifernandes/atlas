@@ -2,18 +2,29 @@
 
 import { useOperation } from '@ontahi/react/graph';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 
 import { AtlasWorkspaceAdministrationClient } from '@/atlas/client/workspace-administration';
 import { normalizeWorkspaceSlug } from '@/atlas/model/workspace-administration';
+
+const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 export const WorkspaceOnboarding = ({ userName }: { userName: string }) => {
   const router = useRouter();
   const createWorkspace = useOperation(AtlasWorkspaceAdministrationClient.domain.create);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
-  const [slugEdited, setSlugEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [slowCreation, setSlowCreation] = useState(false);
+
+  useEffect(() => {
+    if (!createWorkspace.isExecuting) {
+      setSlowCreation(false);
+      return;
+    }
+    const timer = globalThis.setTimeout(() => setSlowCreation(true), 1000);
+    return () => globalThis.clearTimeout(timer);
+  }, [createWorkspace.isExecuting]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -37,9 +48,9 @@ export const WorkspaceOnboarding = ({ userName }: { userName: string }) => {
       >
         <header className='grid gap-2'>
           <p className='font-mono text-xs uppercase tracking-[0.18em] text-primary'>New Workspace</p>
-          <h1 className='text-2xl font-semibold'>Welcome, {userName}</h1>
+          <h1 className='text-2xl font-semibold'>Welcome, {firstName(userName)}</h1>
           <p className='text-sm leading-6 text-muted-foreground'>
-            Create a private home for your projects. You can connect repositories next.
+            Create a home for your projects. You can connect repositories next.
           </p>
         </header>
         <label className='grid gap-2 text-sm font-medium'>
@@ -51,38 +62,28 @@ export const WorkspaceOnboarding = ({ userName }: { userName: string }) => {
             onChange={event => {
               const nextName = event.target.value;
               setName(nextName);
-              if (!slugEdited) setSlug(normalizeWorkspaceSlug(nextName));
+              setSlug(normalizeWorkspaceSlug(nextName));
             }}
-            placeholder='My project'
+            placeholder='My Workspace'
             required
             value={name}
           />
         </label>
-        <label className='grid gap-2 text-sm font-medium'>
-          Address
-          <div className='flex h-11 items-center rounded-md border border-border bg-background px-3 focus-within:border-primary'>
-            <span className='text-muted-foreground'>/w/</span>
-            <input
-              aria-label='Address'
-              className='min-w-0 flex-1 bg-transparent font-mono font-normal outline-none'
-              maxLength={48}
-              onChange={event => {
-                setSlugEdited(true);
-                setSlug(normalizeWorkspaceSlug(event.target.value));
-              }}
-              pattern='[a-z0-9][a-z0-9-]+'
-              required
-              value={slug}
-            />
-          </div>
-        </label>
+        {slug ? (
+          <p className='flex items-center gap-2 text-sm text-muted-foreground'>
+            <span>Your Workspace URL</span>
+            <span className='font-mono text-foreground'>/w/{slug}</span>
+          </p>
+        ) : null}
         {error ? <p className='text-sm text-destructive' role='alert'>{error}</p> : null}
         <button
           className='h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50'
           disabled={createWorkspace.isExecuting || name.trim().length === 0 || slug.length < 2}
           type='submit'
         >
-          {createWorkspace.isExecuting ? 'Creating…' : 'Create Workspace'}
+          {createWorkspace.isExecuting
+            ? slowCreation ? 'Preparing Atlas locally…' : 'Creating…'
+            : 'Create Workspace'}
         </button>
       </form>
     </main>

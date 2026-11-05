@@ -21,3 +21,11 @@ export const registerLocalWorkspace = (userId: string, workspace: AtlasWorkspace
 };
 
 export const listLocalWorkspaces = (userId: string) => state.byUser.get(userId) ?? [];
+
+export const unregisterLocalWorkspace = (userId: string, workspaceId: string) => {
+  const remaining = (state.byUser.get(userId) ?? []).filter(
+    workspace => workspace.id !== workspaceId,
+  );
+  if (remaining.length === 0) state.byUser.delete(userId);
+  else state.byUser.set(userId, remaining);
+};

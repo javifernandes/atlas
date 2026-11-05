@@ -22,7 +22,7 @@ const WorkspaceSettingsPage = async ({ params }: { params: { slug: string } }) =
 
   const workspace = await getAtlasWorkspaceForUser(access.viewer.id, params.slug);
   if (!workspace) return <WorkspaceAccessDenied viewer={access.viewer} />;
-  return <WorkspaceSettings viewer={access.viewer} />;
+  return <WorkspaceSettings viewer={access.viewer} workspaceRole={workspace.role} />;
 };
 
 export default WorkspaceSettingsPage;

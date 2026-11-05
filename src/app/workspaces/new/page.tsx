@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 
 import { getAtlasRequestAccess } from '@/auth/server';
+import { prewarmAtlasServerApplication } from '@/atlas/server/atlas-composition';
 import { AuthLanding } from '@/components/auth/auth-landing';
 import { WorkspaceOnboarding } from '@/components/workspace/workspace-onboarding';
 
@@ -17,6 +18,7 @@ const NewWorkspacePage = async () => {
       />
     );
   }
+  prewarmAtlasServerApplication();
   return <WorkspaceOnboarding userName={access.viewer.name} />;
 };
 

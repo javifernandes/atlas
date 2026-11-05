@@ -5,7 +5,6 @@ import {
   atlasAccountLinkingPolicy,
   atlasAuthDatabaseModels,
   createAtlasAuthPersistenceOptions,
-  discardProviderTokens,
 } from './persistence';
 import { readAtlasAuthConfiguration } from './config';
 import { createAtlasAuthOptions } from './server';
@@ -43,13 +42,13 @@ describe('Atlas persistent user model', () => {
     expect(createAtlasAuthOptions(configuredAuth, postgres)).toMatchObject({
       account: {
         accountLinking: atlasAccountLinkingPolicy,
+        encryptOAuthTokens: true,
         modelName: 'atlas_auth_accounts',
         storeAccountCookie: false,
-        updateAccountOnSignIn: false,
+        updateAccountOnSignIn: true,
       },
       advanced: { database: { generateId: 'uuid', joins: true } },
       database: postgres,
-      databaseHooks: expect.any(Object),
       session: { modelName: 'atlas_auth_sessions' },
       user: { modelName: 'atlas_auth_users' },
       verification: { modelName: 'atlas_auth_verifications' },
@@ -84,23 +83,10 @@ describe('Atlas persistent user model', () => {
     });
   });
 
-  it('discards source-irrelevant provider credentials before persistence', () => {
-    expect(
-      discardProviderTokens({
-        accessToken: 'access-token',
-        accessTokenExpiresAt: new Date('2026-09-03T00:00:00.000Z'),
-        accountId: 'provider-subject',
-        idToken: 'id-token',
-        refreshToken: 'refresh-token',
-        refreshTokenExpiresAt: new Date('2026-09-04T00:00:00.000Z'),
-      }),
-    ).toEqual({
-      accessToken: null,
-      accessTokenExpiresAt: null,
-      accountId: 'provider-subject',
-      idToken: null,
-      refreshToken: null,
-      refreshTokenExpiresAt: null,
+  it('encrypts delegated provider credentials and refreshes them on sign-in', () => {
+    expect(createAtlasAuthPersistenceOptions().account).toMatchObject({
+      encryptOAuthTokens: true,
+      updateAccountOnSignIn: true,
     });
   });
 });

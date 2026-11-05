@@ -3,10 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const useGraphQueryMock = vi.hoisted(() => vi.fn());
 const useOperationMock = vi.hoisted(() => vi.fn());
+const pushMock = vi.hoisted(() => vi.fn());
+const refreshMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@ontahi/react/graph', () => ({
   useGraphQuery: useGraphQueryMock,
   useOperation: useOperationMock,
+}));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
 }));
 
 import { WorkspaceSettings } from './workspace-settings';
@@ -30,10 +35,17 @@ describe('WorkspaceSettings', () => {
   beforeEach(() => {
     useGraphQueryMock.mockReset();
     useOperationMock.mockReset();
+    pushMock.mockReset();
+    refreshMock.mockReset();
     useOperationMock.mockReturnValue({
       executeAsync: vi.fn().mockResolvedValue({
         ok: true,
-        value: { id: 'workspace-1', visibility: 'public' },
+        value: {
+          authorizationRequired: false,
+          id: 'workspace-1',
+          repositories: [],
+          visibility: 'public',
+        },
       }),
       isExecuting: false,
     });
@@ -76,7 +88,27 @@ describe('WorkspaceSettings', () => {
     expect(screen.getByRole('heading', { name: 'No active membership' })).toBeInTheDocument();
   });
 
-  it('renders only memberships returned by the authorized Graph Query', () => {
+  it('uses server-resolved owner authority when the local member profile is unresolved', async () => {
+    useGraphQueryMock
+      .mockReturnValueOnce(queryResult({
+        data: [{ id: 'workspace-1', name: 'Acme', slug: 'acme', visibility: 'private' }],
+      }))
+      .mockReturnValueOnce(queryResult({
+        data: [{
+          id: 'membership-1', role: 'owner', status: 'active', user: null, userId: viewer.id,
+        }],
+      }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [] }));
+
+    render(<WorkspaceSettings viewer={viewer} workspaceRole='owner' />);
+
+    expect(screen.getByText('owner@example.com')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Search your repositories…')).toBeEnabled();
+    expect(screen.queryByText('Only a Workspace owner can connect repositories.')).not.toBeInTheDocument();
+  });
+
+  it('renders only memberships returned by the authorized Graph Query', async () => {
     const workspaceRefetch = vi.fn().mockResolvedValue(undefined);
     useGraphQueryMock
       .mockReturnValueOnce(
@@ -206,8 +238,7 @@ describe('WorkspaceSettings', () => {
     );
     expect(screen.getByText('approval required')).toBeInTheDocument();
     expect(screen.queryByText(/source:/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add repository' })).not.toBeInTheDocument();
-    expect(screen.getByText('Connections coming next')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Search your repositories…')).toBeEnabled();
     expect(screen.getAllByText(/@javifernandes/)).toHaveLength(1);
     expect(
       screen.getByText(/155 merged PRs across atlas, bookops, ontahi/),
@@ -231,12 +262,46 @@ describe('WorkspaceSettings', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Save visibility' }));
 
-    return waitFor(() => {
+    await waitFor(() => {
       expect(useOperationMock.mock.results[0]?.value.executeAsync).toHaveBeenCalledWith({
         workspace: { id: 'workspace-1' },
         visibility: 'public',
       });
       expect(workspaceRefetch).toHaveBeenCalledOnce();
+    });
+  });
+
+  it('requires the exact slug before deleting an owner Workspace', async () => {
+    useGraphQueryMock
+      .mockReturnValueOnce(queryResult({
+        data: [{ id: 'workspace-1', name: 'Acme', slug: 'acme', visibility: 'private' }],
+      }))
+      .mockReturnValueOnce(queryResult({
+        data: [{
+          id: 'membership-1', role: 'owner', status: 'active', user: viewer, userId: viewer.id,
+        }],
+      }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [] }));
+
+    render(<WorkspaceSettings viewer={viewer} workspaceRole='owner' />);
+
+    const deleteButton = screen.getByRole('button', { name: 'Delete Workspace' });
+    expect(deleteButton).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Type.*acme.*to confirm/), {
+      target: { value: 'acme' },
+    });
+    expect(deleteButton).toBeEnabled();
+    fireEvent.click(deleteButton);
+
+    const deleteOperation = useOperationMock.mock.results.at(-1)?.value;
+    await waitFor(() => {
+      expect(deleteOperation.executeAsync).toHaveBeenCalledWith({
+        workspace: { id: 'workspace-1' },
+        confirmationSlug: 'acme',
+      });
+      expect(pushMock).toHaveBeenCalledWith('/');
+      expect(refreshMock).toHaveBeenCalledOnce();
     });
   });
 });
