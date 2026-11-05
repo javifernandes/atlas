@@ -169,7 +169,8 @@ export const getAtlasRuntimeInvocationContext = async (request: Request) => {
     }
     headers.set('User-Agent', 'atlas-workspace-source-import');
     headers.set('X-GitHub-Api-Version', '2022-11-28');
-    return fetch(input, { ...init, cache: 'no-store', headers });
+    const { next: _next, ...requestInit } = init as RequestInit & { next?: unknown };
+    return fetch(input, { ...requestInit, cache: 'no-store', headers });
   };
 
   return {
