@@ -52,6 +52,7 @@ export const createAtlasAuthOptions = (
       github: {
         clientId: configuration.clientId,
         clientSecret: configuration.clientSecret,
+        scope: ['repo'],
       },
     },
     user: {
@@ -146,17 +147,19 @@ export const getAtlasRuntimeInvocationContext = async (request: Request) => {
       if (!access.viewer) return null;
       const auth = getAtlasAuth();
       const accounts = await auth.api.listUserAccounts({ headers: request.headers });
-      const githubAccount = accounts.find(account => account.providerId === 'github');
-      if (!githubAccount) return null;
-      try {
-        const token = await auth.api.getAccessToken({
-          body: { accountId: githubAccount.id },
-          headers: request.headers,
-        });
-        return token.accessToken || null;
-      } catch {
-        return null;
+      const githubAccounts = accounts.filter(account => account.providerId === 'github');
+      for (const githubAccount of githubAccounts) {
+        try {
+          const token = await auth.api.getAccessToken({
+            body: { accountId: githubAccount.id },
+            headers: request.headers,
+          });
+          if (token.accessToken) return token.accessToken;
+        } catch {
+          // A stale linked account must not hide a later valid GitHub credential.
+        }
       }
+      return null;
     })();
     return githubAccessToken;
   };
