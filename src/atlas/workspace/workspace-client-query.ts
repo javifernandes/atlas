@@ -54,6 +54,28 @@ const AtlasWorkspaceContributorSchema = defineEntitySchema('AtlasWorkspaceContri
   linkedUserId: field.nullable(field.id()),
 });
 
+const AtlasWorkspaceSourceImportSchema = defineEntitySchema('AtlasWorkspaceSourceImport', {
+  id: field.id(),
+  workspaceId: field.id(),
+  triggerSourceId: field.nullable(field.id()),
+  trigger: field.enum(['connection', 'manual', 'push', 'pull-request']),
+  repository: field.nullable(field.string()),
+  observedRevision: field.nullable(field.string()),
+  status: field.enum([
+    'pending',
+    'running',
+    'completed',
+    'failed',
+    'cancel-requested',
+    'compensating',
+    'cancelled',
+  ]),
+  startedAt: field.nonEmptyString({ trim: true }),
+  completedAt: field.nullable(field.string()),
+  error: field.nullable(field.string()),
+  diagnosticsJson: field.string(),
+});
+
 const Workspace = defineClientEntity(AtlasWorkspaceSchema);
 const WorkspaceSettings = Workspace.view('AtlasWorkspaceSettings', {
   id: true,
@@ -109,3 +131,22 @@ const WorkspaceContributor = Contributor.view('AtlasWorkspaceContributorSettings
 export const workspaceContributorsQuery = Contributor.all()
   .as(WorkspaceContributor)
   .limit(200);
+
+const SourceImport = defineClientEntity(AtlasWorkspaceSourceImportSchema);
+const WorkspaceSourceImport = SourceImport.view('AtlasWorkspaceSourceImportSettings', {
+  id: true,
+  triggerSourceId: true,
+  trigger: true,
+  repository: true,
+  observedRevision: true,
+  status: true,
+  startedAt: true,
+  completedAt: true,
+  error: true,
+  diagnosticsJson: true,
+});
+
+export const workspaceSourceImportsQuery = SourceImport.all()
+  .as(WorkspaceSourceImport)
+  .orderBy(sourceImport => sourceImport.startedAt.desc())
+  .limit(50);

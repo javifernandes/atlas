@@ -279,7 +279,11 @@ const fetchGithubSourceFiles = async (source: AtlasSource, fetcher: typeof fetch
   });
 };
 
-const loadAtlasSource = async (source: AtlasSource, repoRoot: string, fetcher: typeof fetch) => {
+export const loadAtlasSource = async (
+  source: AtlasSource,
+  repoRoot: string,
+  fetcher: typeof fetch,
+) => {
   const localRoot = source.localRoot ? path.resolve(repoRoot, source.localRoot) : undefined;
 
   if (
@@ -299,6 +303,27 @@ const loadAtlasSource = async (source: AtlasSource, repoRoot: string, fetcher: t
   }
 
   return fetchGithubSourceFiles(source, fetcher);
+};
+
+export const loadAtlasSourceSetObservation = async (input: {
+  fetcher?: typeof fetch;
+  repoRoot: string;
+  sources: AtlasSource[];
+}) => {
+  const observedAt = new Date().toISOString();
+  const files = (
+    await Promise.all(
+      input.sources.map(source =>
+        loadAtlasSource(source, input.repoRoot, input.fetcher ?? fetch),
+      ),
+    )
+  ).flat();
+
+  return {
+    files,
+    observedAt,
+    sourceRevisions: extractAtlasSourceRevisions(files, observedAt),
+  };
 };
 
 export const readAtlasSourceRegistry = (repoRoot: string) => {

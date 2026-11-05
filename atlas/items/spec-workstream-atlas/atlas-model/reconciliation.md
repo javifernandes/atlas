@@ -16,6 +16,7 @@ relatedPlans:
   - plans/done/130-github-merge-catch-up.md
   - plans/next/106-atlas-plan-reconciliation-operation.md
   - plans/done/104-atlas-source-shape-v0.md
+  - plans/current/144-workspace-source-reconciliation-and-history.md
 ---
 
 [[spec-workstream-atlas.atlas-model.reconciliation|Reconciliation]] is the operation family that compares intention, implementation, evidence, and the current atlas model.
@@ -47,3 +48,10 @@ already have advanced through evidence-only reconciliation. Preview is read-only
 the projection once and appends only missing attributable activity. Operators must also provide a
 reviewed ISO-8601 lower bound: it limits recovery scope without replacing stable identity as the
 deduplication checkpoint, and the committed Projection Revision records that bound in diagnostics.
+
+Workspace adoption introduces a second, explicitly partitioned operational form. A registered
+Workspace Source is desired configuration; a Source import execution records the attempt and its
+trigger, while an immutable Workspace projection revision records only successfully converged
+state. Failed or cancelled executions remain history and never replace the last completed
+projection. This execution identity is also the future boundary for progress, cancellation, and
+declared compensation without treating every arbitrary external effect as automatically reversible.

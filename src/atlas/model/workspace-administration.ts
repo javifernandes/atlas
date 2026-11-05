@@ -44,6 +44,20 @@ export const AtlasWorkspaceRegisterSourceOutputSchema = graphSchema.object({
   ref: field.nonEmptyString({ trim: true }),
 });
 
+export const AtlasWorkspaceReconcileSourcesInputSchema = graphSchema.object({
+  workspace: graphSchema.object({ id: field.id() }),
+  triggerSourceId: field.nullable(field.id()),
+  trigger: field.enum(['connection', 'manual']),
+});
+
+export const AtlasWorkspaceReconcileSourcesOutputSchema = graphSchema.object({
+  id: field.id(),
+  status: field.enum(['completed', 'failed']),
+  projectionRevisionId: field.nullable(field.id()),
+  observedRevision: field.nullable(field.string()),
+  error: field.nullable(field.string()),
+});
+
 export const AtlasWorkspaceRepositoryChoiceSchema = graphSchema.object({
   defaultRef: field.nonEmptyString({ trim: true }),
   fullName: field.nonEmptyString({ trim: true }),

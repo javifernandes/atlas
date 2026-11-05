@@ -30,6 +30,7 @@ export const createAtlasPageSnapshot = (
 export const getAtlasPageData = async (
   userId?: string | null,
   selectedStreamId?: string | null,
+  workspaceId?: string | null,
 ): Promise<AtlasPageData> =>
   withAtlasPostgresQueryContext(
     {
@@ -39,7 +40,9 @@ export const getAtlasPageData = async (
     async () => {
       const atlas = await getAtlasServerApplication();
       const [snapshot, executionStreams] = await Promise.all([
-        'getPageProjectionSnapshot' in atlas
+        workspaceId && 'getWorkspaceProjectionSnapshot' in atlas
+          ? atlas.getWorkspaceProjectionSnapshot(workspaceId)
+          : 'getPageProjectionSnapshot' in atlas
           ? atlas.getPageProjectionSnapshot()
           : atlas.getProjectionSnapshot().then(value =>
               value ? createAtlasPageSnapshot(value) : null,

@@ -14,6 +14,11 @@ import {
   ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE,
   type AtlasGitHubRepositoryChoice,
 } from '../atlas/github/user-repositories';
+import { getAtlasRepoRoot } from '../atlas/server/atlas-postgres-composition';
+import {
+  ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE,
+  reconcileAtlasWorkspaceSources,
+} from '../atlas/workspace/workspace-source-reconciliation';
 
 export class AtlasAuthConfigurationError extends Error {
   constructor(message: string) {
@@ -135,6 +140,38 @@ export const getAtlasRuntimeInvocationContext = async (request: Request) => {
     throw new AtlasAuthConfigurationError(access.configurationError);
   }
 
+  let githubAccessToken: Promise<string | null> | null = null;
+  const resolveGitHubAccessToken = () => {
+    githubAccessToken ??= (async () => {
+      if (!access.viewer) return null;
+      const auth = getAtlasAuth();
+      const accounts = await auth.api.listUserAccounts({ headers: request.headers });
+      const githubAccount = accounts.find(account => account.providerId === 'github');
+      if (!githubAccount) return null;
+      try {
+        const token = await auth.api.getAccessToken({
+          body: { accountId: githubAccount.id },
+          headers: request.headers,
+        });
+        return token.accessToken || null;
+      } catch {
+        return null;
+      }
+    })();
+    return githubAccessToken;
+  };
+  const githubFetcher: typeof fetch = async (input, init) => {
+    const accessToken = await resolveGitHubAccessToken();
+    if (!accessToken) throw new Error('GitHub repository authorization is required.');
+    const headers = new Headers(init?.headers);
+    if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
+    }
+    headers.set('User-Agent', 'atlas-workspace-source-import');
+    headers.set('X-GitHub-Api-Version', '2022-11-28');
+    return fetch(input, { ...init, cache: 'no-store', headers });
+  };
+
   return {
     principal: access.principal,
     resourceEvidenceDisclosure:
@@ -148,22 +185,7 @@ export const getAtlasRuntimeInvocationContext = async (request: Request) => {
         {
           list: async () => {
             if (!access.viewer) return { authorizationRequired: true as const, repositories: [] };
-            const auth = getAtlasAuth();
-            const accounts = await auth.api.listUserAccounts({ headers: request.headers });
-            const githubAccount = accounts.find(account => account.providerId === 'github');
-            if (!githubAccount) {
-              return { authorizationRequired: true as const, repositories: [] };
-            }
-            let accessToken: string;
-            try {
-              const token = await auth.api.getAccessToken({
-                body: { accountId: githubAccount.id },
-                headers: request.headers,
-              });
-              accessToken = token.accessToken;
-            } catch {
-              return { authorizationRequired: true as const, repositories: [] };
-            }
+            const accessToken = await resolveGitHubAccessToken();
             if (!accessToken) return { authorizationRequired: true as const, repositories: [] };
 
             const response = await fetch(
@@ -201,6 +223,17 @@ export const getAtlasRuntimeInvocationContext = async (request: Request) => {
             );
             return { authorizationRequired: false as const, repositories };
           },
+        },
+      ],
+      [
+        ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE,
+        {
+          reconcile: ({ sources }: { sources: Array<{ id: string; ref: string; repository: string }> }) =>
+            reconcileAtlasWorkspaceSources({
+              fetcher: githubFetcher,
+              repoRoot: getAtlasRepoRoot(),
+              sources,
+            }),
         },
       ],
     ]),

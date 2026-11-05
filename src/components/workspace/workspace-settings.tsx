@@ -10,6 +10,7 @@ import {
   workspaceContributorsQuery,
   workspaceMembersQuery,
   workspaceSettingsQuery,
+  workspaceSourceImportsQuery,
   workspaceSourcesQuery,
 } from '@/atlas/workspace/workspace-client-query';
 import type { AtlasViewer } from '@/auth/access';
@@ -72,6 +73,115 @@ const participationSummary = (
   `${contributor.contributionCount} ${
     contributor.contributionCount === 1 ? 'merged PR' : 'merged PRs'
   } across ${contributor.sourceIds.join(', ')}`;
+
+const importDuration = (startedAt: string, completedAt: string | null) => {
+  if (!completedAt) return null;
+  const milliseconds = Date.parse(completedAt) - Date.parse(startedAt);
+  return milliseconds < 1_000
+    ? `${milliseconds} ms`
+    : `${(milliseconds / 1_000).toFixed(milliseconds < 10_000 ? 1 : 0)} s`;
+};
+
+const WorkspaceImportHistory = ({
+  canManage,
+  imports,
+  onChanged,
+  workspaceId,
+}: {
+  canManage: boolean;
+  imports: Array<{
+    id: string;
+    trigger: 'connection' | 'manual' | 'push' | 'pull-request';
+    repository: string | null;
+    observedRevision: string | null;
+    status: string;
+    startedAt: string;
+    completedAt: string | null;
+    error: string | null;
+  }>;
+  onChanged: () => Promise<unknown>;
+  workspaceId: string;
+}) => {
+  const reconcileSources = useOperation(
+    AtlasWorkspaceAdministrationClient.domain.reconcileSources,
+  );
+  const [message, setMessage] = useState<string | null>(null);
+
+  const retry = async () => {
+    setMessage(null);
+    const result = await reconcileSources.executeAsync({
+      workspace: { id: workspaceId },
+      triggerSourceId: null,
+      trigger: 'manual',
+    });
+    if (!result.ok) {
+      setMessage(result.message);
+    } else if (result.value.status === 'failed') {
+      setMessage(result.value.error ?? 'Atlas could not import these Sources.');
+    }
+    await onChanged();
+  };
+
+  return (
+    <section className='grid gap-3'>
+      <div className='flex items-end justify-between gap-4'>
+        <div>
+          <h2 className='text-lg font-medium'>Import history</h2>
+          <p className='text-sm text-muted-foreground'>
+            Reconciliations that produced—or failed to produce—this Workspace projection.
+          </p>
+        </div>
+        <button
+          className='h-9 rounded-md border border-border px-3 text-sm font-medium hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50'
+          disabled={!canManage || reconcileSources.isExecuting}
+          onClick={() => void retry()}
+          type='button'
+        >
+          {reconcileSources.isExecuting ? 'Importing…' : 'Import now'}
+        </button>
+      </div>
+      <div className='overflow-hidden rounded-lg border border-border'>
+        {imports.length === 0 ? (
+          <p className='px-4 py-6 text-sm text-muted-foreground'>
+            No imports have run for this Workspace yet.
+          </p>
+        ) : (
+          imports.map(sourceImport => {
+            const duration = importDuration(sourceImport.startedAt, sourceImport.completedAt);
+            return (
+              <div
+                className='grid gap-2 border-b border-border/70 px-4 py-3 last:border-b-0 sm:grid-cols-[1fr_auto]'
+                key={sourceImport.id}
+              >
+                <div className='min-w-0'>
+                  <p className='truncate text-sm font-medium'>
+                    {sourceImport.repository ?? 'All active Sources'}
+                  </p>
+                  <p className='truncate text-xs text-muted-foreground'>
+                    {sourceImport.trigger} · {new Date(sourceImport.startedAt).toLocaleString()}
+                    {duration ? ` · ${duration}` : ''}
+                  </p>
+                  {sourceImport.observedRevision ? (
+                    <p className='truncate font-mono text-[11px] text-muted-foreground'>
+                      {sourceImport.observedRevision}
+                    </p>
+                  ) : null}
+                  {sourceImport.error ? (
+                    <p className='mt-1 text-xs text-destructive'>{sourceImport.error}</p>
+                  ) : null}
+                </div>
+                <span className='font-mono text-[11px] uppercase text-muted-foreground'>
+                  {sourceImport.status.replaceAll('-', ' ')}
+                </span>
+              </div>
+            );
+          })
+        )}
+      </div>
+      {message ? <p className='text-xs text-destructive' role='alert'>{message}</p> : null}
+    </section>
+  );
+};
 
 const WorkspaceVisibilitySettings = ({
   canManage,
@@ -255,12 +365,14 @@ export const WorkspaceSettings = ({
   const membersQuery = useGraphQuery(workspaceMembersQuery);
   const sourcesQuery = useGraphQuery(workspaceSourcesQuery);
   const contributorsQuery = useGraphQuery(workspaceContributorsQuery);
+  const sourceImportsQuery = useGraphQuery(workspaceSourceImportsQuery);
 
   if (
     workspaceQuery.isLoading ||
     membersQuery.isLoading ||
     sourcesQuery.isLoading ||
-    contributorsQuery.isLoading
+    contributorsQuery.isLoading ||
+    sourceImportsQuery.isLoading
   ) {
     return (
       <main className='min-h-screen bg-background px-6 py-12 text-foreground'>
@@ -277,7 +389,8 @@ export const WorkspaceSettings = ({
     workspaceQuery.isError ||
     membersQuery.isError ||
     sourcesQuery.isError ||
-    contributorsQuery.isError
+    contributorsQuery.isError ||
+    sourceImportsQuery.isError
   ) {
     return (
       <main className='grid min-h-screen place-items-center bg-background px-6 text-foreground'>
@@ -297,6 +410,7 @@ export const WorkspaceSettings = ({
                 membersQuery.refetch(),
                 sourcesQuery.refetch(),
                 contributorsQuery.refetch(),
+                sourceImportsQuery.refetch(),
               ])
             }
             type='button'
@@ -372,7 +486,7 @@ export const WorkspaceSettings = ({
           </div>
           <WorkspaceSourceConnection
             canManage={canManage}
-            onConnected={sourcesQuery.refetch}
+            onConnected={() => Promise.all([sourcesQuery.refetch(), sourceImportsQuery.refetch()])}
             workspaceId={workspace.id}
           />
           <div className='overflow-hidden rounded-lg border border-border'>
@@ -414,6 +528,13 @@ export const WorkspaceSettings = ({
             )}
           </div>
         </section>
+
+        <WorkspaceImportHistory
+          canManage={canManage}
+          imports={sourceImportsQuery.data ?? []}
+          onChanged={sourceImportsQuery.refetch}
+          workspaceId={workspace.id}
+        />
 
         <section className='grid gap-3'>
           <div>

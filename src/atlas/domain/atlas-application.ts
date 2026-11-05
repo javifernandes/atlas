@@ -48,6 +48,8 @@ import {
   AtlasWorkspaceMembership,
   AtlasWorkspaceSource,
   AtlasWorkspaceContributor,
+  AtlasWorkspaceSourceImport,
+  AtlasWorkspaceProjectionRevision,
   type AtlasWorkspaceCapabilities,
   type AtlasWorkspaceRole,
 } from '../workspace/workspace-entities';
@@ -1090,6 +1092,8 @@ const buildAtlasOntahiDatasetFromSource = (
       sources: workspaceSources,
       pullRequests: observedPullRequests,
     }),
+    AtlasWorkspaceSourceImport: [],
+    AtlasWorkspaceProjectionRevision: [],
     AtlasSourceRevision: sourceRevisions,
     AtlasSourceRecord: sourceRecords,
     AtlasItem: items.map(item => ({
@@ -1531,6 +1535,13 @@ const latestProjectionRevisionQuery = query(ProjectionRevision)
   .orderBy(revision => revision.startedAt.desc())
   .first();
 
+const latestWorkspaceProjectionRevisionQuery = (workspaceId: string) =>
+  query(AtlasWorkspaceProjectionRevision)
+    .where(revision => revision.workspaceId.eq(workspaceId))
+    .select(revision => ({ snapshotJson: revision.snapshotJson }))
+    .orderBy(revision => revision.startedAt.desc())
+    .first();
+
 const atlasSourceRecordsQuery = query(AtlasSourceRecord)
   .select(record => ({
     canonicalPath: record.canonicalPath,
@@ -1678,6 +1689,8 @@ export const atlasEntities = [
   AtlasWorkspaceMembership,
   AtlasWorkspaceSource,
   AtlasWorkspaceContributor,
+  AtlasWorkspaceSourceImport,
+  AtlasWorkspaceProjectionRevision,
   AtlasExecutionStream,
   AtlasExecutionStreamActivity,
   AtlasExecutionStreamRoot,
@@ -1867,6 +1880,17 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
       }
 
       return JSON.parse(revision.snapshotJson) as PlanWorkstreamSnapshot;
+    },
+    getWorkspaceProjectionSnapshot: async (
+      workspaceId: string,
+    ): Promise<PlanWorkstreamSnapshot | null> => {
+      const revision = await application.graph.read(
+        latestWorkspaceProjectionRevisionQuery(workspaceId),
+        { scope: 'atlas.workspace-projection.latest' },
+      );
+      return revision
+        ? (JSON.parse(revision.snapshotJson) as PlanWorkstreamSnapshot)
+        : null;
     },
     getSourceRecords: async (): Promise<NormalizedAtlasSourceRecord[]> =>
       (await application.graph.read(atlasSourceRecordsQuery, {

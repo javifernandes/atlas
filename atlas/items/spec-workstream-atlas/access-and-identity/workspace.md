@@ -111,3 +111,10 @@ and derived Contributors with the Workspace, and leaves the Atlas User, GitHub r
 provider authorization untouched. The first form is immediate rather than recoverable in-product;
 durable deployments rely on database backup until retention and restoration become explicit model
 concepts.
+
+Registered Sources become readable Workspace form only through a Workspace-partitioned
+reconciliation execution. The execution records why observation ran and whether it completed; a
+separate immutable projection revision records the exact Source revisions that were successfully
+published. Reads select only the latest completed projection for the authorized Workspace, so a
+failed import retains prior visible state and one Workspace can never advance another Workspace's
+projection.

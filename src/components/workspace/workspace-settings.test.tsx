@@ -34,6 +34,7 @@ const queryResult = (overrides: Record<string, unknown> = {}) => ({
 describe('WorkspaceSettings', () => {
   beforeEach(() => {
     useGraphQueryMock.mockReset();
+    useGraphQueryMock.mockReturnValue(queryResult({ data: [] }));
     useOperationMock.mockReset();
     pushMock.mockReset();
     refreshMock.mockReset();
@@ -269,6 +270,38 @@ describe('WorkspaceSettings', () => {
       });
       expect(workspaceRefetch).toHaveBeenCalledOnce();
     });
+  });
+
+  it('renders repository import history with revision, duration, and failure details', () => {
+    useGraphQueryMock
+      .mockReturnValueOnce(queryResult({
+        data: [{ id: 'workspace-1', name: 'Acme', slug: 'acme', visibility: 'private' }],
+      }))
+      .mockReturnValueOnce(queryResult({ data: [{
+        id: 'membership-1', role: 'owner', status: 'active', user: viewer, userId: viewer.id,
+      }] }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [{
+        completedAt: '2026-11-05T12:00:02.000Z',
+        diagnosticsJson: '{}',
+        error: 'GitHub tree unavailable',
+        id: 'import-1',
+        observedRevision: 'abc123',
+        repository: 'acme/product',
+        startedAt: '2026-11-05T12:00:00.000Z',
+        status: 'failed',
+        trigger: 'connection',
+        triggerSourceId: 'source-1',
+      }] }));
+
+    render(<WorkspaceSettings viewer={viewer} workspaceRole='owner' />);
+
+    expect(screen.getByRole('heading', { name: 'Import history' })).toBeInTheDocument();
+    expect(screen.getByText('acme/product')).toBeInTheDocument();
+    expect(screen.getByText('abc123')).toBeInTheDocument();
+    expect(screen.getByText('GitHub tree unavailable')).toBeInTheDocument();
+    expect(screen.getByText('failed')).toBeInTheDocument();
   });
 
   it('requires the exact slug before deleting an owner Workspace', async () => {
