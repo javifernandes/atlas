@@ -70,6 +70,7 @@ export const AtlasWorkspaceListRepositoriesInputSchema = graphSchema.object({
 
 export const AtlasWorkspaceListRepositoriesOutputSchema = graphSchema.object({
   authorizationRequired: field.boolean(),
+  installationUrl: field.nullable(field.string()),
   repositories: graphSchema.array(AtlasWorkspaceRepositoryChoiceSchema),
 });
 

@@ -8,8 +8,10 @@ export type AtlasGitHubRepositoryChoice = {
 };
 
 export type AtlasGitHubRepositoryDiscovery = {
+  installationFor(repositoryFullName: string): Promise<string | null>;
+  installationUrl(): Promise<string | null>;
   list(): Promise<
-    | { authorizationRequired: true; repositories: [] }
-    | { authorizationRequired: false; repositories: AtlasGitHubRepositoryChoice[] }
+    | { authorizationRequired: true; installationUrl: string | null; repositories: [] }
+    | { authorizationRequired: false; installationUrl: string | null; repositories: AtlasGitHubRepositoryChoice[] }
   >;
 };

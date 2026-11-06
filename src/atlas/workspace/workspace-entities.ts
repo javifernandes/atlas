@@ -111,6 +111,7 @@ export const atlasWorkspaceSourceFields = {
   workspaceId: field.id(),
   sourceId: field.nonEmptyString({ trim: true }),
   provider: field.enum(['github', 'local']),
+  providerInstallationId: field.nullable(field.string()),
   repository: field.nullable(field.string()),
   ref: field.nonEmptyString({ trim: true }),
   status: field.enum(['active', 'paused']),
@@ -543,6 +544,15 @@ export const AtlasWorkspace = entity({
                 'Choose a repository from the GitHub repositories available to your account.',
               );
             }
+            const providerInstallationId = yield* Effect.promise(() =>
+              discovery.installationFor(inspected.fullName),
+            );
+            if (!providerInstallationId) {
+              return yield* failOperation(
+                'github_app_installation_required',
+                'Install or configure the Atlas GitHub App for this repository before connecting it.',
+              );
+            }
             const duplicate = yield* entities.sources
               .where(source => source.workspaceId.eq(input.workspace.id))
               .where(source => source.repository.eq(inspected.fullName))
@@ -576,6 +586,7 @@ export const AtlasWorkspace = entity({
               workspaceId: input.workspace.id,
               sourceId,
               provider: 'github',
+              providerInstallationId,
               repository: inspected.fullName,
               ref: inspected.defaultRef,
               status: 'active',
@@ -759,9 +770,14 @@ export const AtlasWorkspace = entity({
               ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE,
             ) as AtlasGitHubRepositoryDiscovery | undefined;
             if (!discovery) {
-              return { authorizationRequired: true, repositories: [] };
+              return { authorizationRequired: true, installationUrl: null, repositories: [] };
             }
-            return yield* Effect.promise(() => discovery.list());
+            const result = yield* Effect.promise(() => discovery.list());
+            return {
+              ...result,
+              installationUrl:
+                result.installationUrl ?? (yield* Effect.promise(() => discovery.installationUrl())),
+            };
           }),
       }),
     };

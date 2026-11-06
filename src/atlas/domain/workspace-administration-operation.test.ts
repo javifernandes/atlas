@@ -192,6 +192,8 @@ describe('AtlasWorkspace.registerSource', () => {
     const context = {
       principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
       resources: new Map([[ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE, {
+        installationFor: () => Promise.resolve('installation-1'),
+        installationUrl: () => Promise.resolve('https://github.test/install'),
         list: () => Promise.resolve({
           authorizationRequired: false,
           repositories: [{ defaultRef: 'main', fullName: 'acme/product', isPrivate: true }],
@@ -220,6 +222,8 @@ describe('AtlasWorkspace.registerSource', () => {
     const ownerContext = {
       principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
       resources: new Map([[ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE, {
+        installationFor: vi.fn().mockResolvedValue('installation-1'),
+        installationUrl: () => Promise.resolve('https://github.test/install'),
         list: vi.fn().mockResolvedValue({
           authorizationRequired: false,
           repositories: [{ defaultRef: 'trunk', fullName: 'acme/product', isPrivate: true }],
@@ -261,6 +265,8 @@ describe('AtlasWorkspace.registerSource', () => {
     const ownerContext = {
       principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
       resources: new Map([[ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE, {
+        installationFor: () => Promise.resolve('installation-1'),
+        installationUrl: () => Promise.resolve('https://github.test/install'),
         list: () => Promise.resolve({
           authorizationRequired: false,
           repositories: [{ defaultRef: 'main', fullName: 'acme/product', isPrivate: false }],
@@ -336,6 +342,8 @@ describe('AtlasWorkspace.reconcileSources', () => {
       principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
       resources: new Map([
         [ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE, {
+          installationFor: () => Promise.resolve('installation-1'),
+          installationUrl: () => Promise.resolve('https://github.test/install'),
           list: () => Promise.resolve({
             authorizationRequired: false,
             repositories: [{ defaultRef: 'main', fullName: 'acme/product', isPrivate: false }],
@@ -405,6 +413,8 @@ describe('AtlasWorkspace.reconcileSources', () => {
       principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
       resources: new Map([
         [ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE, {
+          installationFor: () => Promise.resolve('installation-1'),
+          installationUrl: () => Promise.resolve('https://github.test/install'),
           list: () => Promise.resolve({
             authorizationRequired: false,
             repositories: [{ defaultRef: 'main', fullName: 'acme/product', isPrivate: false }],

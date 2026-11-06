@@ -34,6 +34,7 @@ export const WorkspaceSourceConnection = ({
   const [connectedRepositories, setConnectedRepositories] = useState<string[]>([]);
   const [connectingRepository, setConnectingRepository] = useState<string | null>(null);
   const [authorizationRequired, setAuthorizationRequired] = useState(false);
+  const [installationUrl, setInstallationUrl] = useState<string | null>(null);
   const [loadingRepositories, setLoadingRepositories] = useState(true);
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -49,6 +50,7 @@ export const WorkspaceSourceConnection = ({
         return;
       }
       setAuthorizationRequired(result.value.authorizationRequired);
+      setInstallationUrl(result.value.installationUrl);
       setRepositories(result.value.repositories);
       setLoadingRepositories(false);
     });
@@ -167,6 +169,16 @@ export const WorkspaceSourceConnection = ({
         Choose from repositories GitHub confirms are available to your account. Atlas uses the
         repository's default branch.
       </p>
+      {canManage && installationUrl ? (
+        <a
+          className='justify-self-start text-xs text-primary underline underline-offset-4'
+          href={installationUrl}
+          rel='noreferrer'
+          target='_blank'
+        >
+          Install or configure the Atlas GitHub App
+        </a>
+      ) : null}
       {!canManage ? (
         <p className='text-xs text-muted-foreground'>Only a Workspace owner can connect repositories.</p>
       ) : null}

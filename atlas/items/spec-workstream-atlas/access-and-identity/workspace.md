@@ -92,13 +92,14 @@ candidate Workspace, but the server admits that selection only when an active Me
 current Principal to it. The original `/atlas` data remains ordinary backfilled tenant data while
 new Workspaces begin empty until they register their own Sources.
 
-An owner registers a GitHub Source only through a server-authorized Workspace Operation. Atlas
-discovers repositories through the authenticated User's incrementally authorized provider account,
-derives the Source key and default branch from canonical repository metadata, and rejects both
-duplicates and caller-forged repository names outside that provider list. Delegated provider tokens
-are encrypted at rest and never cross the Runtime Protocol. Registration records desired configuration;
-turning it into a Workspace-partitioned Plan and Item projection remains a separate reconciliation
-responsibility.
+An owner registers a GitHub Source only through a server-authorized Workspace Operation. Human
+GitHub OAuth identifies the Atlas User; it is not repository observation authority. Atlas discovers
+repositories through an Atlas GitHub App installation selected by that User, derives the Source key
+and default branch from canonical installation metadata, and rejects duplicates and caller-forged
+repository names outside that installation. The Source retains the provider installation identity,
+while short-lived installation tokens never cross the Runtime Protocol. Registration records desired
+configuration; turning it into a Workspace-partitioned Plan and Item projection remains a separate
+reconciliation responsibility.
 
 The route-resolved Membership is also the presentation authority for owner controls. A missing User
 profile join may degrade member presentation, especially in local memory mode, but it never erases
@@ -118,3 +119,8 @@ separate immutable projection revision records the exact Source revisions that w
 published. Reads select only the latest completed projection for the authorized Workspace, so a
 failed import retains prior visible state and one Workspace can never advance another Workspace's
 projection.
+
+Signed provider events select Sources by both canonical repository and provider installation.
+Every matching Workspace receives its own import execution with delivery and commit or Pull Request
+provenance. A valid webhook may still update the legacy compatibility projection, but it cannot use
+that global form as a substitute for tenant fan-out.

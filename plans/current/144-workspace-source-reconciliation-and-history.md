@@ -56,6 +56,7 @@ Related work:
 4. Render recent import history in Workspace Settings.
 5. Serve the latest completed Workspace projection from `/w/:slug`.
 6. Preserve the existing global/default Workspace reconciliation as a compatibility path.
+7. Bind every GitHub Source to the Atlas GitHub App installation that authorizes observation.
 
 ## Non-Goals
 
@@ -105,6 +106,10 @@ relations converge together.
 - [x] Add an owner-authorized manual retry Operation.
 - [ ] Route GitHub push and merged-PR events to every registered Workspace Source that matches the
       repository, preserving delivery and commit/PR trigger provenance.
+- [ ] Replace human OAuth repository access with GitHub App installation repository discovery and
+      installation-token imports.
+- [ ] Persist the provider installation on each registered Source and reject webhook deliveries
+      whose installation does not match that Source.
 - [x] Show recent executions in Settings with Source/repository, trigger, revision, status,
       timestamps, duration, and diagnostics/error.
 - [ ] Make the empty/onboarding state distinguish registered, importing, failed, and ready.
@@ -140,6 +145,8 @@ relations converge together.
 5. History is product functionality, not only operator logging.
 6. The visible projection advances by execution observation/start order, not completion order, so
    an older slow import cannot overwrite a newer observation that completed first.
+7. Human OAuth identifies an Atlas User; a GitHub App installation authorizes repository
+   discovery, import, and webhook observation. Connecting a Source must never blur those grants.
 
 ## Open Questions
 

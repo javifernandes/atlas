@@ -12,6 +12,7 @@ type InstallationToken = {
 };
 
 const installationTokens = new Map<string, InstallationToken>();
+let appInstallationUrl: string | null | undefined;
 
 const base64UrlEncode = (value: string | Buffer) => Buffer.from(value).toString('base64url');
 
@@ -153,6 +154,42 @@ const requestInstallationToken = async (
   return token.token;
 };
 
+export const getAtlasGitHubRepositoryInstallationId = async (input: {
+  fetcher?: typeof fetch;
+  repositoryFullName: string;
+}): Promise<string | null> => {
+  const credentials = requireAppCredentials();
+  if (!credentials) return null;
+  const response = await (input.fetcher ?? fetch)(
+    `${githubApiBaseUrl}/repos/${input.repositoryFullName}/installation`,
+    {
+      cache: 'no-store',
+      headers: githubHeaders(`Bearer ${createAtlasGitHubAppJwt(credentials)}`),
+    },
+  );
+  if (response.status === 404) return null;
+  return getNumericId(await readGitHubResponse(response));
+};
+
+export const getAtlasGitHubAppInstallationUrl = async (
+  fetcher: typeof fetch = fetch,
+): Promise<string | null> => {
+  if (appInstallationUrl !== undefined) return appInstallationUrl;
+  const credentials = requireAppCredentials();
+  if (!credentials) return (appInstallationUrl = null);
+  const response = await fetcher(`${githubApiBaseUrl}/app`, {
+    cache: 'no-store',
+    headers: githubHeaders(`Bearer ${createAtlasGitHubAppJwt(credentials)}`),
+  });
+  const body = await readGitHubResponse(response);
+  const slug = body && typeof body === 'object' && 'slug' in body && typeof body.slug === 'string'
+    ? body.slug
+    : null;
+  return (appInstallationUrl = slug
+    ? `https://github.com/apps/${encodeURIComponent(slug)}/installations/new`
+    : null);
+};
+
 export const getAtlasGitHubRequestHeaders = async (input: {
   accept?: string;
   fetcher?: typeof fetch;
@@ -168,4 +205,7 @@ export const getAtlasGitHubRequestHeaders = async (input: {
   return githubHeaders(token ? `Bearer ${token}` : undefined, input.accept);
 };
 
-export const clearAtlasGitHubInstallationTokenCache = () => installationTokens.clear();
+export const clearAtlasGitHubInstallationTokenCache = () => {
+  installationTokens.clear();
+  appInstallationUrl = undefined;
+};
