@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 const registerAsync = vi.hoisted(() => vi.fn());
+const reconcileAsync = vi.hoisted(() => vi.fn());
 const listAsync = vi.hoisted(() => vi.fn());
 const useOperation = vi.hoisted(() => vi.fn());
 const linkSocial = vi.hoisted(() => vi.fn());
@@ -21,11 +22,11 @@ describe('WorkspaceSourceConnection', () => {
       ok: true,
       value: { authorizationRequired: true, repositories: [] },
     });
-    useOperation.mockImplementation(() =>
-      hookCall++ % 2 === 0
-        ? { executeAsync: registerAsync, isExecuting: false }
-        : { executeAsync: listAsync, isExecuting: false },
-    );
+    useOperation.mockImplementation(() => [
+      { executeAsync: registerAsync, isExecuting: false },
+      { executeAsync: reconcileAsync, isExecuting: false },
+      { executeAsync: listAsync, isExecuting: false },
+    ][hookCall++ % 3]);
     linkSocial.mockResolvedValue({ error: null });
     render(<WorkspaceSourceConnection canManage workspaceId='workspace-1' />);
 
@@ -49,6 +50,16 @@ describe('WorkspaceSourceConnection', () => {
       ok: true,
       value: { id: 'source-1', ref: 'main', repository: 'acme/product', sourceId: 'product' },
     });
+    reconcileAsync.mockResolvedValue({
+      ok: true,
+      value: {
+        error: null,
+        id: 'import-1',
+        observedRevision: 'abc123',
+        projectionRevisionId: 'projection-1',
+        status: 'completed',
+      },
+    });
     listAsync.mockResolvedValue({
       ok: true,
       value: {
@@ -56,11 +67,11 @@ describe('WorkspaceSourceConnection', () => {
         repositories: [{ defaultRef: 'main', fullName: 'acme/product', isPrivate: true }],
       },
     });
-    useOperation.mockImplementation(() =>
-      hookCall++ % 2 === 0
-        ? { executeAsync: registerAsync, isExecuting: false }
-        : { executeAsync: listAsync, isExecuting: false },
-    );
+    useOperation.mockImplementation(() => [
+      { executeAsync: registerAsync, isExecuting: false },
+      { executeAsync: reconcileAsync, isExecuting: false },
+      { executeAsync: listAsync, isExecuting: false },
+    ][hookCall++ % 3]);
     render(
       <WorkspaceSourceConnection
         canManage
@@ -78,6 +89,11 @@ describe('WorkspaceSourceConnection', () => {
         repository: 'acme/product',
       });
       expect(onConnected).toHaveBeenCalledOnce();
+      expect(reconcileAsync).toHaveBeenCalledWith({
+        workspace: { id: 'workspace-1' },
+        triggerSourceId: 'source-1',
+        trigger: 'connection',
+      });
       expect(screen.getByRole('button', { name: 'Added' })).toBeDisabled();
       expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
     });

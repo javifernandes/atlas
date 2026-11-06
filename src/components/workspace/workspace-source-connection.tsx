@@ -24,6 +24,9 @@ export const WorkspaceSourceConnection = ({
   workspaceId: string;
 }) => {
   const registerSource = useOperation(AtlasWorkspaceAdministrationClient.domain.registerSource);
+  const reconcileSources = useOperation(
+    AtlasWorkspaceAdministrationClient.domain.reconcileSources,
+  );
   const listRepositories = useOperation(
     AtlasWorkspaceAdministrationClient.domain.listRepositories,
   );
@@ -81,6 +84,18 @@ export const WorkspaceSourceConnection = ({
       });
       if (!result.ok) throw new Error(result.message);
       setConnectedRepositories(current => [...current, result.value.repository]);
+      const reconciliation = await reconcileSources.executeAsync({
+        workspace: { id: workspaceId },
+        triggerSourceId: result.value.id,
+        trigger: 'connection',
+      });
+      if (!reconciliation.ok) throw new Error(reconciliation.message);
+      if (reconciliation.value.status === 'failed') {
+        throw new Error(
+          reconciliation.value.error ??
+            'The repository was connected, but Atlas could not import it.',
+        );
+      }
       if (onConnected) await onConnected();
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : 'Atlas could not connect that repository.');
@@ -140,7 +155,7 @@ export const WorkspaceSourceConnection = ({
                   onClick={() => void connect(candidate.fullName)}
                   type='button'
                 >
-                  {connecting ? 'Adding…' : connected ? 'Added' : 'Add'}
+                  {connecting ? 'Importing…' : connected ? 'Added' : 'Add'}
                 </button>
               </div>
             );})}

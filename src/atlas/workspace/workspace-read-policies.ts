@@ -8,6 +8,7 @@ import {
   AtlasWorkspaceMembership,
   AtlasWorkspaceSource,
   AtlasWorkspaceContributor,
+  AtlasWorkspaceSourceImport,
 } from './workspace-entities';
 
 export type AtlasRuntimeAuthority = {
@@ -40,6 +41,13 @@ const contributorScope = ({ authority }: { authority: AtlasRuntimeAuthority }) =
   authority.workspace
     ? Selection.where(AtlasWorkspaceContributor, contributor =>
         contributor.workspaceId.eq(authority.workspace!.id),
+      )
+    : noSelection;
+
+const sourceImportScope = ({ authority }: { authority: AtlasRuntimeAuthority }) =>
+  authority.workspace
+    ? Selection.where(AtlasWorkspaceSourceImport, sourceImport =>
+        sourceImport.workspaceId.eq(authority.workspace!.id),
       )
     : noSelection;
 
@@ -137,10 +145,32 @@ export const atlasWorkspaceContributorReadPolicy = {
   scope: contributorScope,
 } satisfies GraphReadPolicy<typeof AtlasWorkspaceContributor, AtlasRuntimeAuthority>;
 
+export const atlasWorkspaceSourceImportReadPolicy = {
+  entity: AtlasWorkspaceSourceImport,
+  modes: ['run'],
+  cardinalities: ['many'],
+  maxLimit: 50,
+  fields: {
+    id: { select: true },
+    workspaceId: { select: true },
+    triggerSourceId: { select: true },
+    trigger: { select: true },
+    repository: { select: true },
+    observedRevision: { select: true },
+    status: { select: true },
+    startedAt: { select: true, order: true },
+    completedAt: { select: true },
+    error: { select: true },
+    diagnosticsJson: { select: true },
+  },
+  scope: sourceImportScope,
+} satisfies GraphReadPolicy<typeof AtlasWorkspaceSourceImport, AtlasRuntimeAuthority>;
+
 export const atlasWorkspaceReadPolicies = [
   atlasWorkspaceReadPolicy,
   atlasWorkspaceMembershipReadPolicy,
   atlasWorkspaceMemberReadPolicy,
   atlasWorkspaceSourceReadPolicy,
   atlasWorkspaceContributorReadPolicy,
+  atlasWorkspaceSourceImportReadPolicy,
 ] as const;

@@ -1,9 +1,12 @@
+import { query } from '@ontahi/core/data-graph';
 import { Effect } from 'effect';
 import { withInvocationContext } from '@ontahi/core/runtime/server';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createAtlasOntahiApplication } from './atlas-application';
 import { ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE } from '../github/user-repositories';
+import { ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE } from '../workspace/workspace-source-reconciliation';
+import { atlasWorkspaceSourceImportReadPolicy } from '../workspace/workspace-read-policies';
 
 const workspaceId = '00000000-0000-4000-8000-000000000137';
 const principal = {
@@ -284,5 +287,170 @@ describe('AtlasWorkspace.registerSource', () => {
         }),
       ),
     ).resolves.toMatchObject({ ok: false, failure: { reason: 'repository_unavailable' } });
+  });
+});
+
+describe('AtlasWorkspace.reconcileSources', () => {
+  const sourceRevision = {
+    authority: 'markdown' as const,
+    id: 'product:markdown:abc123',
+    observedAt: '2026-11-05T12:00:00.000Z',
+    repository: 'acme/product',
+    revision: 'abc123',
+    revisionKind: 'git' as const,
+    sourceId: 'product',
+  };
+  const projection = {
+    observedAt: sourceRevision.observedAt,
+    snapshot: {
+      documents: [],
+      edges: [],
+      generatedAt: sourceRevision.observedAt,
+      metrics: [],
+      nodes: [{
+        candidateCount: 0,
+        id: 'plan:product',
+        kind: 'plan' as const,
+        relatedCount: 0,
+        sections: [],
+        shortTitle: 'Product',
+        status: 'current',
+        statusGroup: 'current' as const,
+        territory: 'Product',
+        title: 'Product',
+      }],
+      territories: [],
+    },
+    sourceRevisionSetHash: 'revision-set-1',
+    sourceRevisions: [sourceRevision],
+  };
+
+  it('publishes an immutable Workspace projection and records its observed revision', async () => {
+    const atlas = createAtlasOntahiApplication([], {
+      workspaceRoleFor: () => Effect.succeed('owner'),
+    });
+    const register = atlas.application.graph.entities.AtlasWorkspace.domain.registerSource;
+    const reconcile = atlas.application.graph.entities.AtlasWorkspace.domain.reconcileSources;
+    const reconciler = vi.fn().mockResolvedValue(projection);
+    const context = {
+      principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+      resources: new Map([
+        [ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE, {
+          list: () => Promise.resolve({
+            authorizationRequired: false,
+            repositories: [{ defaultRef: 'main', fullName: 'acme/product', isPrivate: false }],
+          }),
+        }],
+        [ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE, { reconcile: reconciler }],
+      ]),
+    } as never;
+    const registered = await withInvocationContext(context, () =>
+      atlas.application.invokeOperation(register, {
+        workspace: { id: workspaceId },
+        repository: 'acme/product',
+      }),
+    );
+    if (!registered.ok) throw new Error('Source fixture was not registered.');
+
+    await expect(
+      withInvocationContext(context, () =>
+        atlas.application.invokeOperation(reconcile, {
+          workspace: { id: workspaceId },
+          triggerSourceId: (registered.value as { id: string }).id,
+          trigger: 'connection',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { observedRevision: 'abc123', status: 'completed' },
+    });
+    await expect(atlas.getWorkspaceProjectionSnapshot(workspaceId)).resolves.toMatchObject({
+      nodes: [{ id: 'plan:product' }],
+    });
+    await expect(atlas.getWorkspaceProjectionSnapshot('another-workspace')).resolves.toBeNull();
+    await expect(
+      atlas.application.graph.read(
+        query(atlas.application.graph.entities.AtlasWorkspaceSourceImport)
+          .where(sourceImport => sourceImport.workspaceId.eq(workspaceId))
+          .select(sourceImport => ({ sourceRevisionsJson: sourceImport.sourceRevisionsJson })),
+      ),
+    ).resolves.toEqual([{ sourceRevisionsJson: JSON.stringify([sourceRevision]) }]);
+    expect(reconciler).toHaveBeenCalledWith({
+      workspaceId,
+      sources: [{ id: 'product', ref: 'main', repository: 'acme/product' }],
+    });
+
+    reconciler.mockRejectedValueOnce(new Error('Temporary GitHub failure'));
+    await expect(
+      withInvocationContext(context, () =>
+        atlas.application.invokeOperation(reconcile, {
+          workspace: { id: workspaceId },
+          triggerSourceId: null,
+          trigger: 'manual',
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true, value: { status: 'failed' } });
+    await expect(atlas.getWorkspaceProjectionSnapshot(workspaceId)).resolves.toMatchObject({
+      nodes: [{ id: 'plan:product' }],
+    });
+  });
+
+  it('retains failed execution history without publishing a projection', async () => {
+    const atlas = createAtlasOntahiApplication([], {
+      workspaceRoleFor: () => Effect.succeed('owner'),
+    });
+    const register = atlas.application.graph.entities.AtlasWorkspace.domain.registerSource;
+    const reconcile = atlas.application.graph.entities.AtlasWorkspace.domain.reconcileSources;
+    const context = {
+      principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+      resources: new Map([
+        [ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE, {
+          list: () => Promise.resolve({
+            authorizationRequired: false,
+            repositories: [{ defaultRef: 'main', fullName: 'acme/product', isPrivate: false }],
+          }),
+        }],
+        [ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE, {
+          reconcile: () => Promise.reject(new Error('GitHub tree unavailable')),
+        }],
+      ]),
+    } as never;
+    const registered = await withInvocationContext(context, () =>
+      atlas.application.invokeOperation(register, {
+        workspace: { id: workspaceId },
+        repository: 'acme/product',
+      }),
+    );
+    if (!registered.ok) throw new Error('Source fixture was not registered.');
+
+    await expect(
+      withInvocationContext(context, () =>
+        atlas.application.invokeOperation(reconcile, {
+          workspace: { id: workspaceId },
+          triggerSourceId: (registered.value as { id: string }).id,
+          trigger: 'connection',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { error: 'GitHub tree unavailable', projectionRevisionId: null, status: 'failed' },
+    });
+    await expect(atlas.getWorkspaceProjectionSnapshot(workspaceId)).resolves.toBeNull();
+    await expect(
+      atlas.application.graph.read(
+        query(atlas.application.graph.entities.AtlasWorkspaceSourceImport)
+          .where(sourceImport => sourceImport.workspaceId.eq(workspaceId))
+          .select(sourceImport => ({ error: sourceImport.error, status: sourceImport.status })),
+      ),
+    ).resolves.toEqual([{ error: 'GitHub tree unavailable', status: 'failed' }]);
+  });
+});
+
+describe('Workspace Source import read policy', () => {
+  it('allows the Settings history query to order imports by start time', () => {
+    expect(atlasWorkspaceSourceImportReadPolicy.fields.startedAt).toEqual({
+      order: true,
+      select: true,
+    });
   });
 });

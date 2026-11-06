@@ -159,6 +159,10 @@ Durable Atlas projection.
         '009-session-archive-and-last-activity.sql',
         '010-github-merge-catch-up.sql',
         '011-workspace-ownership.sql',
+        '012-workspace-sources.sql',
+        '013-workspace-contributors.sql',
+        '014-dynamic-workspaces.sql',
+        '015-workspace-source-imports.sql',
       ],
       skipped: [],
     });

@@ -41,17 +41,22 @@ const WorkspacePage = async ({ params, searchParams }: WorkspacePageProps) => {
   ]);
   if (!workspace) return <WorkspaceAccessDenied viewer={access.viewer} />;
 
-  if (workspace.id !== DEFAULT_ATLAS_WORKSPACE_ID) {
-    return <WorkspaceEmptyState workspace={workspace} workspaces={workspaces} />;
-  }
-
   const selectedStreamId = Array.isArray(searchParams?.session)
     ? searchParams.session[0]
     : searchParams?.session;
   const { executionStreams, snapshot } = await getAtlasPageData(
     access.viewer.id,
     selectedStreamId,
+    workspace.id === DEFAULT_ATLAS_WORKSPACE_ID ? null : workspace.id,
   );
+
+  if (
+    workspace.id !== DEFAULT_ATLAS_WORKSPACE_ID &&
+    snapshot.nodes.length <= 1 &&
+    !snapshot.documents?.length
+  ) {
+    return <WorkspaceEmptyState workspace={workspace} workspaces={workspaces} />;
+  }
 
   return (
     <>

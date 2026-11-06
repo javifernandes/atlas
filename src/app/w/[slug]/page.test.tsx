@@ -42,7 +42,10 @@ describe('dynamic Workspace page', () => {
     getAtlasRequestAccessMock.mockReset().mockResolvedValue(access);
     getAtlasWorkspaceForUserMock.mockReset();
     listAtlasWorkspacesForUserMock.mockReset().mockResolvedValue([]);
-    getAtlasPageDataMock.mockReset().mockResolvedValue({ executionStreams: [], snapshot: {} });
+    getAtlasPageDataMock.mockReset().mockResolvedValue({
+      executionStreams: [],
+      snapshot: { documents: [], edges: [], metrics: [], nodes: [], territories: [] },
+    });
   });
 
   it('does not expose the canonical projection to an empty dynamic Workspace', async () => {
@@ -56,7 +59,7 @@ describe('dynamic Workspace page', () => {
 
     expect(screen.getByRole('heading', { name: 'Acme' })).toBeInTheDocument();
     expect(screen.getByText('Connect repository form')).toBeInTheDocument();
-    expect(getAtlasPageDataMock).not.toHaveBeenCalled();
+    expect(getAtlasPageDataMock).toHaveBeenCalledWith(viewer.id, undefined, workspace.id);
   });
 
   it('denies a slug without an active Membership', async () => {
@@ -79,6 +82,6 @@ describe('dynamic Workspace page', () => {
     render(await WorkspacePage({ params: { slug: 'atlas' } }));
 
     expect(screen.getByText('Canonical projection')).toBeInTheDocument();
-    expect(getAtlasPageDataMock).toHaveBeenCalledWith(viewer.id, undefined);
+    expect(getAtlasPageDataMock).toHaveBeenCalledWith(viewer.id, undefined, null);
   });
 });

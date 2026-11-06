@@ -25,6 +25,8 @@ import {
   AtlasWorkspaceDeleteOutputSchema,
   AtlasWorkspaceRegisterSourceInputSchema,
   AtlasWorkspaceRegisterSourceOutputSchema,
+  AtlasWorkspaceReconcileSourcesInputSchema,
+  AtlasWorkspaceReconcileSourcesOutputSchema,
   AtlasWorkspaceListRepositoriesInputSchema,
   AtlasWorkspaceListRepositoriesOutputSchema,
   AtlasWorkspaceUpdateVisibilityInputSchema,
@@ -35,6 +37,10 @@ import {
   ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE,
   type AtlasGitHubRepositoryDiscovery,
 } from '../github/user-repositories';
+import {
+  ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE,
+  type AtlasWorkspaceSourceReconciler,
+} from './workspace-source-reconciliation';
 
 export type AtlasWorkspaceRole = 'owner' | 'collaborator' | 'viewer';
 
@@ -128,6 +134,39 @@ export const atlasWorkspaceContributorFields = {
   linkedUserId: field.nullable(field.id()),
 };
 
+export const atlasWorkspaceSourceImportFields = {
+  id: field.id(),
+  workspaceId: field.id(),
+  triggerSourceId: field.nullable(field.id()),
+  trigger: field.enum(['connection', 'manual', 'push', 'pull-request']),
+  repository: field.nullable(field.string()),
+  observedRevision: field.nullable(field.string()),
+  sourceRevisionsJson: field.string(),
+  status: field.enum([
+    'pending',
+    'running',
+    'completed',
+    'failed',
+    'cancel-requested',
+    'compensating',
+    'cancelled',
+  ]),
+  startedAt: field.nonEmptyString({ trim: true }),
+  completedAt: field.nullable(field.string()),
+  error: field.nullable(field.string()),
+  diagnosticsJson: field.string(),
+};
+
+export const atlasWorkspaceProjectionRevisionFields = {
+  id: field.id(),
+  workspaceId: field.id(),
+  importId: field.id(),
+  sourceRevisionSetHash: field.nonEmptyString({ trim: true }),
+  snapshotJson: field.string(),
+  startedAt: field.nonEmptyString({ trim: true }),
+  createdAt: field.nonEmptyString({ trim: true }),
+};
+
 const AtlasAuthAccountRef = entity.ref('AtlasAuthAccount', { fields: atlasAuthAccountFields });
 const AtlasWorkspaceMembershipRef = entity.ref('AtlasWorkspaceMembership', {
   fields: atlasWorkspaceMembershipFields,
@@ -137,6 +176,12 @@ const AtlasWorkspaceSourceRef = entity.ref('AtlasWorkspaceSource', {
 });
 const AtlasWorkspaceContributorRef = entity.ref('AtlasWorkspaceContributor', {
   fields: atlasWorkspaceContributorFields,
+});
+const AtlasWorkspaceSourceImportRef = entity.ref('AtlasWorkspaceSourceImport', {
+  fields: atlasWorkspaceSourceImportFields,
+});
+const AtlasWorkspaceProjectionRevisionRef = entity.ref('AtlasWorkspaceProjectionRevision', {
+  fields: atlasWorkspaceProjectionRevisionFields,
 });
 const AtlasExecutionStreamRef = entity.ref('AtlasExecutionStream');
 
@@ -180,6 +225,10 @@ export const AtlasWorkspace = entity({
     memberships: relation.hasMany(AtlasWorkspaceMembershipRef, { via: 'workspaceId' }),
     sources: relation.hasMany(AtlasWorkspaceSourceRef, { via: 'workspaceId' }),
     contributors: relation.hasMany(AtlasWorkspaceContributorRef, { via: 'workspaceId' }),
+    sourceImports: relation.hasMany(AtlasWorkspaceSourceImportRef, { via: 'workspaceId' }),
+    projectionRevisions: relation.hasMany(AtlasWorkspaceProjectionRevisionRef, {
+      via: 'workspaceId',
+    }),
   },
   uses: {
     capabilities: {} as AtlasWorkspaceCapabilities,
@@ -187,6 +236,8 @@ export const AtlasWorkspace = entity({
       contributors: AtlasWorkspaceContributorRef,
       memberships: AtlasWorkspaceMembershipRef,
       sources: AtlasWorkspaceSourceRef,
+      sourceImports: AtlasWorkspaceSourceImportRef,
+      projectionRevisions: AtlasWorkspaceProjectionRevisionRef,
     },
   },
   operations: ({ operation, app, commands, entities }) => {
@@ -367,6 +418,14 @@ export const AtlasWorkspace = entity({
               .where(contributor => contributor.workspaceId.eq(workspace.id))
               .delete()
               .run();
+            yield* entities.projectionRevisions
+              .where(revision => revision.workspaceId.eq(workspace.id))
+              .delete()
+              .run();
+            yield* entities.sourceImports
+              .where(sourceImport => sourceImport.workspaceId.eq(workspace.id))
+              .delete()
+              .run();
             yield* entities.sources
               .where(source => source.workspaceId.eq(workspace.id))
               .delete()
@@ -533,6 +592,148 @@ export const AtlasWorkspace = entity({
             };
           }),
       }),
+      reconcileSources: operation({
+        description: 'Reconcile active Sources into an immutable Workspace projection revision.',
+        exposure: 'bridge',
+        bridge: {},
+        input: AtlasWorkspaceReconcileSourcesInputSchema,
+        output: AtlasWorkspaceReconcileSourcesOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const principal = getCurrentInvocationContext()?.principal;
+            const role =
+              principal?.kind === 'user'
+                ? yield* app.runtime.workspaceAuthorization.roleFor(
+                    principal.subject,
+                    input.workspace.id,
+                  )
+                : null;
+            if (role !== 'owner') {
+              return yield* failOperation(
+                'workspace_owner_required',
+                'Only an active Workspace owner can reconcile Sources.',
+              );
+            }
+
+            const sources = yield* entities.sources
+              .where(source => source.workspaceId.eq(input.workspace.id))
+              .where(source => source.status.eq('active'))
+              .run();
+            if (sources.length === 0) {
+              return yield* failOperation(
+                'workspace_sources_empty',
+                'Connect at least one active Source before reconciling this Workspace.',
+              );
+            }
+            const triggerSource = input.triggerSourceId
+              ? sources.find(source => source.id === input.triggerSourceId)
+              : undefined;
+            if (input.triggerSourceId && !triggerSource) {
+              return yield* failOperation(
+                'workspace_source_not_found',
+                'The Source that triggered this reconciliation is not active in the Workspace.',
+              );
+            }
+            const reconciler = getCurrentInvocationContext()?.resources.get(
+              ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE,
+            ) as AtlasWorkspaceSourceReconciler | undefined;
+            if (!reconciler) {
+              return yield* failOperation(
+                'workspace_reconciliation_unavailable',
+                'Workspace Source reconciliation is not configured on this Atlas server.',
+              );
+            }
+
+            const id = randomUUID();
+            const startedAt = new Date().toISOString();
+            yield* entities.sourceImports.insert({
+              id,
+              workspaceId: input.workspace.id,
+              triggerSourceId: triggerSource?.id ?? null,
+              trigger: input.trigger,
+              repository: triggerSource?.repository ?? null,
+              observedRevision: null,
+              sourceRevisionsJson: '[]',
+              status: 'running',
+              startedAt,
+              completedAt: null,
+              error: null,
+              diagnosticsJson: '{}',
+            }).run();
+
+            return yield* Effect.tryPromise({
+              try: () =>
+                reconciler.reconcile({
+                  workspaceId: input.workspace.id,
+                  sources: sources.flatMap(source =>
+                    source.repository
+                      ? [{ id: source.sourceId, repository: source.repository, ref: source.ref }]
+                      : [],
+                  ),
+                }),
+              catch: cause => cause,
+            }).pipe(
+              Effect.matchEffect({
+                onFailure: cause => {
+                  const completedAt = new Date().toISOString();
+                  const error = cause instanceof Error ? cause.message : String(cause);
+                  return Effect.gen(function* () {
+                    yield* entities.sourceImports
+                      .where(candidate => candidate.id.eq(id))
+                      .update({ status: 'failed', completedAt, error })
+                      .run();
+                    return {
+                      id,
+                      status: 'failed' as const,
+                      projectionRevisionId: null,
+                      observedRevision: null,
+                      error,
+                    };
+                  });
+                },
+                onSuccess: result => {
+                  const completedAt = new Date().toISOString();
+                  const projectionRevisionId = randomUUID();
+                  const observedRevision = triggerSource
+                    ? result.sourceRevisions.find(
+                        revision => revision.sourceId === triggerSource.sourceId,
+                      )?.revision ?? null
+                    : null;
+                  const sourceRevisionsJson = JSON.stringify(result.sourceRevisions);
+                  return app.graph.transaction(
+                    Effect.gen(function* () {
+                      yield* entities.projectionRevisions.insert({
+                        id: projectionRevisionId,
+                        workspaceId: input.workspace.id,
+                        importId: id,
+                        sourceRevisionSetHash: result.sourceRevisionSetHash,
+                        snapshotJson: JSON.stringify(result.snapshot),
+                        startedAt,
+                        createdAt: completedAt,
+                      }).run();
+                      yield* entities.sourceImports
+                        .where(candidate => candidate.id.eq(id))
+                        .update({
+                          status: 'completed',
+                          completedAt,
+                          observedRevision,
+                          sourceRevisionsJson,
+                        })
+                        .run();
+                      return {
+                        id,
+                        status: 'completed' as const,
+                        projectionRevisionId,
+                        observedRevision,
+                        error: null,
+                      };
+                    }),
+                  );
+                },
+              }),
+            );
+          }),
+      }),
       listRepositories: operation({
         description: 'List GitHub repositories available to the authenticated Workspace owner.',
         exposure: 'bridge',
@@ -594,6 +795,34 @@ export const AtlasWorkspaceSource = entity({
     contributors: relation.hasMany(AtlasWorkspaceContributorRef, {
       via: 'workspaceSourceId',
     }),
+  },
+});
+
+export const AtlasWorkspaceSourceImport = entity({
+  name: 'AtlasWorkspaceSourceImport',
+  fields: atlasWorkspaceSourceImportFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.workspace',
+  },
+  relations: {
+    workspace: relation.belongsTo(AtlasWorkspace, { via: 'workspaceId' }),
+    triggerSource: relation.belongsTo(AtlasWorkspaceSource, { via: 'triggerSourceId' }),
+  },
+});
+
+export const AtlasWorkspaceProjectionRevision = entity({
+  name: 'AtlasWorkspaceProjectionRevision',
+  fields: atlasWorkspaceProjectionRevisionFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.workspace',
+  },
+  relations: {
+    workspace: relation.belongsTo(AtlasWorkspace, { via: 'workspaceId' }),
+    sourceImport: relation.belongsTo(AtlasWorkspaceSourceImport, { via: 'importId' }),
   },
 });
 

@@ -52,6 +52,9 @@ describe('Atlas persistent user model', () => {
       session: { modelName: 'atlas_auth_sessions' },
       user: { modelName: 'atlas_auth_users' },
       verification: { modelName: 'atlas_auth_verifications' },
+      socialProviders: {
+        github: { scope: ['repo'] },
+      },
     });
     expect(createAtlasAuthPersistenceOptions(postgres)).toMatchObject({
       account: { accountLinking: atlasAccountLinkingPolicy },
