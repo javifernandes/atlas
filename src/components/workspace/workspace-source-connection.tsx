@@ -186,7 +186,7 @@ export const WorkspaceSourceConnection = ({
           rel='noreferrer'
           target='_blank'
         >
-          Install or configure the Atlas GitHub App
+          Can&apos;t find a repository? Manage GitHub access
         </a>
       ) : null}
       {!canManage ? (

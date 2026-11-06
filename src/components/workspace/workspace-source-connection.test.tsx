@@ -37,7 +37,9 @@ describe('WorkspaceSourceConnection', () => {
       name: 'Connect GitHub repositories',
     });
     expect(
-      screen.queryByRole('link', { name: 'Install or configure the Atlas GitHub App' }),
+      screen.queryByRole('link', {
+        name: "Can't find a repository? Manage GitHub access",
+      }),
     ).not.toBeInTheDocument();
     expect(connectLink).toHaveAttribute(
       'href',
@@ -87,7 +89,9 @@ describe('WorkspaceSourceConnection', () => {
     );
 
     expect(
-      await screen.findByRole('link', { name: 'Install or configure the Atlas GitHub App' }),
+      await screen.findByRole('link', {
+        name: "Can't find a repository? Manage GitHub access",
+      }),
     ).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
