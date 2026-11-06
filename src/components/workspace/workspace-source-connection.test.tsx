@@ -20,7 +20,11 @@ describe('WorkspaceSourceConnection', () => {
     let hookCall = 0;
     listAsync.mockResolvedValue({
       ok: true,
-      value: { authorizationRequired: true, repositories: [] },
+      value: {
+        authorizationRequired: true,
+        installationUrl: 'https://github.test/apps/atlas/installations/new',
+        repositories: [],
+      },
     });
     useOperation.mockImplementation(() => [
       { executeAsync: registerAsync, isExecuting: false },
@@ -30,7 +34,13 @@ describe('WorkspaceSourceConnection', () => {
     linkSocial.mockResolvedValue({ error: null });
     render(<WorkspaceSourceConnection canManage workspaceId='workspace-1' />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Authorize GitHub repositories' }));
+    const authorizeButton = await screen.findByRole('button', {
+      name: 'Authorize GitHub repositories',
+    });
+    expect(
+      screen.queryByRole('link', { name: 'Install or configure the Atlas GitHub App' }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(authorizeButton);
 
     await waitFor(() => {
       expect(linkSocial).toHaveBeenCalledWith({
@@ -64,6 +74,7 @@ describe('WorkspaceSourceConnection', () => {
       ok: true,
       value: {
         authorizationRequired: false,
+        installationUrl: 'https://github.test/apps/atlas/installations/new',
         repositories: [{ defaultRef: 'main', fullName: 'acme/product', isPrivate: true }],
       },
     });
@@ -80,6 +91,10 @@ describe('WorkspaceSourceConnection', () => {
         workspaceId='workspace-1'
       />,
     );
+
+    expect(
+      await screen.findByRole('link', { name: 'Install or configure the Atlas GitHub App' }),
+    ).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
 

@@ -169,7 +169,7 @@ export const WorkspaceSourceConnection = ({
         Choose from repositories GitHub confirms are available to your account. Atlas uses the
         repository's default branch.
       </p>
-      {canManage && installationUrl ? (
+      {canManage && !authorizationRequired && installationUrl ? (
         <a
           className='justify-self-start text-xs text-primary underline underline-offset-4'
           href={installationUrl}
