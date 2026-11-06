@@ -106,7 +106,7 @@ relations converge together.
 - [x] Add an owner-authorized manual retry Operation.
 - [ ] Route GitHub push and merged-PR events to every registered Workspace Source that matches the
       repository, preserving delivery and commit/PR trigger provenance.
-- [ ] Replace human OAuth repository access with GitHub App installation repository discovery and
+- [x] Replace human OAuth repository access with GitHub App installation repository discovery and
       installation-token imports.
 - [ ] Persist the provider installation on each registered Source and reject webhook deliveries
       whose installation does not match that Source.

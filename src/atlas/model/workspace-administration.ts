@@ -61,6 +61,7 @@ export const AtlasWorkspaceReconcileSourcesOutputSchema = graphSchema.object({
 export const AtlasWorkspaceRepositoryChoiceSchema = graphSchema.object({
   defaultRef: field.nonEmptyString({ trim: true }),
   fullName: field.nonEmptyString({ trim: true }),
+  installationId: field.nonEmptyString({ trim: true }),
   isPrivate: field.boolean(),
 });
 
@@ -69,7 +70,7 @@ export const AtlasWorkspaceListRepositoriesInputSchema = graphSchema.object({
 });
 
 export const AtlasWorkspaceListRepositoriesOutputSchema = graphSchema.object({
-  authorizationRequired: field.boolean(),
+  connectionRequired: field.boolean(),
   installationUrl: field.nullable(field.string()),
   repositories: graphSchema.array(AtlasWorkspaceRepositoryChoiceSchema),
 });

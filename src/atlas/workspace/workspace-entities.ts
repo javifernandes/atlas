@@ -529,10 +529,10 @@ export const AtlasWorkspace = entity({
               );
             }
             const discovered = yield* Effect.promise(() => discovery.list());
-            if (discovered.authorizationRequired) {
+            if (discovered.connectionRequired) {
               return yield* failOperation(
-                'github_authorization_required',
-                'Authorize GitHub repository access before connecting a Source.',
+                'github_app_connection_required',
+                'Connect the Atlas GitHub App before connecting a Source.',
               );
             }
             const inspected = discovered.repositories.find(
@@ -544,15 +544,7 @@ export const AtlasWorkspace = entity({
                 'Choose a repository from the GitHub repositories available to your account.',
               );
             }
-            const providerInstallationId = yield* Effect.promise(() =>
-              discovery.installationFor(inspected.fullName),
-            );
-            if (!providerInstallationId) {
-              return yield* failOperation(
-                'github_app_installation_required',
-                'Install or configure the Atlas GitHub App for this repository before connecting it.',
-              );
-            }
+            const providerInstallationId = inspected.installationId;
             const duplicate = yield* entities.sources
               .where(source => source.workspaceId.eq(input.workspace.id))
               .where(source => source.repository.eq(inspected.fullName))
@@ -770,7 +762,7 @@ export const AtlasWorkspace = entity({
               ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE,
             ) as AtlasGitHubRepositoryDiscovery | undefined;
             if (!discovery) {
-              return { authorizationRequired: true, installationUrl: null, repositories: [] };
+              return { connectionRequired: true, installationUrl: null, repositories: [] };
             }
             const result = yield* Effect.promise(() => discovery.list());
             return {

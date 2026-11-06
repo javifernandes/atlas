@@ -42,7 +42,7 @@ describe('WorkspaceSettings', () => {
       executeAsync: vi.fn().mockResolvedValue({
         ok: true,
         value: {
-          authorizationRequired: false,
+          connectionRequired: false,
           id: 'workspace-1',
           repositories: [],
           visibility: 'public',

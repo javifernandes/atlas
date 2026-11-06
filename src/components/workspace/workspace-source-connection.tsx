@@ -4,11 +4,11 @@ import { useOperation } from '@ontahi/react/graph';
 import { useEffect, useMemo, useState } from 'react';
 
 import { AtlasWorkspaceAdministrationClient } from '@/atlas/client/workspace-administration';
-import { atlasAuthClient } from '@/auth/client';
 
 type RepositoryChoice = {
   defaultRef: string;
   fullName: string;
+  installationId: string;
   isPrivate: boolean;
 };
 
@@ -33,28 +33,42 @@ export const WorkspaceSourceConnection = ({
   const [repositories, setRepositories] = useState<RepositoryChoice[]>([]);
   const [connectedRepositories, setConnectedRepositories] = useState<string[]>([]);
   const [connectingRepository, setConnectingRepository] = useState<string | null>(null);
-  const [authorizationRequired, setAuthorizationRequired] = useState(false);
+  const [connectionRequired, setConnectionRequired] = useState(false);
   const [installationUrl, setInstallationUrl] = useState<string | null>(null);
   const [loadingRepositories, setLoadingRepositories] = useState(true);
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!canManage) return;
+  const loadRepositories = () => {
+    if (!canManage) return Promise.resolve();
+    setLoadingRepositories(true);
     let active = true;
-    void listRepositories.executeAsync({ workspace: { id: workspaceId } }).then(result => {
+    return listRepositories.executeAsync({ workspace: { id: workspaceId } }).then(result => {
       if (!active) return;
       if (!result.ok) {
         setMessage(result.message);
         setLoadingRepositories(false);
         return;
       }
-      setAuthorizationRequired(result.value.authorizationRequired);
+      setConnectionRequired(result.value.connectionRequired);
       setInstallationUrl(result.value.installationUrl);
       setRepositories(result.value.repositories);
       setLoadingRepositories(false);
     });
-    return () => { active = false; };
+  };
+
+  useEffect(() => {
+    if (!canManage) return;
+    let active = true;
+    void loadRepositories();
+    const refreshAfterGitHub = () => {
+      if (active && document.visibilityState === 'visible') void loadRepositories();
+    };
+    document.addEventListener('visibilitychange', refreshAfterGitHub);
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', refreshAfterGitHub);
+    };
   }, [canManage, workspaceId]);
 
   const visibleRepositories = useMemo(() => {
@@ -63,17 +77,6 @@ export const WorkspaceSourceConnection = ({
       !query || candidate.fullName.toLowerCase().includes(query),
     );
   }, [repositories, search]);
-
-  const authorize = async () => {
-    setMessage(null);
-    const result = await atlasAuthClient.linkSocial({
-      callbackURL: globalThis.location.pathname,
-      errorCallbackURL: globalThis.location.pathname,
-      provider: 'github',
-      scopes: ['read:user', 'user:email', 'repo'],
-    });
-    if (result.error) setMessage(result.error.message ?? 'GitHub authorization failed.');
-  };
 
   const connect = async (repository: string) => {
     if (!canManage || registerSource.isExecuting || connectingRepository) return;
@@ -114,14 +117,21 @@ export const WorkspaceSourceConnection = ({
           <div className='rounded-md border border-border px-3 py-4 text-sm font-normal text-muted-foreground'>
             Checking GitHub access…
           </div>
-        ) : authorizationRequired ? (
-          <button
-            className='h-10 justify-self-start rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground'
-            onClick={() => void authorize()}
-            type='button'
-          >
-            Authorize GitHub repositories
-          </button>
+        ) : connectionRequired ? (
+          installationUrl ? (
+            <a
+              className='h-10 justify-self-start rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground'
+              href={installationUrl}
+              rel='noreferrer'
+              target='_blank'
+            >
+              Connect GitHub repositories
+            </a>
+          ) : (
+            <p className='text-sm font-normal text-muted-foreground'>
+              The Atlas GitHub App is not configured on this server.
+            </p>
+          )
         ) : (
           <>
           <input
@@ -169,7 +179,7 @@ export const WorkspaceSourceConnection = ({
         Choose from repositories GitHub confirms are available to your account. Atlas uses the
         repository's default branch.
       </p>
-      {canManage && !authorizationRequired && installationUrl ? (
+      {canManage && !connectionRequired && installationUrl ? (
         <a
           className='justify-self-start text-xs text-primary underline underline-offset-4'
           href={installationUrl}
