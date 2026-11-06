@@ -26,14 +26,16 @@ const compositionState = globalThis as typeof globalThis & {
 
 const state = (compositionState.__atlasCompositionState ??= {});
 
-const resolveStorageMode = () => {
-  const configured = process.env.ATLAS_STORAGE_MODE;
+export const resolveAtlasStorageMode = (
+  environment: Record<string, string | undefined> = process.env,
+) => {
+  const configured = environment.ATLAS_STORAGE_MODE;
 
   if (configured && configured !== 'memory' && configured !== 'postgres') {
     throw new Error('ATLAS_STORAGE_MODE must be either "postgres" or "memory".');
   }
 
-  return configured ?? (process.env.NODE_ENV === 'production' ? 'postgres' : 'memory');
+  return configured ?? (environment.DATABASE_URL ? 'postgres' : 'memory');
 };
 
 const invalidateRepository = (repositoryFullName: string) => {
@@ -84,7 +86,7 @@ const createPostgresComposition = () => {
 };
 
 const createComposition = async (): Promise<AtlasServerApplication> =>
-  resolveStorageMode() === 'postgres'
+  resolveAtlasStorageMode() === 'postgres'
     ? createPostgresComposition()
     : createMemoryComposition();
 
@@ -98,7 +100,7 @@ export const getAtlasServerApplication = () => {
 };
 
 export const prewarmAtlasServerApplication = () => {
-  if (resolveStorageMode() !== 'memory') return;
+  if (resolveAtlasStorageMode() !== 'memory') return;
   void getAtlasServerApplication().catch(error => {
     console.error('Atlas local runtime prewarm failed.', error);
   });
