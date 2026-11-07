@@ -4,11 +4,27 @@ import { getAtlasWorkspaceForUser } from '@/atlas/workspace/workspace-access';
 import { getAtlasRequestAccess } from '@/auth/server';
 import { AuthLanding } from '@/components/auth/auth-landing';
 import { WorkspaceAccessDenied } from '@/components/workspace/workspace-access-denied';
-import { WorkspaceSettings } from '@/components/workspace/workspace-settings';
+import {
+  WorkspaceSettings,
+  type WorkspaceSettingsSection,
+} from '@/components/workspace/workspace-settings';
 
 export const dynamic = 'force-dynamic';
 
-const WorkspaceSettingsPage = async ({ params }: { params: { slug: string } }) => {
+const workspaceSettingsSections = new Set<WorkspaceSettingsSection>([
+  'danger',
+  'general',
+  'people',
+  'sources',
+]);
+
+const WorkspaceSettingsPage = async ({
+  params,
+  searchParams,
+}: {
+  params: { slug: string };
+  searchParams?: { section?: string | string[] };
+}) => {
   const access = await getAtlasRequestAccess(headers());
   if (!access.canRead || !access.viewer) {
     return (
@@ -22,7 +38,21 @@ const WorkspaceSettingsPage = async ({ params }: { params: { slug: string } }) =
 
   const workspace = await getAtlasWorkspaceForUser(access.viewer.id, params.slug);
   if (!workspace) return <WorkspaceAccessDenied viewer={access.viewer} />;
-  return <WorkspaceSettings viewer={access.viewer} workspaceRole={workspace.role} />;
+  const requestedSection = Array.isArray(searchParams?.section)
+    ? searchParams.section[0]
+    : searchParams?.section;
+  const activeSection = workspaceSettingsSections.has(
+    requestedSection as WorkspaceSettingsSection,
+  )
+    ? requestedSection as WorkspaceSettingsSection
+    : 'general';
+  return (
+    <WorkspaceSettings
+      activeSection={activeSection}
+      viewer={access.viewer}
+      workspaceRole={workspace.role}
+    />
+  );
 };
 
 export default WorkspaceSettingsPage;

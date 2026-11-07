@@ -20,6 +20,19 @@ import { WorkspaceSourceConnection } from './workspace-source-connection';
 
 const roleOrder = { owner: 0, collaborator: 1, viewer: 2 } as const;
 
+export type WorkspaceSettingsSection = 'danger' | 'general' | 'people' | 'sources';
+
+const settingsSections: Array<{
+  description: string;
+  id: WorkspaceSettingsSection;
+  label: string;
+}> = [
+  { description: 'Identity and access', id: 'general', label: 'General' },
+  { description: 'Repositories and imports', id: 'sources', label: 'Sources' },
+  { description: 'Members and contributors', id: 'people', label: 'People' },
+  { description: 'Destructive actions', id: 'danger', label: 'Danger Zone' },
+];
+
 type WorkspaceContributorRow = {
   avatarUrl: string | null;
   contributionCount: number;
@@ -355,9 +368,11 @@ const WorkspaceDangerZone = ({
 };
 
 export const WorkspaceSettings = ({
+  activeSection = 'general',
   viewer,
   workspaceRole,
 }: {
+  activeSection?: WorkspaceSettingsSection;
   viewer: AtlasViewer;
   workspaceRole?: 'owner' | 'collaborator' | 'viewer';
 }) => {
@@ -469,13 +484,50 @@ export const WorkspaceSettings = ({
           </p>
         </header>
 
-        <WorkspaceVisibilitySettings
-          canManage={canManage}
-          onChanged={workspaceQuery.refetch}
-          workspace={workspace}
-        />
+        <nav
+          aria-label='Workspace settings sections'
+          className='grid gap-2 border-b border-border sm:grid-cols-4'
+          role='tablist'
+        >
+          {settingsSections.map(section => {
+            const active = section.id === activeSection;
+            return (
+              <Link
+                aria-selected={active}
+                className={`grid gap-0.5 border-b-2 px-3 py-3 text-left transition-colors ${
+                  active
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
+                }`}
+                href={`/w/${encodeURIComponent(workspace.slug)}/settings?section=${section.id}`}
+                id={`settings-tab-${section.id}`}
+                key={section.id}
+                role='tab'
+              >
+                <span className='text-sm font-medium'>{section.label}</span>
+                <span className='hidden text-[11px] sm:block'>{section.description}</span>
+              </Link>
+            );
+          })}
+        </nav>
 
-        <section className='grid gap-3' id='sources'>
+        {activeSection === 'general' ? (
+          <div aria-labelledby='settings-tab-general' role='tabpanel'>
+            <WorkspaceVisibilitySettings
+              canManage={canManage}
+              onChanged={workspaceQuery.refetch}
+              workspace={workspace}
+            />
+          </div>
+        ) : null}
+
+        {activeSection === 'sources' ? (
+          <div
+            aria-labelledby='settings-tab-sources'
+            className='grid gap-8'
+            role='tabpanel'
+          >
+          <section className='grid gap-3' id='sources'>
           <div className='flex items-end justify-between gap-4'>
             <div>
               <h2 className='text-lg font-medium'>Sources</h2>
@@ -527,16 +579,24 @@ export const WorkspaceSettings = ({
               ))
             )}
           </div>
-        </section>
+          </section>
 
-        <WorkspaceImportHistory
-          canManage={canManage}
-          imports={sourceImportsQuery.data ?? []}
-          onChanged={sourceImportsQuery.refetch}
-          workspaceId={workspace.id}
-        />
+          <WorkspaceImportHistory
+            canManage={canManage}
+            imports={sourceImportsQuery.data ?? []}
+            onChanged={sourceImportsQuery.refetch}
+            workspaceId={workspace.id}
+          />
+          </div>
+        ) : null}
 
-        <section className='grid gap-3'>
+        {activeSection === 'people' ? (
+          <div
+            aria-labelledby='settings-tab-people'
+            className='grid gap-8'
+            role='tabpanel'
+          >
+          <section className='grid gap-3'>
           <div>
             <h2 className='text-lg font-medium'>Members</h2>
             <p className='text-sm text-muted-foreground'>
@@ -596,9 +656,9 @@ export const WorkspaceSettings = ({
               );
             })}
           </div>
-        </section>
+          </section>
 
-        <section className='grid gap-3'>
+          <section className='grid gap-3'>
           <div>
             <h2 className='text-lg font-medium'>Contributors to review</h2>
             <p className='text-sm text-muted-foreground'>
@@ -659,15 +719,21 @@ export const WorkspaceSettings = ({
               ))
             )}
           </div>
-        </section>
+          </section>
+          </div>
+        ) : null}
 
-        <WorkspaceDangerZone
-          canManage={canManage}
-          contributorCount={contributorsQuery.data?.length ?? 0}
-          memberCount={memberships.length}
-          sourceCount={sources.length}
-          workspace={workspace}
-        />
+        {activeSection === 'danger' ? (
+          <div aria-labelledby='settings-tab-danger' role='tabpanel'>
+            <WorkspaceDangerZone
+              canManage={canManage}
+              contributorCount={contributorsQuery.data?.length ?? 0}
+              memberCount={memberships.length}
+              sourceCount={sources.length}
+              workspace={workspace}
+            />
+          </div>
+        ) : null}
       </div>
     </main>
   );

@@ -152,3 +152,8 @@ requires an exact slug confirmation, and removes Contributors, Sources, Membersh
 Workspace in one graph transaction. PostgreSQL foreign keys retain cascade protection while the
 explicit child deletes preserve the same aggregate behavior in memory storage. The settings UI
 shows the currently authorized dependency counts and returns to Workspace home after success.
+
+Dogfooding replaced the original single long settings document with addressable General, Sources,
+People, and Danger Zone tabs. The active section is preserved in the URL so browser navigation and
+direct links retain context, while Workspace creation opens the main Workspace canvas rather than
+treating administration as the destination.
