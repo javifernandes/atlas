@@ -7,6 +7,7 @@ import type { AtlasReconciliationRequest } from '../domain/atlas-application';
 import { createAtlasPostgresApplication } from '../persistence/postgres-application';
 import { loadAtlasProjectionInput } from './load-atlas-projection';
 import { createAtlasModelProvider } from './model-provider';
+import { reconcileAtlasWorkspaceSources } from '../workspace/workspace-source-reconciliation';
 
 export const getAtlasRepoRoot = () => {
   const cwd = process.cwd();
@@ -32,6 +33,8 @@ export const createAtlasPostgresComposition = (input: {
   return createAtlasPostgresApplication({
     assistantProvider: createAtlasModelProvider(),
     pool: input.pool,
+    reconcileWorkspaceSources: ({ sources }) =>
+      reconcileAtlasWorkspaceSources({ repoRoot, sources }),
     loadProjection: async (request: AtlasReconciliationRequest) => {
       if (request.webhook) {
         input.invalidateRepository?.(request.webhook.repositoryFullName);

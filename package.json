@@ -14,6 +14,7 @@
     "dev": "next dev",
     "build": "next build && node scripts/verify-atlas-source-traces.mjs",
     "db:migrate": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-postgres.ts migrate",
+    "db:backfill:workspaces": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-workspace-backfill.ts",
     "db:traffic": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-postgres-traffic.ts",
     "db:verify": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-postgres.ts verify",
     "db:catch-up": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-catch-up.ts",

@@ -18,10 +18,12 @@ import {
 } from '../domain/atlas-application';
 import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
+import { buildPlanWorkstreamSnapshotFromFiles } from '../markdown/build-snapshot';
 import {
   createAtlasWorkspaceAccessStore,
   DEFAULT_ATLAS_WORKSPACE_ID,
 } from '../workspace/workspace-access';
+import { backfillCanonicalAtlasWorkspaceOwner } from '../workspace/backfill-source-installations';
 import { readAtlasAuthConfiguration } from '../../auth/config';
 import { createAtlasAuth, createAtlasAuthOptions } from '../../auth/server';
 import { runAtlasMigrations } from './migrations';
@@ -163,6 +165,8 @@ Durable Atlas projection.
         '013-workspace-contributors.sql',
         '014-dynamic-workspaces.sql',
         '015-workspace-source-imports.sql',
+        '016-workspace-source-github-installations.sql',
+        '017-workspace-webhook-import-provenance.sql',
       ],
       skipped: [],
     });
@@ -270,7 +274,7 @@ Durable Atlas projection.
     }
   }, postgresTestTimeout);
 
-  it('persists one stable user identity without provider token material', async () => {
+  it('persists one stable user identity and its GitHub repository credential', async () => {
     const configuration = readAtlasAuthConfiguration({
       ATLAS_AUTH_GITHUB_CLIENT_ID: 'github-client',
       ATLAS_AUTH_GITHUB_CLIENT_SECRET: 'github-secret',
@@ -288,13 +292,13 @@ Durable Atlas projection.
         name: 'Persistent User',
       },
       {
-        accessToken: 'must-not-persist',
+        accessToken: 'repository-access-token',
         accessTokenExpiresAt: new Date('2026-09-04T00:00:00.000Z'),
         accountId: 'github-user-123',
-        idToken: 'must-not-persist',
+        idToken: 'github-id-token',
         issuer: 'local:oauth:github',
         providerId: 'github',
-        refreshToken: 'must-not-persist',
+        refreshToken: 'repository-refresh-token',
         refreshTokenExpiresAt: new Date('2026-10-03T00:00:00.000Z'),
       },
     );
@@ -323,7 +327,11 @@ Durable Atlas projection.
         [created.account.id],
       ),
     ).resolves.toMatchObject({
-      rows: [{ access_token: null, id_token: null, refresh_token: null }],
+      rows: [{
+        access_token: 'repository-access-token',
+        id_token: 'github-id-token',
+        refresh_token: 'repository-refresh-token',
+      }],
     });
     await expect(atlas.getUserIdentity(created.user.id)).resolves.toEqual({
       id: created.user.id,
@@ -347,6 +355,7 @@ Durable Atlas projection.
       `SELECT id FROM atlas_auth_users WHERE email = 'persistent-user@example.com'`,
     );
     const ownerId = owner.rows[0]!.id;
+    await backfillCanonicalAtlasWorkspaceOwner({ pool });
     const outsiderId = randomUUID();
     const otherWorkspaceId = randomUUID();
     await pool.query(
@@ -1011,6 +1020,70 @@ Atlas-Session: not-a-session`,
       ok: true,
       value: { archived: false, archivedAt: null },
     });
+  }, postgresTestTimeout);
+
+  it('fans a matching GitHub delivery into an idempotent Workspace import', async () => {
+    await pool.query(
+      `UPDATE atlas_workspace_sources
+       SET provider_installation_id = 'workspace-installation'
+       WHERE workspace_id = $1 AND source_id = 'atlas'`,
+      [DEFAULT_ATLAS_WORKSPACE_ID],
+    );
+    let workspaceReconciliations = 0;
+    const workspaceAtlas = createAtlasPostgresApplication({
+      pool,
+      loadProjection,
+      reconcileWorkspaceSources: async () => {
+        workspaceReconciliations += 1;
+        return {
+          observedAt: '2026-11-07T00:00:00.000Z',
+          snapshot: buildPlanWorkstreamSnapshotFromFiles(
+            sourceFiles.filter(file => file.path.startsWith('plans/')),
+            sourceFiles.filter(file => file.path.startsWith('atlas/items/')),
+          ),
+          sourceRevisionSetHash: 'workspace-revision-set',
+          sourceRevisions,
+        };
+      },
+    });
+    const push: AtlasRepositoryPushInput = {
+      after: 'workspace-push-revision',
+      before: 'workspace-previous-revision',
+      deliveryId: 'workspace-delivery-push',
+      installationId: 'workspace-installation',
+      ref: 'refs/heads/main',
+      repositoryFullName: 'JAVIFERNANDES/ATLAS',
+    };
+    const invoke = () => workspaceAtlas.application.invokeOperation(
+      workspaceAtlas.application.graph.entities.ProjectionRevision.domain.refreshAfterPush,
+      push,
+    );
+
+    await expect(invoke()).resolves.toMatchObject({
+      ok: true,
+      value: { duplicate: false },
+    });
+    await expect(invoke()).resolves.toMatchObject({
+      ok: true,
+      value: { duplicate: true },
+    });
+    expect(workspaceReconciliations).toBe(1);
+
+    const imports = await pool.query(
+      `SELECT trigger, provider_delivery_id, trigger_revision, status
+       FROM atlas_workspace_source_imports
+       WHERE workspace_id = $1 AND provider_delivery_id = $2`,
+      [DEFAULT_ATLAS_WORKSPACE_ID, push.deliveryId],
+    );
+    expect(imports.rows).toEqual([{
+      trigger: 'push',
+      provider_delivery_id: push.deliveryId,
+      trigger_revision: push.after,
+      status: 'completed',
+    }]);
+    await expect(
+      workspaceAtlas.getWorkspaceProjectionSnapshot(DEFAULT_ATLAS_WORKSPACE_ID),
+    ).resolves.toMatchObject({ nodes: expect.any(Array) });
   }, postgresTestTimeout);
 
   it('forks exact Plan roots and routes explicit Session activity without fallback', async () => {

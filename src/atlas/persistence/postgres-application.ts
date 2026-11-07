@@ -28,6 +28,7 @@ import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import type { ModelProvider } from '@ontahi/core/runtime/server';
 import type { AtlasProjectionInput } from '../server/load-atlas-projection';
 import { deriveWorkspaceContributors } from '../workspace/workspace-contributors';
+import type { AtlasWorkspaceSourceReconciler } from '../workspace/workspace-source-reconciliation';
 import { atlasPostgresMappingOverrides } from './postgres-mapping';
 import { createPortableAtlasPostgresPool } from './postgres-portability';
 import {
@@ -254,6 +255,7 @@ export const createAtlasPostgresApplication = (input: {
   observePostgresQueries?: boolean;
   onPostgresQuery?: (observation: AtlasPostgresQueryObservation) => void;
   pool: Pick<Pool, 'connect' | 'query'>;
+  reconcileWorkspaceSources?: AtlasWorkspaceSourceReconciler['reconcile'];
 }) => {
   let reconcileProjection: (
     request: AtlasReconciliationRequest,
@@ -699,6 +701,112 @@ export const createAtlasPostgresApplication = (input: {
     };
   };
 
+  const reconcileWorkspaceWebhook = (
+    webhook: NonNullable<AtlasReconciliationRequest['webhook']>,
+  ) => Effect.gen(function* () {
+    if (!input.reconcileWorkspaceSources || !webhook.deliveryId) return;
+
+    const matchingSources = yield* entities.AtlasWorkspaceSource
+      .where(source => source.status.eq('active'))
+      .where(source => source.provider.eq('github'))
+      .where(source => source.providerInstallationId.eq(webhook.installationId))
+      .run();
+    const matchingByWorkspace = new Map(
+      matchingSources
+        .filter(source =>
+          source.repository?.toLocaleLowerCase() ===
+          webhook.repositoryFullName.toLocaleLowerCase(),
+        )
+        .map(source => [source.workspaceId, source]),
+    );
+
+    for (const [workspaceId, triggerSource] of matchingByWorkspace) {
+      const previous = yield* entities.AtlasWorkspaceSourceImport
+        .where(sourceImport => sourceImport.workspaceId.eq(workspaceId))
+        .where(sourceImport => sourceImport.providerDeliveryId.eq(webhook.deliveryId))
+        .limit(1)
+        .run();
+      if (previous[0]) continue;
+
+      const sources = yield* entities.AtlasWorkspaceSource
+        .where(source => source.workspaceId.eq(workspaceId))
+        .where(source => source.status.eq('active'))
+        .run();
+      const id = randomUUID();
+      const startedAt = new Date().toISOString();
+      const trigger = 'after' in webhook ? 'push' as const : 'pull-request' as const;
+      const triggerRevision = 'after' in webhook
+        ? webhook.after
+        : webhook.mergeCommitSha;
+      const pullRequestNumber = 'number' in webhook ? webhook.number : null;
+
+      yield* entities.AtlasWorkspaceSourceImport.insert({
+        id,
+        workspaceId,
+        triggerSourceId: triggerSource.id,
+        trigger,
+        providerDeliveryId: webhook.deliveryId,
+        triggerRevision,
+        pullRequestNumber,
+        repository: triggerSource.repository,
+        observedRevision: null,
+        sourceRevisionsJson: '[]',
+        status: 'running',
+        startedAt,
+        completedAt: null,
+        error: null,
+        diagnosticsJson: JSON.stringify({ installationId: webhook.installationId }),
+      }).run();
+
+      yield* Effect.tryPromise({
+        try: () => input.reconcileWorkspaceSources!({
+          workspaceId,
+          sources: sources.flatMap(source =>
+            source.repository
+              ? [{ id: source.sourceId, repository: source.repository, ref: source.ref }]
+              : [],
+          ),
+        }),
+        catch: cause => cause,
+      }).pipe(Effect.matchEffect({
+        onFailure: cause => {
+          const error = cause instanceof Error ? cause.message : String(cause);
+          return entities.AtlasWorkspaceSourceImport
+            .where(candidate => candidate.id.eq(id))
+            .update({ status: 'failed', completedAt: new Date().toISOString(), error })
+            .run();
+        },
+        onSuccess: result => {
+          const completedAt = new Date().toISOString();
+          const projectionRevisionId = randomUUID();
+          const observedRevision = result.sourceRevisions.find(
+            revision => revision.sourceId === triggerSource.sourceId,
+          )?.revision ?? null;
+          return atlas.application.app.graph.transaction(Effect.gen(function* () {
+            yield* entities.AtlasWorkspaceProjectionRevision.insert({
+              id: projectionRevisionId,
+              workspaceId,
+              importId: id,
+              sourceRevisionSetHash: result.sourceRevisionSetHash,
+              snapshotJson: JSON.stringify(result.snapshot),
+              startedAt,
+              createdAt: completedAt,
+            }).run();
+            yield* entities.AtlasWorkspaceSourceImport
+              .where(candidate => candidate.id.eq(id))
+              .update({
+                status: 'completed',
+                completedAt,
+                observedRevision,
+                sourceRevisionsJson: JSON.stringify(result.sourceRevisions),
+              })
+              .run();
+          }));
+        },
+      }));
+    }
+  });
+
   proposePersistentPlanLink = request =>
     Effect.promise(async () => {
       const records = await atlas.getSourceRecords();
@@ -1049,6 +1157,11 @@ export const createAtlasPostgresApplication = (input: {
           }),
         );
       }),
+      Effect.tap(result =>
+        request.webhook && !result.duplicate
+          ? reconcileWorkspaceWebhook(request.webhook)
+          : Effect.void,
+      ),
       Effect.tap(() =>
         Effect.sync(() => {
           projectionSnapshotCache.invalidate();

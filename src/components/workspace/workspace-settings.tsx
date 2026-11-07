@@ -108,6 +108,9 @@ const WorkspaceImportHistory = ({
   imports: Array<{
     id: string;
     trigger: 'connection' | 'manual' | 'push' | 'pull-request';
+    providerDeliveryId: string | null;
+    triggerRevision: string | null;
+    pullRequestNumber: number | null;
     repository: string | null;
     observedRevision: string | null;
     status: string;
@@ -180,9 +183,33 @@ const WorkspaceImportHistory = ({
                     {sourceImport.trigger} · {new Date(sourceImport.startedAt).toLocaleString()}
                     {duration ? ` · ${duration}` : ''}
                   </p>
-                  {sourceImport.observedRevision && sourceImport.repository ? (
+                  <div className='mt-1 flex flex-wrap items-center gap-x-3 gap-y-1'>
+                  {sourceImport.pullRequestNumber && sourceImport.repository ? (
                     <a
-                      className='mt-1 inline-flex items-center gap-1.5 font-mono text-[11px] text-primary hover:underline'
+                      className='inline-flex items-center gap-1 font-mono text-[11px] text-primary hover:underline'
+                      href={`https://github.com/${sourceImport.repository}/pull/${sourceImport.pullRequestNumber}`}
+                      rel='noreferrer'
+                      target='_blank'
+                    >
+                      PR #{sourceImport.pullRequestNumber}
+                      <ExternalLink className='size-3' />
+                    </a>
+                  ) : null}
+                  {sourceImport.triggerRevision && sourceImport.repository ? (
+                    <a
+                      className='inline-flex items-center gap-1.5 font-mono text-[11px] text-primary hover:underline'
+                      href={`https://github.com/${sourceImport.repository}/commit/${sourceImport.triggerRevision}`}
+                      rel='noreferrer'
+                      target='_blank'
+                    >
+                      <GitCommit className='size-3.5' />
+                      {sourceImport.triggerRevision.slice(0, 12)}
+                      <ExternalLink className='size-3' />
+                    </a>
+                  ) : null}
+                  {!sourceImport.triggerRevision && sourceImport.observedRevision && sourceImport.repository ? (
+                    <a
+                      className='inline-flex items-center gap-1.5 font-mono text-[11px] text-primary hover:underline'
                       href={`https://github.com/${sourceImport.repository}/tree/${sourceImport.observedRevision}`}
                       rel='noreferrer'
                       target='_blank'
@@ -192,6 +219,7 @@ const WorkspaceImportHistory = ({
                       <ExternalLink className='size-3' />
                     </a>
                   ) : null}
+                  </div>
                   {sourceImport.error ? (
                     <p className='mt-1 text-xs text-destructive'>{sourceImport.error}</p>
                   ) : null}

@@ -327,10 +327,13 @@ describe('WorkspaceSettings', () => {
         error: 'GitHub tree unavailable',
         id: 'import-1',
         observedRevision: 'abc123',
+        providerDeliveryId: null,
+        pullRequestNumber: null,
         repository: 'acme/product',
         startedAt: '2026-11-05T12:00:00.000Z',
         status: 'failed',
         trigger: 'connection',
+        triggerRevision: null,
         triggerSourceId: 'source-1',
       }] }));
 

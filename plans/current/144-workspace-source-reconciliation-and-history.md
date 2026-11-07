@@ -55,7 +55,8 @@ Related work:
 3. Trigger the first import from repository connection and allow an owner to retry manually.
 4. Render recent import history in Workspace Settings.
 5. Serve the latest completed Workspace projection from `/w/:slug`.
-6. Preserve the existing global/default Workspace reconciliation as a compatibility path.
+6. Migrate the canonical Atlas Workspace from the global compatibility projection onto the same
+   partitioned form as every other Workspace.
 7. Bind every GitHub Source to the Atlas GitHub App installation that authorizes observation.
 
 ## Non-Goals
@@ -97,18 +98,19 @@ relations converge together.
 - [x] Load active Workspace Sources and resolve exact GitHub tree revisions.
 - [x] Build and publish an immutable Workspace snapshot only after successful convergence.
 - [x] Serve the latest completed projection for a non-default Workspace.
-- [x] Keep the default Atlas Workspace on its existing compatibility projection.
+- [x] Backfill the canonical Atlas Workspace owner, GitHub installation authority, and first
+      partitioned projection before removing its read-path exception.
 
 ### Slice 2 — trigger and history UX
 
 - [x] Trigger reconciliation after repository registration without making registration rollback on
       an import failure.
 - [x] Add an owner-authorized manual retry Operation.
-- [ ] Route GitHub push and merged-PR events to every registered Workspace Source that matches the
+- [x] Route GitHub push and merged-PR events to every registered Workspace Source that matches the
       repository, preserving delivery and commit/PR trigger provenance.
 - [x] Replace human OAuth repository access with GitHub App installation repository discovery and
       installation-token imports.
-- [ ] Persist the provider installation on each registered Source and reject webhook deliveries
+- [x] Persist the provider installation on each registered Source and reject webhook deliveries
       whose installation does not match that Source.
 - [x] Show recent executions in Settings with Source/repository, trigger, revision, status,
       timestamps, duration, and diagnostics/error.
@@ -152,19 +154,19 @@ relations converge together.
 
 ## Open Questions
 
-1. Should the default Atlas Workspace migrate onto the partitioned projection immediately or after
-   one compatibility release?
-2. Should provider pushes coalesce by Workspace, Source, or observed commit when several events
+1. Should provider pushes coalesce by Workspace, Source, or observed commit when several events
    arrive during one execution?
-3. How long should successful and failed execution history be retained?
-4. Does Source removal hide its history, retain it under a retired Source, or snapshot repository
+2. How long should successful and failed execution history be retained?
+3. Does Source removal hide its history, retain it under a retired Source, or snapshot repository
    presentation fields directly on every execution?
 
 ## Closure / Evolution
 
-The first checkpoint now publishes immutable Workspace projection snapshots from active registered
+The current checkpoint publishes immutable Workspace projection snapshots from active registered
 Sources, records exact Source revisions and failures in Workspace-owned import executions, serves
-the latest completed snapshot from dynamic Workspace routes, and renders recent execution history
-with an owner-authorized retry. The default Atlas tenant remains on the existing global
-reconciliation path. Progress, provider-event triggers, and cancellation follow over this same
-execution identity rather than introducing a second task model.
+the latest completed snapshot from every dynamic Workspace route, and renders recent execution
+history with an owner-authorized retry. Signed provider events fan out by installation and
+repository with delivery-level idempotency. Production deployment backfills the canonical Atlas
+tenant's owner, installation IDs, and initial partitioned projection before the route reads it as
+an ordinary Workspace. Progress and cancellation follow over this same execution identity rather
+than introducing a second task model.

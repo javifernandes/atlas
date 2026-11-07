@@ -9,7 +9,6 @@ const getAtlasPageDataMock = vi.hoisted(() => vi.fn());
 vi.mock('next/headers', () => ({ headers: () => new Headers() }));
 vi.mock('@/auth/server', () => ({ getAtlasRequestAccess: getAtlasRequestAccessMock }));
 vi.mock('@/atlas/workspace/workspace-access', () => ({
-  DEFAULT_ATLAS_WORKSPACE_ID: '00000000-0000-4000-8000-000000000137',
   getAtlasWorkspaceForUser: getAtlasWorkspaceForUserMock,
   listAtlasWorkspacesForUser: listAtlasWorkspacesForUserMock,
 }));
@@ -78,10 +77,23 @@ describe('dynamic Workspace page', () => {
     };
     getAtlasWorkspaceForUserMock.mockResolvedValue(workspace);
     listAtlasWorkspacesForUserMock.mockResolvedValue([workspace]);
+    getAtlasPageDataMock.mockResolvedValue({
+      executionStreams: [],
+      snapshot: {
+        documents: [],
+        edges: [],
+        metrics: [],
+        nodes: [
+          { id: 'atlas-model', kind: 'item', title: 'Atlas model' },
+          { id: 'atlas-plan', kind: 'plan', title: 'Atlas plan' },
+        ],
+        territories: [],
+      },
+    });
 
     render(await WorkspacePage({ params: { slug: 'atlas' } }));
 
     expect(screen.getByText('Canonical projection')).toBeInTheDocument();
-    expect(getAtlasPageDataMock).toHaveBeenCalledWith(viewer.id, undefined, null);
+    expect(getAtlasPageDataMock).toHaveBeenCalledWith(viewer.id, undefined, workspace.id);
   });
 });
