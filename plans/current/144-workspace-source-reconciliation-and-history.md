@@ -27,11 +27,12 @@ Workspace-owned execution boundary.
 
 Related work:
 
-1. [`Atlas Adoption Foundation`](136-atlas-adoption-foundation.md)
-2. [`Workspace Sources And Contributor Discovery`](140-workspace-sources-and-contributor-discovery.md)
-3. [`Dynamic Workspace Onboarding`](143-dynamic-workspace-onboarding.md)
-4. [`Reconciliation`](../../atlas/items/spec-workstream-atlas/atlas-model/reconciliation.md)
-5. [`Workspace`](../../atlas/items/spec-workstream-atlas/access-and-identity/workspace.md)
+1. [`Workspace Source Durable Import Experience`](../next/145-workspace-source-durable-import-experience.md)
+2. [`Atlas Adoption Foundation`](136-atlas-adoption-foundation.md)
+3. [`Workspace Sources And Contributor Discovery`](140-workspace-sources-and-contributor-discovery.md)
+4. [`Dynamic Workspace Onboarding`](143-dynamic-workspace-onboarding.md)
+5. [`Reconciliation`](../../atlas/items/spec-workstream-atlas/atlas-model/reconciliation.md)
+6. [`Workspace`](../../atlas/items/spec-workstream-atlas/access-and-identity/workspace.md)
 
 ## Research / Evidence
 
