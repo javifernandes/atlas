@@ -30,6 +30,7 @@ import type {
 } from '../model/snapshot';
 import { cn } from '@/lib/classes';
 import { PlanTitle } from '@/atlas/viewer/plan-title';
+import { Select } from '@/components/ui/select';
 
 import {
   buildExecutionTreeRows,
@@ -603,38 +604,22 @@ export const ExecutionStreamView = ({
             <div className='flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border/70 px-3 lg:hidden'>
               <div className='min-w-0 flex-1'>
                 {currentStream && selectableStreams.length > 1 ? (
-                  <label className='block'>
-                    <span className='sr-only'>Selected Session</span>
-                    <select
-                      aria-label='Selected Session'
-                      className='h-7 w-full truncate rounded-md border border-border bg-background px-2 text-xs font-medium'
+                  <Select
+                      compact
+                      label='Selected Session'
                       value={currentStream.id}
-                      onChange={event => {
+                      onChange={value => {
                         const stream = executionStreams.find(
-                          candidate => candidate.id === event.target.value,
+                          candidate => candidate.id === value,
                         );
                         if (stream) selectStream(stream);
                       }}
-                    >
-                      {openStreams.map(stream => (
-                        <option key={stream.id} value={stream.id}>
-                          {stream.title}
-                        </option>
-                      ))}
-                      {recentStreams.map(stream => (
-                        <option key={stream.id} value={stream.id}>
-                          {stream.title} (closed)
-                        </option>
-                      ))}
-                      {showArchived
-                        ? archivedStreams.map(stream => (
-                            <option key={stream.id} value={stream.id}>
-                              {stream.title} (archived)
-                            </option>
-                          ))
-                        : null}
-                    </select>
-                  </label>
+                      options={[
+                        ...openStreams.map(stream => ({ label: stream.title, value: stream.id })),
+                        ...recentStreams.map(stream => ({ label: `${stream.title} (closed)`, value: stream.id })),
+                        ...(showArchived ? archivedStreams.map(stream => ({ label: `${stream.title} (archived)`, value: stream.id })) : []),
+                      ]}
+                  />
                 ) : currentStream ? (
                   <div className='truncate text-sm font-medium'>{currentStream.title}</div>
                 ) : (

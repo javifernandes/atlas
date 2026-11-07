@@ -782,19 +782,15 @@ const selection: Selection = Selection.references(Book, refs);
     expect(screen.queryByRole('button', { name: 'Continue Ontahi' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue BookOps' })).not.toBeInTheDocument();
 
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Filter board by project' }),
-      ontahiProject.id,
-    );
+    await user.click(screen.getByRole('button', { name: 'Filter board by project' }));
+    await user.click(screen.getByRole('option', { name: ontahiProject.shortTitle }));
 
     expect(screen.getByRole('button', { name: 'Ontahi next plan' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'BookOps next plan' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Item A' })).not.toBeInTheDocument();
 
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Filter board by project' }),
-      '',
-    );
+    await user.click(screen.getByRole('button', { name: 'Filter board by project' }));
+    await user.click(screen.getByRole('option', { name: 'All projects' }));
 
     expect(screen.getByRole('button', { name: 'BookOps next plan' })).toBeInTheDocument();
   });

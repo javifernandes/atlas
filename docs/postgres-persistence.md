@@ -49,7 +49,7 @@ an invalid explicit target writes no Stream activity and cannot fall through to 
 | Preview | Isolated Neon preview branch | Preview-scoped `DATABASE_URL` and `DATABASE_URL_UNPOOLED` |
 | Production | Neon project `weathered-rain-59323266`, branch `production` | Vercel environment values; no CLI login at runtime |
 
-Production defaults to `ATLAS_STORAGE_MODE=postgres`. `DATABASE_URL` is the pooled application
+Any environment with `DATABASE_URL` defaults to `ATLAS_STORAGE_MODE=postgres`. `DATABASE_URL` is the pooled application
 connection. `DATABASE_URL_UNPOOLED` is preferred by migrations and operator reconciliation. Keep
 both values in local ignored files or environment-secret stores; never put them in Git, logs, PR
 bodies, or shell tracing.

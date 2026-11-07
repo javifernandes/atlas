@@ -16,30 +16,37 @@ vi.mock('@/auth/client', () => ({
 import { WorkspaceSourceConnection } from './workspace-source-connection';
 
 describe('WorkspaceSourceConnection', () => {
-  it('extends GitHub authorization without starting a new Atlas identity session', async () => {
+  it('offers one GitHub App connection action without another OAuth authorization', async () => {
     let hookCall = 0;
     listAsync.mockResolvedValue({
       ok: true,
-      value: { authorizationRequired: true, repositories: [] },
+      value: {
+        connectionRequired: true,
+        installationUrl: 'https://github.test/apps/atlas/installations/new',
+        repositories: [],
+      },
     });
     useOperation.mockImplementation(() => [
       { executeAsync: registerAsync, isExecuting: false },
       { executeAsync: reconcileAsync, isExecuting: false },
       { executeAsync: listAsync, isExecuting: false },
     ][hookCall++ % 3]);
-    linkSocial.mockResolvedValue({ error: null });
     render(<WorkspaceSourceConnection canManage workspaceId='workspace-1' />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Authorize GitHub repositories' }));
-
-    await waitFor(() => {
-      expect(linkSocial).toHaveBeenCalledWith({
-        callbackURL: globalThis.location.pathname,
-        errorCallbackURL: globalThis.location.pathname,
-        provider: 'github',
-        scopes: ['read:user', 'user:email', 'repo'],
-      });
+    fireEvent.click(screen.getByRole('button', { name: 'Add repository' }));
+    const connectLink = await screen.findByRole('link', {
+      name: 'Connect GitHub repositories',
     });
+    expect(
+      screen.queryByRole('link', {
+        name: "Can't find a repository? Manage GitHub access",
+      }),
+    ).not.toBeInTheDocument();
+    expect(connectLink).toHaveAttribute(
+      'href',
+      'https://github.test/apps/atlas/installations/new',
+    );
+    expect(linkSocial).not.toHaveBeenCalled();
   });
 
   it('registers an owner/repository and refreshes Sources', async () => {
@@ -63,8 +70,9 @@ describe('WorkspaceSourceConnection', () => {
     listAsync.mockResolvedValue({
       ok: true,
       value: {
-        authorizationRequired: false,
-        repositories: [{ defaultRef: 'main', fullName: 'acme/product', isPrivate: true }],
+        connectionRequired: false,
+        installationUrl: 'https://github.test/apps/atlas/installations/new',
+        repositories: [{ defaultRef: 'main', fullName: 'acme/product', installationId: 'installation-1', isPrivate: true }],
       },
     });
     useOperation.mockImplementation(() => [
@@ -80,6 +88,12 @@ describe('WorkspaceSourceConnection', () => {
         workspaceId='workspace-1'
       />,
     );
+
+    expect(
+      await screen.findByRole('link', {
+        name: "Can't find a repository? Manage GitHub access",
+      }),
+    ).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
 

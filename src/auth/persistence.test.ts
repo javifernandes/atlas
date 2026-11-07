@@ -53,7 +53,7 @@ describe('Atlas persistent user model', () => {
       user: { modelName: 'atlas_auth_users' },
       verification: { modelName: 'atlas_auth_verifications' },
       socialProviders: {
-        github: { scope: ['repo'] },
+        github: { scope: ['read:user', 'user:email'] },
       },
     });
     expect(createAtlasAuthPersistenceOptions(postgres)).toMatchObject({

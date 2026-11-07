@@ -111,6 +111,7 @@ export const atlasWorkspaceSourceFields = {
   workspaceId: field.id(),
   sourceId: field.nonEmptyString({ trim: true }),
   provider: field.enum(['github', 'local']),
+  providerInstallationId: field.nullable(field.string()),
   repository: field.nullable(field.string()),
   ref: field.nonEmptyString({ trim: true }),
   status: field.enum(['active', 'paused']),
@@ -139,6 +140,9 @@ export const atlasWorkspaceSourceImportFields = {
   workspaceId: field.id(),
   triggerSourceId: field.nullable(field.id()),
   trigger: field.enum(['connection', 'manual', 'push', 'pull-request']),
+  providerDeliveryId: field.nullable(field.string()),
+  triggerRevision: field.nullable(field.string()),
+  pullRequestNumber: field.nullable(field.number()),
   repository: field.nullable(field.string()),
   observedRevision: field.nullable(field.string()),
   sourceRevisionsJson: field.string(),
@@ -528,10 +532,10 @@ export const AtlasWorkspace = entity({
               );
             }
             const discovered = yield* Effect.promise(() => discovery.list());
-            if (discovered.authorizationRequired) {
+            if (discovered.connectionRequired) {
               return yield* failOperation(
-                'github_authorization_required',
-                'Authorize GitHub repository access before connecting a Source.',
+                'github_app_connection_required',
+                'Connect the Atlas GitHub App before connecting a Source.',
               );
             }
             const inspected = discovered.repositories.find(
@@ -543,6 +547,7 @@ export const AtlasWorkspace = entity({
                 'Choose a repository from the GitHub repositories available to your account.',
               );
             }
+            const providerInstallationId = inspected.installationId;
             const duplicate = yield* entities.sources
               .where(source => source.workspaceId.eq(input.workspace.id))
               .where(source => source.repository.eq(inspected.fullName))
@@ -576,6 +581,7 @@ export const AtlasWorkspace = entity({
               workspaceId: input.workspace.id,
               sourceId,
               provider: 'github',
+              providerInstallationId,
               repository: inspected.fullName,
               ref: inspected.defaultRef,
               status: 'active',
@@ -651,6 +657,9 @@ export const AtlasWorkspace = entity({
               workspaceId: input.workspace.id,
               triggerSourceId: triggerSource?.id ?? null,
               trigger: input.trigger,
+              providerDeliveryId: null,
+              triggerRevision: null,
+              pullRequestNumber: null,
               repository: triggerSource?.repository ?? null,
               observedRevision: null,
               sourceRevisionsJson: '[]',
@@ -759,9 +768,14 @@ export const AtlasWorkspace = entity({
               ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE,
             ) as AtlasGitHubRepositoryDiscovery | undefined;
             if (!discovery) {
-              return { authorizationRequired: true, repositories: [] };
+              return { connectionRequired: true, installationUrl: null, repositories: [] };
             }
-            return yield* Effect.promise(() => discovery.list());
+            const result = yield* Effect.promise(() => discovery.list());
+            return {
+              ...result,
+              installationUrl:
+                result.installationUrl ?? (yield* Effect.promise(() => discovery.installationUrl())),
+            };
           }),
       }),
     };

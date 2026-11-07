@@ -42,7 +42,7 @@ describe('WorkspaceSettings', () => {
       executeAsync: vi.fn().mockResolvedValue({
         ok: true,
         value: {
-          authorizationRequired: false,
+          connectionRequired: false,
           id: 'workspace-1',
           repositories: [],
           visibility: 'public',
@@ -89,7 +89,7 @@ describe('WorkspaceSettings', () => {
     expect(screen.getByRole('heading', { name: 'No active membership' })).toBeInTheDocument();
   });
 
-  it('uses server-resolved owner authority when the local member profile is unresolved', async () => {
+  it('uses server-resolved owner authority for Source administration', async () => {
     useGraphQueryMock
       .mockReturnValueOnce(queryResult({
         data: [{ id: 'workspace-1', name: 'Acme', slug: 'acme', visibility: 'private' }],
@@ -102,15 +102,74 @@ describe('WorkspaceSettings', () => {
       .mockReturnValueOnce(queryResult({ data: [] }))
       .mockReturnValueOnce(queryResult({ data: [] }));
 
-    render(<WorkspaceSettings viewer={viewer} workspaceRole='owner' />);
+    render(
+      <WorkspaceSettings activeSection='sources' viewer={viewer} workspaceRole='owner' />,
+    );
 
-    expect(screen.getByText('owner@example.com')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add repository' }));
     expect(await screen.findByPlaceholderText('Search your repositories…')).toBeEnabled();
     expect(screen.queryByText('Only a Workspace owner can connect repositories.')).not.toBeInTheDocument();
   });
 
-  it('renders only memberships returned by the authorized Graph Query', async () => {
+  it('renders a settings sidebar and only the selected section', () => {
+    useGraphQueryMock
+      .mockReturnValueOnce(queryResult({
+        data: [{ id: 'workspace-1', name: 'Atlas', slug: 'atlas', visibility: 'private' }],
+      }))
+      .mockReturnValueOnce(queryResult({ data: [{
+        id: 'membership-1', role: 'owner', status: 'active', user: viewer, userId: viewer.id,
+      }] }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [] }));
+
+    render(<WorkspaceSettings viewer={viewer} />);
+
+    expect(screen.getByRole('link', { name: /General/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('link', { name: /Sources/ })).toHaveAttribute(
+      'href',
+      '/w/atlas/settings?section=sources',
+    );
+    expect(screen.getByRole('heading', { name: 'Visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Danger Zone' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Sources' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Members' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Danger Zone/ })).not.toBeInTheDocument();
+  });
+
+  it('updates visibility from the General section', async () => {
     const workspaceRefetch = vi.fn().mockResolvedValue(undefined);
+    useGraphQueryMock
+      .mockReturnValueOnce(queryResult({
+        data: [{ id: 'workspace-1', name: 'Atlas', slug: 'atlas', visibility: 'private' }],
+        refetch: workspaceRefetch,
+      }))
+      .mockReturnValueOnce(queryResult({ data: [{
+        id: 'membership-1', role: 'owner', status: 'active', user: viewer, userId: viewer.id,
+      }] }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [] }));
+
+    render(<WorkspaceSettings viewer={viewer} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace access' }));
+    fireEvent.click(screen.getByRole('option', { name: /Public/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save visibility' }));
+
+    await waitFor(() => {
+      expect(useOperationMock.mock.results[0]?.value.executeAsync).toHaveBeenCalledWith({
+        workspace: { id: 'workspace-1' },
+        visibility: 'public',
+      });
+      expect(workspaceRefetch).toHaveBeenCalledOnce();
+    });
+  });
+
+  it('renders only memberships returned by the authorized Graph Query', () => {
     useGraphQueryMock
       .mockReturnValueOnce(
         queryResult({
@@ -122,7 +181,6 @@ describe('WorkspaceSettings', () => {
               visibility: 'private',
             },
           ],
-          refetch: workspaceRefetch,
         }),
       )
       .mockReturnValueOnce(
@@ -227,19 +285,12 @@ describe('WorkspaceSettings', () => {
         }),
       );
 
-    render(<WorkspaceSettings viewer={viewer} />);
+    render(<WorkspaceSettings activeSection='people' viewer={viewer} />);
 
     expect(screen.getByRole('heading', { name: 'Atlas' })).toBeInTheDocument();
     expect(screen.getByText('/atlas · private')).toBeInTheDocument();
     expect(screen.getByText('owner@example.com')).toBeInTheDocument();
     expect(screen.getByText('reader@example.com')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'javifernandes/atlas ↗' })).toHaveAttribute(
-      'href',
-      'https://github.com/javifernandes/atlas',
-    );
-    expect(screen.getByText('approval required')).toBeInTheDocument();
-    expect(screen.queryByText(/source:/)).not.toBeInTheDocument();
-    expect(await screen.findByPlaceholderText('Search your repositories…')).toBeEnabled();
     expect(screen.getAllByText(/@javifernandes/)).toHaveLength(1);
     expect(
       screen.getByText(/155 merged PRs across atlas, bookops, ontahi/),
@@ -258,18 +309,6 @@ describe('WorkspaceSettings', () => {
     expect(screen.getByRole('link', { name: '@atlas-friend' })).toBeInTheDocument();
     expect(screen.getByText('Atlas account linked')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Workspace access'), {
-      target: { value: 'public' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Save visibility' }));
-
-    await waitFor(() => {
-      expect(useOperationMock.mock.results[0]?.value.executeAsync).toHaveBeenCalledWith({
-        workspace: { id: 'workspace-1' },
-        visibility: 'public',
-      });
-      expect(workspaceRefetch).toHaveBeenCalledOnce();
-    });
   });
 
   it('renders repository import history with revision, duration, and failure details', () => {
@@ -288,18 +327,26 @@ describe('WorkspaceSettings', () => {
         error: 'GitHub tree unavailable',
         id: 'import-1',
         observedRevision: 'abc123',
+        providerDeliveryId: null,
+        pullRequestNumber: null,
         repository: 'acme/product',
         startedAt: '2026-11-05T12:00:00.000Z',
         status: 'failed',
         trigger: 'connection',
+        triggerRevision: null,
         triggerSourceId: 'source-1',
       }] }));
 
-    render(<WorkspaceSettings viewer={viewer} workspaceRole='owner' />);
+    render(
+      <WorkspaceSettings activeSection='history' viewer={viewer} workspaceRole='owner' />,
+    );
 
     expect(screen.getByRole('heading', { name: 'Import history' })).toBeInTheDocument();
     expect(screen.getByText('acme/product')).toBeInTheDocument();
-    expect(screen.getByText('abc123')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /abc123/ })).toHaveAttribute(
+      'href',
+      'https://github.com/acme/product/tree/abc123',
+    );
     expect(screen.getByText('GitHub tree unavailable')).toBeInTheDocument();
     expect(screen.getByText('failed')).toBeInTheDocument();
   });
@@ -317,15 +364,22 @@ describe('WorkspaceSettings', () => {
       .mockReturnValueOnce(queryResult({ data: [] }))
       .mockReturnValueOnce(queryResult({ data: [] }));
 
-    render(<WorkspaceSettings viewer={viewer} workspaceRole='owner' />);
+    render(
+      <WorkspaceSettings viewer={viewer} workspaceRole='owner' />,
+    );
 
     const deleteButton = screen.getByRole('button', { name: 'Delete Workspace' });
-    expect(deleteButton).toBeDisabled();
+    expect(deleteButton).toBeEnabled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(deleteButton);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    const confirmButton = screen.getAllByRole('button', { name: 'Delete Workspace' }).at(-1)!;
+    expect(confirmButton).toBeDisabled();
     fireEvent.change(screen.getByLabelText(/Type.*acme.*to confirm/), {
       target: { value: 'acme' },
     });
-    expect(deleteButton).toBeEnabled();
-    fireEvent.click(deleteButton);
+    expect(confirmButton).toBeEnabled();
+    fireEvent.click(confirmButton);
 
     const deleteOperation = useOperationMock.mock.results.at(-1)?.value;
     await waitFor(() => {

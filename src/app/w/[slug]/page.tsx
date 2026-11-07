@@ -3,7 +3,6 @@ import { headers } from 'next/headers';
 import { getAtlasPageData } from '@/atlas/server/get-atlas-page-data';
 import { readAtlasModelConfiguration } from '@/atlas/server/model-provider';
 import {
-  DEFAULT_ATLAS_WORKSPACE_ID,
   getAtlasWorkspaceForUser,
   listAtlasWorkspacesForUser,
 } from '@/atlas/workspace/workspace-access';
@@ -47,11 +46,10 @@ const WorkspacePage = async ({ params, searchParams }: WorkspacePageProps) => {
   const { executionStreams, snapshot } = await getAtlasPageData(
     access.viewer.id,
     selectedStreamId,
-    workspace.id === DEFAULT_ATLAS_WORKSPACE_ID ? null : workspace.id,
+    workspace.id,
   );
 
   if (
-    workspace.id !== DEFAULT_ATLAS_WORKSPACE_ID &&
     snapshot.nodes.length <= 1 &&
     !snapshot.documents?.length
   ) {

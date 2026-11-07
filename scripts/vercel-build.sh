@@ -14,6 +14,7 @@ if [[ "${VERCEL_ENV:-}" == "production" ]]; then
   fi
 
   pnpm db:migrate
+  pnpm db:backfill:workspaces
   pnpm db:verify
 fi
 

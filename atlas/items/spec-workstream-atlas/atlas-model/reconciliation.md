@@ -55,3 +55,9 @@ trigger, while an immutable Workspace projection revision records only successfu
 state. Failed or cancelled executions remain history and never replace the last completed
 projection. This execution identity is also the future boundary for progress, cancellation, and
 declared compensation without treating every arbitrary external effect as automatically reversible.
+GitHub Sources retain the App installation that authorizes them. Signed push and merged-PR events
+fan out only to Sources matching both repository and installation, producing independent Workspace
+executions instead of treating the legacy global projection as multi-tenant state.
+Workspace Settings presents these executions as operational History rather than Source
+configuration. Each entry keeps its trigger, lifecycle, timing, repository, and provider revision
+navigable so owners can diagnose stale or failed projections without reconstructing webhook logs.

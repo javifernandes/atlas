@@ -12,13 +12,14 @@ import {
 import { createAtlasAuthPersistenceOptions } from './persistence';
 import {
   ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE,
-  type AtlasGitHubRepositoryChoice,
 } from '../atlas/github/user-repositories';
 import { getAtlasRepoRoot } from '../atlas/server/atlas-postgres-composition';
 import {
   ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE,
   reconcileAtlasWorkspaceSources,
 } from '../atlas/workspace/workspace-source-reconciliation';
+import { getAtlasGitHubAppInstallationUrl } from '../atlas/github/installation-client';
+import { listAtlasGitHubInstallationRepositories } from '../atlas/github/user-installations';
 
 export class AtlasAuthConfigurationError extends Error {
   constructor(message: string) {
@@ -52,7 +53,7 @@ export const createAtlasAuthOptions = (
       github: {
         clientId: configuration.clientId,
         clientSecret: configuration.clientSecret,
-        scope: ['repo'],
+        scope: ['read:user', 'user:email'],
       },
     },
     user: {
@@ -183,49 +184,21 @@ export const getAtlasRuntimeInvocationContext = async (request: Request) => {
     workspace: access.viewer
       ? await getAtlasWorkspaceAuthorityForUser(access.viewer.id, workspaceSlug)
       : null,
-    resources: new Map([
+    resources: new Map<string, unknown>([
       [
         ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE,
         {
+          installationUrl: () => getAtlasGitHubAppInstallationUrl(),
           list: async () => {
-            if (!access.viewer) return { authorizationRequired: true as const, repositories: [] };
+            const installationUrl = await getAtlasGitHubAppInstallationUrl();
+            if (!access.viewer) return { connectionRequired: true as const, installationUrl, repositories: [] };
             const accessToken = await resolveGitHubAccessToken();
-            if (!accessToken) return { authorizationRequired: true as const, repositories: [] };
+            if (!accessToken) return { connectionRequired: true as const, installationUrl, repositories: [] };
 
-            const response = await fetch(
-              'https://api.github.com/user/repos?affiliation=owner,collaborator,organization_member&per_page=100&sort=updated',
-              {
-                cache: 'no-store',
-                headers: {
-                  Accept: 'application/vnd.github+json',
-                  Authorization: `Bearer ${accessToken}`,
-                  'User-Agent': 'atlas-github-source-picker',
-                  'X-GitHub-Api-Version': '2022-11-28',
-                },
-              },
-            );
-            if (!response.ok) {
-              if (response.status === 401 || response.status === 403) {
-                return { authorizationRequired: true as const, repositories: [] };
-              }
-              throw new Error(`GitHub repository discovery failed with ${response.status}.`);
-            }
-            const body = await response.json() as Array<{
-              default_branch?: unknown;
-              full_name?: unknown;
-              private?: unknown;
-            }>;
-            const repositories = body.flatMap((repository): AtlasGitHubRepositoryChoice[] =>
-              typeof repository.full_name === 'string' &&
-              typeof repository.default_branch === 'string'
-                ? [{
-                    defaultRef: repository.default_branch,
-                    fullName: repository.full_name,
-                    isPrivate: repository.private === true,
-                  }]
-                : [],
-            );
-            return { authorizationRequired: false as const, repositories };
+            return listAtlasGitHubInstallationRepositories({
+              accessToken,
+              installationUrl,
+            });
           },
         },
       ],

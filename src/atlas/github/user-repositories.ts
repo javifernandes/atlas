@@ -4,12 +4,14 @@ export const ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE =
 export type AtlasGitHubRepositoryChoice = {
   defaultRef: string;
   fullName: string;
+  installationId: string;
   isPrivate: boolean;
 };
 
 export type AtlasGitHubRepositoryDiscovery = {
+  installationUrl(): Promise<string | null>;
   list(): Promise<
-    | { authorizationRequired: true; repositories: [] }
-    | { authorizationRequired: false; repositories: AtlasGitHubRepositoryChoice[] }
+    | { connectionRequired: true; installationUrl: string | null; repositories: [] }
+    | { connectionRequired: false; installationUrl: string | null; repositories: AtlasGitHubRepositoryChoice[] }
   >;
 };

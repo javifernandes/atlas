@@ -1073,6 +1073,7 @@ const buildAtlasOntahiDatasetFromSource = (
     workspaceId: '00000000-0000-4000-8000-000000000137',
     sourceId: revision.sourceId,
     provider: revision.repository ? ('github' as const) : ('local' as const),
+    providerInstallationId: null,
     repository: revision.repository ?? null,
     ref: revision.revisionKind === 'git' ? revision.revision : 'main',
     status: 'active' as const,

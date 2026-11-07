@@ -152,3 +152,13 @@ requires an exact slug confirmation, and removes Contributors, Sources, Membersh
 Workspace in one graph transaction. PostgreSQL foreign keys retain cascade protection while the
 explicit child deletes preserve the same aggregate behavior in memory storage. The settings UI
 shows the currently authorized dependency counts and returns to Workspace home after success.
+
+Dogfooding replaced the original single long settings document with a wide administration shell:
+an extensible left menu addresses General, Sources, and People while the right pane contains only
+the selected section. Danger Zone remains the final part of General rather than pretending to be a
+peer settings category. The active section is preserved in the URL so browser navigation and
+direct links retain context, while Workspace creation opens the main Workspace canvas rather than
+treating administration as the destination. Sources leads with registered repositories; its
+repository picker opens only from a secondary `Add repository` action and closes after a successful
+import. Future configuration areas such as model BYOK can extend the left menu without flattening
+all administration into one page.
