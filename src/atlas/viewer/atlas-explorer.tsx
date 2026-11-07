@@ -58,6 +58,7 @@ import {
   PlanTitle,
 } from '@/atlas/viewer/plan-title';
 import { cn } from '@/lib/classes';
+import { Select } from '@/components/ui/select';
 
 type PlanWorkstreamExplorerProps = {
   executionStreams?: AtlasExecutionStreamProjection[];
@@ -2058,22 +2059,18 @@ const GlobalAtlasBoard = ({
   <section className='absolute inset-0 overflow-hidden bg-background/95 bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:24px_24px]'>
     <div className='pointer-events-auto absolute right-4 top-[72px] z-30 flex items-center gap-2 lg:top-4'>
       {projects.length > 0 ? (
-        <label className='flex h-10 items-center gap-2 rounded-lg border border-border/70 bg-background/78 px-3 text-xs shadow-lg backdrop-blur-xl transition-colors focus-within:border-primary/45'>
-          <span className='font-medium text-muted-foreground'>Project</span>
-          <select
-            aria-label='Filter board by project'
-            className='max-w-44 bg-transparent font-medium text-foreground outline-none'
+        <div className='w-52 rounded-lg border border-border/70 bg-background/78 shadow-lg backdrop-blur-xl transition-colors focus-within:border-primary/45'>
+          <Select
+            compact
+            label='Filter board by project'
+            onChange={onProjectChange}
+            options={[
+              { label: 'All projects', value: '' },
+              ...projects.map(project => ({ label: project.shortTitle, value: project.id })),
+            ]}
             value={selectedProjectId}
-            onChange={event => onProjectChange(event.target.value)}
-          >
-            <option value=''>All projects</option>
-            {projects.map(project => (
-              <option key={project.id} value={project.id}>
-                {project.shortTitle}
-              </option>
-            ))}
-          </select>
-        </label>
+          />
+        </div>
       ) : null}
       <button
         type='button'

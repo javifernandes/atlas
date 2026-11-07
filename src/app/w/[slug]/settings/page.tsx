@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic';
 
 const workspaceSettingsSections = new Set<WorkspaceSettingsSection>([
   'general',
+  'history',
   'people',
   'sources',
 ]);

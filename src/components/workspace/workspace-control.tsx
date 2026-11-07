@@ -5,6 +5,7 @@ import { LayoutGrid, Settings2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import type { AtlasWorkspaceAccess } from '@/atlas/workspace/workspace-access';
+import { Select } from '@/components/ui/select';
 
 export const WorkspaceControl = ({
   workspace,
@@ -23,23 +24,24 @@ export const WorkspaceControl = ({
       >
         <LayoutGrid className='size-3.5' />
       </Link>
-      <select
-        aria-label='Current Workspace'
-        className='h-8 max-w-44 bg-transparent px-2 font-medium text-foreground outline-none'
-        onChange={event =>
+      <div className='w-44'>
+      <Select
+        compact
+        label='Current Workspace'
+        onChange={value =>
           router.push(
-            event.target.value === '__new__'
+            value === '__new__'
               ? '/workspaces/new'
-              : `/w/${encodeURIComponent(event.target.value)}`,
+              : `/w/${encodeURIComponent(value)}`,
           )
         }
+        options={[
+          ...workspaces.map(candidate => ({ label: candidate.name, value: candidate.slug })),
+          { label: '＋ New Workspace', value: '__new__' },
+        ]}
         value={workspace.slug}
-      >
-        {workspaces.map(candidate => (
-          <option key={candidate.id} value={candidate.slug}>{candidate.name}</option>
-        ))}
-        <option value='__new__'>＋ New Workspace</option>
-      </select>
+      />
+      </div>
       <Link
         aria-label={`Workspace settings for ${workspace.name}`}
         className='grid h-8 w-8 place-items-center border-l border-border/70 text-muted-foreground transition-colors hover:text-foreground'

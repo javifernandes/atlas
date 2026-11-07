@@ -156,9 +156,8 @@ describe('WorkspaceSettings', () => {
 
     render(<WorkspaceSettings viewer={viewer} />);
 
-    fireEvent.change(screen.getByLabelText('Workspace access'), {
-      target: { value: 'public' },
-    });
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace access' }));
+    fireEvent.click(screen.getByRole('option', { name: /Public/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Save visibility' }));
 
     await waitFor(() => {
@@ -336,12 +335,15 @@ describe('WorkspaceSettings', () => {
       }] }));
 
     render(
-      <WorkspaceSettings activeSection='sources' viewer={viewer} workspaceRole='owner' />,
+      <WorkspaceSettings activeSection='history' viewer={viewer} workspaceRole='owner' />,
     );
 
     expect(screen.getByRole('heading', { name: 'Import history' })).toBeInTheDocument();
     expect(screen.getByText('acme/product')).toBeInTheDocument();
-    expect(screen.getByText('abc123')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /abc123/ })).toHaveAttribute(
+      'href',
+      'https://github.com/acme/product/tree/abc123',
+    );
     expect(screen.getByText('GitHub tree unavailable')).toBeInTheDocument();
     expect(screen.getByText('failed')).toBeInTheDocument();
   });
@@ -364,12 +366,17 @@ describe('WorkspaceSettings', () => {
     );
 
     const deleteButton = screen.getByRole('button', { name: 'Delete Workspace' });
-    expect(deleteButton).toBeDisabled();
+    expect(deleteButton).toBeEnabled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(deleteButton);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    const confirmButton = screen.getAllByRole('button', { name: 'Delete Workspace' }).at(-1)!;
+    expect(confirmButton).toBeDisabled();
     fireEvent.change(screen.getByLabelText(/Type.*acme.*to confirm/), {
       target: { value: 'acme' },
     });
-    expect(deleteButton).toBeEnabled();
-    fireEvent.click(deleteButton);
+    expect(confirmButton).toBeEnabled();
+    fireEvent.click(confirmButton);
 
     const deleteOperation = useOperationMock.mock.results.at(-1)?.value;
     await waitFor(() => {

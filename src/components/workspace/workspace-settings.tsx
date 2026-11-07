@@ -1,6 +1,7 @@
 'use client';
 
 import { useGraphQuery, useOperation } from '@ontahi/react/graph';
+import { AlertTriangle, ExternalLink, GitCommit, History } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -17,10 +18,12 @@ import type { AtlasViewer } from '@/auth/access';
 
 import { WorkspaceAccessDenied } from './workspace-access-denied';
 import { WorkspaceSourceConnection } from './workspace-source-connection';
+import { Modal } from '../ui/modal';
+import { Select } from '../ui/select';
 
 const roleOrder = { owner: 0, collaborator: 1, viewer: 2 } as const;
 
-export type WorkspaceSettingsSection = 'general' | 'people' | 'sources';
+export type WorkspaceSettingsSection = 'general' | 'history' | 'people' | 'sources';
 
 const settingsSections: Array<{
   description: string;
@@ -29,6 +32,7 @@ const settingsSections: Array<{
 }> = [
   { description: 'Identity and access', id: 'general', label: 'General' },
   { description: 'Repositories and imports', id: 'sources', label: 'Sources' },
+  { description: 'Imports and provider events', id: 'history', label: 'History' },
   { description: 'Members and contributors', id: 'people', label: 'People' },
 ];
 
@@ -135,12 +139,15 @@ const WorkspaceImportHistory = ({
   };
 
   return (
-    <section className='grid gap-3'>
+    <section className='grid gap-5'>
       <div className='flex items-end justify-between gap-4'>
-        <div>
-          <h2 className='text-lg font-medium'>Import history</h2>
+        <div className='grid gap-1'>
+          <div className='flex items-center gap-2'>
+            <History className='size-5 text-primary' />
+            <h2 className='text-xl font-medium'>Import history</h2>
+          </div>
           <p className='text-sm text-muted-foreground'>
-            Reconciliations that produced—or failed to produce—this Workspace projection.
+            Imports and repository events that changed—or failed to change—this Workspace.
           </p>
         </div>
         <button
@@ -152,7 +159,7 @@ const WorkspaceImportHistory = ({
           {reconcileSources.isExecuting ? 'Importing…' : 'Import now'}
         </button>
       </div>
-      <div className='overflow-hidden rounded-lg border border-border'>
+      <div className='overflow-hidden rounded-xl border border-border'>
         {imports.length === 0 ? (
           <p className='px-4 py-6 text-sm text-muted-foreground'>
             No imports have run for this Workspace yet.
@@ -162,7 +169,7 @@ const WorkspaceImportHistory = ({
             const duration = importDuration(sourceImport.startedAt, sourceImport.completedAt);
             return (
               <div
-                className='grid gap-2 border-b border-border/70 px-4 py-3 last:border-b-0 sm:grid-cols-[1fr_auto]'
+                className='grid gap-3 border-b border-border/70 px-4 py-4 last:border-b-0 sm:grid-cols-[1fr_auto]'
                 key={sourceImport.id}
               >
                 <div className='min-w-0'>
@@ -173,10 +180,17 @@ const WorkspaceImportHistory = ({
                     {sourceImport.trigger} · {new Date(sourceImport.startedAt).toLocaleString()}
                     {duration ? ` · ${duration}` : ''}
                   </p>
-                  {sourceImport.observedRevision ? (
-                    <p className='truncate font-mono text-[11px] text-muted-foreground'>
-                      {sourceImport.observedRevision}
-                    </p>
+                  {sourceImport.observedRevision && sourceImport.repository ? (
+                    <a
+                      className='mt-1 inline-flex items-center gap-1.5 font-mono text-[11px] text-primary hover:underline'
+                      href={`https://github.com/${sourceImport.repository}/tree/${sourceImport.observedRevision}`}
+                      rel='noreferrer'
+                      target='_blank'
+                    >
+                      <GitCommit className='size-3.5' />
+                      {sourceImport.observedRevision.slice(0, 12)}
+                      <ExternalLink className='size-3' />
+                    </a>
                   ) : null}
                   {sourceImport.error ? (
                     <p className='mt-1 text-xs text-destructive'>{sourceImport.error}</p>
@@ -237,18 +251,16 @@ const WorkspaceVisibilitySettings = ({
         </p>
       </div>
       <div className='grid gap-4 rounded-lg border border-border p-4 sm:grid-cols-[1fr_auto] sm:items-end'>
-        <label className='grid gap-2 text-sm font-medium'>
-          Workspace access
-          <select
-            className='h-10 rounded-md border border-border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60'
-            disabled={!canManage || updateVisibility.isExecuting}
-            onChange={event => setVisibility(event.target.value as 'private' | 'public')}
-            value={visibility}
-          >
-            <option value='private'>Private — members only</option>
-            <option value='public'>Public — visible to everyone</option>
-          </select>
-        </label>
+        <Select
+          disabled={!canManage || updateVisibility.isExecuting}
+          label='Workspace access'
+          onChange={setVisibility}
+          options={[
+            { value: 'private', label: 'Private', description: 'Only Workspace members can read it.' },
+            { value: 'public', label: 'Public', description: 'Anyone can discover and read it.' },
+          ]}
+          value={visibility}
+        />
         <button
           className='h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50'
           disabled={
@@ -289,6 +301,7 @@ const WorkspaceDangerZone = ({
 }) => {
   const deleteWorkspace = useOperation(AtlasWorkspaceAdministrationClient.domain.delete);
   const router = useRouter();
+  const [modalOpen, setModalOpen] = useState(false);
   const [confirmationSlug, setConfirmationSlug] = useState('');
   const [message, setMessage] = useState<string | null>(null);
 
@@ -322,46 +335,80 @@ const WorkspaceDangerZone = ({
           Destructive Workspace lifecycle actions live here.
         </p>
       </div>
-      <div className='grid gap-4 rounded-lg border border-destructive/50 p-4'>
+      <div className='flex flex-col gap-4 rounded-lg border border-destructive/50 p-4 sm:flex-row sm:items-center sm:justify-between'>
         <div className='grid gap-1'>
           <h3 className='text-sm font-medium'>Delete {workspace.name}</h3>
           <p className='text-sm leading-6 text-muted-foreground'>
-            Permanently removes this Workspace, {memberCount}{' '}
-            {memberCount === 1 ? 'membership' : 'memberships'}, {sourceCount}{' '}
-            {sourceCount === 1 ? 'Source' : 'Sources'}, and {contributorCount} derived{' '}
-            {contributorCount === 1 ? 'contributor' : 'contributors'}. GitHub repositories and
-            your Atlas account are not deleted.
+            Permanently remove this Workspace and its Atlas data.
           </p>
         </div>
-        <label className='grid gap-2 text-sm font-medium'>
-          Type <span className='font-mono text-destructive'>{workspace.slug}</span> to confirm
-          <input
-            autoComplete='off'
-            className='h-10 rounded-md border border-destructive/50 bg-background px-3 font-normal outline-none focus:border-destructive disabled:opacity-60'
-            disabled={!canManage || deleteWorkspace.isExecuting}
-            onChange={event => setConfirmationSlug(event.target.value)}
-            value={confirmationSlug}
-          />
-        </label>
         <button
-          className='h-10 justify-self-start rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground disabled:cursor-not-allowed disabled:opacity-50'
-          disabled={
-            !canManage ||
-            confirmationSlug !== workspace.slug ||
-            deleteWorkspace.isExecuting
-          }
-          onClick={() => void remove()}
+          className='h-10 shrink-0 rounded-md border border-destructive/60 px-4 text-sm font-medium text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:cursor-not-allowed disabled:opacity-50'
+          disabled={!canManage}
+          onClick={() => setModalOpen(true)}
           type='button'
         >
-          {deleteWorkspace.isExecuting ? 'Deleting…' : 'Delete Workspace'}
+          Delete Workspace
         </button>
         {!canManage ? (
           <p className='text-xs text-muted-foreground'>
             Only a Workspace owner can delete this Workspace.
           </p>
         ) : null}
-        {message ? <p className='text-xs text-destructive' role='alert'>{message}</p> : null}
       </div>
+      <Modal
+        description='This action cannot be undone from Atlas.'
+        onClose={() => {
+          if (!deleteWorkspace.isExecuting) {
+            setModalOpen(false);
+            setConfirmationSlug('');
+            setMessage(null);
+          }
+        }}
+        open={modalOpen}
+        title={`Delete ${workspace.name}?`}
+      >
+        <div className='grid gap-5'>
+          <div className='flex gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4'>
+            <AlertTriangle className='mt-0.5 size-5 shrink-0 text-destructive' />
+            <p className='text-sm leading-6 text-muted-foreground'>
+              This removes {memberCount} {memberCount === 1 ? 'membership' : 'memberships'}, {' '}
+              {sourceCount} {sourceCount === 1 ? 'Source' : 'Sources'}, and {contributorCount} derived {' '}
+              {contributorCount === 1 ? 'contributor' : 'contributors'}. GitHub repositories and your Atlas account remain untouched.
+            </p>
+          </div>
+          <label className='grid gap-2 text-sm font-medium'>
+            Type <span className='font-mono text-destructive'>{workspace.slug}</span> to confirm
+            <input
+              autoComplete='off'
+              autoFocus
+              className='h-11 rounded-lg border border-destructive/50 bg-background px-3 font-normal outline-none focus:border-destructive focus:ring-2 focus:ring-destructive/20 disabled:opacity-60'
+              disabled={deleteWorkspace.isExecuting}
+              onChange={event => setConfirmationSlug(event.target.value)}
+              value={confirmationSlug}
+            />
+          </label>
+          {message ? <p className='text-xs text-destructive' role='alert'>{message}</p> : null}
+          <div className='flex justify-end gap-3'>
+            <button
+              className='h-10 rounded-md border border-border px-4 text-sm font-medium hover:bg-muted'
+              disabled={deleteWorkspace.isExecuting}
+              onClick={() => setModalOpen(false)}
+              type='button'
+            >
+              Cancel
+            </button>
+            <button
+              className='h-10 rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground disabled:cursor-not-allowed disabled:opacity-50'
+              disabled={confirmationSlug !== workspace.slug || deleteWorkspace.isExecuting}
+              onClick={() => void remove()}
+              type='button'
+            >
+              {deleteWorkspace.isExecuting ? 'Deleting…' : 'Delete Workspace'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 };
@@ -585,13 +632,16 @@ export const WorkspaceSettings = ({
                   />
                 </section>
 
-                <WorkspaceImportHistory
-                  canManage={canManage}
-                  imports={sourceImportsQuery.data ?? []}
-                  onChanged={sourceImportsQuery.refetch}
-                  workspaceId={workspace.id}
-                />
               </div>
+            ) : null}
+
+            {activeSection === 'history' ? (
+              <WorkspaceImportHistory
+                canManage={canManage}
+                imports={sourceImportsQuery.data ?? []}
+                onChanged={sourceImportsQuery.refetch}
+                workspaceId={workspace.id}
+              />
             ) : null}
 
             {activeSection === 'people' ? (

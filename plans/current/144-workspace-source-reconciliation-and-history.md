@@ -112,6 +112,8 @@ relations converge together.
       whose installation does not match that Source.
 - [x] Show recent executions in Settings with Source/repository, trigger, revision, status,
       timestamps, duration, and diagnostics/error.
+- [x] Present execution History as its own Settings surface, separate from Source configuration,
+      with provider links for observed Git revisions.
 - [ ] Make the empty/onboarding state distinguish registered, importing, failed, and ready.
 
 ### Slice 3 — progress, cancellation, and cleanup

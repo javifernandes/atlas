@@ -58,3 +58,6 @@ declared compensation without treating every arbitrary external effect as automa
 GitHub Sources retain the App installation that authorizes them. Signed push and merged-PR events
 fan out only to Sources matching both repository and installation, producing independent Workspace
 executions instead of treating the legacy global projection as multi-tenant state.
+Workspace Settings presents these executions as operational History rather than Source
+configuration. Each entry keeps its trigger, lifecycle, timing, repository, and provider revision
+navigable so owners can diagnose stale or failed projections without reconstructing webhook logs.
