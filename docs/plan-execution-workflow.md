@@ -39,6 +39,37 @@ Historical plans remain in the repository where the intervention occurred unless
 the canonical evolving description of an independently owned system. Do not create duplicate
 copies merely to make a local link convenient.
 
+### Consumer and framework plan ownership
+
+Keep the complete product intervention in the repository that owns the product behavior, even when
+the implementation depends on a generic framework such as Ontahí. For Atlas work, Atlas owns the
+plan sections that describe its user experience, domain rules, entities, migrations, rollout,
+acceptance criteria, and application-specific verification.
+
+The framework repository owns only the reusable framework capability discovered or required by
+that consumer work. An Ontahí plan may cite an Atlas plan as consumer evidence, motivation, or an
+adoption proof, but it must express the provider-neutral contract without importing Atlas domain
+vocabulary or making Ontahí authoritative for Atlas product behavior.
+
+Connect the two plans with canonical source URIs rather than copying one plan into the other:
+
+```text
+Atlas product plan
+  -> depends on ontahi://plans/<generic-framework-capability>
+
+Ontahí framework plan
+  -> cites atlas://plans/<consumer-intervention> as evidence
+```
+
+Use the same rule for any external framework or platform:
+
+1. identify which repository owns the observable product outcome;
+2. keep the bulk of that intervention and its closure contract there;
+3. extract only the smallest reusable capability into the provider repository;
+4. let each repository verify and evolve its own responsibility;
+5. do not move a consumer adoption plan into a framework repository merely because the framework
+   supplies its execution primitives.
+
 ## Pull Request Audit
 
 Before opening or updating a PR, answer:
@@ -48,3 +79,5 @@ Before opening or updating a PR, answer:
 3. Did the work change a durable Atlas item?
 4. Should any completed work move to `done/` or produce a focused follow-up?
 5. Are cross-repository references canonical rather than copied or accidentally source-local?
+6. If the work crosses a consumer/framework boundary, does each repository own only its product or
+   provider-neutral portion?
