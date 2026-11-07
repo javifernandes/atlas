@@ -16,11 +16,13 @@ export const WorkspaceSourceConnection = ({
   canManage,
   onConnected,
   onContinue,
+  registeredRepositories = [],
   workspaceId,
 }: {
   canManage: boolean;
   onConnected?: () => Promise<unknown>;
   onContinue?: (repositories: string[]) => void;
+  registeredRepositories?: string[];
   workspaceId: string;
 }) => {
   const registerSource = useOperation(AtlasWorkspaceAdministrationClient.domain.registerSource);
@@ -35,7 +37,8 @@ export const WorkspaceSourceConnection = ({
   const [connectingRepository, setConnectingRepository] = useState<string | null>(null);
   const [connectionRequired, setConnectionRequired] = useState(false);
   const [installationUrl, setInstallationUrl] = useState<string | null>(null);
-  const [loadingRepositories, setLoadingRepositories] = useState(true);
+  const [loadingRepositories, setLoadingRepositories] = useState(false);
+  const [open, setOpen] = useState(Boolean(onContinue));
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState<string | null>(null);
 
@@ -58,7 +61,7 @@ export const WorkspaceSourceConnection = ({
   };
 
   useEffect(() => {
-    if (!canManage) return;
+    if (!canManage || !open) return;
     let active = true;
     void loadRepositories();
     const refreshAfterGitHub = () => {
@@ -69,14 +72,16 @@ export const WorkspaceSourceConnection = ({
       active = false;
       document.removeEventListener('visibilitychange', refreshAfterGitHub);
     };
-  }, [canManage, workspaceId]);
+  }, [canManage, open, workspaceId]);
 
   const visibleRepositories = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return repositories.filter(candidate =>
-      !query || candidate.fullName.toLowerCase().includes(query),
+    return repositories.filter(
+      candidate =>
+        !registeredRepositories.includes(candidate.fullName) &&
+        (!query || candidate.fullName.toLowerCase().includes(query)),
     );
-  }, [repositories, search]);
+  }, [registeredRepositories, repositories, search]);
 
   const connect = async (repository: string) => {
     if (!canManage || registerSource.isExecuting || connectingRepository) return;
@@ -102,6 +107,7 @@ export const WorkspaceSourceConnection = ({
         );
       }
       if (onConnected) await onConnected();
+      if (!onContinue) setOpen(false);
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : 'Atlas could not connect that repository.');
     } finally {
@@ -109,8 +115,45 @@ export const WorkspaceSourceConnection = ({
     }
   };
 
+  if (!open) {
+    return (
+      <div className='grid justify-items-start gap-2'>
+        <button
+          className='h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50'
+          disabled={!canManage}
+          onClick={() => setOpen(true)}
+          type='button'
+        >
+          Add repository
+        </button>
+        {!canManage ? (
+          <p className='text-xs text-muted-foreground'>
+            Only a Workspace owner can connect repositories.
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className='grid gap-3 rounded-lg border border-border p-4'>
+      {!onContinue ? (
+        <div className='flex items-start justify-between gap-4'>
+          <div>
+            <h3 className='text-sm font-medium'>Add a repository</h3>
+            <p className='text-xs text-muted-foreground'>
+              Choose a GitHub repository to import into this Workspace.
+            </p>
+          </div>
+          <button
+            className='text-sm text-muted-foreground hover:text-foreground'
+            onClick={() => setOpen(false)}
+            type='button'
+          >
+            Cancel
+          </button>
+        </div>
+      ) : null}
       <div className='grid gap-2 text-sm font-medium'>
         <span>GitHub repository</span>
         {loadingRepositories ? (

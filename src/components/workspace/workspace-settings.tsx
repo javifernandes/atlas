@@ -20,7 +20,7 @@ import { WorkspaceSourceConnection } from './workspace-source-connection';
 
 const roleOrder = { owner: 0, collaborator: 1, viewer: 2 } as const;
 
-export type WorkspaceSettingsSection = 'danger' | 'general' | 'people' | 'sources';
+export type WorkspaceSettingsSection = 'general' | 'people' | 'sources';
 
 const settingsSections: Array<{
   description: string;
@@ -30,7 +30,6 @@ const settingsSections: Array<{
   { description: 'Identity and access', id: 'general', label: 'General' },
   { description: 'Repositories and imports', id: 'sources', label: 'Sources' },
   { description: 'Members and contributors', id: 'people', label: 'People' },
-  { description: 'Destructive actions', id: 'danger', label: 'Danger Zone' },
 ];
 
 type WorkspaceContributorRow = {
@@ -470,7 +469,7 @@ export const WorkspaceSettings = ({
 
   return (
     <main className='min-h-screen bg-background px-6 py-12 text-foreground'>
-      <div className='mx-auto grid w-full max-w-3xl gap-8'>
+      <div className='mx-auto grid w-full max-w-7xl gap-8'>
         <header className='grid gap-2'>
           <Link className='text-sm text-muted-foreground hover:text-foreground' href={`/w/${workspace.slug}`}>
             ← Back to Atlas
@@ -484,256 +483,249 @@ export const WorkspaceSettings = ({
           </p>
         </header>
 
-        <nav
-          aria-label='Workspace settings sections'
-          className='grid gap-2 border-b border-border sm:grid-cols-4'
-          role='tablist'
-        >
-          {settingsSections.map(section => {
-            const active = section.id === activeSection;
-            return (
-              <Link
-                aria-selected={active}
-                className={`grid gap-0.5 border-b-2 px-3 py-3 text-left transition-colors ${
-                  active
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
-                }`}
-                href={`/w/${encodeURIComponent(workspace.slug)}/settings?section=${section.id}`}
-                id={`settings-tab-${section.id}`}
-                key={section.id}
-                role='tab'
-              >
-                <span className='text-sm font-medium'>{section.label}</span>
-                <span className='hidden text-[11px] sm:block'>{section.description}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {activeSection === 'general' ? (
-          <div aria-labelledby='settings-tab-general' role='tabpanel'>
-            <WorkspaceVisibilitySettings
-              canManage={canManage}
-              onChanged={workspaceQuery.refetch}
-              workspace={workspace}
-            />
-          </div>
-        ) : null}
-
-        {activeSection === 'sources' ? (
-          <div
-            aria-labelledby='settings-tab-sources'
-            className='grid gap-8'
-            role='tabpanel'
+        <div className='grid items-start gap-10 lg:grid-cols-[15rem_minmax(0,1fr)]'>
+          <nav
+            aria-label='Workspace settings sections'
+            className='grid gap-1 lg:sticky lg:top-8'
           >
-          <section className='grid gap-3' id='sources'>
-          <div className='flex items-end justify-between gap-4'>
-            <div>
-              <h2 className='text-lg font-medium'>Sources</h2>
-              <p className='text-sm text-muted-foreground'>
-                Repositories observed inside this Workspace.
-              </p>
-            </div>
-          </div>
-          <WorkspaceSourceConnection
-            canManage={canManage}
-            onConnected={() => Promise.all([sourcesQuery.refetch(), sourceImportsQuery.refetch()])}
-            workspaceId={workspace.id}
-          />
-          <div className='overflow-hidden rounded-lg border border-border'>
-            {sources.length === 0 ? (
-              <p className='px-4 py-6 text-sm text-muted-foreground'>
-                No Sources are registered for this Workspace yet.
-              </p>
-            ) : (
-              sources.map(source => (
-                <div
-                  className='grid gap-2 border-b border-border/70 px-4 py-3 last:border-b-0 sm:grid-cols-[1fr_auto]'
-                  key={source.id}
-                >
-                  <div className='min-w-0'>
-                    <p className='truncate text-sm font-medium'>
-                      {source.provider === 'github' && source.repository ? (
-                        <a
-                          className='hover:text-primary hover:underline'
-                          href={`https://github.com/${source.repository}`}
-                          rel='noreferrer'
-                          target='_blank'
-                        >
-                          {source.repository} ↗
-                        </a>
-                      ) : (
-                        source.repository ?? source.sourceId
-                      )}
-                    </p>
-                    <p className='truncate text-xs text-muted-foreground'>
-                      {source.provider} · {source.ref}
-                    </p>
-                  </div>
-                  <div className='flex items-center gap-3 font-mono text-[11px] uppercase text-muted-foreground'>
-                    <span>{source.status}</span>
-                    <span>{source.contributorAccess.replaceAll('-', ' ')}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          </section>
-
-          <WorkspaceImportHistory
-            canManage={canManage}
-            imports={sourceImportsQuery.data ?? []}
-            onChanged={sourceImportsQuery.refetch}
-            workspaceId={workspace.id}
-          />
-          </div>
-        ) : null}
-
-        {activeSection === 'people' ? (
-          <div
-            aria-labelledby='settings-tab-people'
-            className='grid gap-8'
-            role='tabpanel'
-          >
-          <section className='grid gap-3'>
-          <div>
-            <h2 className='text-lg font-medium'>Members</h2>
-            <p className='text-sm text-muted-foreground'>
-              People with explicit Workspace access, enriched by linked repository activity.
-            </p>
-          </div>
-          <div className='overflow-hidden rounded-lg border border-border'>
-            {memberships.map(membership => {
-              const participation = linkedContributorsByUserId.get(membership.userId);
-              const avatarUrl = membership.user.image ?? participation?.avatarUrl;
-
+            {settingsSections.map(section => {
+              const active = section.id === activeSection;
               return (
-                <div
-                  className='flex items-center justify-between gap-4 border-b border-border/70 px-4 py-3 last:border-b-0'
-                  key={membership.id}
+                <Link
+                  aria-current={active ? 'page' : undefined}
+                  className={`grid gap-0.5 rounded-md border-l-2 px-4 py-3 transition-colors ${
+                    active
+                      ? 'border-primary bg-muted text-foreground'
+                      : 'border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                  }`}
+                  href={`/w/${encodeURIComponent(workspace.slug)}/settings?section=${section.id}`}
+                  key={section.id}
                 >
-                  <div className='flex min-w-0 items-center gap-3'>
-                    {avatarUrl ? (
-                      // Provider avatars are presentation evidence attached to the linked User.
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        alt=''
-                        className='h-9 w-9 rounded-full bg-muted object-cover'
-                        height={36}
-                        src={avatarUrl}
-                        width={36}
-                      />
-                    ) : (
-                      <span className='grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium uppercase'>
-                        {membership.user.name.slice(0, 1)}
-                      </span>
-                    )}
-                    <div className='min-w-0'>
-                      <p className='truncate text-sm font-medium'>{membership.user.name}</p>
-                      <p className='truncate text-xs text-muted-foreground'>
-                        {membership.user.email}
-                      </p>
-                      {participation ? (
-                        <p className='truncate text-xs text-muted-foreground'>
-                          <a
-                            className='hover:text-foreground hover:underline'
-                            href={`https://github.com/${encodeURIComponent(participation.login)}`}
-                            rel='noreferrer'
-                            target='_blank'
-                          >
-                            @{participation.login}
-                          </a>{' '}
-                          · {participationSummary(participation)}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <span className='font-mono text-xs uppercase text-muted-foreground'>
-                    {membership.role}
-                  </span>
-                </div>
+                  <span className='text-sm font-medium'>{section.label}</span>
+                  <span className='text-xs'>{section.description}</span>
+                </Link>
               );
             })}
-          </div>
-          </section>
+          </nav>
 
-          <section className='grid gap-3'>
-          <div>
-            <h2 className='text-lg font-medium'>Contributors to review</h2>
-            <p className='text-sm text-muted-foreground'>
-              Observed repository participants who do not have Workspace access.
-            </p>
-          </div>
-          <div className='overflow-hidden rounded-lg border border-border'>
-            {contributorsToReview.length === 0 ? (
-              <p className='px-4 py-6 text-sm text-muted-foreground'>
-                All observed contributors already have Workspace access.
-              </p>
-            ) : (
-              contributorsToReview.map(contributor => (
-                <div
-                  className='flex items-center justify-between gap-4 border-b border-border/70 px-4 py-3 last:border-b-0'
-                  key={contributor.id}
-                >
-                  <div className='flex min-w-0 items-center gap-3'>
-                    {contributor.avatarUrl ? (
-                      // Provider avatars are observed presentation evidence, not identity proof.
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        alt=''
-                        className='h-8 w-8 rounded-full bg-muted object-cover'
-                        height={32}
-                        src={contributor.avatarUrl}
-                        width={32}
-                      />
+          <div className='min-w-0'>
+            {activeSection === 'general' ? (
+              <div className='grid gap-10'>
+                <WorkspaceVisibilitySettings
+                  canManage={canManage}
+                  onChanged={workspaceQuery.refetch}
+                  workspace={workspace}
+                />
+                <WorkspaceDangerZone
+                  canManage={canManage}
+                  contributorCount={contributorsQuery.data?.length ?? 0}
+                  memberCount={memberships.length}
+                  sourceCount={sources.length}
+                  workspace={workspace}
+                />
+              </div>
+            ) : null}
+
+            {activeSection === 'sources' ? (
+              <div className='grid gap-10'>
+                <section className='grid gap-4' id='sources'>
+                  <div>
+                    <h2 className='text-xl font-medium'>Sources</h2>
+                    <p className='text-sm text-muted-foreground'>
+                      Repositories observed inside this Workspace.
+                    </p>
+                  </div>
+                  <div className='overflow-hidden rounded-lg border border-border'>
+                    {sources.length === 0 ? (
+                      <p className='px-4 py-8 text-sm text-muted-foreground'>
+                        No Sources are registered for this Workspace yet.
+                      </p>
                     ) : (
-                      <span className='grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium uppercase'>
-                        {contributor.login.slice(0, 1)}
-                      </span>
-                    )}
-                    <div className='min-w-0'>
-                      <p className='truncate text-sm font-medium'>
-                        <a
-                          className='hover:text-primary hover:underline'
-                          href={`https://github.com/${encodeURIComponent(contributor.login)}`}
-                          rel='noreferrer'
-                          target='_blank'
+                      sources.map(source => (
+                        <div
+                          className='grid gap-2 border-b border-border/70 px-4 py-3 last:border-b-0 sm:grid-cols-[1fr_auto]'
+                          key={source.id}
                         >
-                          @{contributor.login}
-                        </a>
-                      </p>
-                      <p className='truncate text-xs text-muted-foreground'>
-                        {participationSummary(contributor)} · latest{' '}
-                        {new Date(contributor.lastContributedAt).toLocaleDateString()}
-                      </p>
-                    </div>
+                          <div className='min-w-0'>
+                            <p className='truncate text-sm font-medium'>
+                              {source.provider === 'github' && source.repository ? (
+                                <a
+                                  className='hover:text-primary hover:underline'
+                                  href={`https://github.com/${source.repository}`}
+                                  rel='noreferrer'
+                                  target='_blank'
+                                >
+                                  {source.repository} ↗
+                                </a>
+                              ) : (
+                                source.repository ?? source.sourceId
+                              )}
+                            </p>
+                            <p className='truncate text-xs text-muted-foreground'>
+                              {source.provider} · {source.ref}
+                            </p>
+                          </div>
+                          <div className='flex items-center gap-3 font-mono text-[11px] uppercase text-muted-foreground'>
+                            <span>{source.status}</span>
+                            <span>{source.contributorAccess.replaceAll('-', ' ')}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
-                  <div className='flex shrink-0 items-center gap-2 font-mono text-[11px] uppercase text-muted-foreground'>
-                    {contributor.kind === 'bot' ? <span>bot</span> : null}
-                    <span>
-                      {contributor.linkedUserId ? 'Atlas account linked' : 'no Atlas account'}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          </section>
-          </div>
-        ) : null}
+                  <WorkspaceSourceConnection
+                    canManage={canManage}
+                    onConnected={() =>
+                      Promise.all([sourcesQuery.refetch(), sourceImportsQuery.refetch()])
+                    }
+                    registeredRepositories={sources.flatMap(source =>
+                      source.repository ? [source.repository] : [],
+                    )}
+                    workspaceId={workspace.id}
+                  />
+                </section>
 
-        {activeSection === 'danger' ? (
-          <div aria-labelledby='settings-tab-danger' role='tabpanel'>
-            <WorkspaceDangerZone
-              canManage={canManage}
-              contributorCount={contributorsQuery.data?.length ?? 0}
-              memberCount={memberships.length}
-              sourceCount={sources.length}
-              workspace={workspace}
-            />
+                <WorkspaceImportHistory
+                  canManage={canManage}
+                  imports={sourceImportsQuery.data ?? []}
+                  onChanged={sourceImportsQuery.refetch}
+                  workspaceId={workspace.id}
+                />
+              </div>
+            ) : null}
+
+            {activeSection === 'people' ? (
+              <div className='grid gap-10'>
+                <section className='grid gap-3'>
+                  <div>
+                    <h2 className='text-xl font-medium'>Members</h2>
+                    <p className='text-sm text-muted-foreground'>
+                      People with explicit Workspace access, enriched by linked repository activity.
+                    </p>
+                  </div>
+                  <div className='overflow-hidden rounded-lg border border-border'>
+                    {memberships.map(membership => {
+                      const participation = linkedContributorsByUserId.get(membership.userId);
+                      const avatarUrl = membership.user.image ?? participation?.avatarUrl;
+
+                      return (
+                        <div
+                          className='flex items-center justify-between gap-4 border-b border-border/70 px-4 py-3 last:border-b-0'
+                          key={membership.id}
+                        >
+                          <div className='flex min-w-0 items-center gap-3'>
+                            {avatarUrl ? (
+                              // Provider avatars are presentation evidence attached to the linked User.
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                alt=''
+                                className='h-9 w-9 rounded-full bg-muted object-cover'
+                                height={36}
+                                src={avatarUrl}
+                                width={36}
+                              />
+                            ) : (
+                              <span className='grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium uppercase'>
+                                {membership.user.name.slice(0, 1)}
+                              </span>
+                            )}
+                            <div className='min-w-0'>
+                              <p className='truncate text-sm font-medium'>{membership.user.name}</p>
+                              <p className='truncate text-xs text-muted-foreground'>
+                                {membership.user.email}
+                              </p>
+                              {participation ? (
+                                <p className='truncate text-xs text-muted-foreground'>
+                                  <a
+                                    className='hover:text-foreground hover:underline'
+                                    href={`https://github.com/${encodeURIComponent(participation.login)}`}
+                                    rel='noreferrer'
+                                    target='_blank'
+                                  >
+                                    @{participation.login}
+                                  </a>{' '}
+                                  · {participationSummary(participation)}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                          <span className='font-mono text-xs uppercase text-muted-foreground'>
+                            {membership.role}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section className='grid gap-3'>
+                  <div>
+                    <h2 className='text-xl font-medium'>Contributors to review</h2>
+                    <p className='text-sm text-muted-foreground'>
+                      Observed repository participants who do not have Workspace access.
+                    </p>
+                  </div>
+                  <div className='overflow-hidden rounded-lg border border-border'>
+                    {contributorsToReview.length === 0 ? (
+                      <p className='px-4 py-6 text-sm text-muted-foreground'>
+                        All observed contributors already have Workspace access.
+                      </p>
+                    ) : (
+                      contributorsToReview.map(contributor => (
+                        <div
+                          className='flex items-center justify-between gap-4 border-b border-border/70 px-4 py-3 last:border-b-0'
+                          key={contributor.id}
+                        >
+                          <div className='flex min-w-0 items-center gap-3'>
+                            {contributor.avatarUrl ? (
+                              // Provider avatars are observed presentation evidence, not identity proof.
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                alt=''
+                                className='h-8 w-8 rounded-full bg-muted object-cover'
+                                height={32}
+                                src={contributor.avatarUrl}
+                                width={32}
+                              />
+                            ) : (
+                              <span className='grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium uppercase'>
+                                {contributor.login.slice(0, 1)}
+                              </span>
+                            )}
+                            <div className='min-w-0'>
+                              <p className='truncate text-sm font-medium'>
+                                <a
+                                  className='hover:text-primary hover:underline'
+                                  href={`https://github.com/${encodeURIComponent(contributor.login)}`}
+                                  rel='noreferrer'
+                                  target='_blank'
+                                >
+                                  @{contributor.login}
+                                </a>
+                              </p>
+                              <p className='truncate text-xs text-muted-foreground'>
+                                {participationSummary(contributor)} · latest{' '}
+                                {new Date(contributor.lastContributedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <div className='flex shrink-0 items-center gap-2 font-mono text-[11px] uppercase text-muted-foreground'>
+                            {contributor.kind === 'bot' ? <span>bot</span> : null}
+                            <span>
+                              {contributor.linkedUserId
+                                ? 'Atlas account linked'
+                                : 'no Atlas account'}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        </div>
       </div>
     </main>
   );

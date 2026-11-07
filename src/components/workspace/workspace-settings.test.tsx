@@ -106,11 +106,12 @@ describe('WorkspaceSettings', () => {
       <WorkspaceSettings activeSection='sources' viewer={viewer} workspaceRole='owner' />,
     );
 
+    fireEvent.click(screen.getByRole('button', { name: 'Add repository' }));
     expect(await screen.findByPlaceholderText('Search your repositories…')).toBeEnabled();
     expect(screen.queryByText('Only a Workspace owner can connect repositories.')).not.toBeInTheDocument();
   });
 
-  it('renders section tabs and only the selected settings section', () => {
+  it('renders a settings sidebar and only the selected section', () => {
     useGraphQueryMock
       .mockReturnValueOnce(queryResult({
         data: [{ id: 'workspace-1', name: 'Atlas', slug: 'atlas', visibility: 'private' }],
@@ -124,19 +125,19 @@ describe('WorkspaceSettings', () => {
 
     render(<WorkspaceSettings viewer={viewer} />);
 
-    expect(screen.getByRole('tab', { name: /General/ })).toHaveAttribute(
-      'aria-selected',
-      'true',
+    expect(screen.getByRole('link', { name: /General/ })).toHaveAttribute(
+      'aria-current',
+      'page',
     );
-    expect(screen.getByRole('tab', { name: /Sources/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Sources/ })).toHaveAttribute(
       'href',
       '/w/atlas/settings?section=sources',
     );
-    expect(screen.getByRole('tabpanel')).toHaveAccessibleName(/General/);
     expect(screen.getByRole('heading', { name: 'Visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Danger Zone' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Sources' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Members' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Danger Zone' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Danger Zone/ })).not.toBeInTheDocument();
   });
 
   it('updates visibility from the General section', async () => {
@@ -359,7 +360,7 @@ describe('WorkspaceSettings', () => {
       .mockReturnValueOnce(queryResult({ data: [] }));
 
     render(
-      <WorkspaceSettings activeSection='danger' viewer={viewer} workspaceRole='owner' />,
+      <WorkspaceSettings viewer={viewer} workspaceRole='owner' />,
     );
 
     const deleteButton = screen.getByRole('button', { name: 'Delete Workspace' });

@@ -33,6 +33,7 @@ describe('WorkspaceSourceConnection', () => {
     ][hookCall++ % 3]);
     render(<WorkspaceSourceConnection canManage workspaceId='workspace-1' />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Add repository' }));
     const connectLink = await screen.findByRole('link', {
       name: 'Connect GitHub repositories',
     });

@@ -12,7 +12,6 @@ import {
 export const dynamic = 'force-dynamic';
 
 const workspaceSettingsSections = new Set<WorkspaceSettingsSection>([
-  'danger',
   'general',
   'people',
   'sources',
