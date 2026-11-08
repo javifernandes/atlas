@@ -1,6 +1,6 @@
 # 145. Workspace Source Durable Import Experience
 
-Status: next
+Status: current
 
 Definition level: implementation
 
@@ -113,16 +113,16 @@ Ontahí owns:
 
 ### Slice 2 — Durable import declaration
 
-- [ ] Define typed import input, progress phases, result, and failures.
-- [ ] Bind the run to the Workspace or triggering Source through Ontahí's subject contract.
+- [x] Define typed import input and eventual result; typed progress and Task-level failures remain.
+- [x] Bind each convergence run to its Workspace through Ontahí's subject contract.
 - [ ] Execute repository loading and projection building through the selected durable runtime.
-- [ ] Return `TaskRunRef` before import completion.
+- [x] Return `TaskRunRef` before import completion.
 - [ ] Reuse or skip duplicate triggers through an enforced Ontahí idempotency policy.
 
 ### Slice 3 — non-blocking onboarding and observation
 
-- [ ] Let repository selection continue while several imports are active.
-- [ ] Let `Continue` leave onboarding without waiting.
+- [x] Let repository selection continue while several imports are active.
+- [x] Let `Continue` leave onboarding without waiting.
 - [ ] Render queued/importing/failed/ready status on Workspace home and Settings.
 - [ ] Resume observation after navigation, reload, or a second browser session.
 - [ ] Refresh the Workspace projection only after successful terminal completion.
@@ -166,6 +166,34 @@ Ontahí owns:
    presentation projection.
 4. Current imported data remains usable while a newer reconciliation runs.
 5. History preserves Atlas domain lineage but delegates execution lifecycle to Ontahí.
+6. A reconciliation converges the complete active Source set, so its primary Task subject is the
+   Workspace. The triggering Source remains Atlas provenance rather than Task-discovery identity.
+
+## Implementation Checkpoint — 2026-11-08
+
+Atlas now declares `AtlasWorkspace.reconcileSources` as an Ontahí Durable Operation. Local and test
+composition use Ontahí's in-process runtime; PostgreSQL composition persists Task snapshots in the
+standard Ontahí Task store. The operation returns a queued `TaskRunRef` immediately, and Atlas can
+rediscover runs after losing that ref with bounded `TaskStorage.listBySubject` lookup on the
+Workspace subject. Onboarding and manual retry no longer wait for reconciliation to finish.
+
+Workspace Home and Settings now perform that authorized server-side subject lookup on every render
+and present the newest recovered run as Workspace sync activity. Queued/running state survives
+navigation and reload. Once discovered, Atlas reattaches the run to Ontahí's Durable Operation
+observer over Runtime Transport; terminal state updates automatically and refreshes the server
+projection without a redundant manual refresh affordance. A registered Source with
+no first projection renders as an importing graph node rather than returning to repository setup.
+The same desired-configuration overlay applies to later Sources: Atlas keeps the last successful
+projection visible and adds an `importing` project node for each registered Source not represented
+there yet, regardless of whether it was connected during onboarding or from Settings. No Atlas
+polling route or parallel task DTO is involved.
+
+This checkpoint deliberately does not claim production restart durability or live discovery of a
+new run that begins while the browser remains open. The next Ontahí capability should let a client
+observe the changing set of runs for a subject (or react to Task/Event occurrences); until then,
+Atlas uses explicit server refresh rather than custom polling or a second WebSocket. Atlas must
+also route webhook-triggered Workspace reconciliation through this same durable operation, add
+progress/failure semantics, and select the provider-backed runtime used in production.
 
 ## Open Questions
 

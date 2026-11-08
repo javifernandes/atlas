@@ -1,10 +1,10 @@
 'use client';
 
-import { useGraphQuery, useOperation } from '@ontahi/react/graph';
+import { useDurableOperation, useGraphQuery, useOperation } from '@ontahi/react/graph';
 import { AlertTriangle, ExternalLink, GitCommit, History } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AtlasWorkspaceAdministrationClient } from '@/atlas/client/workspace-administration';
 import {
@@ -15,9 +15,11 @@ import {
   workspaceSourcesQuery,
 } from '@/atlas/workspace/workspace-client-query';
 import type { AtlasViewer } from '@/auth/access';
+import type { AtlasWorkspaceSyncRun } from '@/atlas/workspace/workspace-task-runs';
 
 import { WorkspaceAccessDenied } from './workspace-access-denied';
 import { WorkspaceSourceConnection } from './workspace-source-connection';
+import { WorkspaceSyncActivity } from './workspace-sync-activity';
 import { Modal } from '../ui/modal';
 import { Select } from '../ui/select';
 
@@ -121,7 +123,7 @@ const WorkspaceImportHistory = ({
   onChanged: () => Promise<unknown>;
   workspaceId: string;
 }) => {
-  const reconcileSources = useOperation(
+  const reconcileSources = useDurableOperation(
     AtlasWorkspaceAdministrationClient.domain.reconcileSources,
   );
   const [message, setMessage] = useState<string | null>(null);
@@ -135,11 +137,15 @@ const WorkspaceImportHistory = ({
     });
     if (!result.ok) {
       setMessage(result.message);
-    } else if (result.value.status === 'failed') {
-      setMessage(result.value.error ?? 'Atlas could not import these Sources.');
     }
     await onChanged();
   };
+
+  useEffect(() => {
+    if (reconcileSources.runError?.message) {
+      setMessage(reconcileSources.runError.message);
+    }
+  }, [reconcileSources.runError?.message]);
 
   return (
     <section className='grid gap-5'>
@@ -155,11 +161,18 @@ const WorkspaceImportHistory = ({
         </div>
         <button
           className='h-9 rounded-md border border-border px-3 text-sm font-medium hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50'
-          disabled={!canManage || reconcileSources.isExecuting}
+          disabled={
+            !canManage ||
+            reconcileSources.isExecuting ||
+            reconcileSources.isQueued ||
+            reconcileSources.isRunning
+          }
           onClick={() => void retry()}
           type='button'
         >
-          {reconcileSources.isExecuting ? 'Importing…' : 'Import now'}
+          {reconcileSources.isExecuting || reconcileSources.isQueued || reconcileSources.isRunning
+            ? 'Importing…'
+            : 'Import now'}
         </button>
       </div>
       <div className='overflow-hidden rounded-xl border border-border'>
@@ -443,10 +456,12 @@ const WorkspaceDangerZone = ({
 
 export const WorkspaceSettings = ({
   activeSection = 'general',
+  syncRuns = [],
   viewer,
   workspaceRole,
 }: {
   activeSection?: WorkspaceSettingsSection;
+  syncRuns?: AtlasWorkspaceSyncRun[];
   viewer: AtlasViewer;
   workspaceRole?: 'owner' | 'collaborator' | 'viewer';
 }) => {
@@ -544,6 +559,7 @@ export const WorkspaceSettings = ({
 
   return (
     <main className='min-h-screen bg-background px-6 py-12 text-foreground'>
+      <WorkspaceSyncActivity runs={syncRuns} />
       <div className='mx-auto grid w-full max-w-7xl gap-8'>
         <header className='grid gap-2'>
           <Link className='text-sm text-muted-foreground hover:text-foreground' href={`/w/${workspace.slug}`}>

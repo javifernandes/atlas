@@ -10,10 +10,15 @@ import {
   selectionNot,
 } from '@ontahi/core/data-graph';
 import {
+  createInMemoryTaskStorage,
+  createInProcessTaskRuntime,
   createApplicationRuntimeProtocol,
   entity,
   ontahi,
   relation,
+  type TaskConfig,
+  type TaskRunListItem,
+  type TaskStorage,
 } from '@ontahi/core/runtime/server';
 import { Effect } from 'effect';
 
@@ -1713,9 +1718,12 @@ export const atlasEntities = [
 const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>(input: {
   capabilities: AtlasCapabilities;
   storage: TStorage;
+  taskStorage: TaskStorage;
+  tasks: TaskConfig;
 }) => {
   const application = ontahi({
     storage: input.storage,
+    tasks: input.tasks,
     capabilities: input.capabilities,
     entities: atlasEntities,
   });
@@ -1727,6 +1735,31 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
   return {
     application,
     runtimeProtocol,
+    listWorkspaceSourceTaskRuns: (
+      workspaceId: string,
+      options: { limit?: number; statuses?: readonly TaskRunListItem['status'][] } = {},
+    ) =>
+      Effect.runPromise(
+        input.taskStorage.listBySubject({
+          subject: { type: 'atlas-workspace', id: workspaceId },
+          statuses: options.statuses,
+          limit: options.limit ?? 20,
+        }),
+      ),
+    getWorkspaceSourceTaskRun: (ref: { taskId: string; runId: string }) =>
+      Effect.runPromise(input.taskStorage.getSnapshot(ref)),
+    listWorkspaceSources: (workspaceId: string) =>
+      application.graph.read(
+        query(application.graph.entities.AtlasWorkspaceSource)
+          .where(source => source.workspaceId.eq(workspaceId))
+          .select(source => ({
+            id: source.id,
+            ref: source.ref,
+            repository: source.repository,
+            sourceId: source.sourceId,
+            status: source.status,
+          })),
+      ),
     getUserIdentity: (id: string) =>
       application.graph.read(atlasUserIdentityQuery(id), {
         scope: 'atlas.identity.user',
@@ -1953,7 +1986,16 @@ export const createAtlasOntahiApplicationWithStorage = <
 >(input: {
   capabilities: AtlasCapabilities;
   storage: TStorage;
-}) => composeAtlasOntahiApplication(input);
+  taskStorage?: TaskStorage;
+  tasks?: TaskConfig;
+}) => {
+  const taskStorage = input.taskStorage ?? createInMemoryTaskStorage();
+  return composeAtlasOntahiApplication({
+    ...input,
+    taskStorage,
+    tasks: input.tasks ?? { runtime: createInProcessTaskRuntime({ storage: taskStorage }) },
+  });
+};
 
 export const createAtlasOntahiApplication = (
   records: NormalizedAtlasSourceRecord[],
@@ -1985,12 +2027,15 @@ export const createAtlasOntahiApplication = (
   const storage = createInMemoryDataGraphStorage({
     dataset,
   });
+  const taskStorage = createInMemoryTaskStorage();
   const projectionRevisionId = String(
     (dataset.ProjectionRevision as Array<{ id: string }> | undefined)?.[0]?.id ??
       'projection:in-memory:empty',
   );
   const application = composeAtlasOntahiApplication({
     storage,
+    taskStorage,
+    tasks: { runtime: createInProcessTaskRuntime({ storage: taskStorage }) },
     capabilities: {
       runtime: {
         assistant: {

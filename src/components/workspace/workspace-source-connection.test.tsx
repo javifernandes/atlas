@@ -5,8 +5,10 @@ const registerAsync = vi.hoisted(() => vi.fn());
 const reconcileAsync = vi.hoisted(() => vi.fn());
 const listAsync = vi.hoisted(() => vi.fn());
 const useOperation = vi.hoisted(() => vi.fn());
+const useDurableOperation = vi.hoisted(() => vi.fn());
 const linkSocial = vi.hoisted(() => vi.fn());
 vi.mock('@ontahi/react/graph', () => ({
+  useDurableOperation,
   useOperation,
 }));
 vi.mock('@/auth/client', () => ({
@@ -28,9 +30,12 @@ describe('WorkspaceSourceConnection', () => {
     });
     useOperation.mockImplementation(() => [
       { executeAsync: registerAsync, isExecuting: false },
-      { executeAsync: reconcileAsync, isExecuting: false },
       { executeAsync: listAsync, isExecuting: false },
-    ][hookCall++ % 3]);
+    ][hookCall++ % 2]);
+    useDurableOperation.mockReturnValue({
+      executeAsync: reconcileAsync, isExecuting: false, isQueued: false, isRunning: false,
+      runError: undefined,
+    });
     render(<WorkspaceSourceConnection canManage workspaceId='workspace-1' />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Add repository' }));
@@ -77,9 +82,12 @@ describe('WorkspaceSourceConnection', () => {
     });
     useOperation.mockImplementation(() => [
       { executeAsync: registerAsync, isExecuting: false },
-      { executeAsync: reconcileAsync, isExecuting: false },
       { executeAsync: listAsync, isExecuting: false },
-    ][hookCall++ % 3]);
+    ][hookCall++ % 2]);
+    useDurableOperation.mockReturnValue({
+      executeAsync: reconcileAsync, isExecuting: false, isQueued: false, isRunning: false,
+      runError: undefined,
+    });
     render(
       <WorkspaceSourceConnection
         canManage

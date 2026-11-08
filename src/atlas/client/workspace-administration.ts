@@ -56,6 +56,11 @@ export const AtlasWorkspaceAdministrationClient = defineClientEntity('AtlasWorks
       bridge: {},
       input: AtlasWorkspaceReconcileSourcesInputSchema,
       output: AtlasWorkspaceReconcileSourcesOutputSchema,
+      durable: {
+        runtime: 'in-process',
+        taskId: 'atlas.workspace.reconcile-sources',
+        finalOutput: AtlasWorkspaceReconcileSourcesOutputSchema,
+      },
     }),
     listRepositories: defineClientDomainOperation({
       authority: 'server',
