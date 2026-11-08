@@ -72,6 +72,17 @@ export const atlasWorkspaceMemberReadPolicy = {
       : noSelection,
 } satisfies GraphReadPolicy<typeof AtlasUser, AtlasRuntimeAuthority>;
 
+const atlasWorkspaceMembershipUserReadPolicy = {
+  entity: AtlasUser,
+  modes: ['run'],
+  cardinalities: ['many'],
+  maxLimit: 100,
+  fields: atlasWorkspaceMemberReadPolicy.fields,
+  // The parent Membership is already restricted to the active Workspace. Reapplying the
+  // root User policy here would traverse Membership again while materializing this relation.
+  scope: 'all',
+} satisfies GraphReadPolicy<typeof AtlasUser, AtlasRuntimeAuthority>;
+
 export const atlasWorkspaceMembershipReadPolicy = {
   entity: AtlasWorkspaceMembership,
   selectionRelations: ['user'],
@@ -86,7 +97,7 @@ export const atlasWorkspaceMembershipReadPolicy = {
     status: { select: true },
   },
   relations: {
-    user: atlasWorkspaceMemberReadPolicy,
+    user: atlasWorkspaceMembershipUserReadPolicy,
   },
   scope: membershipScope,
 } satisfies GraphReadPolicy<typeof AtlasWorkspaceMembership, AtlasRuntimeAuthority>;
