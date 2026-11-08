@@ -1,6 +1,6 @@
 'use client';
 
-import { useOperation } from '@ontahi/react/graph';
+import { useDurableOperation, useOperation } from '@ontahi/react/graph';
 import { useEffect, useMemo, useState } from 'react';
 
 import { AtlasWorkspaceAdministrationClient } from '@/atlas/client/workspace-administration';
@@ -26,7 +26,7 @@ export const WorkspaceSourceConnection = ({
   workspaceId: string;
 }) => {
   const registerSource = useOperation(AtlasWorkspaceAdministrationClient.domain.registerSource);
-  const reconcileSources = useOperation(
+  const reconcileSources = useDurableOperation(
     AtlasWorkspaceAdministrationClient.domain.reconcileSources,
   );
   const listRepositories = useOperation(
@@ -100,12 +100,6 @@ export const WorkspaceSourceConnection = ({
         trigger: 'connection',
       });
       if (!reconciliation.ok) throw new Error(reconciliation.message);
-      if (reconciliation.value.status === 'failed') {
-        throw new Error(
-          reconciliation.value.error ??
-            'The repository was connected, but Atlas could not import it.',
-        );
-      }
       if (onConnected) await onConnected();
       if (!onContinue) setOpen(false);
     } catch (cause) {
@@ -114,6 +108,12 @@ export const WorkspaceSourceConnection = ({
       setConnectingRepository(null);
     }
   };
+
+  useEffect(() => {
+    if (reconcileSources.runError?.message) {
+      setMessage(reconcileSources.runError.message);
+    }
+  }, [reconcileSources.runError?.message]);
 
   if (!open) {
     return (

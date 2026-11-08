@@ -3,12 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const useGraphQueryMock = vi.hoisted(() => vi.fn());
 const useOperationMock = vi.hoisted(() => vi.fn());
+const useDurableOperationMock = vi.hoisted(() => vi.fn());
 const pushMock = vi.hoisted(() => vi.fn());
 const refreshMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@ontahi/react/graph', () => ({
+  useDurableOperation: useDurableOperationMock,
   useGraphQuery: useGraphQueryMock,
   useOperation: useOperationMock,
+  useRuntimeTransportCapability: () => undefined,
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
@@ -36,6 +39,7 @@ describe('WorkspaceSettings', () => {
     useGraphQueryMock.mockReset();
     useGraphQueryMock.mockReturnValue(queryResult({ data: [] }));
     useOperationMock.mockReset();
+    useDurableOperationMock.mockReset();
     pushMock.mockReset();
     refreshMock.mockReset();
     useOperationMock.mockReturnValue({
@@ -49,6 +53,10 @@ describe('WorkspaceSettings', () => {
         },
       }),
       isExecuting: false,
+    });
+    useDurableOperationMock.mockReturnValue({
+      executeAsync: vi.fn(), isExecuting: false, isQueued: false, isRunning: false,
+      runError: undefined,
     });
   });
 

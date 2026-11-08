@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { selectionNot } from '@ontahi/core/data-graph';
+import { createInProcessTaskRuntime } from '@ontahi/core/runtime/server';
 import { createPostgresDataGraphStorage } from '@ontahi/postgres/data-graph';
+import { createPostgresTaskStorage } from '@ontahi/postgres/tasks';
 import { Effect } from 'effect';
 import type { Pool } from 'pg';
 
@@ -346,11 +348,14 @@ export const createAtlasPostgresApplication = (input: {
       observe: input.onPostgresQuery,
     }),
   );
+  const taskStorage = createPostgresTaskStorage({ pool: input.pool });
   const atlas = createAtlasOntahiApplicationWithStorage({
     storage: createPostgresDataGraphStorage({
       pool,
       overrides: atlasPostgresMappingOverrides,
     }),
+    taskStorage,
+    tasks: { runtime: createInProcessTaskRuntime({ storage: taskStorage }) },
     capabilities,
   });
   const entities = atlas.application.graph.entities;

@@ -42,7 +42,7 @@ export const WorkspaceEmptyState = ({
           </div>
           <Link
             className='h-10 rounded-md bg-primary px-4 py-2 text-center text-sm font-medium text-primary-foreground'
-            href={`/w/${workspace.slug}/settings`}
+            href={`/w/${workspace.slug}`}
           >
             Open Workspace
           </Link>

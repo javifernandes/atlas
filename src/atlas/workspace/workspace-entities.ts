@@ -604,6 +604,13 @@ export const AtlasWorkspace = entity({
         bridge: {},
         input: AtlasWorkspaceReconcileSourcesInputSchema,
         output: AtlasWorkspaceReconcileSourcesOutputSchema,
+        durable: {
+          runtime: 'in-process',
+          taskId: 'atlas.workspace.reconcile-sources',
+          finalOutput: AtlasWorkspaceReconcileSourcesOutputSchema,
+          subject: input => ({ type: 'atlas-workspace', id: input.workspace.id }),
+          source: { provider: 'atlas', event: 'workspace.sources.reconcile' },
+        },
         run: input =>
           Effect.gen(function* () {
             const principal = getCurrentInvocationContext()?.principal;

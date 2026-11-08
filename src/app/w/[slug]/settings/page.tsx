@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 
 import { getAtlasWorkspaceForUser } from '@/atlas/workspace/workspace-access';
+import { listAtlasWorkspaceSyncRuns } from '@/atlas/workspace/workspace-task-runs';
 import { getAtlasRequestAccess } from '@/auth/server';
 import { AuthLanding } from '@/components/auth/auth-landing';
 import { WorkspaceAccessDenied } from '@/components/workspace/workspace-access-denied';
@@ -38,6 +39,7 @@ const WorkspaceSettingsPage = async ({
 
   const workspace = await getAtlasWorkspaceForUser(access.viewer.id, params.slug);
   if (!workspace) return <WorkspaceAccessDenied viewer={access.viewer} />;
+  const syncRuns = await listAtlasWorkspaceSyncRuns(workspace.id);
   const requestedSection = Array.isArray(searchParams?.section)
     ? searchParams.section[0]
     : searchParams?.section;
@@ -49,6 +51,7 @@ const WorkspaceSettingsPage = async ({
   return (
     <WorkspaceSettings
       activeSection={activeSection}
+      syncRuns={syncRuns}
       viewer={access.viewer}
       workspaceRole={workspace.role}
     />

@@ -360,18 +360,25 @@ describe('AtlasWorkspace.reconcileSources', () => {
     );
     if (!registered.ok) throw new Error('Source fixture was not registered.');
 
-    await expect(
-      withInvocationContext(context, () =>
+    const accepted = await withInvocationContext(context, () =>
         atlas.application.invokeOperation(reconcile, {
           workspace: { id: workspaceId },
           triggerSourceId: (registered.value as { id: string }).id,
           trigger: 'connection',
         }),
-      ),
-    ).resolves.toMatchObject({
-      ok: true,
-      value: { observedRevision: 'abc123', status: 'completed' },
+      );
+    expect(accepted).toMatchObject({ ok: true, value: { status: 'queued' } });
+    if (!accepted.ok) throw new Error('Reconciliation was not accepted.');
+    const acceptedRef = accepted.value as { taskId: string; runId: string };
+    await vi.waitFor(async () => {
+      await expect(atlas.getWorkspaceSourceTaskRun(acceptedRef)).resolves.toMatchObject({
+        result: { observedRevision: 'abc123', status: 'completed' },
+        status: 'completed',
+      });
     });
+    await expect(atlas.listWorkspaceSourceTaskRuns(workspaceId)).resolves.toEqual([
+      expect.objectContaining({ runId: acceptedRef.runId, status: 'completed' }),
+    ]);
     await expect(atlas.getWorkspaceProjectionSnapshot(workspaceId)).resolves.toMatchObject({
       nodes: [{ id: 'plan:product' }],
     });
@@ -389,15 +396,20 @@ describe('AtlasWorkspace.reconcileSources', () => {
     });
 
     reconciler.mockRejectedValueOnce(new Error('Temporary GitHub failure'));
-    await expect(
-      withInvocationContext(context, () =>
+    const retry = await withInvocationContext(context, () =>
         atlas.application.invokeOperation(reconcile, {
           workspace: { id: workspaceId },
           triggerSourceId: null,
           trigger: 'manual',
         }),
-      ),
-    ).resolves.toMatchObject({ ok: true, value: { status: 'failed' } });
+      );
+    expect(retry).toMatchObject({ ok: true, value: { status: 'queued' } });
+    if (!retry.ok) throw new Error('Retry was not accepted.');
+    await vi.waitFor(async () => {
+      await expect(
+        atlas.getWorkspaceSourceTaskRun(retry.value as { taskId: string; runId: string }),
+      ).resolves.toMatchObject({ result: { status: 'failed' }, status: 'completed' });
+    });
     await expect(atlas.getWorkspaceProjectionSnapshot(workspaceId)).resolves.toMatchObject({
       nodes: [{ id: 'plan:product' }],
     });
@@ -433,17 +445,22 @@ describe('AtlasWorkspace.reconcileSources', () => {
     );
     if (!registered.ok) throw new Error('Source fixture was not registered.');
 
-    await expect(
-      withInvocationContext(context, () =>
+    const accepted = await withInvocationContext(context, () =>
         atlas.application.invokeOperation(reconcile, {
           workspace: { id: workspaceId },
           triggerSourceId: (registered.value as { id: string }).id,
           trigger: 'connection',
         }),
-      ),
-    ).resolves.toMatchObject({
-      ok: true,
-      value: { error: 'GitHub tree unavailable', projectionRevisionId: null, status: 'failed' },
+      );
+    expect(accepted).toMatchObject({ ok: true, value: { status: 'queued' } });
+    if (!accepted.ok) throw new Error('Reconciliation was not accepted.');
+    await vi.waitFor(async () => {
+      await expect(
+        atlas.getWorkspaceSourceTaskRun(accepted.value as { taskId: string; runId: string }),
+      ).resolves.toMatchObject({
+        result: { error: 'GitHub tree unavailable', projectionRevisionId: null, status: 'failed' },
+        status: 'completed',
+      });
     });
     await expect(atlas.getWorkspaceProjectionSnapshot(workspaceId)).resolves.toBeNull();
     await expect(

@@ -17,6 +17,7 @@ relatedPlans:
   - plans/next/106-atlas-plan-reconciliation-operation.md
   - plans/done/104-atlas-source-shape-v0.md
   - plans/current/144-workspace-source-reconciliation-and-history.md
+  - plans/current/145-workspace-source-durable-import-experience.md
 ---
 
 [[spec-workstream-atlas.atlas-model.reconciliation|Reconciliation]] is the operation family that compares intention, implementation, evidence, and the current atlas model.
@@ -61,3 +62,11 @@ executions instead of treating the legacy global projection as multi-tenant stat
 Workspace Settings presents these executions as operational History rather than Source
 configuration. Each entry keeps its trigger, lifecycle, timing, repository, and provider revision
 navigable so owners can diagnose stale or failed projections without reconstructing webhook logs.
+
+Workspace convergence is now accepted as an Ontahí Durable Operation rather than an initiating
+request that remains open until GitHub loading completes. Its primary Task subject is the
+Workspace because every run converges the complete active Source set; the Source that triggered it
+remains domain provenance. Atlas may therefore recover bounded recent execution state through
+Ontahí `listBySubject` even when the initiating `TaskRunRef` was lost across navigation or process
+boundaries. Atlas continues to own projection lineage and import provenance, while the Task
+snapshot owns execution lifecycle.
