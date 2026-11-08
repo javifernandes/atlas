@@ -119,6 +119,75 @@ describe('WorkspaceSettings', () => {
     expect(screen.queryByText('Only a Workspace owner can connect repositories.')).not.toBeInTheDocument();
   });
 
+  it('requires the exact repository before removing a Source and reconciling the Workspace', async () => {
+    const sourcesRefetch = vi.fn().mockResolvedValue(undefined);
+    const importsRefetch = vi.fn().mockResolvedValue(undefined);
+    const removeAsync = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { id: 'source-1', repository: 'acme/product', status: 'paused' },
+    });
+    const reconcileAsync = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { runId: 'run-1', status: 'queued' },
+    });
+    useOperationMock.mockReturnValue({ executeAsync: removeAsync, isExecuting: false });
+    useDurableOperationMock.mockReturnValue({
+      executeAsync: reconcileAsync,
+      isExecuting: false,
+      isQueued: false,
+      isRunning: false,
+      runError: undefined,
+    });
+    useGraphQueryMock
+      .mockReturnValueOnce(queryResult({
+        data: [{ id: 'workspace-1', name: 'Acme', slug: 'acme', visibility: 'private' }],
+      }))
+      .mockReturnValueOnce(queryResult({ data: [{
+        id: 'membership-1', role: 'owner', status: 'active', user: viewer, userId: viewer.id,
+      }] }))
+      .mockReturnValueOnce(queryResult({
+        data: [{
+          contributorAccess: 'approval-required',
+          id: 'source-1',
+          provider: 'github',
+          ref: 'main',
+          repository: 'acme/product',
+          sourceId: 'product',
+          status: 'active',
+        }],
+        refetch: sourcesRefetch,
+      }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [], refetch: importsRefetch }));
+
+    render(
+      <WorkspaceSettings activeSection='sources' viewer={viewer} workspaceRole='owner' />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove source' }));
+    const confirmButton = screen.getByRole('button', { name: 'Remove Source' });
+    expect(confirmButton).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Type.*acme\/product.*to confirm/), {
+      target: { value: 'acme/product' },
+    });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(removeAsync).toHaveBeenCalledWith({
+        workspace: { id: 'workspace-1' },
+        source: { id: 'source-1' },
+        confirmationRepository: 'acme/product',
+      });
+      expect(reconcileAsync).toHaveBeenCalledWith({
+        workspace: { id: 'workspace-1' },
+        triggerSourceId: null,
+        trigger: 'source-removal',
+      });
+      expect(sourcesRefetch).toHaveBeenCalledOnce();
+      expect(importsRefetch).toHaveBeenCalledOnce();
+    });
+  });
+
   it('renders a settings sidebar and only the selected section', () => {
     useGraphQueryMock
       .mockReturnValueOnce(queryResult({

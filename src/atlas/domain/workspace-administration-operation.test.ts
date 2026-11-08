@@ -340,7 +340,7 @@ describe('AtlasWorkspace.reconcileSources', () => {
     const reconciler = vi.fn().mockResolvedValue(projection);
     const context = {
       principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
-      resources: new Map([
+      resources: new Map<string, unknown>([
         [ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE, {
           installationUrl: () => Promise.resolve('https://github.test/install'),
           list: () => Promise.resolve({
@@ -470,6 +470,155 @@ describe('AtlasWorkspace.reconcileSources', () => {
           .select(sourceImport => ({ error: sourceImport.error, status: sourceImport.status })),
       ),
     ).resolves.toEqual([{ error: 'GitHub tree unavailable', status: 'failed' }]);
+  });
+});
+
+describe('AtlasWorkspace.removeSource', () => {
+  const discovery = {
+    installationUrl: () => Promise.resolve('https://github.test/install'),
+    list: () => Promise.resolve({
+      connectionRequired: false,
+      installationUrl: 'https://github.test/install',
+      repositories: [{
+        defaultRef: 'main',
+        fullName: 'acme/product',
+        installationId: 'installation-1',
+        isPrivate: false,
+      }],
+    }),
+  };
+
+  it('requires owner authority and exact repository confirmation while preserving the Source', async () => {
+    const atlas = createAtlasOntahiApplication([], {
+      workspaceRoleFor: () => Effect.succeed('owner'),
+    });
+    const register = atlas.application.graph.entities.AtlasWorkspace.domain.registerSource;
+    const remove = atlas.application.graph.entities.AtlasWorkspace.domain.removeSource;
+    const context = {
+      principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+      resources: new Map([[ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE, discovery]]),
+    } as never;
+    const registered = await withInvocationContext(context, () =>
+      atlas.application.invokeOperation(register, {
+        workspace: { id: workspaceId }, repository: 'acme/product',
+      }),
+    );
+    if (!registered.ok) throw new Error('Source fixture was not registered.');
+    const sourceId = (registered.value as { id: string }).id;
+
+    await expect(
+      withInvocationContext(context, () =>
+        atlas.application.invokeOperation(remove, {
+          workspace: { id: workspaceId }, source: { id: sourceId },
+          confirmationRepository: 'product',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'workspace_source_confirmation_mismatch' },
+    });
+    await expect(
+      withInvocationContext(context, () =>
+        atlas.application.invokeOperation(remove, {
+          workspace: { id: workspaceId }, source: { id: sourceId },
+          confirmationRepository: 'acme/product',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { id: sourceId, repository: 'acme/product', status: 'paused' },
+    });
+    await expect(
+      atlas.application.graph.read(
+        query(atlas.application.graph.entities.AtlasWorkspaceSource)
+          .where(source => source.id.eq(sourceId))
+          .select(source => ({ repository: source.repository, status: source.status })),
+      ),
+    ).resolves.toEqual([{ repository: 'acme/product', status: 'paused' }]);
+
+    await expect(
+      withInvocationContext(context, () =>
+        atlas.application.invokeOperation(register, {
+          workspace: { id: workspaceId }, repository: 'acme/product',
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true, value: { id: sourceId } });
+    await expect(
+      atlas.application.graph.read(
+        query(atlas.application.graph.entities.AtlasWorkspaceSource)
+          .where(source => source.id.eq(sourceId))
+          .select(source => ({ status: source.status })),
+      ),
+    ).resolves.toEqual([{ status: 'active' }]);
+  });
+
+  it('fences an older reconciliation from publishing after desired Sources change', async () => {
+    let resolveReconciliation!: (value: {
+      observedAt: string;
+      snapshot: { documents: never[]; edges: never[]; generatedAt: string; metrics: never[]; nodes: never[]; territories: never[] };
+      sourceRevisionSetHash: string;
+      sourceRevisions: never[];
+    }) => void;
+    const reconciliation = new Promise<Parameters<typeof resolveReconciliation>[0]>(resolve => {
+      resolveReconciliation = resolve;
+    });
+    const reconciler = vi.fn(() => reconciliation);
+    const atlas = createAtlasOntahiApplication([], {
+      workspaceRoleFor: () => Effect.succeed('owner'),
+    });
+    const operations = atlas.application.graph.entities.AtlasWorkspace.domain;
+    const context = {
+      principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+      resources: new Map<string, unknown>([
+        [ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE, discovery],
+        [ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE, { reconcile: reconciler }],
+      ]),
+    } as never;
+    const registered = await withInvocationContext(context, () =>
+      atlas.application.invokeOperation(operations.registerSource, {
+        workspace: { id: workspaceId }, repository: 'acme/product',
+      }),
+    );
+    if (!registered.ok) throw new Error('Source fixture was not registered.');
+    const sourceId = (registered.value as { id: string }).id;
+    const accepted = await withInvocationContext(context, () =>
+      atlas.application.invokeOperation(operations.reconcileSources, {
+        workspace: { id: workspaceId }, triggerSourceId: sourceId, trigger: 'connection',
+      }),
+    );
+    if (!accepted.ok) throw new Error('Reconciliation was not accepted.');
+    await vi.waitFor(() => expect(reconciler).toHaveBeenCalledOnce());
+
+    await withInvocationContext(context, () =>
+      atlas.application.invokeOperation(operations.removeSource, {
+        workspace: { id: workspaceId }, source: { id: sourceId },
+        confirmationRepository: 'acme/product',
+      }),
+    );
+    resolveReconciliation({
+      observedAt: '2026-11-08T12:00:00.000Z',
+      snapshot: {
+        documents: [], edges: [], generatedAt: '2026-11-08T12:00:00.000Z',
+        metrics: [], nodes: [], territories: [],
+      },
+      sourceRevisionSetHash: 'stale-revision',
+      sourceRevisions: [],
+    });
+
+    await vi.waitFor(async () => {
+      await expect(
+        atlas.getWorkspaceSourceTaskRun(
+          accepted.value as { taskId: string; runId: string },
+        ),
+      ).resolves.toMatchObject({
+        result: {
+          error: 'Workspace Source configuration changed while this import was running.',
+          projectionRevisionId: null,
+          status: 'failed',
+        },
+      });
+    });
+    await expect(atlas.getWorkspaceProjectionSnapshot(workspaceId)).resolves.toBeNull();
   });
 });
 

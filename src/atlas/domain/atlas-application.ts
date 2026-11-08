@@ -1752,6 +1752,7 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
       application.graph.read(
         query(application.graph.entities.AtlasWorkspaceSource)
           .where(source => source.workspaceId.eq(workspaceId))
+          .where(source => source.status.eq('active'))
           .select(source => ({
             id: source.id,
             ref: source.ref,

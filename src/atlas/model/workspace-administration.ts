@@ -44,10 +44,22 @@ export const AtlasWorkspaceRegisterSourceOutputSchema = graphSchema.object({
   ref: field.nonEmptyString({ trim: true }),
 });
 
+export const AtlasWorkspaceRemoveSourceInputSchema = graphSchema.object({
+  workspace: graphSchema.object({ id: field.id() }),
+  source: graphSchema.object({ id: field.id() }),
+  confirmationRepository: field.nonEmptyString({ trim: true }),
+});
+
+export const AtlasWorkspaceRemoveSourceOutputSchema = graphSchema.object({
+  id: field.id(),
+  repository: field.nonEmptyString({ trim: true }),
+  status: field.enum(['paused']),
+});
+
 export const AtlasWorkspaceReconcileSourcesInputSchema = graphSchema.object({
   workspace: graphSchema.object({ id: field.id() }),
   triggerSourceId: field.nullable(field.id()),
-  trigger: field.enum(['connection', 'manual']),
+  trigger: field.enum(['connection', 'manual', 'source-removal']),
 });
 
 export const AtlasWorkspaceReconcileSourcesOutputSchema = graphSchema.object({

@@ -58,7 +58,7 @@ const AtlasWorkspaceSourceImportSchema = defineEntitySchema('AtlasWorkspaceSourc
   id: field.id(),
   workspaceId: field.id(),
   triggerSourceId: field.nullable(field.id()),
-  trigger: field.enum(['connection', 'manual', 'push', 'pull-request']),
+  trigger: field.enum(['connection', 'manual', 'push', 'pull-request', 'source-removal']),
   providerDeliveryId: field.nullable(field.string()),
   triggerRevision: field.nullable(field.string()),
   pullRequestNumber: field.nullable(field.number()),
