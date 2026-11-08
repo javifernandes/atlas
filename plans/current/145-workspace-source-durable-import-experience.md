@@ -105,11 +105,11 @@ Ontahí owns:
 
 ### Slice 1 — Source removal and configuration fencing
 
-- [ ] Add owner-authorized Source removal as desired-configuration mutation.
-- [ ] Preserve Source identity and import History after removal.
-- [ ] Introduce a stable Workspace Source configuration revision.
-- [ ] Reject projection publication from a run whose accepted configuration was superseded.
-- [ ] Trigger convergence of the remaining active Source set.
+- [x] Add owner-authorized Source removal as desired-configuration mutation.
+- [x] Preserve Source identity and import History after removal.
+- [x] Introduce a stable Workspace Source configuration revision.
+- [x] Reject projection publication from a run whose accepted configuration was superseded.
+- [x] Trigger convergence of the remaining active Source set.
 
 ### Slice 2 — Durable import declaration
 
@@ -143,7 +143,7 @@ Ontahí owns:
 - [ ] Reload/navigation resumes observation of the same Task Run.
 - [ ] A successful run advances only its Workspace projection.
 - [ ] A failed run preserves the previous projection and remains retryable.
-- [ ] A removed Source disappears from desired configuration and stale work cannot republish it.
+- [x] A removed Source disappears from desired configuration and stale work cannot republish it.
 - [ ] Repeated provider delivery starts or reuses work according to enforced idempotency.
 - [ ] History retains domain provenance without becoming a custom task runtime.
 - [ ] Atlas contains no custom queue, worker protocol, lease, or task polling DTO.
@@ -187,6 +187,15 @@ The same desired-configuration overlay applies to later Sources: Atlas keeps the
 projection visible and adds an `importing` project node for each registered Source not represented
 there yet, regardless of whether it was connected during onboarding or from Settings. No Atlas
 polling route or parallel task DTO is involved.
+
+Workspace owners can now remove a Source through an exact-repository confirmation. Removal changes
+desired configuration by pausing the Source record rather than deleting it, so Source identity and
+import History remain intact and reconnecting the same repository reactivates that identity. Atlas
+then starts the same Workspace-subject reconciliation over the remaining active Source set,
+including the empty set when the last Source is removed. Each accepted run records a deterministic
+hash of its active Source inputs. Before publication, Atlas recomputes that hash inside the graph
+transaction and records the run as failed instead of publishing when configuration has moved on.
+This fences stale work without claiming runtime cancellation or automatic rollback.
 
 This checkpoint deliberately does not claim production restart durability or live discovery of a
 new run that begins while the browser remains open. The next Ontahí capability should let a client

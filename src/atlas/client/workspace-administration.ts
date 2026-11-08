@@ -12,6 +12,8 @@ import {
   AtlasWorkspaceDeleteOutputSchema,
   AtlasWorkspaceRegisterSourceInputSchema,
   AtlasWorkspaceRegisterSourceOutputSchema,
+  AtlasWorkspaceRemoveSourceInputSchema,
+  AtlasWorkspaceRemoveSourceOutputSchema,
   AtlasWorkspaceReconcileSourcesInputSchema,
   AtlasWorkspaceReconcileSourcesOutputSchema,
   AtlasWorkspaceListRepositoriesInputSchema,
@@ -49,6 +51,13 @@ export const AtlasWorkspaceAdministrationClient = defineClientEntity('AtlasWorks
       bridge: {},
       input: AtlasWorkspaceRegisterSourceInputSchema,
       output: AtlasWorkspaceRegisterSourceOutputSchema,
+    }),
+    removeSource: defineClientDomainOperation({
+      authority: 'server',
+      exposure: 'bridge',
+      bridge: {},
+      input: AtlasWorkspaceRemoveSourceInputSchema,
+      output: AtlasWorkspaceRemoveSourceOutputSchema,
     }),
     reconcileSources: defineClientDomainOperation({
       authority: 'server',

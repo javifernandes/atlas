@@ -8,7 +8,7 @@ import {
   type ModelProvider,
 } from '@ontahi/core/runtime/server';
 import { Effect } from 'effect';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import {
   AtlasPlanAssistantInputSchema,
@@ -25,6 +25,8 @@ import {
   AtlasWorkspaceDeleteOutputSchema,
   AtlasWorkspaceRegisterSourceInputSchema,
   AtlasWorkspaceRegisterSourceOutputSchema,
+  AtlasWorkspaceRemoveSourceInputSchema,
+  AtlasWorkspaceRemoveSourceOutputSchema,
   AtlasWorkspaceReconcileSourcesInputSchema,
   AtlasWorkspaceReconcileSourcesOutputSchema,
   AtlasWorkspaceListRepositoriesInputSchema,
@@ -139,7 +141,7 @@ export const atlasWorkspaceSourceImportFields = {
   id: field.id(),
   workspaceId: field.id(),
   triggerSourceId: field.nullable(field.id()),
-  trigger: field.enum(['connection', 'manual', 'push', 'pull-request']),
+  trigger: field.enum(['connection', 'manual', 'push', 'pull-request', 'source-removal']),
   providerDeliveryId: field.nullable(field.string()),
   triggerRevision: field.nullable(field.string()),
   pullRequestNumber: field.nullable(field.number()),
@@ -170,6 +172,29 @@ export const atlasWorkspaceProjectionRevisionFields = {
   startedAt: field.nonEmptyString({ trim: true }),
   createdAt: field.nonEmptyString({ trim: true }),
 };
+
+const sourceConfigurationRevision = (
+  sources: Array<{
+    id: string;
+    ref: string;
+    repository: string | null;
+    sourceId: string;
+  }>,
+) =>
+  createHash('sha256')
+    .update(
+      JSON.stringify(
+        [...sources]
+          .sort((left, right) => left.id.localeCompare(right.id))
+          .map(source => ({
+            id: source.id,
+            ref: source.ref,
+            repository: source.repository,
+            sourceId: source.sourceId,
+          })),
+      ),
+    )
+    .digest('hex');
 
 const AtlasAuthAccountRef = entity.ref('AtlasAuthAccount', { fields: atlasAuthAccountFields });
 const AtlasWorkspaceMembershipRef = entity.ref('AtlasWorkspaceMembership', {
@@ -553,11 +578,30 @@ export const AtlasWorkspace = entity({
               .where(source => source.repository.eq(inspected.fullName))
               .limit(1)
               .run();
-            if (duplicate[0]) {
+            if (duplicate[0]?.status === 'active') {
               return yield* failOperation(
                 'workspace_source_exists',
                 'That repository is already connected to this Workspace.',
               );
+            }
+
+            if (duplicate[0]) {
+              const timestamp = new Date().toISOString();
+              yield* entities.sources
+                .where(source => source.id.eq(duplicate[0]!.id))
+                .update({
+                  providerInstallationId,
+                  ref: inspected.defaultRef,
+                  status: 'active',
+                  updatedAt: timestamp,
+                })
+                .run();
+              return {
+                id: duplicate[0].id,
+                sourceId: duplicate[0].sourceId,
+                repository: inspected.fullName,
+                ref: inspected.defaultRef,
+              };
             }
 
             const repositoryName = inspected.fullName.split('/').at(-1) ?? inspected.fullName;
@@ -598,6 +642,55 @@ export const AtlasWorkspace = entity({
             };
           }),
       }),
+      removeSource: operation.atomic({
+        description: 'Remove a Source from desired Workspace configuration under owner authority.',
+        exposure: 'bridge',
+        bridge: {},
+        input: AtlasWorkspaceRemoveSourceInputSchema,
+        output: AtlasWorkspaceRemoveSourceOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const principal = getCurrentInvocationContext()?.principal;
+            const role =
+              principal?.kind === 'user'
+                ? yield* app.runtime.workspaceAuthorization.roleFor(
+                    principal.subject,
+                    input.workspace.id,
+                  )
+                : null;
+            if (role !== 'owner') {
+              return yield* failOperation(
+                'workspace_owner_required',
+                'Only an active Workspace owner can remove Sources.',
+              );
+            }
+
+            const source = (yield* entities.sources
+              .where(candidate => candidate.id.eq(input.source.id))
+              .where(candidate => candidate.workspaceId.eq(input.workspace.id))
+              .limit(1)
+              .run())[0];
+            if (!source || source.status !== 'active' || !source.repository) {
+              return yield* failOperation(
+                'workspace_source_not_found',
+                'That active Source no longer exists in this Workspace.',
+              );
+            }
+            if (input.confirmationRepository.trim() !== source.repository) {
+              return yield* failOperation(
+                'workspace_source_confirmation_mismatch',
+                'Type the exact repository name to confirm removal.',
+              );
+            }
+
+            yield* entities.sources
+              .where(candidate => candidate.id.eq(source.id))
+              .update({ status: 'paused', updatedAt: new Date().toISOString() })
+              .run();
+
+            return { id: source.id, repository: source.repository, status: 'paused' as const };
+          }),
+      }),
       reconcileSources: operation({
         description: 'Reconcile active Sources into an immutable Workspace projection revision.',
         exposure: 'bridge',
@@ -632,12 +725,13 @@ export const AtlasWorkspace = entity({
               .where(source => source.workspaceId.eq(input.workspace.id))
               .where(source => source.status.eq('active'))
               .run();
-            if (sources.length === 0) {
+            if (sources.length === 0 && input.trigger !== 'source-removal') {
               return yield* failOperation(
                 'workspace_sources_empty',
                 'Connect at least one active Source before reconciling this Workspace.',
               );
             }
+            const acceptedConfigurationRevision = sourceConfigurationRevision(sources);
             const triggerSource = input.triggerSourceId
               ? sources.find(source => source.id === input.triggerSourceId)
               : undefined;
@@ -674,7 +768,9 @@ export const AtlasWorkspace = entity({
               startedAt,
               completedAt: null,
               error: null,
-              diagnosticsJson: '{}',
+              diagnosticsJson: JSON.stringify({
+                sourceConfigurationRevision: acceptedConfigurationRevision,
+              }),
             }).run();
 
             return yield* Effect.tryPromise({
@@ -718,6 +814,28 @@ export const AtlasWorkspace = entity({
                   const sourceRevisionsJson = JSON.stringify(result.sourceRevisions);
                   return app.graph.transaction(
                     Effect.gen(function* () {
+                      const currentSources = yield* entities.sources
+                        .where(source => source.workspaceId.eq(input.workspace.id))
+                        .where(source => source.status.eq('active'))
+                        .run();
+                      if (
+                        sourceConfigurationRevision(currentSources) !==
+                        acceptedConfigurationRevision
+                      ) {
+                        const error =
+                          'Workspace Source configuration changed while this import was running.';
+                        yield* entities.sourceImports
+                          .where(candidate => candidate.id.eq(id))
+                          .update({ status: 'failed', completedAt, error })
+                          .run();
+                        return {
+                          id,
+                          status: 'failed' as const,
+                          projectionRevisionId: null,
+                          observedRevision: null,
+                          error,
+                        };
+                      }
                       yield* entities.projectionRevisions.insert({
                         id: projectionRevisionId,
                         workspaceId: input.workspace.id,

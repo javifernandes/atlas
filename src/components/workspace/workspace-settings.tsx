@@ -1,7 +1,7 @@
 'use client';
 
 import { useDurableOperation, useGraphQuery, useOperation } from '@ontahi/react/graph';
-import { AlertTriangle, ExternalLink, GitCommit, History } from 'lucide-react';
+import { AlertTriangle, ExternalLink, GitCommit, History, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -49,6 +49,148 @@ type WorkspaceContributorRow = {
   provider: 'github';
   providerAccountId: string;
   sourceId: string;
+};
+
+type WorkspaceSourceRow = {
+  contributorAccess: 'off' | 'approval-required' | 'automatic-viewer';
+  id: string;
+  provider: 'github' | 'local';
+  ref: string;
+  repository: string | null;
+  sourceId: string;
+  status: 'active' | 'paused';
+};
+
+const WorkspaceSourceSettingsRow = ({
+  canManage,
+  onChanged,
+  source,
+  workspaceId,
+}: {
+  canManage: boolean;
+  onChanged: () => Promise<unknown>;
+  source: WorkspaceSourceRow;
+  workspaceId: string;
+}) => {
+  const removeSource = useOperation(
+    AtlasWorkspaceAdministrationClient.domain.removeSource,
+  );
+  const reconcileSources = useDurableOperation(
+    AtlasWorkspaceAdministrationClient.domain.reconcileSources,
+  );
+  const [modalOpen, setModalOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+
+  const remove = async () => {
+    if (!source.repository) return;
+    setMessage(null);
+    const result = await removeSource.executeAsync({
+      workspace: { id: workspaceId },
+      source: { id: source.id },
+      confirmationRepository: confirmation,
+    });
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    const reconciliation = await reconcileSources.executeAsync({
+      workspace: { id: workspaceId },
+      triggerSourceId: null,
+      trigger: 'source-removal',
+    });
+    if (!reconciliation.ok) {
+      setMessage(reconciliation.message);
+      return;
+    }
+    setModalOpen(false);
+    setConfirmation('');
+    await onChanged();
+  };
+
+  return (
+    <>
+      <div className='grid gap-2 border-b border-border/70 px-4 py-3 last:border-b-0 sm:grid-cols-[1fr_auto]'>
+        <div className='min-w-0'>
+          <p className='truncate text-sm font-medium'>
+            {source.provider === 'github' && source.repository ? (
+              <a
+                className='hover:text-primary hover:underline'
+                href={`https://github.com/${source.repository}`}
+                rel='noreferrer'
+                target='_blank'
+              >
+                {source.repository} ↗
+              </a>
+            ) : (
+              source.repository ?? source.sourceId
+            )}
+          </p>
+          <p className='truncate text-xs text-muted-foreground'>
+            {source.provider} · {source.ref}
+          </p>
+        </div>
+        <div className='flex items-center gap-3'>
+          <div className='flex items-center gap-3 font-mono text-[11px] uppercase text-muted-foreground'>
+            <span>{source.status}</span>
+            <span>{source.contributorAccess.replaceAll('-', ' ')}</span>
+          </div>
+          {canManage && source.repository ? (
+            <button
+              aria-label='Remove source'
+              className='inline-grid size-8 place-items-center rounded-md border border-destructive/50 text-destructive transition-colors hover:border-destructive hover:bg-destructive/10'
+              onClick={() => setModalOpen(true)}
+              title='Remove source'
+              type='button'
+            >
+              <Trash2 aria-hidden='true' className='size-3.5' />
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <Modal
+        description='Atlas will preserve import History and rebuild the Workspace without this repository.'
+        onClose={() => setModalOpen(false)}
+        open={modalOpen}
+        title='Remove Source?'
+      >
+        <div className='grid gap-4'>
+          <label className='grid gap-2 text-sm font-medium'>
+            Type <span className='font-mono'>{source.repository}</span> to confirm
+            <input
+              className='h-10 rounded-md border border-border bg-background px-3 font-normal outline-none focus:border-destructive'
+              onChange={event => setConfirmation(event.target.value)}
+              value={confirmation}
+            />
+          </label>
+          {message ? <p className='text-xs text-destructive' role='alert'>{message}</p> : null}
+          <div className='flex justify-end gap-3'>
+            <button
+              className='h-10 rounded-md border border-border px-4 text-sm font-medium hover:bg-muted'
+              onClick={() => setModalOpen(false)}
+              type='button'
+            >
+              Cancel
+            </button>
+            <button
+              className='h-10 rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground disabled:cursor-not-allowed disabled:opacity-50'
+              disabled={
+                confirmation !== source.repository ||
+                removeSource.isExecuting ||
+                reconcileSources.isExecuting
+              }
+              onClick={() => void remove()}
+              type='button'
+            >
+              {removeSource.isExecuting || reconcileSources.isExecuting
+                ? 'Removing…'
+                : 'Remove Source'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
+  );
 };
 
 const groupContributorRows = (rows: WorkspaceContributorRow[]) => {
@@ -109,7 +251,7 @@ const WorkspaceImportHistory = ({
   canManage: boolean;
   imports: Array<{
     id: string;
-    trigger: 'connection' | 'manual' | 'push' | 'pull-request';
+    trigger: 'connection' | 'manual' | 'push' | 'pull-request' | 'source-removal';
     providerDeliveryId: string | null;
     triggerRevision: string | null;
     pullRequestNumber: number | null;
@@ -540,9 +682,11 @@ export const WorkspaceSettings = ({
         roleOrder[left.role] - roleOrder[right.role] ||
         left.user.name.localeCompare(right.user.name),
     );
-  const sources = [...(sourcesQuery.data ?? [])].sort((left, right) =>
+  const sources = [...(sourcesQuery.data ?? [])]
+    .filter(source => source.status === 'active')
+    .sort((left, right) =>
     left.sourceId.localeCompare(right.sourceId),
-  );
+    );
   const contributorGroups = groupContributorRows(contributorsQuery.data ?? []);
   const linkedContributorsByUserId = new Map(
     contributorGroups.flatMap(contributor =>
@@ -633,34 +777,15 @@ export const WorkspaceSettings = ({
                       </p>
                     ) : (
                       sources.map(source => (
-                        <div
-                          className='grid gap-2 border-b border-border/70 px-4 py-3 last:border-b-0 sm:grid-cols-[1fr_auto]'
+                        <WorkspaceSourceSettingsRow
+                          canManage={canManage}
                           key={source.id}
-                        >
-                          <div className='min-w-0'>
-                            <p className='truncate text-sm font-medium'>
-                              {source.provider === 'github' && source.repository ? (
-                                <a
-                                  className='hover:text-primary hover:underline'
-                                  href={`https://github.com/${source.repository}`}
-                                  rel='noreferrer'
-                                  target='_blank'
-                                >
-                                  {source.repository} ↗
-                                </a>
-                              ) : (
-                                source.repository ?? source.sourceId
-                              )}
-                            </p>
-                            <p className='truncate text-xs text-muted-foreground'>
-                              {source.provider} · {source.ref}
-                            </p>
-                          </div>
-                          <div className='flex items-center gap-3 font-mono text-[11px] uppercase text-muted-foreground'>
-                            <span>{source.status}</span>
-                            <span>{source.contributorAccess.replaceAll('-', ' ')}</span>
-                          </div>
-                        </div>
+                          onChanged={() =>
+                            Promise.all([sourcesQuery.refetch(), sourceImportsQuery.refetch()])
+                          }
+                          source={source}
+                          workspaceId={workspace.id}
+                        />
                       ))
                     )}
                   </div>

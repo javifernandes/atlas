@@ -70,3 +70,10 @@ remains domain provenance. Atlas may therefore recover bounded recent execution 
 Ontahí `listBySubject` even when the initiating `TaskRunRef` was lost across navigation or process
 boundaries. Atlas continues to own projection lineage and import provenance, while the Task
 snapshot owns execution lifecycle.
+
+Workspace Source removal is a desired-configuration transition, not destructive History cleanup.
+Atlas pauses the registered Source so its identity and prior import lineage remain durable, then
+reconciles the complete remaining active set. Every convergence run binds to a deterministic hash
+of the Source identities and repository inputs it accepted. Publication revalidates that hash in
+the graph transaction; a superseded run becomes failed History and cannot replace the current
+projection. Reconnecting the same repository reactivates its existing Source identity.
