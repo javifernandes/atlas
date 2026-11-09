@@ -3,6 +3,9 @@ import { createHash } from 'node:crypto';
 import { buildPlanWorkstreamSnapshotFromFiles } from '../markdown/build-snapshot';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import {
+  isAtlasItemMarkdownPath,
+  isAtlasPackageManifestPath,
+  loadAtlasSourceDefinitions,
   loadAtlasSourceSetObservation,
   type AtlasLoadedSourceRevision,
   type AtlasSource,
@@ -34,25 +37,40 @@ export const reconcileAtlasWorkspaceSources = async (input: {
   repoRoot: string;
   sources: AtlasWorkspaceSourceReconciliationInput['sources'];
 }): Promise<AtlasWorkspaceSourceReconciliationResult> => {
+  const configuredSources =
+    process.env.NODE_ENV === 'production' ? [] : loadAtlasSourceDefinitions(input.repoRoot);
+  const sources = input.sources.map(source => {
+    const configuredSource = configuredSources.find(candidate => candidate.id === source.id);
+
+    if (configuredSource?.localRoot) {
+      return { ...source, localRoot: configuredSource.localRoot };
+    }
+
+    return source.id === 'atlas' && process.env.NODE_ENV !== 'production'
+      ? { ...source, localRoot: '.' }
+      : source;
+  });
   const observation = await loadAtlasSourceSetObservation({
     fetcher: input.fetcher,
     repoRoot: input.repoRoot,
-    sources: input.sources,
+    sources,
   });
   const observedSourceIds = new Set(
     observation.sourceRevisions.map(revision => revision.sourceId),
   );
-  const emptySources = input.sources.filter(source => !observedSourceIds.has(source.id));
+  const emptySources = sources.filter(source => !observedSourceIds.has(source.id));
   if (emptySources.length > 0) {
     throw new Error(
       `No Atlas plans or items were found in ${emptySources
         .map(source => source.repository)
-        .join(', ')}. Expected Markdown under plans/ or atlas/items/.`,
+        .join(', ')}. Expected plans, Atlas Items, or an atlas.package.md manifest.`,
     );
   }
   const snapshot = buildPlanWorkstreamSnapshotFromFiles(
     observation.files.filter(file => file.path.startsWith('plans/')),
-    observation.files.filter(file => file.path.startsWith('atlas/items/')),
+    observation.files.filter(
+      file => isAtlasItemMarkdownPath(file.path) || isAtlasPackageManifestPath(file.path),
+    ),
   );
   const sourceRevisionSetHash = createHash('sha256')
     .update(

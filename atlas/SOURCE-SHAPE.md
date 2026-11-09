@@ -33,6 +33,19 @@ atlas/items/<project>/<item>/<child>.md
 
 The folder path is for human navigation. The stable identity is the `id` frontmatter field.
 
+An implementation package may instead declare a colocated semantic root and items:
+
+```txt
+<package-root>/atlas.package.md
+<package-root>/atlas/items/<item>.md
+<package-root>/atlas/items/<area>/<item>.md
+```
+
+`atlas.package.md` is the package manifest. Atlas discovers it and its package-local items anywhere
+inside a Source repository. The manifest uses ordinary item frontmatter with `kind: package`; local
+items use their stable `parent` id to opt into that package boundary. Package discovery does not
+infer semantic ownership from arbitrary folders or from `package.json` alone.
+
 ## Item Frontmatter
 
 ```yaml
@@ -77,6 +90,20 @@ evidence:
 8. `paths`: source paths inside a repository that ground this shape.
 
 Experimental fields may be ignored by the current UI until the extractor supports them.
+
+## Local Workspace Reconciliation
+
+Editing a local Source changes neither an existing Workspace projection nor its immutable revision
+history automatically. After changing Atlas Item or Plan Markdown in a configured `localRoot`, run:
+
+```bash
+pnpm db:reconcile:workspace <workspace-slug>
+```
+
+The command invokes the same durable `AtlasWorkspace.reconcileSources` Operation as **Import now**
+in Workspace Settings and waits for its Task Run. `pnpm db:reconcile` updates the global projection;
+it is not a substitute for a Workspace import. A future generic Ontahí CLI may project this same
+Operation as an `invoke --watch` workflow with trigger coalescing.
 
 ## Declarations And References
 
@@ -174,21 +201,22 @@ Signals can live anywhere. A future idea about `Entity` can be written inside a 
 The v0 kind set is intentionally broad enough to name what we already discuss in plans:
 
 1. `project`: a root system or extracted project.
-2. `territory`: a broad area within a project.
-3. `model`: a named model or ontology area when `territory` is not precise enough.
-4. `concept`: a model term that may or may not become code.
-5. `experience`: a human-facing or operator-facing workflow.
-6. `capability`: something the system can do.
-7. `entity`: a domain or persisted object.
-8. `operation`: an action the system or a person can perform.
-9. `artifact`: generated, persisted, rendered, or derived output.
-10. `policy`: a rule, constraint, permission, or invariant.
-11. `state`: a named lifecycle or product state.
-12. `relation`: a named relationship between model items.
-13. `system-primitive`: a low-level framework primitive.
-14. `tooling`: supporting developer or operational tooling.
-15. `evidence`: a grouped evidence area.
-16. `practice`: a working agreement or repeatable operating method.
+2. `package`: a repository-local implementation and semantic ownership boundary.
+3. `territory`: a broad area within a project.
+4. `model`: a named model or ontology area when `territory` is not precise enough.
+5. `concept`: a model term that may or may not become code.
+6. `experience`: a human-facing or operator-facing workflow.
+7. `capability`: something the system can do.
+8. `entity`: a domain or persisted object.
+9. `operation`: an action the system or a person can perform.
+10. `artifact`: generated, persisted, rendered, or derived output.
+11. `policy`: a rule, constraint, permission, or invariant.
+12. `state`: a named lifecycle or product state.
+13. `relation`: a named relationship between model items.
+14. `system-primitive`: a low-level framework primitive.
+15. `tooling`: supporting developer or operational tooling.
+16. `evidence`: a grouped evidence area.
+17. `practice`: a working agreement or repeatable operating method.
 
 Avoid adding kinds because they sound elegant. Add them when they improve navigation, closure, evidence review, or stale-state detection.
 

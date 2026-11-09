@@ -45,7 +45,11 @@ import {
   resolveExecutionStreamForkPlans,
 } from '../model/execution-stream';
 import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
-import type { AtlasLoadedSourceRevision } from '../sources/markdown-source';
+import {
+  isAtlasItemMarkdownPath,
+  isAtlasPackageManifestPath,
+  type AtlasLoadedSourceRevision,
+} from '../sources/markdown-source';
 import {
   AtlasAuthAccount,
   AtlasUser,
@@ -987,7 +991,7 @@ const buildInMemorySourceRevisions = (records: NormalizedAtlasSourceRecord[]) =>
 };
 
 const sourceRecordKind = (record: NormalizedAtlasSourceRecord) =>
-  record.sourcePath.startsWith('atlas/items/')
+  isAtlasItemMarkdownPath(record.sourcePath) || isAtlasPackageManifestPath(record.sourcePath)
     ? ('item' as const)
     : record.sourcePath.startsWith('plans/')
       ? ('plan' as const)
@@ -1064,7 +1068,9 @@ const buildAtlasOntahiDatasetFromSource = (
   });
   const snapshot = buildPlanWorkstreamSnapshotFromFiles(
     sourceFiles.filter(file => file.path.startsWith('plans/')),
-    sourceFiles.filter(file => file.path.startsWith('atlas/items/')),
+    sourceFiles.filter(
+      file => isAtlasItemMarkdownPath(file.path) || isAtlasPackageManifestPath(file.path),
+    ),
   );
   const sourceRevisionSetHash = sha256(
     sourceRevisions

@@ -3,6 +3,78 @@ import { describe, expect, it } from 'vitest';
 import { buildPlanWorkstreamSnapshotFromFiles } from './build-snapshot';
 
 describe('plan workstream data', () => {
+  it('projects a package manifest and its colocated items as semantic containment', () => {
+    const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
+      {
+        path: 'examples/classroom/atlas.package.md',
+        source: 'atlas',
+        content: `---
+id: atlas.examples.classroom
+kind: package
+title: Classroom
+parent: atlas
+status: active
+packageName: '@ontahi/example-classroom'
+packageType: example
+---
+`,
+      },
+      {
+        path: 'examples/classroom/atlas/items/enrollment-invitation.md',
+        source: 'atlas',
+        content: `---
+id: atlas.examples.classroom.enrollment-invitation
+kind: entity
+title: Enrollment Invitation
+parent: atlas.examples.classroom
+status: shaping
+---
+`,
+      },
+      {
+        path: 'atlas/items/atlas.md',
+        source: 'atlas',
+        content: `---
+id: atlas
+kind: project
+title: Atlas
+status: active
+---
+`,
+      },
+    ]);
+
+    expect(snapshot.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'atlas:atlas.examples.classroom',
+        kind: 'package',
+        path: 'atlas://examples/classroom/atlas.package.md',
+        packageName: '@ontahi/example-classroom',
+        packagePath: 'examples/classroom',
+        packageType: 'example',
+        sourcePath: 'examples/classroom/atlas.package.md',
+        status: 'active',
+        statusGroup: 'current',
+      }),
+      expect.objectContaining({
+        id: 'atlas:atlas.examples.classroom.enrollment-invitation',
+        kind: 'entity',
+      }),
+    ]));
+    expect(snapshot.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        from: 'atlas:atlas',
+        kind: 'contains',
+        to: 'atlas:atlas.examples.classroom',
+      }),
+      expect.objectContaining({
+        from: 'atlas:atlas.examples.classroom',
+        kind: 'contains',
+        to: 'atlas:atlas.examples.classroom.enrollment-invitation',
+      }),
+    ]));
+  });
+
   it('projects repository provenance onto source-backed nodes', () => {
     const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
       {

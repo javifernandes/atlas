@@ -123,6 +123,62 @@ const walkMarkdownFiles = (
     });
 };
 
+const ignoredSourceDirectories = new Set([
+  '.git',
+  '.next',
+  '.turbo',
+  '.vercel',
+  'build',
+  'coverage',
+  'dist',
+  'node_modules',
+  'out',
+]);
+
+export const isAtlasPackageManifestPath = (filePath: string) =>
+  filePath === 'atlas.package.md' || filePath.endsWith('/atlas.package.md');
+
+export const isAtlasItemMarkdownPath = (filePath: string) =>
+  (filePath.startsWith('atlas/items/') || filePath.includes('/atlas/items/')) &&
+  filePath.endsWith('.md');
+
+const isAtlasSourceMarkdownPath = (filePath: string) =>
+  ((filePath.startsWith('plans/') && filePath.endsWith('.md')) ||
+    isAtlasItemMarkdownPath(filePath) ||
+    isAtlasPackageManifestPath(filePath));
+
+const walkAtlasSourceMarkdownFiles = (
+  directory: string,
+  sourceRoot: string,
+  source?: string,
+): AtlasMarkdownFile[] => {
+  if (!fs.existsSync(directory)) return [];
+
+  return fs
+    .readdirSync(directory, { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .flatMap(entry => {
+      if (entry.isDirectory() && ignoredSourceDirectories.has(entry.name)) return [];
+
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        return walkAtlasSourceMarkdownFiles(fullPath, sourceRoot, source);
+      }
+
+      const relativePath = path.relative(sourceRoot, fullPath).replaceAll(path.sep, '/');
+      return entry.isFile() && isAtlasSourceMarkdownPath(relativePath)
+        ? [{ path: relativePath, content: fs.readFileSync(fullPath, 'utf8'), source }]
+        : [];
+    });
+};
+
+const atlasSourceFileOrder = (left: AtlasMarkdownFile, right: AtlasMarkdownFile) => {
+  const rank = (file: AtlasMarkdownFile) =>
+    file.path.startsWith('plans/') ? 0 : file.path.startsWith('atlas/items/') ? 1 : 2;
+
+  return rank(left) - rank(right) || left.path.localeCompare(right.path);
+};
+
 const contentRevision = (files: AtlasMarkdownFile[]) =>
   createHash('sha256')
     .update(
@@ -159,10 +215,6 @@ export const walkLocalAtlasMarkdownFiles = (
   sourceRoot: string,
   source?: string,
 ) => walkMarkdownFiles(directory, sourceRoot, source);
-
-const isAtlasSourceMarkdownPath = (filePath: string) =>
-  (filePath.startsWith('atlas/items/') || filePath.startsWith('plans/')) &&
-  filePath.endsWith('.md');
 
 const fetchGithubSourceFiles = async (source: AtlasSource, fetcher: typeof fetch) => {
   const repositoryName = parseGitHubRepositoryName(source.repository);
@@ -286,15 +338,10 @@ export const loadAtlasSource = async (
 ) => {
   const localRoot = source.localRoot ? path.resolve(repoRoot, source.localRoot) : undefined;
 
-  if (
-    localRoot &&
-    (fs.existsSync(path.join(localRoot, 'atlas', 'items')) ||
-      fs.existsSync(path.join(localRoot, 'plans')))
-  ) {
-    const files = [
-      ...walkMarkdownFiles(path.join(localRoot, 'plans'), localRoot, source.id),
-      ...walkMarkdownFiles(path.join(localRoot, 'atlas', 'items'), localRoot, source.id),
-    ];
+  if (localRoot && fs.existsSync(localRoot)) {
+    const files = walkAtlasSourceMarkdownFiles(localRoot, localRoot, source.id).sort(
+      atlasSourceFileOrder,
+    );
 
     return withSourceRevision(files, {
       sourceId: source.id,
@@ -367,10 +414,9 @@ const loadAtlasOwnedFiles = async (input: LoadAtlasSourcesInput) => {
   }
 
   const { repoRoot } = input;
-  const files = [
-    ...walkMarkdownFiles(path.join(repoRoot, 'plans'), repoRoot, 'atlas'),
-    ...walkMarkdownFiles(path.join(repoRoot, 'atlas', 'items'), repoRoot, 'atlas'),
-  ];
+  const files = walkAtlasSourceMarkdownFiles(repoRoot, repoRoot, 'atlas').sort(
+    atlasSourceFileOrder,
+  );
   const revision =
     process.env.VERCEL_GIT_COMMIT_SHA?.trim() ?? process.env.GITHUB_SHA?.trim();
 

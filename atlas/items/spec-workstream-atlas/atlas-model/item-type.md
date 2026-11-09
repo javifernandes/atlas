@@ -12,8 +12,12 @@ supports:
 relatedPlans:
   - plans/next/108-atlas-item-type-model.md
   - plans/done/107-plan-model-research-and-v0.md
+  - plans/current/146-package-manifest-and-classroom-model.md
 exemplars:
   - spec-workstream-atlas.atlas-model.plan
+  - spec-workstream-atlas.atlas-model.package
+  - spec-workstream-atlas.atlas-model.entity
+  - ontahi.examples.classroom.enrollment-invitation
   - bookops.model.book
   - bookops.reader-experience
   - ontahi.model.domain-operation
@@ -31,3 +35,13 @@ An item type should earn first-class status by having at least one of these:
 4. distinct lifecycle or evolution behavior.
 
 `Plan` is the first worked example because it already exposes operations such as review state, close, reconcile, extract follow-ups, and reshape. The next passes should contrast it with a product/model item such as Book and an experience item such as Reader Experience or Sharing And Collaboration.
+
+`Package` is the second concrete boundary: unlike a repository Source or a temporal Plan, it owns a
+local semantic namespace and implementation surface. The Classroom Package then supplies the first
+external-domain `Entity` experiment through Enrollment Invitation. Its behavior model will test
+typed Operations, applicability, authority, effects, invariants, and derived interaction views
+without first describing Atlas's own collaboration domain recursively.
+
+`Entity` begins with one authoring anatomy: Data, Relations, States, Operations, and Invariants.
+Operations declare availability as `Actor + Applies when`, allowing Atlas to derive temporal and
+interaction views without making a statechart or screen flow another source of truth.

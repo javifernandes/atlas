@@ -360,6 +360,94 @@ const selection: Selection = Selection.references(Book, refs);
     fetchMock.mockRestore();
   });
 
+  it('shows package identity and source links in full detail', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=classroom-package');
+    const packageNode = {
+      ...createNode('classroom-package', {
+        kind: 'package',
+        markdown: 'A model-first example package.',
+        semanticId: 'ontahi.examples.classroom',
+        shortTitle: 'Classroom',
+      }),
+      packageName: '@ontahi/example-classroom',
+      packagePath: 'examples/classroom',
+      packageType: 'example',
+      sourcePath: 'examples/classroom/atlas.package.md',
+      sourceRepository: 'javifernandes/ontahi',
+      sourceRevision: '0123456789abcdef',
+      sourceRevisionKind: 'git' as const,
+    };
+
+    renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, packageNode] } });
+
+    const details = screen.getByRole('region', { name: 'Package details' });
+    expect(within(details).getByText('@ontahi/example-classroom')).toBeInTheDocument();
+    expect(within(details).getByText('examples/classroom')).toBeInTheDocument();
+    expect(within(details).getByRole('link', { name: /browse code/i })).toHaveAttribute(
+      'href',
+      'https://github.com/javifernandes/ontahi/tree/0123456789abcdef/examples/classroom',
+    );
+    expect(within(details).getByRole('link', { name: /view manifest/i })).toHaveAttribute(
+      'href',
+      'https://github.com/javifernandes/ontahi/blob/0123456789abcdef/examples/classroom/atlas.package.md',
+    );
+  });
+
+  it('aggregates descendant Plans without placing structural Package children in Evolution', () => {
+    globalThis.history.replaceState(
+      {},
+      '',
+      '/internal/plans?full=classroom-package&section=evolution',
+    );
+    const packageNode = createNode('classroom-package', {
+      kind: 'package',
+      markdown: 'A model-first example package.',
+      semanticId: 'ontahi.examples.classroom',
+      shortTitle: 'Classroom',
+    });
+    const entityNode = createNode('enrollment-invitation', {
+      kind: 'entity',
+      markdown: 'A durable invitation.',
+      semanticId: 'ontahi.examples.classroom.enrollment-invitation',
+      shortTitle: 'Enrollment Invitation',
+    });
+    const planNode = createNode('classroom-behavior-plan', {
+      kind: 'plan',
+      markdown: 'Shape classroom behavior.',
+      semanticId: 'ontahi://plans/classroom-behavior',
+      shortTitle: 'Classroom Behavior',
+      statusGroup: 'next',
+    });
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: [...snapshot.nodes, packageNode, entityNode, planNode],
+      edges: [
+        ...snapshot.edges,
+        {
+          id: 'classroom-contains-invitation',
+          from: packageNode.id,
+          to: entityNode.id,
+          kind: 'contains',
+        },
+        {
+          id: 'classroom-shaped-by-plan',
+          from: entityNode.id,
+          to: planNode.id,
+          kind: 'shaped-by',
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+
+    const dialog = screen.getByRole('dialog');
+    const nextColumn = within(dialog).getByRole('heading', { name: 'Next' }).closest('section');
+
+    expect(nextColumn).not.toBeNull();
+    expect(within(nextColumn as HTMLElement).getByText('Classroom Behavior')).toBeInTheDocument();
+    expect(within(dialog).queryByText('sub-shape')).not.toBeInTheDocument();
+  });
+
   it('shows source-load failures as a calm centered detail state', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-b');
     const fetchMock = vi

@@ -475,6 +475,7 @@ const nodeClassName = (node: PlanWorkstreamNode, selected: boolean, focusLevel: 
     statusAccentClassName(node.statusGroup),
     node.kind === 'candidate' && 'border-dashed bg-muted/45',
     node.kind === 'project' && 'bg-background/95',
+    node.kind === 'package' && 'bg-background/95',
     node.kind === 'model' && 'bg-background/95',
     node.kind === 'concept' && 'bg-muted/55',
     node.kind === 'experience' && 'bg-card/95',
@@ -519,7 +520,10 @@ const nodeShieldClassName = (node: PlanWorkstreamNode) =>
     'pointer-events-none absolute inset-0 rounded-md shadow-[0_2px_12px_rgba(15,23,42,0.08)]',
     node.kind === 'root'
       ? 'bg-foreground'
-      : node.kind === 'project' || node.kind === 'model' || node.kind === 'territory'
+      : node.kind === 'project' ||
+          node.kind === 'package' ||
+          node.kind === 'model' ||
+          node.kind === 'territory'
         ? 'bg-background'
         : mutedNodeShieldKinds.has(node.kind)
           ? 'bg-muted'
@@ -1678,6 +1682,48 @@ const getEvolutionEntries = (
   });
 };
 
+const getPackageEvolutionEntries = (
+  packageNodeId: string,
+  edges: PlanWorkstreamEdge[],
+  nodesById: Map<string, PlanWorkstreamNode>,
+) => {
+  const descendantNodeIds = new Set<string>();
+  const pendingNodeIds = [packageNodeId];
+
+  while (pendingNodeIds.length > 0) {
+    const currentNodeId = pendingNodeIds.shift();
+    if (!currentNodeId) continue;
+
+    for (const edge of edges) {
+      if (edge.kind !== 'contains' || edge.from !== currentNodeId) continue;
+      if (descendantNodeIds.has(edge.to)) continue;
+
+      descendantNodeIds.add(edge.to);
+      pendingNodeIds.push(edge.to);
+    }
+  }
+
+  const entriesByPlanId = new Map<string, EvolutionEntry>();
+
+  for (const subjectNodeId of [packageNodeId, ...descendantNodeIds]) {
+    for (const entry of getEvolutionEntries(subjectNodeId, edges, nodesById)) {
+      if (entry.node.kind !== 'plan') continue;
+
+      const existingEntry = entriesByPlanId.get(entry.node.id);
+      if (!existingEntry) {
+        entriesByPlanId.set(entry.node.id, entry);
+        continue;
+      }
+
+      for (const role of entry.roles) {
+        if (!existingEntry.roles.includes(role)) existingEntry.roles.push(role);
+      }
+    }
+  }
+
+  return [...entriesByPlanId.values()];
+};
+
 const getContextHierarchyRelations = (relations: DrawerRelation[]) =>
   relations.filter(relation => {
     if (relation.kind === 'contains') {
@@ -2185,6 +2231,63 @@ const sourceFileHref = (node: PlanWorkstreamNode) => {
     .split('/')
     .map(part => encodeURIComponent(part))
     .join('/')}`;
+};
+
+const packageCodeHref = (node: PlanWorkstreamNode) => {
+  if (!node.sourceRepository || !node.packagePath) return null;
+  const revision = node.sourceRevisionKind === 'git' ? node.sourceRevision : 'main';
+  const encodedPath = node.packagePath
+    .split('/')
+    .filter(part => part && part !== '.')
+    .map(part => encodeURIComponent(part))
+    .join('/');
+
+  return `https://github.com/${node.sourceRepository}/tree/${encodeURIComponent(revision || 'main')}${encodedPath ? `/${encodedPath}` : ''}`;
+};
+
+const PackageOverview = ({ node }: { node: PlanWorkstreamNode }) => {
+  if (node.kind !== 'package') return null;
+
+  const codeHref = packageCodeHref(node);
+  const manifestHref = sourceFileHref(node);
+  const facts = [
+    node.packageName ? { label: 'Package', value: node.packageName } : null,
+    node.packageType ? { label: 'Type', value: node.packageType } : null,
+    node.packagePath ? { label: 'Path', value: node.packagePath } : null,
+  ].filter((fact): fact is { label: string; value: string } => Boolean(fact));
+
+  if (facts.length === 0 && !codeHref && !manifestHref) return null;
+
+  return (
+    <section aria-label='Package details' className='rounded-lg border border-border/70 bg-muted/20 p-4'>
+      <div className='grid gap-4 sm:grid-cols-3'>
+        {facts.map(fact => (
+          <div key={fact.label} className='min-w-0'>
+            <div className='font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground'>
+              {fact.label}
+            </div>
+            <div className='mt-1 truncate font-mono text-sm text-foreground' title={fact.value}>
+              {fact.value}
+            </div>
+          </div>
+        ))}
+      </div>
+      {codeHref || manifestHref ? (
+        <div className='mt-4 flex flex-wrap gap-4 border-t border-border/60 pt-3 text-sm'>
+          {codeHref ? (
+            <a className='inline-flex items-center gap-1.5 text-primary hover:underline' href={codeHref} rel='noreferrer' target='_blank'>
+              Browse code <ExternalLink className='size-3.5' />
+            </a>
+          ) : null}
+          {manifestHref ? (
+            <a className='inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:underline' href={manifestHref} rel='noreferrer' target='_blank'>
+              View manifest <ExternalLink className='size-3.5' />
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
 };
 
 const resolveSourceMetadataNode = (
@@ -3706,8 +3809,11 @@ const FullMarkdownModal = ({
     signal => signal.kind === 'decision' || signal.kind === 'evidence',
   );
   const evolutionEntries = useMemo(
-    () => getEvolutionEntries(node.id, edges, nodesById),
-    [edges, node.id, nodesById],
+    () =>
+      node.kind === 'package'
+        ? getPackageEvolutionEntries(node.id, edges, nodesById)
+        : getEvolutionEntries(node.id, edges, nodesById),
+    [edges, node.id, node.kind, nodesById],
   );
   const nodeEvidence = useMemo(
     () => evidence.filter(binding => binding.targetNodeId === node.id),
@@ -3988,6 +4094,7 @@ const FullMarkdownModal = ({
           ) : (
             <div className='grid min-w-0 gap-6 px-1 sm:px-2 xl:grid-cols-[minmax(0,1fr)_12rem]'>
               <article className='grid min-w-0 max-w-full gap-5 overflow-hidden break-words xl:pr-2 [&>*]:min-w-0 [&>*]:max-w-full'>
+                <PackageOverview node={node} />
                 {renderMarkdownBody(overviewBody, markdownContext)}
               </article>
               {contentStatus === 'loaded' ? (
@@ -4023,7 +4130,11 @@ const FullMarkdownModal = ({
 
                     <EvolutionBoardColumn
                       count={currentEntries.length + tensionSignals.length}
-                      subtitle='Active work, live sub-shapes, and current pressure on the shape.'
+                      subtitle={
+                        node.kind === 'package'
+                          ? 'Active Plans and current pressure on the Package.'
+                          : 'Active work, live sub-shapes, and current pressure on the shape.'
+                      }
                       title='Now'
                     >
                       <EvolutionEntryList

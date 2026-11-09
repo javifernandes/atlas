@@ -98,6 +98,44 @@ sources:
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it('discovers package manifests and package-local items without loading unrelated Markdown', async () => {
+    const repoRoot = createTemporaryDirectory();
+    const sourceRoot = createTemporaryDirectory();
+    writeSourceRegistry(repoRoot, sourceRoot);
+    fs.mkdirSync(path.join(sourceRoot, 'packages', 'classroom', 'atlas', 'items'), {
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(sourceRoot, 'node_modules', 'ignored', 'atlas', 'items'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(sourceRoot, 'packages', 'classroom', 'atlas.package.md'),
+      '# Classroom',
+    );
+    fs.writeFileSync(
+      path.join(sourceRoot, 'packages', 'classroom', 'atlas', 'items', 'invitation.md'),
+      '# Invitation',
+    );
+    fs.writeFileSync(path.join(sourceRoot, 'packages', 'classroom', 'README.md'), '# Ignore');
+    fs.writeFileSync(
+      path.join(sourceRoot, 'node_modules', 'ignored', 'atlas', 'items', 'noise.md'),
+      '# Ignore dependency',
+    );
+
+    await expect(loadAtlasSourceFiles({ repoRoot })).resolves.toEqual([
+      {
+        path: 'packages/classroom/atlas.package.md',
+        content: '# Classroom',
+        source: 'product',
+      },
+      {
+        path: 'packages/classroom/atlas/items/invitation.md',
+        content: '# Invitation',
+        source: 'product',
+      },
+    ]);
+  });
+
   it('loads public GitHub Markdown when the sibling checkout is unavailable', async () => {
     const repoRoot = createTemporaryDirectory();
     writeSourceRegistry(repoRoot, '../missing-product');
@@ -112,19 +150,35 @@ sources:
           tree: [
             { path: 'atlas/items/product.md', sha: 'product-blob', type: 'blob' },
             { path: 'plans/next/12-bridge.md', sha: 'bridge-blob', type: 'blob' },
+            { path: 'packages/classroom/atlas.package.md', sha: 'package-blob', type: 'blob' },
+            {
+              path: 'packages/classroom/atlas/items/invitation.md',
+              sha: 'invitation-blob',
+              type: 'blob',
+            },
             { path: 'packages/core/package.json', type: 'blob' },
           ],
         });
       }
 
+      if (url.includes('packages/classroom/atlas.package.md')) return new Response('# Classroom');
+      if (url.includes('packages/classroom/atlas/items')) return new Response('# Invitation');
       return new Response(url.includes('atlas/items') ? '# Product' : '# Bridge');
     }) as typeof fetch;
 
     await expect(loadAtlasSourceFiles({ fetcher, repoRoot })).resolves.toEqual([
       { path: 'atlas/items/product.md', content: '# Product', source: 'product' },
       { path: 'plans/next/12-bridge.md', content: '# Bridge', source: 'product' },
+      {
+        path: 'packages/classroom/atlas.package.md', content: '# Classroom', source: 'product',
+      },
+      {
+        path: 'packages/classroom/atlas/items/invitation.md',
+        content: '# Invitation',
+        source: 'product',
+      },
     ]);
-    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher).toHaveBeenCalledTimes(5);
     expect(
       requestedUrls.slice(1).every(url => url.includes('/observed-sha/')),
     ).toBe(true);

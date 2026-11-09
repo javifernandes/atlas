@@ -32,6 +32,54 @@ import {
 } from './atlas-application';
 
 describe('Atlas Ontahi fit pilot', () => {
+  it('hydrates package manifests and package-local items into the persisted domain dataset', async () => {
+    const files: AtlasMarkdownFile[] = [
+      {
+        path: 'atlas/items/product.md',
+        source: 'product',
+        content: `---
+id: product
+kind: project
+title: Product
+status: active
+---
+`,
+      },
+      {
+        path: 'packages/classroom/atlas.package.md',
+        source: 'product',
+        content: `---
+id: product.classroom
+kind: package
+title: Classroom
+parent: product
+status: active
+---
+`,
+      },
+      {
+        path: 'packages/classroom/atlas/items/invitation.md',
+        source: 'product',
+        content: `---
+id: product.classroom.invitation
+kind: entity
+title: Enrollment Invitation
+parent: product.classroom
+status: shaping
+---
+`,
+      },
+    ];
+    const atlas = createAtlasOntahiApplication(files.map(normalizeAtlasSourceRecord));
+
+    await expect(atlas.getItemContext('product.classroom')).resolves.toMatchObject({
+      kind: 'package',
+      semanticId: 'product.classroom',
+      status: 'active',
+      children: [{ semanticId: 'product.classroom.invitation', title: 'Enrollment Invitation' }],
+    });
+  });
+
   it('hydrates normalized records and preserves declared relations before viewer derivation', async () => {
     const files: AtlasMarkdownFile[] = [
       {
