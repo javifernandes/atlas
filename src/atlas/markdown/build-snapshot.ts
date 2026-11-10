@@ -21,6 +21,7 @@ import type {
   PlanWorkstreamSnapshot,
   PlanWorkstreamTerritory,
 } from '../model/snapshot';
+import { parseEntityModel } from './entity-model';
 
 type PlanMarkdownFile = NormalizedAtlasSourceRecord;
 
@@ -104,6 +105,7 @@ export type ParsedAtlasItem = {
   sourceRevisionKind?: 'git' | 'content-sha256';
   territory: string;
   workstream?: string;
+  entityModel?: PlanWorkstreamNode['entityModel'];
 };
 
 type FrontmatterValue = string | string[];
@@ -544,6 +546,7 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
     sourceRevision: file.sourceRevision,
     sourceRevisionKind: file.sourceRevisionKind,
     territory: title,
+    entityModel: kind === 'entity' ? parseEntityModel(body) : undefined,
   };
 };
 
@@ -694,6 +697,7 @@ const toAtlasNode = (item: ParsedAtlasItem): PlanWorkstreamNode => ({
   summary: item.summary,
   sections: item.sections,
   exemplars: item.exemplars,
+  entityModel: item.entityModel,
   relatedCount: 0,
   candidateCount: 0,
 });

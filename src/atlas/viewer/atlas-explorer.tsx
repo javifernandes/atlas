@@ -42,6 +42,7 @@ import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { ScrollableOverflow } from '@/components/scrollable-overflow';
 import { useTheme } from '@/components/theme-provider';
 import type { AtlasExecutionStreamProjection } from '@/atlas/model/execution-stream';
+import { buildEntityStatechart, hasEntityBehavior } from '@/atlas/markdown/entity-model';
 import type {
   PlanRelationKind,
   PlanStatusGroup,
@@ -2290,6 +2291,20 @@ const PackageOverview = ({ node }: { node: PlanWorkstreamNode }) => {
   );
 };
 
+const EntityStatechart = ({ node }: { node: PlanWorkstreamNode }) => {
+  const model = node.entityModel;
+
+  if (node.kind !== 'entity' || !model || !hasEntityBehavior(model)) return null;
+
+  const statechart = buildEntityStatechart(model);
+
+  return statechart ? (
+    <div className='my-6 overflow-hidden rounded-2xl border border-border/45 bg-gradient-to-br from-primary/[0.035] via-background/25 to-background/10 px-3 py-5 shadow-[inset_0_1px_0_rgb(255_255_255/0.025)] [&_figure]:my-0'>
+      <MermaidDiagram code={statechart} variant='atlas-state' />
+    </div>
+  ) : null;
+};
+
 const resolveSourceMetadataNode = (
   value: string,
   nodesByPath: Map<string, PlanWorkstreamNode>,
@@ -3285,6 +3300,12 @@ const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
       const content = heading[2] ?? '';
       const HeadingTag = level === 2 ? 'h3' : 'h4';
 
+      if (level === 2 && /^operations$/i.test(getMarkdownHeadingLabel(content))) {
+        blocks.push(
+          <EntityStatechart key={`entity-statechart-${index}`} node={context.sourceNode} />,
+        );
+      }
+
       blocks.push(
         <HeadingTag
           key={`heading-${index}`}
@@ -3421,16 +3442,16 @@ const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
       blocks.push(
         <div
           key={`table-${index}`}
-          className='my-6 overflow-hidden rounded-lg border border-border/75 bg-background/40'
+          className='my-6 overflow-hidden rounded-xl bg-muted/[0.08]'
         >
           <div className='overflow-x-auto'>
-            <table className='min-w-full border-collapse text-left text-sm'>
-              <thead className='bg-muted/45'>
+            <table className='min-w-full border-separate border-spacing-0 text-left text-sm'>
+              <thead>
                 <tr>
                   {headerCells.map((cell, cellIndex) => (
                     <th
                       key={`${cell}-${cellIndex}`}
-                      className='whitespace-nowrap border-b border-r border-border/65 px-3 py-2.5 font-mono text-[11px] font-semibold uppercase text-muted-foreground last:border-r-0'
+                      className='whitespace-nowrap border-b border-border/50 px-4 pb-3 pt-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/75'
                       scope='col'
                     >
                       {renderMarkdownInline(cell, context)}
@@ -3442,12 +3463,16 @@ const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
                 {rows.map((row, rowIndex) => (
                   <tr
                     key={`row-${rowIndex}`}
-                    className='border-b border-border/55 last:border-b-0 even:bg-muted/10'
+                    className='group transition-colors hover:bg-muted/[0.08]'
                   >
                     {Array.from({ length: columnCount }).map((_, cellIndex) => (
                       <td
                         key={`${rowIndex}-${cellIndex}`}
-                        className='max-w-[24rem] align-top border-r border-border/45 px-3 py-2.5 leading-6 text-muted-foreground last:border-r-0'
+                        className={cn(
+                          'relative max-w-[24rem] align-top px-4 py-3 leading-6 text-muted-foreground',
+                          rowIndex > 0 &&
+                            'before:absolute before:left-4 before:right-4 before:top-0 before:h-px before:bg-border/25',
+                        )}
                       >
                         {renderMarkdownInline(row[cellIndex] ?? '', context)}
                       </td>
