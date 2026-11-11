@@ -32,6 +32,11 @@ Packages are Items too, but they are not Projects or Repository Sources. A Packa
 semantic and implementation ownership boundary that can contain Entities, Experiences, Operations,
 and the components that realize them.
 
+`kind`, `parent`, and `typeOf` answer different questions. `kind` selects the Item's immediate
+authoring and presentation shape. `parent` places it in a semantic ownership hierarchy. `typeOf`
+relates it to the most specific authored Item type or specialization it conforms to. Broader type
+membership follows direct `typeOf` edges; containment never implies typing.
+
 ## Child Items
 
 1. [`Atlas Item Type`](./item-type.md)

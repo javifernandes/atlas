@@ -32,6 +32,7 @@ describe('Atlas PostgreSQL identity mappings', () => {
     const workspaceContributor = mappings.find(
       mapping => mapping.entity.name === 'AtlasWorkspaceContributor',
     );
+    const typeBinding = mappings.find(mapping => mapping.entity.name === 'AtlasTypeBinding');
 
     expect(user).toMatchObject({
       table: 'atlas_auth_users',
@@ -95,6 +96,13 @@ describe('Atlas PostgreSQL identity mappings', () => {
         contributionCount: 'contribution_count',
         lastContributedAt: 'last_contributed_at',
         linkedUserId: 'linked_user_id',
+      },
+    });
+    expect(typeBinding).toMatchObject({
+      table: 'atlas_type_bindings',
+      columns: {
+        sourceItemId: 'source_item_id',
+        targetItemId: 'target_item_id',
       },
     });
   });

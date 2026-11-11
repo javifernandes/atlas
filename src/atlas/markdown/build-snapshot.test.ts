@@ -3,6 +3,67 @@ import { describe, expect, it } from 'vitest';
 import { buildPlanWorkstreamSnapshotFromFiles } from './build-snapshot';
 
 describe('plan workstream data', () => {
+  it('preserves direct semantic type chains without flattening inherited membership', () => {
+    const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
+      {
+        path: 'atlas/items/operation.md',
+        content: `---
+id: atlas.operation
+kind: concept
+title: Operation
+status: shaping
+---
+`,
+      },
+      {
+        path: 'atlas/items/domain-operation.md',
+        content: `---
+id: ontahi.domain-operation
+kind: concept
+title: Domain Operation
+status: active
+typeOf:
+  - atlas.operation
+---
+`,
+      },
+      {
+        path: 'atlas/items/durable-operation.md',
+        content: `---
+id: ontahi.durable-operation
+kind: concept
+title: Durable Operation
+status: active
+typeOf:
+  - ontahi.domain-operation
+---
+`,
+      },
+    ]);
+
+    expect(snapshot.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          from: 'atlas:ontahi.domain-operation',
+          kind: 'type-of',
+          to: 'atlas:atlas.operation',
+        }),
+        expect.objectContaining({
+          from: 'atlas:ontahi.durable-operation',
+          kind: 'type-of',
+          to: 'atlas:ontahi.domain-operation',
+        }),
+      ]),
+    );
+    expect(snapshot.edges).not.toContainEqual(
+      expect.objectContaining({
+        from: 'atlas:ontahi.durable-operation',
+        kind: 'type-of',
+        to: 'atlas:atlas.operation',
+      }),
+    );
+  });
+
   it('projects a package manifest and its colocated items as semantic containment', () => {
     const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
       {
@@ -52,9 +113,23 @@ kind: operation
 title: Accept Enrollment Invitation
 parent: atlas.examples.classroom.enrollment-invitation
 status: shaping
+typeOf:
+  - atlas.model.operation
 ---
 
 Accept a Pending invitation.
+`,
+      },
+      {
+        path: 'atlas/items/model/operation.md',
+        source: 'atlas',
+        content: `---
+id: atlas.model.operation
+kind: concept
+title: Operation
+parent: atlas
+status: shaping
+---
 `,
       },
       {
@@ -110,6 +185,11 @@ status: active
         from: 'atlas:atlas.examples.classroom.enrollment-invitation',
         kind: 'contains',
         to: 'atlas:atlas.examples.classroom.enrollment-invitation.accept',
+      }),
+      expect.objectContaining({
+        from: 'atlas:atlas.examples.classroom.enrollment-invitation.accept',
+        kind: 'type-of',
+        to: 'atlas:atlas.model.operation',
       }),
     ]));
   });

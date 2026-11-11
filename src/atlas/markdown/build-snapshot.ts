@@ -90,6 +90,7 @@ export type ParsedAtlasItem = {
   packageName?: string;
   packageType?: string;
   packagePath?: string;
+  typeOf: string[];
   supports: string[];
   relatedPlans: string[];
   exemplars: string[];
@@ -528,6 +529,7 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
     packageName: getFrontmatterString(metadata, 'packageName') || undefined,
     packageType: getFrontmatterString(metadata, 'packageType') || undefined,
     packagePath,
+    typeOf: getFrontmatterList(metadata, 'typeOf'),
     supports: getFrontmatterList(metadata, 'supports'),
     relatedPlans: getFrontmatterList(metadata, 'relatedPlans').flatMap(reference => {
       const resolvedReference = resolveAtlasPlanReference(file, reference);
@@ -1069,6 +1071,19 @@ const buildSemanticSnapshotFromFiles = (
   }
 
   for (const item of atlasItems) {
+    for (const typeItemId of item.typeOf) {
+      if (typeItemId === item.id || !itemById.has(typeItemId)) {
+        continue;
+      }
+
+      addEdge({
+        id: `${item.nodeId}->atlas:${typeItemId}:type-of`,
+        from: item.nodeId,
+        to: `atlas:${typeItemId}`,
+        kind: 'type-of',
+      });
+    }
+
     for (const supportedItemId of item.supports) {
       if (supportedItemId === item.id || !itemById.has(supportedItemId)) {
         continue;
@@ -1138,6 +1153,7 @@ const buildSemanticSnapshotFromFiles = (
       edge.kind === 'follow-up' ||
       edge.kind === 'related' ||
       edge.kind === 'shaped-by' ||
+      edge.kind === 'type-of' ||
       edge.kind === 'supports'
     ) {
       stats.relatedCount += 1;

@@ -32,6 +32,7 @@ export type PlanNodeKind =
 
 export type PlanRelationKind =
   | 'contains'
+  | 'type-of'
   | 'related'
   | 'candidate'
   | 'shaped-by'

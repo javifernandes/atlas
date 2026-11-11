@@ -12,4 +12,5 @@ export const atlasPostgresMappingOverrides = {
   AtlasExecutionStream: { table: 'atlas_execution_streams' },
   AtlasExecutionStreamActivity: { table: 'atlas_execution_stream_activities' },
   AtlasExecutionStreamRoot: { table: 'atlas_execution_stream_roots' },
+  AtlasTypeBinding: { table: 'atlas_type_bindings' },
 } satisfies PostgresDataGraphMappingOverrides;
