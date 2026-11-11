@@ -55,7 +55,7 @@ requiring authors to maintain a separate diagram or interaction model.
 
 | Column | Meaning |
 | --- | --- |
-| `Operation` | Stable behavior name; it may later become its own Operation Item |
+| `Operation` | Stable behavior name or link to a standalone [[spec-workstream-atlas.atlas-model.operation|Operation]] Item |
 | `Actor` | Authority role attempting the behavior |
 | `Applies when` | State and domain predicate that make the behavior available |
 | `Transition` | Source and target state, or `none` for a non-state-changing behavior |
@@ -90,3 +90,8 @@ An operation may begin as a row while the Entity is being shaped. It should beco
 Operation Item when it needs its own inputs, outputs, failure model, authority policy, effects,
 implementation evidence, or evolution history. The Entity keeps the relationship to that Item; it
 does not duplicate the detailed contract.
+
+The Entity Operations table remains a compact behavioral index after reification. It may keep the
+actor, applicability, transition, and concise effect needed for Entity-level projections while the
+Operation Item owns inputs, output, named failures, preserved invariants, and implementation
+evidence.

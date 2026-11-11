@@ -48,8 +48,8 @@ state/availability views remain a later slice after the Package boundary is visi
    Invitation.
 9. [x] Add a local Workspace reconciliation command that invokes the same durable Operation as the
    UI instead of updating only the global projection.
-10. [ ] Reify the first Entity table rows as Operation Items and replace duplicated inline details
-   with references.
+10. [x] Define Operation Model v0 and reify Enrollment Invitation's `Accept` behavior as the first
+    linked Operation Item.
 11. [x] Parse Entity Model tables into the semantic snapshot and derive a statechart inside the
     Entity's States section.
 12. [ ] Derive an operation-availability interaction view without duplicating the Operations table.
@@ -78,6 +78,14 @@ Atlas now parses the canonical Data, Relations, States, Operations, and Invarian
 from declared transitions. The source Markdown remains visible for inspection, while the diagram
 proves that the Entity anatomy is executable enough to support richer projections. Standalone
 Operation Items remain the next reification boundary.
+
+## Checkpoint: First Operation Item
+
+Operation Model v0 separates a receiver-level behavioral index from an independently navigable
+Operation contract. Enrollment Invitation's `Accept` row becomes the first linked exemplar: its
+Entity retains the facts needed for state and availability projections, while the Operation Item
+owns inputs, output, named failures, preserved invariants, and implementation status. Atlas does
+not require this descriptive contract to be executable Ontahí code.
 
 ## Open Questions
 

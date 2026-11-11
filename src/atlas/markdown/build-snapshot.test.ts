@@ -44,6 +44,20 @@ status: shaping
 `,
       },
       {
+        path: 'examples/classroom/atlas/items/accept-enrollment-invitation.md',
+        source: 'atlas',
+        content: `---
+id: atlas.examples.classroom.enrollment-invitation.accept
+kind: operation
+title: Accept Enrollment Invitation
+parent: atlas.examples.classroom.enrollment-invitation
+status: shaping
+---
+
+Accept a Pending invitation.
+`,
+      },
+      {
         path: 'atlas/items/atlas.md',
         source: 'atlas',
         content: `---
@@ -76,6 +90,10 @@ status: active
           states: [expect.objectContaining({ name: 'Pending' })],
         }),
       }),
+      expect.objectContaining({
+        id: 'atlas:atlas.examples.classroom.enrollment-invitation.accept',
+        kind: 'operation',
+      }),
     ]));
     expect(snapshot.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -87,6 +105,11 @@ status: active
         from: 'atlas:atlas.examples.classroom',
         kind: 'contains',
         to: 'atlas:atlas.examples.classroom.enrollment-invitation',
+      }),
+      expect.objectContaining({
+        from: 'atlas:atlas.examples.classroom.enrollment-invitation',
+        kind: 'contains',
+        to: 'atlas:atlas.examples.classroom.enrollment-invitation.accept',
       }),
     ]));
   });

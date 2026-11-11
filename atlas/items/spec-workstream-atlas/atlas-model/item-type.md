@@ -17,6 +17,7 @@ exemplars:
   - spec-workstream-atlas.atlas-model.plan
   - spec-workstream-atlas.atlas-model.package
   - spec-workstream-atlas.atlas-model.entity
+  - spec-workstream-atlas.atlas-model.operation
   - ontahi.examples.classroom.enrollment-invitation
   - bookops.model.book
   - bookops.reader-experience
@@ -45,3 +46,7 @@ without first describing Atlas's own collaboration domain recursively.
 `Entity` begins with one authoring anatomy: Data, Relations, States, Operations, and Invariants.
 Operations declare availability as `Actor + Applies when`, allowing Atlas to derive temporal and
 interaction views without making a statechart or screen flow another source of truth.
+
+`Operation` is the next worked anatomy. It reifies behavior that outgrows an inline Entity row and
+gives receiver, actor, inputs, output, availability, transitions, effects, failures, and preserved
+invariants an independently navigable home.
