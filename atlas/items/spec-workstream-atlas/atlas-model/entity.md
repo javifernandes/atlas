@@ -21,9 +21,9 @@ the system admits.
 
 ## Entity Model v0
 
-An Entity may use five canonical Markdown sections. Their tables are the first authoring contract;
-Atlas can later parse them into dedicated projections without requiring authors to maintain a
-separate diagram or interaction model.
+An Entity may use five canonical Markdown sections. Their tables are authoring syntax for a typed
+`EntityModel` in the Atlas snapshot. Atlas derives dedicated projections from that model without
+requiring authors to maintain a separate diagram or interaction model.
 
 ### Data
 
@@ -64,6 +64,18 @@ separate diagram or interaction model.
 `Actor + Applies when` is the operation-availability rule. A statechart groups the same declarations
 by transition; an interaction model groups them by actor and context. Both are derived views rather
 than second sources of truth.
+
+## Derived Behavior Views
+
+Atlas parses the five tables at reconciliation time. Entity detail may then render:
+
+1. a statechart from States and Operation transitions;
+2. an availability matrix from Operation actor and applicability declarations;
+3. later interaction or authorization views from the same typed facts.
+
+An invalid or absent canonical table produces no derived rows; it must not silently invent domain
+behavior from prose. The original Markdown remains available as evidence and for progressive
+shaping.
 
 ### Invariants
 

@@ -29,6 +29,18 @@ title: Enrollment Invitation
 parent: atlas.examples.classroom
 status: shaping
 ---
+
+## States
+
+| State | Kind | Meaning |
+| --- | --- | --- |
+| \`Pending\` | initial | Awaiting a decision |
+
+## Operations
+
+| Operation | Actor | Applies when | Transition | Effects |
+| --- | --- | --- | --- | --- |
+| \`Accept\` | \`Recipient\` | status is Pending | \`Pending -> Accepted\` | create Enrollment |
 `,
       },
       {
@@ -59,6 +71,10 @@ status: active
       expect.objectContaining({
         id: 'atlas:atlas.examples.classroom.enrollment-invitation',
         kind: 'entity',
+        entityModel: expect.objectContaining({
+          operations: [expect.objectContaining({ name: 'Accept' })],
+          states: [expect.objectContaining({ name: 'Pending' })],
+        }),
       }),
     ]));
     expect(snapshot.edges).toEqual(expect.arrayContaining([

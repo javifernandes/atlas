@@ -50,8 +50,10 @@ state/availability views remain a later slice after the Package boundary is visi
    UI instead of updating only the global projection.
 10. [ ] Reify the first Entity table rows as Operation Items and replace duplicated inline details
    with references.
-11. [ ] Derive an Invitation statechart and operation-availability matrix.
-12. [ ] Add a recipient Experience that consumes the declared Operations.
+11. [x] Parse Entity Model tables into the semantic snapshot and derive a statechart inside the
+    Entity's States section.
+12. [ ] Derive an operation-availability interaction view without duplicating the Operations table.
+13. [ ] Add a recipient Experience that consumes the declared Operations.
 
 ## Verification
 
@@ -66,6 +68,16 @@ state/availability views remain a later slice after the Package boundary is visi
 2. The special filename establishes the boundary; contained items keep the ordinary item format.
 3. Explicit `parent` remains authoritative instead of inferring ownership from folder nesting.
 4. Package discovery precedes a typed behavior language; this slice must not invent code generation.
+5. Entity tables are authoring syntax for typed snapshot data. Statecharts and availability views
+   are projections of that data, not additional Markdown artifacts maintained by authors.
+
+## Checkpoint: Typed Entity Behavior Projection
+
+Atlas now parses the canonical Data, Relations, States, Operations, and Invariants tables into an
+`EntityModel` carried by the semantic snapshot. The Entity's States section derives a statechart
+from declared transitions. The source Markdown remains visible for inspection, while the diagram
+proves that the Entity anatomy is executable enough to support richer projections. Standalone
+Operation Items remain the next reification boundary.
 
 ## Open Questions
 

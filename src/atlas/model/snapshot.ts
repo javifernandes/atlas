@@ -38,6 +38,47 @@ export type PlanRelationKind =
   | 'supports'
   | 'follow-up';
 
+export type EntityModelField = {
+  name: string;
+  type: string;
+  required: boolean;
+  meaning: string;
+};
+
+export type EntityModelRelation = {
+  name: string;
+  target: string;
+  cardinality: string;
+  meaning: string;
+};
+
+export type EntityModelState = {
+  name: string;
+  kind: 'initial' | 'active' | 'terminal' | string;
+  meaning: string;
+};
+
+export type EntityModelOperation = {
+  name: string;
+  actor: string;
+  appliesWhen: string;
+  transition: string;
+  effects: string;
+};
+
+export type EntityModelInvariant = {
+  rule: string;
+  constraint: string;
+};
+
+export type EntityModel = {
+  fields: EntityModelField[];
+  relations: EntityModelRelation[];
+  states: EntityModelState[];
+  operations: EntityModelOperation[];
+  invariants: EntityModelInvariant[];
+};
+
 export type PlanWorkstreamNode = {
   id: string;
   kind: PlanNodeKind;
@@ -69,6 +110,7 @@ export type PlanWorkstreamNode = {
   summary?: string;
   sections: string[];
   exemplars?: string[];
+  entityModel?: EntityModel;
   relatedCount: number;
   candidateCount: number;
   inferredMentions?: PlanWorkstreamMention[];
