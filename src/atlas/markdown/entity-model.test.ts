@@ -22,7 +22,7 @@ describe('Entity Model Markdown', () => {
 
 | Operation | Actor | Applies when | Transition | Effects |
 | --- | --- | --- | --- | --- |
-| \`Accept\` | \`Recipient\` | status is Pending | \`Pending -> Accepted\` | create Enrollment |
+| [\`Accept\`](./accept.md) | \`Recipient\` | status is Pending | \`Pending -> Accepted\` | create Enrollment |
 
 ## Invariants
 

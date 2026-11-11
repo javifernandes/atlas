@@ -13,6 +13,8 @@ const cleanCell = (value: string) =>
   value
     .trim()
     .replace(/^`([^`]*)`$/, '$1')
+    .replace(/^\[`([^`]*)`\]\([^)]+\)$/, '$1')
+    .replace(/^\[([^\]]+)\]\([^)]+\)$/, '$1')
     .replaceAll(/\\\|/g, '|');
 
 const splitRow = (line: string) => {
