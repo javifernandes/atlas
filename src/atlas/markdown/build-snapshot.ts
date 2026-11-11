@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import {
+  isAtlasItemMarkdownPath,
+  isAtlasPackageManifestPath,
   loadAtlasSourceObservation,
   type AtlasMarkdownFile,
 } from '../sources/markdown-source';
@@ -55,6 +57,7 @@ export type ParsedPlan = {
 type AtlasItemKind = Extract<
   PlanWorkstreamNode['kind'],
   | 'project'
+  | 'package'
   | 'territory'
   | 'model'
   | 'concept'
@@ -83,6 +86,9 @@ export type ParsedAtlasItem = {
   status: string;
   statusGroup: PlanStatusGroup;
   horizon?: string;
+  packageName?: string;
+  packageType?: string;
+  packagePath?: string;
   supports: string[];
   relatedPlans: string[];
   exemplars: string[];
@@ -249,7 +255,7 @@ const getFrontmatterString = (
 ) => {
   const value = metadata[key];
 
-  return typeof value === 'string' ? value : fallback;
+  return typeof value === 'string' ? value.replace(/^(['"])(.*)\1$/, '$2') : fallback;
 };
 
 const getFrontmatterList = (metadata: Record<string, FrontmatterValue>, key: string) => {
@@ -428,6 +434,7 @@ const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
 
 const isAtlasItemKind = (value: string): value is AtlasItemKind =>
   value === 'project' ||
+  value === 'package' ||
   value === 'territory' ||
   value === 'model' ||
   value === 'concept' ||
@@ -458,6 +465,10 @@ const getAtlasStatusGroup = (input: { horizon?: string; status: string }): PlanS
   }
 
   if (status === 'in-progress') {
+    return 'current';
+  }
+
+  if (status === 'active') {
     return 'current';
   }
 
@@ -499,6 +510,8 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
   const title = getFrontmatterString(metadata, 'title', titleFromHeading(body, id));
   const status = getFrontmatterString(metadata, 'status', 'shaping');
   const horizon = getFrontmatterString(metadata, 'horizon') || undefined;
+  const packagePath =
+    kind === 'package' ? path.posix.dirname(file.sourcePath) || '.' : undefined;
 
   return {
     id,
@@ -510,6 +523,9 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
     status,
     statusGroup: getAtlasStatusGroup({ horizon, status }),
     horizon,
+    packageName: getFrontmatterString(metadata, 'packageName') || undefined,
+    packageType: getFrontmatterString(metadata, 'packageType') || undefined,
+    packagePath,
     supports: getFrontmatterList(metadata, 'supports'),
     relatedPlans: getFrontmatterList(metadata, 'relatedPlans').flatMap(reference => {
       const resolvedReference = resolveAtlasPlanReference(file, reference);
@@ -605,7 +621,11 @@ export const parseAtlasSourceRecords = (
   const items = [
     ...new Map(
       records
-        .filter(record => record.sourcePath.startsWith('atlas/items/'))
+        .filter(
+          record =>
+            isAtlasItemMarkdownPath(record.sourcePath) ||
+            isAtlasPackageManifestPath(record.sourcePath),
+        )
         .map(parseAtlasItem)
         .filter((item): item is ParsedAtlasItem => Boolean(item))
         .map(item => ({
@@ -657,6 +677,9 @@ const toAtlasNode = (item: ParsedAtlasItem): PlanWorkstreamNode => ({
   statusGroup: item.statusGroup,
   status: item.status,
   horizon: item.horizon,
+  packageName: item.packageName,
+  packageType: item.packageType,
+  packagePath: item.packagePath,
   semanticId: item.id,
   sourceId: item.sourceId ?? 'atlas',
   sourcePath: item.sourcePath,
@@ -1366,6 +1389,8 @@ export const getPlanWorkstreamSnapshot = async (): Promise<PlanWorkstreamSnapsho
 
   return buildPlanWorkstreamSnapshotFromFiles(
     sourceFiles.filter(file => file.path.startsWith('plans/')),
-    sourceFiles.filter(file => file.path.startsWith('atlas/items/')),
+    sourceFiles.filter(
+      file => isAtlasItemMarkdownPath(file.path) || isAtlasPackageManifestPath(file.path),
+    ),
   );
 };

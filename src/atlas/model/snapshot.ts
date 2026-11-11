@@ -9,6 +9,7 @@ export type PlanStatusGroup =
 export type PlanNodeKind =
   | 'root'
   | 'project'
+  | 'package'
   | 'territory'
   | 'workstream'
   | 'model'
@@ -51,6 +52,9 @@ export type PlanWorkstreamNode = {
   horizon?: string;
   area?: string;
   codename?: string;
+  packageName?: string;
+  packageType?: string;
+  packagePath?: string;
   semanticId?: string;
   territory: string;
   workstream?: string;

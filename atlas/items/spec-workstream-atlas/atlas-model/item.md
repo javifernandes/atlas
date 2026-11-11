@@ -24,9 +24,13 @@ An [[spec-workstream-atlas.atlas-model.item|Atlas Item]] is a durable thing the 
 
 `node` is a graph/UI implementation word. `Item` is the current product-language noun. `Shape` stays a verb: plans, operations, and practices shape atlas items over time.
 
-An item may be a project, model, experience, principle, practice, capability, entity, operation, artifact, policy, evidence group, or work item. The important property is not its category; it is that the project needs to keep giving it form as plans, code, prototypes, and evidence evolve.
+An item may be a project, package, model, experience, principle, practice, capability, entity, operation, artifact, policy, evidence group, or work item. The important property is not its category; it is that the project needs to keep giving it form as plans, code, prototypes, and evidence evolve.
 
 Projects are items too. BookOps, Ontahi, and Workstream Atlas all show how something can begin inside another project and later gain enough identity to become a project-level item with its own repositories, paths, evidence, and planning surface.
+
+Packages are Items too, but they are not Projects or Repository Sources. A Package is a local
+semantic and implementation ownership boundary that can contain Entities, Experiences, Operations,
+and the components that realize them.
 
 ## Child Items
 
