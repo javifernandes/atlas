@@ -37,6 +37,12 @@ authoring and presentation shape. `parent` places it in a semantic ownership hie
 relates it to the most specific authored Item type or specialization it conforms to. Broader type
 membership follows direct `typeOf` edges; containment never implies typing.
 
+Containment and evolution are also independent. Durable structural Items such as Entities,
+Operations, Packages, and Concepts belong in Overview, Context, and the semantic graph; they do not
+occupy temporal Evolution stages merely because they are children. Evolution stages admit temporal
+work Items. Today that means Plans; future types such as Tasks may opt in explicitly rather than
+inheriting temporal behavior from generic Item containment.
+
 ## Child Items
 
 1. [`Atlas Item Type`](./item-type.md)

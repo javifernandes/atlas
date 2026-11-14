@@ -1596,7 +1596,7 @@ const getProjectMembershipsByNodeId = (
 const evolutionRoleLabel = (role: EvolutionRole) => {
   switch (role) {
     case 'child':
-      return 'sub-shape';
+      return 'contained plan';
     case 'follow-up':
       return 'follow-up';
     case 'related':
@@ -1612,6 +1612,8 @@ const evolutionRoleLabel = (role: EvolutionRole) => {
   }
 };
 
+const isTemporalEvolutionItem = (node: PlanWorkstreamNode) => node.kind === 'plan';
+
 const getEvolutionEntries = (
   nodeId: string,
   edges: PlanWorkstreamEdge[],
@@ -1625,7 +1627,12 @@ const getEvolutionEntries = (
   const addEntry = (targetNodeId: string, role: EvolutionRole, relationKind: PlanRelationKind) => {
     const targetNode = nodesById.get(targetNodeId);
 
-    if (!targetNode || targetNode.id === nodeId || ancestorNodeIds.has(targetNode.id)) {
+    if (
+      !targetNode ||
+      !isTemporalEvolutionItem(targetNode) ||
+      targetNode.id === nodeId ||
+      ancestorNodeIds.has(targetNode.id)
+    ) {
       return;
     }
 
@@ -3861,6 +3868,14 @@ const FullMarkdownModal = ({
     () => mergeDrawerRelations(node.id, incoming, outgoing),
     [incoming, node.id, outgoing],
   );
+  const typeRelations = useMemo(
+    () => relations.filter(relation => relation.kind === 'type-of'),
+    [relations],
+  );
+  const contextualRelations = useMemo(
+    () => relations.filter(relation => relation.kind !== 'type-of'),
+    [relations],
+  );
   const contextHierarchy = useMemo(() => getContextHierarchyRelations(hierarchy), [hierarchy]);
   const breadcrumb = useMemo(
     () => getNodeBreadcrumb(node.id, edges, nodesById),
@@ -4169,7 +4184,7 @@ const FullMarkdownModal = ({
                       subtitle={
                         node.kind === 'package'
                           ? 'Active Plans and current pressure on the Package.'
-                          : 'Active work, live sub-shapes, and current pressure on the shape.'
+                          : 'Active Plans and current pressure on the shape.'
                       }
                       title='Now'
                     >
@@ -4253,6 +4268,17 @@ const FullMarkdownModal = ({
                     </section>
                   ) : null}
 
+                  {typeRelations.length > 0 ? (
+                    <section className='grid gap-2'>
+                      <h3 className='font-mono text-xs uppercase text-muted-foreground'>Type</h3>
+                      <RelationList
+                        nodesById={nodesById}
+                        onSelect={onOpenFull}
+                        relations={typeRelations}
+                      />
+                    </section>
+                  ) : null}
+
                   {contextHierarchy.length > 0 ? (
                     <section className='grid gap-2'>
                       <h3 className='font-mono text-xs uppercase text-muted-foreground'>
@@ -4266,7 +4292,7 @@ const FullMarkdownModal = ({
                     </section>
                   ) : null}
 
-                  {relations.length > 0 ? (
+                  {contextualRelations.length > 0 ? (
                     <section className='grid gap-2'>
                       <h3 className='font-mono text-xs uppercase text-muted-foreground'>
                         Relations
@@ -4274,7 +4300,7 @@ const FullMarkdownModal = ({
                       <RelationList
                         nodesById={nodesById}
                         onSelect={onOpenFull}
-                        relations={relations}
+                        relations={contextualRelations}
                       />
                     </section>
                   ) : null}

@@ -56,6 +56,9 @@ state/availability views remain a later slice after the Package boundary is visi
     semantic type hierarchy across reconciliation, persistence, and navigation.
 13. [ ] Derive an operation-availability interaction view without duplicating the Operations table.
 14. [ ] Add a recipient Experience that consumes the declared Operations.
+15. [x] Generalize temporal Evolution semantics beyond Package: only temporal Item Types enter the
+    staged board, while structural children remain in Context and the graph; expose semantic typing
+    in a dedicated Context section.
 
 ## Verification
 
@@ -101,6 +104,15 @@ chain rather than being duplicated into every Item.
 The implementation now preserves direct type bindings through Markdown parsing, Ontahí-backed
 projection storage, topology queries, and graph navigation. A focused chain test proves that
 transitive membership is not flattened into redundant authored edges.
+
+## Checkpoint: Temporal Evolution And Visible Typing
+
+The Package experiment exposed a general Item rule rather than a Package-only exception. Evolution
+is a projection of temporal interventions, not a second rendering of structural containment. Atlas
+now admits Plans to the staged board and keeps Entities, Operations, Concepts, and Packages in the
+graph and Context. The predicate is intentionally explicit so a future Task Item Type can opt in
+without making every durable child temporal. Context also gives direct `typeOf` bindings their own
+Type section instead of burying them among unrelated links.
 
 ## Open Questions
 

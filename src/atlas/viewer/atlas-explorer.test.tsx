@@ -195,6 +195,7 @@ describe('PlanWorkstreamExplorer', () => {
     ).not.toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /supports\s*Item C/ })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /related\s*Item D/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole('heading', { name: 'Type' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /type of\s*Item D/ })).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('link', { name: 'evolution' }));
@@ -453,6 +454,49 @@ const selection: Selection = Selection.references(Book, refs);
     expect(nextColumn).not.toBeNull();
     expect(within(nextColumn as HTMLElement).getByText('Classroom Behavior')).toBeInTheDocument();
     expect(within(dialog).queryByText('sub-shape')).not.toBeInTheDocument();
+  });
+
+  it('keeps structural Items out of Evolution for every Item kind', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a&section=evolution');
+    const structuralChild = createNode('structural-child', {
+      kind: 'entity',
+      markdown: 'A durable structural child.',
+      semanticId: 'test.structural-child',
+      shortTitle: 'Structural Child',
+    });
+    const temporalPlan = createNode('temporal-plan', {
+      kind: 'plan',
+      markdown: 'A temporal intervention.',
+      semanticId: 'test.temporal-plan',
+      shortTitle: 'Temporal Plan',
+    });
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: [...snapshot.nodes, structuralChild, temporalPlan],
+      edges: [
+        ...snapshot.edges,
+        {
+          id: 'item-a-contains-structural-child',
+          from: 'item-a',
+          to: structuralChild.id,
+          kind: 'contains',
+        },
+        {
+          id: 'item-a-contains-temporal-plan',
+          from: 'item-a',
+          to: temporalPlan.id,
+          kind: 'contains',
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+
+    const dialog = screen.getByRole('dialog');
+    expect(
+      within(dialog).queryByRole('button', { name: 'Structural Child' }),
+    ).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Temporal Plan' })).toBeInTheDocument();
   });
 
   it('shows source-load failures as a calm centered detail state', async () => {
