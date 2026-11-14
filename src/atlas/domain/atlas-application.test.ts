@@ -130,11 +130,25 @@ kind: experience
 title: Reader Experience
 parent: product
 status: shaping
+typeOf:
+  - product.experience
 supports:
   - platform
 relatedPlans:
   - plans/next/10-reader-evolution.md
   - plans/next/11-reader-playback.md
+---
+`,
+      },
+      {
+        path: 'atlas/items/product/experience.md',
+        source: 'product',
+        content: `---
+id: product.experience
+kind: concept
+title: Experience
+parent: product
+status: active
 ---
 `,
       },
@@ -240,6 +254,12 @@ relatedPlans:
           kind: 'supports',
         },
         {
+          id: 'atlas:product.reader->atlas:product.experience:type-of',
+          from: 'atlas:product.reader',
+          to: 'atlas:product.experience',
+          kind: 'type-of',
+        },
+        {
           id: 'atlas:product.reader->plan:product://plans/10-reader-evolution:shaped-by',
           from: 'atlas:product.reader',
           to: 'plan:product://plans/10-reader-evolution',
@@ -278,6 +298,7 @@ relatedPlans:
       AtlasPlanRelationBinding: expect.objectContaining({ name: 'AtlasPlanRelationBinding' }),
       AtlasShapingBinding: expect.objectContaining({ name: 'AtlasShapingBinding' }),
       AtlasSupportBinding: expect.objectContaining({ name: 'AtlasSupportBinding' }),
+      AtlasTypeBinding: expect.objectContaining({ name: 'AtlasTypeBinding' }),
       PullRequest: expect.objectContaining({ name: 'PullRequest' }),
     });
     const closeStream = atlas.application.graph.entities.AtlasExecutionStream.domain.close;

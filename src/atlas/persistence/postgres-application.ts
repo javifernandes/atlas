@@ -975,6 +975,7 @@ export const createAtlasPostgresApplication = (input: {
             }
             yield* entities.AtlasShapingBinding.all().delete().run();
             yield* entities.AtlasSupportBinding.all().delete().run();
+            yield* entities.AtlasTypeBinding.all().delete().run();
             yield* entities.AtlasPlanRelationBinding.all().delete().run();
 
             if (dataset.AtlasSourceRevision.length > 0) {
@@ -1036,6 +1037,12 @@ export const createAtlasPostgresApplication = (input: {
             }
             if (dataset.AtlasSupportBinding.length > 0) {
               yield* entities.AtlasSupportBinding.upsertMany(dataset.AtlasSupportBinding, {
+                conflictOn: ['id'],
+                strategy: 'merge',
+              }).run();
+            }
+            if (dataset.AtlasTypeBinding.length > 0) {
+              yield* entities.AtlasTypeBinding.upsertMany(dataset.AtlasTypeBinding, {
                 conflictOn: ['id'],
                 strategy: 'merge',
               }).run();

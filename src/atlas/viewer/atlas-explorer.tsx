@@ -308,6 +308,7 @@ const emptyRouteState: AtlasRouteState = {
 const relationStyle: Record<PlanRelationKind, string> = {
   candidate: 'stroke-amber-400',
   contains: 'stroke-zinc-300',
+  'type-of': 'stroke-cyan-400',
   'follow-up': 'stroke-emerald-400',
   related: 'stroke-sky-400',
   'shaped-by': 'stroke-fuchsia-400',
@@ -354,6 +355,8 @@ const relationDotClassName = (kind: PlanRelationKind) => {
       return 'bg-amber-400';
     case 'contains':
       return 'bg-zinc-300';
+    case 'type-of':
+      return 'bg-cyan-400';
     case 'follow-up':
       return 'bg-emerald-400';
     case 'related':
@@ -366,6 +369,10 @@ const relationDotClassName = (kind: PlanRelationKind) => {
 };
 
 const relationLabel = (kind: PlanRelationKind, direction: RelationDirection) => {
+  if (kind === 'type-of') {
+    return direction === 'in' ? 'types' : 'type of';
+  }
+
   if (kind === 'supports') {
     if (direction === 'both') {
       return 'mutual support';
@@ -393,7 +400,11 @@ const isHierarchyRelation = (kind: PlanRelationKind) =>
   kind === 'contains' || kind === 'candidate' || kind === 'shaped-by';
 
 const hasEdgeNavigationHint = (kind: PlanRelationKind) =>
-  kind === 'follow-up' || kind === 'related' || kind === 'shaped-by' || kind === 'supports';
+  kind === 'follow-up' ||
+  kind === 'related' ||
+  kind === 'shaped-by' ||
+  kind === 'supports' ||
+  kind === 'type-of';
 
 const hierarchyRelationPriority: Record<
   Extract<PlanRelationKind, 'contains' | 'candidate' | 'shaped-by'>,

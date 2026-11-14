@@ -52,8 +52,10 @@ state/availability views remain a later slice after the Package boundary is visi
     linked Operation Item.
 11. [x] Parse Entity Model tables into the semantic snapshot and derive a statechart inside the
     Entity's States section.
-12. [ ] Derive an operation-availability interaction view without duplicating the Operations table.
-13. [ ] Add a recipient Experience that consumes the declared Operations.
+12. [x] Materialize authored `typeOf` relationships so concrete and specialized Items retain their
+    semantic type hierarchy across reconciliation, persistence, and navigation.
+13. [ ] Derive an operation-availability interaction view without duplicating the Operations table.
+14. [ ] Add a recipient Experience that consumes the declared Operations.
 
 ## Verification
 
@@ -86,6 +88,19 @@ Operation contract. Enrollment Invitation's `Accept` row becomes the first linke
 Entity retains the facts needed for state and availability projections, while the Operation Item
 owns inputs, output, named failures, preserved invariants, and implementation status. Atlas does
 not require this descriptive contract to be executable Ontahí code.
+
+## Checkpoint: Semantic Item Typing
+
+The Ontahí adoption pass exposed that `typeOf` is currently authored but discarded by Atlas.
+Package containment says where an Item belongs; `kind` selects its immediate presentation; neither
+expresses that Durable Operation specializes Domain Operation or that Domain Operation conforms to
+the Atlas Operation model. The next bounded slice materializes direct `typeOf` edges without
+inferring types from containment. Transitive membership remains traversable through the authored
+chain rather than being duplicated into every Item.
+
+The implementation now preserves direct type bindings through Markdown parsing, Ontahí-backed
+projection storage, topology queries, and graph navigation. A focused chain test proves that
+transitive membership is not flattened into redundant authored edges.
 
 ## Open Questions
 

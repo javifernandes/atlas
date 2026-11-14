@@ -199,6 +199,15 @@ const supportBindingFields = {
   sourceRecordId: field.id(),
 };
 
+const typeBindingFields = {
+  id: field.id(),
+  sourceItemId: field.id(),
+  targetItemId: field.id(),
+  sourceId: field.nonEmptyString({ trim: true }),
+  sourceRevisionId: field.id(),
+  sourceRecordId: field.id(),
+};
+
 const planRelationBindingFields = {
   id: field.id(),
   sourcePlanId: field.id(),
@@ -690,6 +699,17 @@ export const AtlasSupportBinding = entity({
   },
 });
 
+export const AtlasTypeBinding = entity({
+  name: 'AtlasTypeBinding',
+  fields: typeBindingFields,
+  relations: {
+    source: relation.belongsTo(AtlasItemRef, { via: 'sourceItemId' }),
+    target: relation.belongsTo(AtlasItemRef, { via: 'targetItemId' }),
+    sourceRevision: relation.belongsTo(AtlasSourceRevision, { via: 'sourceRevisionId' }),
+    sourceRecord: relation.belongsTo(AtlasSourceRecord, { via: 'sourceRecordId' }),
+  },
+});
+
 export const AtlasPlanRelationBinding = entity({
   name: 'AtlasPlanRelationBinding',
   fields: planRelationBindingFields,
@@ -784,6 +804,8 @@ export const AtlasItem = entity({
     shapingBindings: relation.hasMany(AtlasShapingBinding, { via: 'itemId' }),
     outgoingSupportBindings: relation.hasMany(AtlasSupportBinding, { via: 'sourceItemId' }),
     incomingSupportBindings: relation.hasMany(AtlasSupportBinding, { via: 'targetItemId' }),
+    outgoingTypeBindings: relation.hasMany(AtlasTypeBinding, { via: 'sourceItemId' }),
+    incomingTypeBindings: relation.hasMany(AtlasTypeBinding, { via: 'targetItemId' }),
     sourceRevision: relation.belongsTo(AtlasSourceRevision, { via: 'sourceRevisionId' }),
     sourceRecord: relation.belongsTo(AtlasSourceRecord, { via: 'sourceRecordId' }),
   },
@@ -1159,6 +1181,22 @@ const buildAtlasOntahiDatasetFromSource = (
           : [];
       }),
     ),
+    AtlasTypeBinding: items.flatMap(item =>
+      item.typeOf.flatMap(targetSemanticId => {
+        const target = itemBySemanticId.get(targetSemanticId);
+
+        return target && target.id !== item.id
+          ? [
+              {
+                id: `${item.nodeId}->${target.nodeId}:type-of`,
+                sourceItemId: item.nodeId,
+                targetItemId: target.nodeId,
+                ...sourceMetadataFor(item.sourcePath, item.sourceId),
+              },
+            ]
+          : [];
+      }),
+    ),
     AtlasPlanRelationBinding: plans.flatMap(plan =>
       plan.relatedLinks.flatMap(link => {
         const target = planByPath.get(link.path);
@@ -1267,6 +1305,7 @@ const buildAtlasOntahiDatasetFromSource = (
       plans: dataset.AtlasPlan,
       shapingBindings: dataset.AtlasShapingBinding,
       supportBindings: dataset.AtlasSupportBinding,
+      typeBindings: dataset.AtlasTypeBinding,
       planRelationBindings: dataset.AtlasPlanRelationBinding,
     }),
     evidence,
@@ -1338,7 +1377,7 @@ export type AtlasTopologyEdge = {
   id: string;
   from: string;
   to: string;
-  kind: 'contains' | 'follow-up' | 'related' | 'shaped-by' | 'supports';
+  kind: 'contains' | 'follow-up' | 'related' | 'shaped-by' | 'supports' | 'type-of';
 };
 
 type AtlasTopologyRows = {
@@ -1346,6 +1385,11 @@ type AtlasTopologyRows = {
   plans: Array<{ id: string; parentPlanId: string | null }>;
   shapingBindings: Array<{ id: string; itemId: string; planId: string }>;
   supportBindings: Array<{
+    id: string;
+    sourceItemId: string;
+    targetItemId: string;
+  }>;
+  typeBindings: Array<{
     id: string;
     sourceItemId: string;
     targetItemId: string;
@@ -1387,6 +1431,7 @@ export const projectAtlasTopology = ({
   plans,
   shapingBindings,
   supportBindings,
+  typeBindings,
   planRelationBindings,
 }: AtlasTopologyRows): AtlasTopologyEdge[] => {
   const itemIds = new Set(items.map(item => item.id));
@@ -1453,6 +1498,21 @@ export const projectAtlasTopology = ({
     }
   }
 
+  for (const binding of typeBindings) {
+    if (
+      binding.sourceItemId !== binding.targetItemId &&
+      itemIds.has(binding.sourceItemId) &&
+      itemIds.has(binding.targetItemId)
+    ) {
+      addEdge({
+        id: binding.id,
+        from: binding.sourceItemId,
+        to: binding.targetItemId,
+        kind: 'type-of',
+      });
+    }
+  }
+
   for (const plan of plans) {
     if (
       visiblePlanIds.has(plan.id) &&
@@ -1506,6 +1566,12 @@ const atlasShapingTopologyQuery = query(AtlasShapingBinding).select(binding => (
 }));
 
 const atlasSupportTopologyQuery = query(AtlasSupportBinding).select(binding => ({
+  id: binding.id,
+  sourceItemId: binding.sourceItemId,
+  targetItemId: binding.targetItemId,
+}));
+
+const atlasTypeTopologyQuery = query(AtlasTypeBinding).select(binding => ({
   id: binding.id,
   sourceItemId: binding.sourceItemId,
   targetItemId: binding.targetItemId,
@@ -1712,6 +1778,7 @@ export const atlasEntities = [
   AtlasPlan,
   AtlasShapingBinding,
   AtlasSupportBinding,
+  AtlasTypeBinding,
   AtlasPlanRelationBinding,
   PullRequest,
   EvidenceBinding,
@@ -1944,7 +2011,7 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
         sourcePath: record.sourcePath,
       })),
     getTopologyEdges: async (): Promise<AtlasTopologyEdge[]> => {
-      const [items, plans, shapingBindings, supportBindings, planRelationBindings] =
+      const [items, plans, shapingBindings, supportBindings, typeBindings, planRelationBindings] =
         await Promise.all([
           application.graph.read(atlasItemsTopologyQuery, { scope: 'atlas.topology.items' }),
           application.graph.read(atlasPlansTopologyQuery, { scope: 'atlas.topology.plans' }),
@@ -1953,6 +2020,9 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
           }),
           application.graph.read(atlasSupportTopologyQuery, {
             scope: 'atlas.topology.support-bindings',
+          }),
+          application.graph.read(atlasTypeTopologyQuery, {
+            scope: 'atlas.topology.type-bindings',
           }),
           application.graph.read(atlasPlanRelationsTopologyQuery, {
             scope: 'atlas.topology.plan-relation-bindings',
@@ -1964,6 +2034,7 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
         plans,
         shapingBindings,
         supportBindings,
+        typeBindings,
         planRelationBindings,
       });
     },

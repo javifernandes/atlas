@@ -120,6 +120,12 @@ const snapshot: PlanWorkstreamSnapshot = {
       to: 'item-d',
       kind: 'related',
     },
+    {
+      id: 'item-a-type-of-item-d',
+      from: 'item-a',
+      to: 'item-d',
+      kind: 'type-of',
+    },
   ],
 };
 
@@ -189,6 +195,7 @@ describe('PlanWorkstreamExplorer', () => {
     ).not.toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /supports\s*Item C/ })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /related\s*Item D/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /type of\s*Item D/ })).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('link', { name: 'evolution' }));
     await user.click(within(dialog).getByRole('button', { name: 'Item B' }));
