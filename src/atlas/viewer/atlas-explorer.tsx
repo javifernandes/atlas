@@ -3011,7 +3011,7 @@ const renderMarkdownInline = (
 ) => {
   const nodes: ReactNode[] = [];
   const pattern =
-    /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|(\*\*|__)([\s\S]+?)\6/g;
+    /\[\[([^\]|]+?)(?:\\?\|([^\]]+))?\]\]|\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|(\*\*|__)([\s\S]+?)\6/g;
   let lastIndex = 0;
 
   for (const match of text.matchAll(pattern)) {

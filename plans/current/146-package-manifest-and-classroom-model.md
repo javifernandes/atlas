@@ -59,6 +59,8 @@ state/availability views remain a later slice after the Package boundary is visi
 15. [x] Generalize temporal Evolution semantics beyond Package: only temporal Item Types enter the
     staged board, while structural children remain in Context and the graph; expose semantic typing
     in a dedicated Context section.
+16. [x] Preserve navigable wiki references inside structured Markdown tables, where the label
+    separator must be escaped to remain inside one cell.
 
 ## Verification
 
@@ -113,6 +115,11 @@ now admits Plans to the staged board and keeps Entities, Operations, Concepts, a
 graph and Context. The predicate is intentionally explicit so a future Task Item Type can opt in
 without making every durable child temporal. Context also gives direct `typeOf` bindings their own
 Type section instead of burying them among unrelated links.
+
+The Applied Mutation Outcome adoption exposed a rendering edge: wiki-link separators inside a
+Markdown table are escaped for table syntax. Atlas now removes that syntactic escape while
+resolving the semantic id, so variant rows navigate to the same child Items already visible in the
+graph and child strip.
 
 ## Open Questions
 
