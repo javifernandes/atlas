@@ -318,6 +318,7 @@ const relationStyle: Record<PlanRelationKind, string> = {
   related: 'stroke-sky-400',
   'shaped-by': 'stroke-fuchsia-400',
   supports: 'stroke-indigo-400',
+  advances: 'stroke-rose-400',
 };
 
 const statusAccentClassName = (statusGroup: PlanStatusGroup) => {
@@ -370,6 +371,8 @@ const relationDotClassName = (kind: PlanRelationKind) => {
       return 'bg-fuchsia-400';
     case 'supports':
       return 'bg-indigo-400';
+    case 'advances':
+      return 'bg-rose-400';
   }
 };
 
@@ -384,6 +387,10 @@ const relationLabel = (kind: PlanRelationKind, direction: RelationDirection) => 
     }
 
     return direction === 'in' ? 'supported by' : 'supports';
+  }
+
+  if (kind === 'advances') {
+    return direction === 'in' ? 'advanced by' : 'advances';
   }
 
   if (kind === 'shaped-by') {
@@ -409,6 +416,7 @@ const hasEdgeNavigationHint = (kind: PlanRelationKind) =>
   kind === 'related' ||
   kind === 'shaped-by' ||
   kind === 'supports' ||
+  kind === 'advances' ||
   kind === 'type-of';
 
 const hierarchyRelationPriority: Record<

@@ -1,6 +1,7 @@
 # 102. Atlas Implementation And Release Evidence
 
 Status: current
+Advances: spec-workstream-atlas.goal.legible-system-evolution
 
 Depends on: [111. Atlas As An Ontahi Application](../done/111-atlas-as-ontahi-application.md)
 
