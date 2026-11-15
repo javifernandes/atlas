@@ -63,6 +63,8 @@ state/availability views remain a later slice after the Package boundary is visi
     separator must be escaped to remain inside one cell.
 17. [x] Present Entity behavior as switchable Flow and Availability readings inside States, while
    retaining the authored Operations table as the secondary definition index.
+18. [x] Reify the remaining User, Classroom, and Enrollment behaviors as linked Operation Items so
+   every operation in the first Classroom subgraph owns a navigable contract.
 
 ## Verification
 
@@ -142,6 +144,20 @@ The first UI pass revealed that production page snapshots intentionally omit ful
 Atlas now parses the lazily loaded full Markdown into an `EntityModel` before rendering these
 views, and the viewer test exercises that real source-backed path rather than injecting a model
 that the page never receives.
+
+## Checkpoint: Complete Classroom Operation Contracts
+
+The first Operation Item proved the contract shape, and the Enrollment Invitation lifecycle then
+proved that several Operations can remain indexed by one Entity without duplicating their full
+definitions. The same boundary now applies across the first Classroom subgraph: User owns Create
+Classroom, Classroom owns Invite and Archive, Enrollment owns Change Role and End, and Enrollment
+Invitation owns its complete proposal lifecycle. Entity tables remain the compact behavioral
+index; each linked Operation Item owns receiver, actor, inputs and outputs, availability,
+transition and effects, failures, preserved invariants, and implementation status.
+
+This closes the reification backfill for the current Classroom model. It does not claim that the
+descriptive contracts are executable Ontahí Operations yet; that remains a separate convergence
+decision from the Atlas authoring and projection experiment.
 
 ## Open Questions
 
