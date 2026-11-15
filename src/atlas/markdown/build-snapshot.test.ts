@@ -3,6 +3,67 @@ import { describe, expect, it } from 'vitest';
 import { buildPlanWorkstreamSnapshotFromFiles } from './build-snapshot';
 
 describe('plan workstream data', () => {
+  it('projects explicit Plan advances Goal relations without accepting non-Goal targets', () => {
+    const snapshot = buildPlanWorkstreamSnapshotFromFiles(
+      [
+        {
+          path: 'plans/current/147-goal-model-v0.md',
+          content: `# 147. Goal Model v0
+
+Status: current
+Advances: atlas.goal.legible-change, atlas.capability.viewer, missing.goal
+
+## Summary
+
+Make strategic intent navigable.
+`,
+        },
+      ],
+      [
+        {
+          path: 'atlas/items/goal.md',
+          content: `---
+id: atlas.goal.legible-change
+kind: goal
+title: Change Is Legible
+status: active
+relatedPlans: []
+---
+`,
+        },
+        {
+          path: 'atlas/items/viewer.md',
+          content: `---
+id: atlas.capability.viewer
+kind: capability
+title: Viewer
+status: active
+relatedPlans: []
+---
+`,
+        },
+      ],
+    );
+
+    expect(snapshot.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'atlas:atlas.goal.legible-change', kind: 'goal' }),
+        expect.objectContaining({
+          id: 'plan:plans/current/147-goal-model-v0.md',
+          kind: 'plan',
+        }),
+      ]),
+    );
+    expect(snapshot.edges).toContainEqual(
+      expect.objectContaining({
+        from: 'plan:plans/current/147-goal-model-v0.md',
+        kind: 'advances',
+        to: 'atlas:atlas.goal.legible-change',
+      }),
+    );
+    expect(snapshot.edges.filter(edge => edge.kind === 'advances')).toHaveLength(1);
+  });
+
   it('preserves direct semantic type chains without flattening inherited membership', () => {
     const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
       {

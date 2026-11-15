@@ -8,7 +8,8 @@ horizon: next
 supports:
   - spec-workstream-atlas.atlas-model
   - spec-workstream-atlas.planning-projection
-relatedPlans: []
+relatedPlans:
+  - plans/done/147-goal-model-v0.md
 exemplars:
   - ontahi.independently-usable
 ---
@@ -57,13 +58,19 @@ For now, a workstream is a planning projection: a view that groups Plans by Goal
 
 Promote Workstream to a declared item only if it later needs stable identity, ownership, status, policy, or decisions independent from the Goals and Plans it groups.
 
+## Source Form
+
+Goals use `kind: goal`. Plans name the outcomes they advance with an `Advances:` metadata line
+containing one or more stable Goal ids. This relation expresses intended strategic contribution;
+it does not claim that the Plan completes the Goal or prove measurable progress.
+
 ## Open Questions
 
-1. Should Goal eventually become its own Atlas item kind instead of using `kind: concept`?
-2. Which relation best expresses goal decomposition: `supports`, `refines`, `part-of`, or a primary parent plus secondary relations?
-3. How should goal progress be expressed without turning Atlas into a metrics system prematurely?
-4. When should a derived workstream become a declared planning object?
+1. Which relation best expresses goal decomposition: `supports`, `refines`, `part-of`, or a primary parent plus secondary relations?
+2. How should goal progress be expressed without turning Atlas into a metrics system prematurely?
+3. When should a derived workstream become a declared planning object?
 
 ## Evolution
 
-This page documents the semantic direction only. Parser support, Goal-specific UI, authoring operations, hierarchy behavior, and progress projections belong to a later Atlas implementation slice.
+Plan 147 promotes Goal into the semantic source and adds the first `advances` projection. Goal-
+specific authoring operations, hierarchy behavior, and progress projections remain later slices.

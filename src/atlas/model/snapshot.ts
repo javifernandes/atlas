@@ -10,6 +10,7 @@ export type PlanNodeKind =
   | 'root'
   | 'project'
   | 'package'
+  | 'goal'
   | 'territory'
   | 'workstream'
   | 'model'
@@ -37,6 +38,7 @@ export type PlanRelationKind =
   | 'candidate'
   | 'shaped-by'
   | 'supports'
+  | 'advances'
   | 'follow-up';
 
 export type EntityModelField = {

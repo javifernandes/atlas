@@ -51,6 +51,7 @@ export type ParsedPlan = {
   sourceRevision?: string;
   sourceRevisionKind?: 'git' | 'content-sha256';
   relatedLinks: Array<{ path: string; kind: Extract<PlanRelationKind, 'follow-up' | 'related'> }>;
+  advances: string[];
   parentPlanPath?: string;
   candidateChildren: string[];
 };
@@ -59,6 +60,7 @@ type AtlasItemKind = Extract<
   PlanWorkstreamNode['kind'],
   | 'project'
   | 'package'
+  | 'goal'
   | 'territory'
   | 'model'
   | 'concept'
@@ -403,6 +405,10 @@ const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
   const territory =
     metadata.territory ?? (file.sourceId ? humanizeIdentifier(file.sourceId) : 'Plans');
   const workstream = metadata.workstream ?? codename ?? humanizeIdentifier(statusGroup);
+  const advances = (metadata.advances ?? '')
+    .split(/[;,]/)
+    .map(target => target.trim())
+    .filter(Boolean);
 
   return {
     id: `plan:${file.canonicalPath}`,
@@ -430,6 +436,7 @@ const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
     sourceRevision: file.sourceRevision,
     sourceRevisionKind: file.sourceRevisionKind,
     relatedLinks: parseRelatedLinks(file),
+    advances,
     parentPlanPath: parseParentPlanPath(file),
     candidateChildren: parseCandidateChildren(file.content),
   };
@@ -438,6 +445,7 @@ const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
 const isAtlasItemKind = (value: string): value is AtlasItemKind =>
   value === 'project' ||
   value === 'package' ||
+  value === 'goal' ||
   value === 'territory' ||
   value === 'model' ||
   value === 'concept' ||
@@ -999,8 +1007,17 @@ const buildSemanticSnapshotFromFiles = (
   const edges: PlanWorkstreamEdge[] = [];
   const edgeIds = new Set<string>();
   const referencedPlanPaths = new Set(atlasItems.flatMap(item => item.relatedPlans));
+  const advancingPlanPaths = new Set(
+    plans
+      .filter(plan =>
+        plan.advances.some(goalId => itemById.get(goalId)?.kind === 'goal'),
+      )
+      .map(plan => plan.path),
+  );
   const isReferencedPlan = (plan: ParsedPlan) =>
-    getPlanReferences(plan).some(reference => referencedPlanPaths.has(reference));
+    getPlanReferences(plan).some(
+      reference => referencedPlanPaths.has(reference) || advancingPlanPaths.has(reference),
+    );
   const orderedPlans: ParsedPlan[] = [];
   const orderedPlanPaths = new Set<string>();
   const addEdge = (edge: PlanWorkstreamEdge) => {
@@ -1066,6 +1083,15 @@ const buildSemanticSnapshotFromFiles = (
     }
   }
 
+  for (const plan of plans) {
+    if (!isReferencedPlan(plan) || orderedPlanPaths.has(plan.path)) {
+      continue;
+    }
+
+    orderedPlanPaths.add(plan.path);
+    orderedPlans.push(plan);
+  }
+
   for (const plan of orderedPlans.sort((left, right) => left.path.localeCompare(right.path))) {
     addNode(toPlanNode(plan));
   }
@@ -1103,6 +1129,21 @@ const buildSemanticSnapshotFromFiles = (
   }
 
   for (const plan of orderedPlans) {
+    for (const goalId of plan.advances) {
+      const goal = itemById.get(goalId);
+
+      if (!goal || goal.kind !== 'goal') {
+        continue;
+      }
+
+      addEdge({
+        id: `${plan.id}->${goal.nodeId}:advances`,
+        from: plan.id,
+        to: goal.nodeId,
+        kind: 'advances',
+      });
+    }
+
     if (plan.parentPlanPath) {
       const parentPlan = planByPath.get(plan.parentPlanPath);
 
@@ -1154,7 +1195,8 @@ const buildSemanticSnapshotFromFiles = (
       edge.kind === 'related' ||
       edge.kind === 'shaped-by' ||
       edge.kind === 'type-of' ||
-      edge.kind === 'supports'
+      edge.kind === 'supports' ||
+      edge.kind === 'advances'
     ) {
       stats.relatedCount += 1;
     }

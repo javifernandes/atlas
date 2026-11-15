@@ -202,21 +202,22 @@ The v0 kind set is intentionally broad enough to name what we already discuss in
 
 1. `project`: a root system or extracted project.
 2. `package`: a repository-local implementation and semantic ownership boundary.
-3. `territory`: a broad area within a project.
-4. `model`: a named model or ontology area when `territory` is not precise enough.
-5. `concept`: a model term that may or may not become code.
-6. `experience`: a human-facing or operator-facing workflow.
-7. `capability`: something the system can do.
-8. `entity`: a domain or persisted object.
-9. `operation`: an action the system or a person can perform.
-10. `artifact`: generated, persisted, rendered, or derived output.
-11. `policy`: a rule, constraint, permission, or invariant.
-12. `state`: a named lifecycle or product state.
-13. `relation`: a named relationship between model items.
-14. `system-primitive`: a low-level framework primitive.
-15. `tooling`: supporting developer or operational tooling.
-16. `evidence`: a grouped evidence area.
-17. `practice`: a working agreement or repeatable operating method.
+3. `goal`: a desired future state that Plans can advance without prescribing one intervention.
+4. `territory`: a broad area within a project.
+5. `model`: a named model or ontology area when `territory` is not precise enough.
+6. `concept`: a model term that may or may not become code.
+7. `experience`: a human-facing or operator-facing workflow.
+8. `capability`: something the system can do.
+9. `entity`: a domain or persisted object.
+10. `operation`: an action the system or a person can perform.
+11. `artifact`: generated, persisted, rendered, or derived output.
+12. `policy`: a rule, constraint, permission, or invariant.
+13. `state`: a named lifecycle or product state.
+14. `relation`: a named relationship between model items.
+15. `system-primitive`: a low-level framework primitive.
+16. `tooling`: supporting developer or operational tooling.
+17. `evidence`: a grouped evidence area.
+18. `practice`: a working agreement or repeatable operating method.
 
 Avoid adding kinds because they sound elegant. Add them when they improve navigation, closure, evidence review, or stale-state detection.
 
@@ -227,6 +228,7 @@ The current UI understands a small relationship set:
 1. `parent`: tree containment.
 2. `supports`: support across items or projects.
 3. `relatedPlans`: plan-to-item shaping history.
+4. `advances`: a Plan's explicit contribution toward a Goal.
 
 Future explicit relation fields should distinguish at least:
 
