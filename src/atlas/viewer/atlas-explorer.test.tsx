@@ -401,6 +401,85 @@ const selection: Selection = Selection.references(Book, refs);
     );
   });
 
+  it('derives navigable operation availability from an Entity model', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=invitation-entity');
+    const user = userEvent.setup();
+    const invitationMarkdown = `## States
+
+| State | Kind | Meaning |
+| --- | --- | --- |
+| Pending | initial | Awaiting a response |
+| Accepted | terminal | The invitation was accepted |
+
+## Operations
+
+| Operation | Actor | Applies when | Transition | Effects |
+| --- | --- | --- | --- | --- |
+| [Accept](./accept-operation.md) | Recipient | status is Pending | Pending -> Accepted | create Enrollment |`;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({ markdown: invitationMarkdown }),
+    );
+    const invitationNode = {
+      ...createNode('invitation-entity', {
+        kind: 'entity',
+        markdown: invitationMarkdown,
+        semanticId: 'test.invitation',
+        shortTitle: 'Invitation',
+      }),
+      markdown: undefined,
+      path: 'atlas/items/invitation-entity.md',
+    };
+    const acceptNode = {
+      ...createNode('accept-operation', {
+        kind: 'operation',
+        markdown: 'Accepts the invitation.',
+        semanticId: 'test.invitation.accept',
+        shortTitle: 'Accept',
+      }),
+      path: 'atlas/items/accept-operation.md',
+    };
+
+    renderExplorer({
+      value: {
+        ...snapshot,
+        nodes: [...snapshot.nodes, invitationNode, acceptNode],
+        edges: [
+          ...snapshot.edges,
+          {
+            id: 'invitation-contains-accept',
+            from: invitationNode.id,
+            to: acceptNode.id,
+            kind: 'contains',
+          },
+        ],
+      },
+    });
+
+    const behavior = await within(screen.getByRole('dialog')).findByRole('region', {
+      name: 'Entity behavior',
+    });
+    expect(within(behavior).getByRole('tab', { name: 'Flow' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+
+    await user.click(within(behavior).getByRole('tab', { name: 'Availability' }));
+
+    const availability = within(behavior).getByRole('tabpanel', {
+      name: 'Operation availability',
+    });
+    expect(within(availability).getAllByText('Pending').length).toBeGreaterThan(0);
+    expect(within(availability).getByText('Recipient')).toBeInTheDocument();
+    expect(within(availability).getByText('None')).toBeInTheDocument();
+
+    await user.click(within(availability).getByRole('button', { name: /Accept/ }));
+
+    expect(
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'Accept' }),
+    ).toBeInTheDocument();
+    fetchMock.mockRestore();
+  });
+
   it('aggregates descendant Plans without placing structural Package children in Evolution', () => {
     globalThis.history.replaceState(
       {},

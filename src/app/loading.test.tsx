@@ -9,13 +9,14 @@ describe('Atlas loading screen', () => {
 
     expect(screen.getByRole('status')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Atlas' })).toBeInTheDocument();
-    expect(
-      screen.getByText('Shape systems. Navigate structure. Track evolution.'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Shape systems')).toBeInTheDocument();
+    expect(screen.getByText('Navigate structure')).toBeInTheDocument();
+    expect(screen.getByText('Track evolution')).toBeInTheDocument();
 
     expect(container.querySelector('.atlas-loading-mark')).toBeInTheDocument();
     expect(container.querySelectorAll('.atlas-loading-stroke')).toHaveLength(7);
     expect(container.querySelector('.atlas-loading-core')).toBeInTheDocument();
+    expect(container.querySelectorAll('.atlas-loading-message')).toHaveLength(3);
     expect(container.querySelectorAll('[pathLength="1"]')).toHaveLength(7);
     expect(container.querySelectorAll('.animate-pulse')).toHaveLength(0);
   });
