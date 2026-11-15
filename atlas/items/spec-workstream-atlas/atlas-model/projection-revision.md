@@ -13,6 +13,7 @@ relatedPlans:
   - plans/done/116-atlas-ontahi-postgres-persistence.md
   - plans/current/102-workstream-atlas-implementation-evidence.md
   - plans/done/129-neon-egress-audit-and-containment.md
+  - plans/done/148-reconcile-projection-on-production-build.md
 ---
 
 Projection Revision is the durable operational observation served by Atlas. It records one trigger,
@@ -52,3 +53,9 @@ PostgreSQL performs that page projection before the snapshot crosses the applica
 removes each node and document `markdown` field from the latest revision inside the query, and a
 separate parameterized read extracts one matching Markdown body for full detail. The server never
 has to materialize the complete revision merely to discard most of its bytes.
+
+A production deployment also recompiles the projection after its application build succeeds. This
+closes the interval in which a webhook handled by the previous deployment can observe new source
+syntax using old parser semantics. Schema migrations protect physical compatibility; deployment
+reconciliation separately protects semantic compatibility between source declarations and their
+persisted Projection Revision. Preview and local builds do not perform this production mutation.

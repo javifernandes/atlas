@@ -19,3 +19,7 @@ if [[ "${VERCEL_ENV:-}" == "production" ]]; then
 fi
 
 pnpm build
+
+if [[ "${VERCEL_ENV:-}" == "production" ]]; then
+  pnpm db:reconcile
+fi
