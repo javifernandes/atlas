@@ -73,11 +73,21 @@ Actor label or treat presentation grouping as executable policy.
 
 ## Derived Behavior Views
 
-Atlas parses the five tables at reconciliation time. Entity detail may then render:
+Atlas parses the five tables at reconciliation time. Entity detail may then render the first two
+behavior projections as switchable views inside the States section:
 
 1. a statechart from States and Operation transitions;
 2. an availability matrix from Operation actor and applicability declarations;
 3. later interaction or authorization views from the same typed facts.
+
+`Flow` is the default temporal reading. `Availability` pivots the same declarations by State and
+Actor. Keeping both behind one local view selector makes their shared source explicit and avoids
+presenting the availability projection as another authored Operations table. The Operations table
+remains the compact definition index below the behavior views.
+
+When full Entity Markdown is loaded lazily from projection storage, Atlas derives this typed model
+from the loaded source before rendering either view. A lightweight graph snapshot therefore does
+not need to duplicate the full Entity anatomy merely to make behavior projections available.
 
 An invalid or absent canonical table produces no derived rows; it must not silently invent domain
 behavior from prose. The original Markdown remains available as evidence and for progressive

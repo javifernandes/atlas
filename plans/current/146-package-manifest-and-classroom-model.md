@@ -61,6 +61,8 @@ state/availability views remain a later slice after the Package boundary is visi
     in a dedicated Context section.
 16. [x] Preserve navigable wiki references inside structured Markdown tables, where the label
     separator must be escaped to remain inside one cell.
+17. [x] Present Entity behavior as switchable Flow and Availability readings inside States, while
+   retaining the authored Operations table as the secondary definition index.
 
 ## Verification
 
@@ -129,6 +131,17 @@ behavior, making absence explicit rather than dropping it. A linked Operation na
 standalone Item contract; inline Operations remain visible without inventing a target. The original
 Entity tables remain the authoring source, and the same declarations continue to drive the
 statechart rather than requiring a second interaction document.
+
+The first UI pass exposed that rendering the availability matrix above the Operations table made
+the projection look like duplicate documentation. Entity detail now groups the statechart and the
+State-by-Actor matrix as `Flow` and `Availability` views inside States. Flow remains the default;
+Availability is an explicit pivot of the same typed facts, and the original Operations table stays
+visible as the technical definition index.
+
+The first UI pass revealed that production page snapshots intentionally omit full Entity anatomy.
+Atlas now parses the lazily loaded full Markdown into an `EntityModel` before rendering these
+views, and the viewer test exercises that real source-backed path rather than injecting a model
+that the page never receives.
 
 ## Open Questions
 

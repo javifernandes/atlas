@@ -404,32 +404,29 @@ const selection: Selection = Selection.references(Book, refs);
   it('derives navigable operation availability from an Entity model', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=invitation-entity');
     const user = userEvent.setup();
+    const invitationMarkdown = `## States
+
+| State | Kind | Meaning |
+| --- | --- | --- |
+| Pending | initial | Awaiting a response |
+| Accepted | terminal | The invitation was accepted |
+
+## Operations
+
+| Operation | Actor | Applies when | Transition | Effects |
+| --- | --- | --- | --- | --- |
+| [Accept](./accept-operation.md) | Recipient | status is Pending | Pending -> Accepted | create Enrollment |`;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({ markdown: invitationMarkdown }),
+    );
     const invitationNode = {
       ...createNode('invitation-entity', {
         kind: 'entity',
-        markdown: '## States\n\n## Operations',
+        markdown: invitationMarkdown,
         semanticId: 'test.invitation',
         shortTitle: 'Invitation',
       }),
-      entityModel: {
-        fields: [],
-        relations: [],
-        states: [
-          { name: 'Pending', kind: 'initial', meaning: 'Awaiting a response' },
-          { name: 'Accepted', kind: 'terminal', meaning: 'The invitation was accepted' },
-        ],
-        operations: [
-          {
-            name: 'Accept',
-            reference: './accept-operation.md',
-            actor: 'Recipient',
-            appliesWhen: 'status is Pending',
-            transition: 'Pending -> Accepted',
-            effects: 'create Enrollment',
-          },
-        ],
-        invariants: [],
-      },
+      markdown: undefined,
       path: 'atlas/items/invitation-entity.md',
     };
     const acceptNode = {
@@ -458,7 +455,17 @@ const selection: Selection = Selection.references(Book, refs);
       },
     });
 
-    const availability = within(screen.getByRole('dialog')).getByRole('region', {
+    const behavior = await within(screen.getByRole('dialog')).findByRole('region', {
+      name: 'Entity behavior',
+    });
+    expect(within(behavior).getByRole('tab', { name: 'Flow' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+
+    await user.click(within(behavior).getByRole('tab', { name: 'Availability' }));
+
+    const availability = within(behavior).getByRole('tabpanel', {
       name: 'Operation availability',
     });
     expect(within(availability).getAllByText('Pending').length).toBeGreaterThan(0);
@@ -470,6 +477,7 @@ const selection: Selection = Selection.references(Book, refs);
     expect(
       within(screen.getByRole('dialog')).getByRole('heading', { name: 'Accept' }),
     ).toBeInTheDocument();
+    fetchMock.mockRestore();
   });
 
   it('aggregates descendant Plans without placing structural Package children in Evolution', () => {

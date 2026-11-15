@@ -46,6 +46,7 @@ import {
   buildEntityOperationAvailability,
   buildEntityStatechart,
   hasEntityBehavior,
+  parseEntityModel,
 } from '@/atlas/markdown/entity-model';
 import type {
   PlanRelationKind,
@@ -2321,7 +2322,7 @@ const EntityStatechart = ({ node }: { node: PlanWorkstreamNode }) => {
   const statechart = buildEntityStatechart(model);
 
   return statechart ? (
-    <div className='my-6 overflow-hidden rounded-2xl border border-border/45 bg-gradient-to-br from-primary/[0.035] via-background/25 to-background/10 px-3 py-5 shadow-[inset_0_1px_0_rgb(255_255_255/0.025)] [&_figure]:my-0'>
+    <div className='overflow-hidden rounded-2xl border border-border/45 bg-gradient-to-br from-primary/[0.035] via-background/25 to-background/10 px-3 py-5 shadow-[inset_0_1px_0_rgb(255_255_255/0.025)] [&_figure]:my-0'>
       <MermaidDiagram code={statechart} variant='atlas-state' />
     </div>
   ) : null;
@@ -2338,7 +2339,7 @@ const EntityOperationAvailabilityView = ({ context }: { context: MarkdownRenderC
   return (
     <section
       aria-label='Operation availability'
-      className='my-6 overflow-hidden rounded-xl bg-muted/[0.08]'
+      className='overflow-hidden rounded-xl bg-muted/[0.08]'
     >
       <div className='hidden grid-cols-[minmax(7rem,0.8fr)_minmax(7rem,0.8fr)_minmax(12rem,1.6fr)] gap-4 border-b border-border/50 px-4 pb-3 pt-3 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/75 sm:grid'>
         <span>State</span>
@@ -2401,6 +2402,61 @@ const EntityOperationAvailabilityView = ({ context }: { context: MarkdownRenderC
             </span>
           </div>
         ))}
+      </div>
+    </section>
+  );
+};
+
+const EntityBehaviorViews = ({ context }: { context: MarkdownRenderContext }) => {
+  const { sourceNode: node } = context;
+  const model = node.entityModel;
+  const [activeView, setActiveView] = useState<'availability' | 'flow'>('flow');
+
+  if (node.kind !== 'entity' || !model || !hasEntityBehavior(model)) return null;
+
+  const hasFlow = Boolean(buildEntityStatechart(model));
+  const hasAvailability = model.operations.length > 0;
+  const visibleView = activeView === 'flow' && !hasFlow ? 'availability' : activeView;
+
+  return (
+    <section aria-label='Entity behavior' className='my-6'>
+      {hasFlow && hasAvailability ? (
+        <div
+          aria-label='Behavior view'
+          className='mb-4 inline-flex rounded-lg border border-border/55 bg-muted/20 p-1'
+          role='tablist'
+        >
+          {(['flow', 'availability'] as const).map(view => (
+            <button
+              key={view}
+              aria-controls={`entity-behavior-${view}`}
+              aria-selected={visibleView === view}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                visibleView === view
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+              role='tab'
+              type='button'
+              onClick={() => setActiveView(view)}
+            >
+              {view === 'flow' ? 'Flow' : 'Availability'}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div
+        id={`entity-behavior-${visibleView}`}
+        aria-label={visibleView === 'flow' ? 'State flow' : 'Operation availability'}
+        role='tabpanel'
+      >
+        {visibleView === 'flow' ? (
+          <EntityStatechart node={node} />
+        ) : (
+          <EntityOperationAvailabilityView context={context} />
+        )}
       </div>
     </section>
   );
@@ -3417,16 +3473,7 @@ const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
 
       if (level === 2 && /^states$/i.test(getMarkdownHeadingLabel(content))) {
         blocks.push(
-          <EntityStatechart key={`entity-statechart-${index}`} node={context.sourceNode} />,
-        );
-      }
-
-      if (level === 2 && /^operations$/i.test(getMarkdownHeadingLabel(content))) {
-        blocks.push(
-          <EntityOperationAvailabilityView
-            key={`entity-operation-availability-${index}`}
-            context={context}
-          />,
+          <EntityBehaviorViews key={`entity-behavior-${index}`} context={context} />,
         );
       }
 
@@ -5002,7 +5049,14 @@ export const PlanWorkstreamExplorer = ({
     : null;
   const fullNodeWithContent =
     fullNode && fullNodeContent?.status === 'loaded'
-      ? { ...fullNode, markdown: fullNodeContent.markdown }
+      ? {
+          ...fullNode,
+          markdown: fullNodeContent.markdown,
+          entityModel:
+            fullNode.kind === 'entity'
+              ? parseEntityModel(fullNodeContent.markdown)
+              : fullNode.entityModel,
+        }
       : fullNode;
   const fullNodeNavigationBackNode =
     fullNodeHistoryIds.length > 0
