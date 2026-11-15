@@ -117,10 +117,13 @@ The workflow rejects a Neon `-pooler` hostname, applies all missing checksum mig
 one production concurrency group, and does not cancel an active migration.
 
 Vercel production builds use `scripts/vercel-build.sh` to run the same migrate-and-verify sequence
-before `pnpm build`. Preview and local builds skip it. This makes migration completion a release
-gate rather than racing the automatic production deployment; the GitHub workflow remains the
-auditable post-merge executor and retry path. Both are safe to invoke together because the runner
-uses a PostgreSQL advisory lock and immutable checksums.
+before `pnpm build`, then reconcile the durable projection after compilation succeeds. Preview and
+local builds skip both production database phases. The pre-build phase makes migration completion a
+release gate; the post-build phase recompiles source semantics with the code being deployed so a
+webhook handled by the previous deployment cannot leave a new source kind or relation normalized by
+an old parser. The GitHub workflow remains the auditable migration executor and retry path.
+Migration and reconciliation overlap safely because both use their existing PostgreSQL locks and
+idempotent identities.
 
 All migrations must be expand-first and compatible with the currently deployed application.
 Removing an old table or column is a later contract step after every production reader has stopped
