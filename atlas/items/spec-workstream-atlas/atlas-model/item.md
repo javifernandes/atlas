@@ -43,6 +43,10 @@ occupy temporal Evolution stages merely because they are children. Evolution sta
 work Items. Today that means Plans; future types such as Tasks may opt in explicitly rather than
 inheriting temporal behavior from generic Item containment.
 
+Authored wiki references retain the same semantic identity in prose, lists, and structured tables.
+Markdown escaping needed to preserve a table cell is syntax rather than part of the target id;
+Atlas resolves the reference to the same navigable Item in every rendering context.
+
 ## Child Items
 
 1. [`Atlas Item Type`](./item-type.md)

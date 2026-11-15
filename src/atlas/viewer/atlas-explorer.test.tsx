@@ -600,6 +600,37 @@ const selection: Selection = Selection.references(Book, refs);
     ).toBeInTheDocument();
   });
 
+  it('resolves wiki links with escaped separators inside Markdown tables', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const user = userEvent.setup();
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-a'
+          ? {
+              ...node,
+              markdown: `| Variant | Meaning |
+| --- | --- |
+| [[item-c\\|Item C]] | A linked variant |`,
+            }
+          : node,
+      ),
+    };
+
+    renderExplorer({ value });
+
+    const variantLink = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Item C',
+    });
+    expect(variantLink).toHaveAttribute('title', 'item-c');
+
+    await user.click(variantLink);
+
+    expect(
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'Item C' }),
+    ).toBeInTheDocument();
+  });
+
   it('shows every project membership in full detail when Atlas has multiple projects', () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-b');
     const ontahiProject = createNode('ontahi-project', {
