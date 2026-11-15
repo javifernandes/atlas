@@ -42,7 +42,11 @@ import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { ScrollableOverflow } from '@/components/scrollable-overflow';
 import { useTheme } from '@/components/theme-provider';
 import type { AtlasExecutionStreamProjection } from '@/atlas/model/execution-stream';
-import { buildEntityStatechart, hasEntityBehavior } from '@/atlas/markdown/entity-model';
+import {
+  buildEntityOperationAvailability,
+  buildEntityStatechart,
+  hasEntityBehavior,
+} from '@/atlas/markdown/entity-model';
 import type {
   PlanRelationKind,
   PlanStatusGroup,
@@ -2323,6 +2327,85 @@ const EntityStatechart = ({ node }: { node: PlanWorkstreamNode }) => {
   ) : null;
 };
 
+const EntityOperationAvailabilityView = ({ context }: { context: MarkdownRenderContext }) => {
+  const { sourceNode: node } = context;
+  const model = node.entityModel;
+
+  if (node.kind !== 'entity' || !model || model.operations.length === 0) return null;
+
+  const availability = buildEntityOperationAvailability(model);
+
+  return (
+    <section
+      aria-label='Operation availability'
+      className='my-6 overflow-hidden rounded-xl bg-muted/[0.08]'
+    >
+      <div className='hidden grid-cols-[minmax(7rem,0.8fr)_minmax(7rem,0.8fr)_minmax(12rem,1.6fr)] gap-4 border-b border-border/50 px-4 pb-3 pt-3 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/75 sm:grid'>
+        <span>State</span>
+        <span>Actor</span>
+        <span>Available operations</span>
+      </div>
+      <div>
+        {availability.map((row, rowIndex) => (
+          <div
+            key={`${row.state}-${row.actor}`}
+            className={cn(
+              'relative grid grid-cols-1 gap-2 px-4 py-3 text-sm sm:grid-cols-[minmax(7rem,0.8fr)_minmax(7rem,0.8fr)_minmax(12rem,1.6fr)] sm:gap-4',
+              rowIndex > 0 &&
+                'before:absolute before:left-4 before:right-4 before:top-0 before:h-px before:bg-border/25',
+            )}
+          >
+            <span className='font-medium text-foreground'>{row.state}</span>
+            <span className='text-muted-foreground'>{row.actor}</span>
+            <span className='flex min-w-0 flex-wrap gap-2'>
+              {row.operations.length > 0 ? (
+                row.operations.map(operation => {
+                  const target = operation.reference
+                    ? resolveMarkdownLinkNode(
+                        node,
+                        operation.reference,
+                        context.nodesByPath,
+                        context.nodesBySemanticId,
+                      )
+                    : null;
+                  const label = (
+                    <>
+                      <span>{operation.name}</span>
+                      {target ? <ArrowRight aria-hidden='true' className='size-3' /> : null}
+                    </>
+                  );
+
+                  return target ? (
+                    <button
+                      key={`${row.state}-${row.actor}-${operation.name}`}
+                      type='button'
+                      className='inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/[0.06] px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-primary/55 hover:bg-primary/[0.11]'
+                      title={operation.appliesWhen}
+                      onClick={() => context.onOpenFull(target.id)}
+                    >
+                      {label}
+                    </button>
+                  ) : (
+                    <span
+                      key={`${row.state}-${row.actor}-${operation.name}`}
+                      className='inline-flex items-center rounded-full border border-border/65 px-2.5 py-1 text-xs text-foreground'
+                      title={operation.appliesWhen}
+                    >
+                      {label}
+                    </span>
+                  );
+                })
+              ) : (
+                <span className='text-muted-foreground/60'>None</span>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
+
 const resolveSourceMetadataNode = (
   value: string,
   nodesByPath: Map<string, PlanWorkstreamNode>,
@@ -3318,12 +3401,6 @@ const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
       const content = heading[2] ?? '';
       const HeadingTag = level === 2 ? 'h3' : 'h4';
 
-      if (level === 2 && /^operations$/i.test(getMarkdownHeadingLabel(content))) {
-        blocks.push(
-          <EntityStatechart key={`entity-statechart-${index}`} node={context.sourceNode} />,
-        );
-      }
-
       blocks.push(
         <HeadingTag
           key={`heading-${index}`}
@@ -3337,6 +3414,22 @@ const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
           {renderMarkdownInline(content, context, false)}
         </HeadingTag>,
       );
+
+      if (level === 2 && /^states$/i.test(getMarkdownHeadingLabel(content))) {
+        blocks.push(
+          <EntityStatechart key={`entity-statechart-${index}`} node={context.sourceNode} />,
+        );
+      }
+
+      if (level === 2 && /^operations$/i.test(getMarkdownHeadingLabel(content))) {
+        blocks.push(
+          <EntityOperationAvailabilityView
+            key={`entity-operation-availability-${index}`}
+            context={context}
+          />,
+        );
+      }
+
       index += 1;
       continue;
     }

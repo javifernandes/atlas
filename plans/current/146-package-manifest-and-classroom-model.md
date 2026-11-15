@@ -54,7 +54,7 @@ state/availability views remain a later slice after the Package boundary is visi
     Entity's States section.
 12. [x] Materialize authored `typeOf` relationships so concrete and specialized Items retain their
     semantic type hierarchy across reconciliation, persistence, and navigation.
-13. [ ] Derive an operation-availability interaction view without duplicating the Operations table.
+13. [x] Derive an operation-availability interaction view without duplicating the Operations table.
 14. [ ] Add a recipient Experience that consumes the declared Operations.
 15. [x] Generalize temporal Evolution semantics beyond Package: only temporal Item Types enter the
     staged board, while structural children remain in Context and the graph; expose semantic typing
@@ -120,6 +120,15 @@ The Applied Mutation Outcome adoption exposed a rendering edge: wiki-link separa
 Markdown table are escaped for table syntax. Atlas now removes that syntactic escape while
 resolving the semantic id, so variant rows navigate to the same child Items already visible in the
 graph and child strip.
+
+## Checkpoint: Derived Operation Availability
+
+Entity detail now projects its declared States, Operation actors, applicability, and transitions
+into an availability matrix. Rows retain terminal or otherwise inactive States with no available
+behavior, making absence explicit rather than dropping it. A linked Operation name navigates to its
+standalone Item contract; inline Operations remain visible without inventing a target. The original
+Entity tables remain the authoring source, and the same declarations continue to drive the
+statechart rather than requiring a second interaction document.
 
 ## Open Questions
 

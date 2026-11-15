@@ -65,6 +65,12 @@ requiring authors to maintain a separate diagram or interaction model.
 by transition; an interaction model groups them by actor and context. Both are derived views rather
 than second sources of truth.
 
+The first availability projection groups Operations by their transition source State, falling back
+to an explicitly named State in `Applies when` for non-transitioning behavior. Within a State it
+groups by Actor, retains States with no available Operations, and preserves authored Operation
+links as navigation to the standalone contract. It does not infer authorization merely from an
+Actor label or treat presentation grouping as executable policy.
+
 ## Derived Behavior Views
 
 Atlas parses the five tables at reconciliation time. Entity detail may then render:

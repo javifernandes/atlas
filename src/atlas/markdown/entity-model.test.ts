@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildEntityStatechart, parseEntityModel } from './entity-model';
+import {
+  buildEntityOperationAvailability,
+  buildEntityStatechart,
+  parseEntityModel,
+} from './entity-model';
 
 describe('Entity Model Markdown', () => {
   it('parses canonical behavior tables into typed model data', () => {
@@ -41,6 +45,7 @@ describe('Entity Model Markdown', () => {
         appliesWhen: 'status is Pending',
         effects: 'create Enrollment',
         name: 'Accept',
+        reference: './accept.md',
         transition: 'Pending -> Accepted',
       },
     ]);
@@ -48,5 +53,28 @@ describe('Entity Model Markdown', () => {
     expect(buildEntityStatechart(model)).toContain(
       'Pending --> Accepted : Accept · Recipient',
     );
+    expect(buildEntityOperationAvailability(model)).toEqual([
+      {
+        state: 'Pending',
+        actor: 'Recipient',
+        operations: [model.operations[0]],
+      },
+      { state: 'Accepted', actor: '—', operations: [] },
+    ]);
+
+    expect(
+      buildEntityOperationAvailability({
+        ...model,
+        operations: [
+          {
+            name: 'Invite',
+            actor: 'Owner',
+            appliesWhen: 'no equivalent Pending invitation exists',
+            transition: 'none -> Pending',
+            effects: 'persist invitation',
+          },
+        ],
+      })[0],
+    ).toMatchObject({ state: 'Before creation', actor: 'Owner' });
   });
 });

@@ -401,6 +401,77 @@ const selection: Selection = Selection.references(Book, refs);
     );
   });
 
+  it('derives navigable operation availability from an Entity model', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=invitation-entity');
+    const user = userEvent.setup();
+    const invitationNode = {
+      ...createNode('invitation-entity', {
+        kind: 'entity',
+        markdown: '## States\n\n## Operations',
+        semanticId: 'test.invitation',
+        shortTitle: 'Invitation',
+      }),
+      entityModel: {
+        fields: [],
+        relations: [],
+        states: [
+          { name: 'Pending', kind: 'initial', meaning: 'Awaiting a response' },
+          { name: 'Accepted', kind: 'terminal', meaning: 'The invitation was accepted' },
+        ],
+        operations: [
+          {
+            name: 'Accept',
+            reference: './accept-operation.md',
+            actor: 'Recipient',
+            appliesWhen: 'status is Pending',
+            transition: 'Pending -> Accepted',
+            effects: 'create Enrollment',
+          },
+        ],
+        invariants: [],
+      },
+      path: 'atlas/items/invitation-entity.md',
+    };
+    const acceptNode = {
+      ...createNode('accept-operation', {
+        kind: 'operation',
+        markdown: 'Accepts the invitation.',
+        semanticId: 'test.invitation.accept',
+        shortTitle: 'Accept',
+      }),
+      path: 'atlas/items/accept-operation.md',
+    };
+
+    renderExplorer({
+      value: {
+        ...snapshot,
+        nodes: [...snapshot.nodes, invitationNode, acceptNode],
+        edges: [
+          ...snapshot.edges,
+          {
+            id: 'invitation-contains-accept',
+            from: invitationNode.id,
+            to: acceptNode.id,
+            kind: 'contains',
+          },
+        ],
+      },
+    });
+
+    const availability = within(screen.getByRole('dialog')).getByRole('region', {
+      name: 'Operation availability',
+    });
+    expect(within(availability).getAllByText('Pending').length).toBeGreaterThan(0);
+    expect(within(availability).getByText('Recipient')).toBeInTheDocument();
+    expect(within(availability).getByText('None')).toBeInTheDocument();
+
+    await user.click(within(availability).getByRole('button', { name: /Accept/ }));
+
+    expect(
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'Accept' }),
+    ).toBeInTheDocument();
+  });
+
   it('aggregates descendant Plans without placing structural Package children in Evolution', () => {
     globalThis.history.replaceState(
       {},

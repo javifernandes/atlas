@@ -61,10 +61,17 @@ export type EntityModelState = {
 
 export type EntityModelOperation = {
   name: string;
+  reference?: string;
   actor: string;
   appliesWhen: string;
   transition: string;
   effects: string;
+};
+
+export type EntityOperationAvailability = {
+  state: string;
+  actor: string;
+  operations: EntityModelOperation[];
 };
 
 export type EntityModelInvariant = {
