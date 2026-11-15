@@ -22,6 +22,45 @@ html.dark .shiki span {
   }
 }
 
+@keyframes atlas-loading-message-shape {
+  0%,
+  55% {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+  62%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes atlas-loading-message-navigate {
+  0%,
+  63% {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+  70%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes atlas-loading-message-track {
+  0%,
+  71% {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+  78%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes atlas-loading-draw-core {
   0% {
     opacity: 1;
@@ -171,8 +210,30 @@ html.dark .shiki span {
 }
 
 .atlas-loading-mark {
-  animation: atlas-loading-cycle 5.6s ease-in-out infinite;
+  animation: atlas-loading-cycle 6.4s ease-in-out infinite;
   will-change: opacity;
+}
+
+.atlas-loading-composition {
+  animation: atlas-loading-cycle 6.4s ease-in-out infinite;
+  will-change: opacity;
+}
+
+.atlas-loading-message {
+  opacity: 0;
+  will-change: opacity, transform;
+}
+
+.atlas-loading-message-shape {
+  animation: atlas-loading-message-shape 6.4s ease-out infinite;
+}
+
+.atlas-loading-message-navigate {
+  animation: atlas-loading-message-navigate 6.4s ease-out infinite;
+}
+
+.atlas-loading-message-track {
+  animation: atlas-loading-message-track 6.4s ease-out infinite;
 }
 
 .atlas-loading-stroke {
@@ -183,39 +244,42 @@ html.dark .shiki span {
 }
 
 .atlas-loading-core {
-  animation: atlas-loading-draw-core 5.6s ease-out infinite;
+  animation: atlas-loading-draw-core 6.4s ease-out infinite;
 }
 
 .atlas-loading-link-top {
-  animation: atlas-loading-draw-top-link 5.6s ease-out infinite;
+  animation: atlas-loading-draw-top-link 6.4s ease-out infinite;
 }
 
 .atlas-loading-node-top {
-  animation: atlas-loading-draw-top-node 5.6s ease-out infinite;
+  animation: atlas-loading-draw-top-node 6.4s ease-out infinite;
 }
 
 .atlas-loading-link-left {
-  animation: atlas-loading-draw-left-link 5.6s ease-out infinite;
+  animation: atlas-loading-draw-left-link 6.4s ease-out infinite;
 }
 
 .atlas-loading-node-left {
-  animation: atlas-loading-draw-left-node 5.6s ease-out infinite;
+  animation: atlas-loading-draw-left-node 6.4s ease-out infinite;
 }
 
 .atlas-loading-link-curve {
-  animation: atlas-loading-draw-curve-link 5.6s ease-out infinite;
+  animation: atlas-loading-draw-curve-link 6.4s ease-out infinite;
 }
 
 .atlas-loading-node-curve {
-  animation: atlas-loading-draw-curve-node 5.6s ease-out infinite;
+  animation: atlas-loading-draw-curve-node 6.4s ease-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .atlas-loading-composition,
   .atlas-loading-mark,
-  .atlas-loading-stroke {
+  .atlas-loading-stroke,
+  .atlas-loading-message {
     animation: none;
     opacity: 1;
     stroke-dashoffset: 0;
+    transform: none;
   }
 }
 

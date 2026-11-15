@@ -16,19 +16,21 @@ const Loading = () => (
       className='absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,hsl(var(--background)/0.15)_32%,hsl(var(--background))_72%)]'
     />
 
-    <div className='relative z-10 flex max-w-xl flex-col items-center text-center'>
-      <AtlasLoadingMark className='size-36 drop-shadow-[0_0_24px_hsl(var(--primary)/0.08)] sm:size-48' />
+    <div className='atlas-loading-composition relative z-10 flex max-w-xl flex-col items-center text-center'>
       <h1
         id='atlas-loading-title'
-        className='mt-3 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl'
+        className='text-4xl font-semibold tracking-[-0.04em] sm:text-5xl'
       >
         Atlas
       </h1>
+      <AtlasLoadingMark className='mt-5 size-36 drop-shadow-[0_0_24px_hsl(var(--primary)/0.08)] sm:mt-6 sm:size-48' />
       <p
         id='atlas-loading-description'
-        className='mt-3 text-sm leading-6 text-muted-foreground sm:text-base'
+        className='mt-4 flex flex-col items-center text-sm leading-6 text-muted-foreground sm:text-base'
       >
-        Shape systems. Navigate structure. Track evolution.
+        <span className='atlas-loading-message atlas-loading-message-shape'>Shape systems</span>
+        <span className='atlas-loading-message atlas-loading-message-navigate'>Navigate structure</span>
+        <span className='atlas-loading-message atlas-loading-message-track'>Track evolution</span>
       </p>
 
       <span className='sr-only'>Loading Atlas</span>
