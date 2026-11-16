@@ -98,7 +98,7 @@ describe('Atlas GitHub webhook ingress provider', () => {
             before: 'old-revision',
             installation: { id: 1234 },
             ref: 'refs/heads/main',
-            repository: { full_name: 'acme/product' },
+            repository: { default_branch: 'main', full_name: 'acme/product' },
           },
           secret,
           'push',
@@ -115,6 +115,30 @@ describe('Atlas GitHub webhook ingress provider', () => {
         ref: 'refs/heads/main',
         repositoryFullName: 'acme/product',
       },
+    });
+  });
+
+  it('ignores a signed push outside the repository default branch', async () => {
+    const provider = createAtlasGitHubWebhookIngressProvider({ getSecret: () => secret });
+
+    await expect(
+      provider.receive(
+        requestFor(
+          {
+            after: 'feature-revision',
+            before: 'old-revision',
+            installation: { id: 1234 },
+            ref: 'refs/heads/codex/feature',
+            repository: { default_branch: 'main', full_name: 'acme/product' },
+          },
+          secret,
+          'push',
+        ),
+      ),
+    ).resolves.toMatchObject({
+      kind: 'ignored',
+      event: 'push',
+      details: { reason: 'non-default-branch' },
     });
   });
 

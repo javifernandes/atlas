@@ -76,6 +76,12 @@ type AtlasMergeActivityInput = Pick<
   'authorProviderAccountId' | 'body' | 'mergedAt' | 'number' | 'repositoryFullName'
 >;
 
+type ReconciliationExecution = {
+  invalidatePresentation: boolean;
+  result: AtlasReconciliationResult;
+  workspaceFanOut: boolean;
+};
+
 const hashRevisionSet = (revisionIds: string[]) =>
   createHash('sha256')
     .update([...revisionIds].sort((left, right) => left.localeCompare(right)).join('\0'))
@@ -157,7 +163,7 @@ const mergeWebhookPullRequestObservation = (
 };
 
 const resolveExecutionPlanAttribution = (
-  dataset: ReturnType<typeof buildAtlasOntahiDataset>,
+  dataset: Pick<ReturnType<typeof buildAtlasOntahiDataset>, 'AtlasPlan' | 'EvidenceBinding'>,
   webhook: AtlasMergeActivityInput,
 ) => {
   const pullRequestId = `github:${webhook.repositoryFullName.toLowerCase()}#${webhook.number}`;
@@ -437,7 +443,7 @@ export const createAtlasPostgresApplication = (input: {
 
   const recordMergedPullRequestActivity = (
     webhook: AtlasMergeActivityInput,
-    dataset: ReturnType<typeof buildAtlasOntahiDataset>,
+    dataset: Pick<ReturnType<typeof buildAtlasOntahiDataset>, 'AtlasPlan' | 'EvidenceBinding'>,
   ) =>
     Effect.gen(function* () {
       if (!webhook.authorProviderAccountId) {
@@ -563,6 +569,399 @@ export const createAtlasPostgresApplication = (input: {
 
       return true;
     });
+
+  const readDuplicateWebhookResult = async (
+    request: AtlasReconciliationRequest,
+  ): Promise<ReconciliationExecution | null> => {
+    const webhook = request.webhook;
+    if (!webhook?.deliveryId) return null;
+
+    const deliveryResult = await pool.query<{
+      projection_revision_id: string | null;
+      repository_full_name: string;
+    }>(
+      `
+        SELECT projection_revision_id, repository_full_name
+        FROM webhook_deliveries
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [webhook.deliveryId],
+    );
+    const delivery = deliveryResult.rows[0];
+    if (!delivery) return null;
+
+    const summaryResult = await pool.query<{
+      evidence_binding_count: number;
+      item_count: number;
+      latest_projection_revision_id: string | null;
+      plan_count: number;
+      source_count: number;
+    }>(
+      `
+        SELECT
+          (SELECT count(*)::int FROM evidence_bindings) AS evidence_binding_count,
+          (SELECT count(*)::int FROM atlas_items) AS item_count,
+          (
+            SELECT id
+            FROM projection_revisions
+            ORDER BY started_at DESC
+            LIMIT 1
+          ) AS latest_projection_revision_id,
+          (SELECT count(*)::int FROM atlas_plans) AS plan_count,
+          (
+            SELECT count(*)::int
+            FROM projection_source_revisions
+            WHERE projection_revision_id = COALESCE(
+              $1,
+              (
+                SELECT id
+                FROM projection_revisions
+                ORDER BY started_at DESC
+                LIMIT 1
+              )
+            )
+          ) AS source_count
+      `,
+      [delivery.projection_revision_id],
+    );
+    const summary = summaryResult.rows[0];
+
+    return {
+      invalidatePresentation: false,
+      workspaceFanOut: false,
+      result: {
+        duplicate: true,
+        evidenceBindingCount: summary?.evidence_binding_count ?? 0,
+        invalidated: false,
+        itemCount: summary?.item_count ?? 0,
+        planCount: summary?.plan_count ?? 0,
+        projectionRevisionId:
+          delivery.projection_revision_id ??
+          summary?.latest_projection_revision_id ??
+          'projection:duplicate-pending',
+        repositoryFullName: delivery.repository_full_name,
+        sourceCount: summary?.source_count ?? 0,
+      },
+    };
+  };
+
+  const tryCoalesceWebhook = (
+    request: AtlasReconciliationRequest,
+  ): Effect.Effect<ReconciliationExecution | null, unknown> => {
+    const webhook = request.webhook;
+    const revision = webhook
+      ? 'after' in webhook
+        ? webhook.after
+        : webhook.mergeCommitSha
+      : null;
+
+    if (!webhook?.deliveryId || !revision) return Effect.succeed(null);
+
+    return Effect.promise(async () => {
+      const match = await pool.query<{
+        projection_revision_id: string;
+        snapshot_json: string;
+        source_id: string;
+        source_revision_id: string;
+        source_revision_set_hash: string;
+        started_at: string;
+      }>(
+        `
+          WITH latest AS (
+            SELECT id, snapshot_json, source_revision_set_hash, started_at
+            FROM projection_revisions
+            ORDER BY started_at DESC
+            LIMIT 1
+          )
+          SELECT
+            latest.id AS projection_revision_id,
+            latest.snapshot_json,
+            latest.started_at,
+            source_revision.source_id,
+            source_revision.id AS source_revision_id,
+            latest.source_revision_set_hash
+          FROM latest
+          JOIN projection_source_revisions AS lineage
+            ON lineage.projection_revision_id = latest.id
+          JOIN atlas_source_revisions AS source_revision
+            ON source_revision.id = lineage.source_revision_id
+          WHERE lower(source_revision.repository) = lower($1)
+            AND source_revision.revision = $2
+          LIMIT 1
+        `,
+        [webhook.repositoryFullName, revision],
+      );
+      const matchedProjection = match.rows[0];
+      if (!matchedProjection) return null;
+
+      const [lineage, plans, items, counts] = await Promise.all([
+        pool.query<{ source_id: string; source_revision_id: string }>(
+          `
+            SELECT source_id, source_revision_id
+            FROM projection_source_revisions
+            WHERE projection_revision_id = $1
+          `,
+          [matchedProjection.projection_revision_id],
+        ),
+        pool.query<{ id: string; path: string; source_id: string; title: string }>(
+          'SELECT id, path, source_id, title FROM atlas_plans',
+        ),
+        pool.query<{ canonical_path: string; id: string; semantic_id: string }>(`
+          SELECT item.id, item.semantic_id, record.canonical_path
+          FROM atlas_items AS item
+          JOIN atlas_source_records AS record ON record.id = item.source_record_id
+        `),
+        pool.query<{
+          evidence_binding_count: number;
+          item_count: number;
+          plan_count: number;
+        }>(`
+          SELECT
+            (SELECT count(*)::int FROM evidence_bindings) AS evidence_binding_count,
+            (SELECT count(*)::int FROM atlas_items) AS item_count,
+            (SELECT count(*)::int FROM atlas_plans) AS plan_count
+        `),
+      ]);
+
+      return {
+        counts: counts.rows[0],
+        items: items.rows,
+        lineage: lineage.rows,
+        matchedProjection,
+        plans: plans.rows,
+      };
+    }).pipe(
+      Effect.flatMap(context => {
+        if (!context) return Effect.succeed(null);
+
+        const processingToken = randomUUID();
+        const receivedAt = new Date().toISOString();
+        const event = 'after' in webhook ? 'push' : 'pull_request.closed';
+
+        return atlas.application.app.graph.transaction(Effect.gen(function* () {
+          yield* entities.WebhookDelivery.upsert(
+            {
+              id: webhook.deliveryId!,
+              provider: 'github',
+              event,
+              sourceId: context.matchedProjection.source_id,
+              sourceRevision: revision,
+              repositoryFullName: webhook.repositoryFullName,
+              processingToken,
+              receivedAt,
+              processedAt: null,
+              projectionRevisionId: null,
+            },
+            { conflictOn: ['id'], strategy: 'ignore' },
+          ).run();
+          const [delivery] = yield* entities.WebhookDelivery.where(candidate =>
+            candidate.id.eq(webhook.deliveryId!),
+          )
+            .limit(1)
+            .run();
+
+          if (delivery?.processingToken !== processingToken) {
+            return {
+              invalidatePresentation: false,
+              workspaceFanOut: false,
+              result: {
+                duplicate: true,
+                evidenceBindingCount: context.counts?.evidence_binding_count ?? 0,
+                invalidated: false,
+                itemCount: context.counts?.item_count ?? 0,
+                planCount: context.counts?.plan_count ?? 0,
+                projectionRevisionId:
+                  delivery?.projectionRevisionId ?? context.matchedProjection.projection_revision_id,
+                repositoryFullName: webhook.repositoryFullName,
+                sourceCount: context.lineage.length,
+              },
+            } satisfies ReconciliationExecution;
+          }
+
+          if ('after' in webhook) {
+            yield* entities.WebhookDelivery.where(candidate =>
+              candidate.id.eq(webhook.deliveryId!),
+            )
+              .updateOne({
+                processedAt: receivedAt,
+                projectionRevisionId: context.matchedProjection.projection_revision_id,
+              })
+              .run();
+
+            return {
+              invalidatePresentation: false,
+              workspaceFanOut: false,
+              result: {
+                duplicate: false,
+                evidenceBindingCount: context.counts?.evidence_binding_count ?? 0,
+                invalidated: false,
+                itemCount: context.counts?.item_count ?? 0,
+                planCount: context.counts?.plan_count ?? 0,
+                projectionRevisionId: context.matchedProjection.projection_revision_id,
+                repositoryFullName: webhook.repositoryFullName,
+                sourceCount: context.lineage.length,
+              },
+            } satisfies ReconciliationExecution;
+          }
+
+          const pullRequestId = `github:${webhook.repositoryFullName.toLowerCase()}#${webhook.number}`;
+          const cleanTarget = (value: string) => value.trim().replace(/^`|`$/g, '');
+          const resolveTarget = (value: string) => {
+            const clean = cleanTarget(value);
+            const basename = clean.split('/').at(-1)?.replace(/\.md$/, '') ?? clean;
+            const sourceRelative = clean.startsWith('plans/') || /^\d+[a-z]?(?:-|$)/i.test(clean)
+              ? `${context.matchedProjection.source_id}://plans/${basename}`
+              : null;
+            const plan = context.plans.find(candidate =>
+              candidate.path === clean ||
+              candidate.path === sourceRelative ||
+              (candidate.source_id === context.matchedProjection.source_id &&
+                candidate.path.split('/plans/').at(-1)?.toLowerCase() === clean.toLowerCase()),
+            );
+            if (plan) return { id: plan.id, kind: 'plan' as const };
+
+            const item = context.items.find(candidate =>
+              candidate.semantic_id === clean || candidate.canonical_path === clean,
+            );
+            return item ? { id: item.id, kind: 'item' as const } : null;
+          };
+          const bindings = parseAtlasPullRequestDirectives(webhook.body).flatMap(directive => {
+            const target = resolveTarget(directive.target);
+            if (!target) return [];
+
+            return [{
+              id: `${pullRequestId}->${target.id}:${directive.kind}`,
+              pullRequestId,
+              itemId: target.kind === 'item' ? target.id : null,
+              planId: target.kind === 'plan' ? target.id : null,
+              targetNodeId: target.id,
+              targetKind: target.kind,
+              kind: directive.kind,
+              provenance: 'explicit' as const,
+              sourceId: context.matchedProjection.source_id,
+              sourceAuthority: 'github' as const,
+              sourceRevision: revision,
+            }];
+          });
+          const pullRequest = {
+            id: pullRequestId,
+            authorAvatarUrl: null,
+            authorProviderAccountId: webhook.authorProviderAccountId,
+            authorLogin: webhook.authorLogin,
+            mergeCommitSha: webhook.mergeCommitSha,
+            mergedByAvatarUrl: null,
+            mergedByLogin: null,
+            mergedAt: webhook.mergedAt,
+            number: webhook.number,
+            repositoryFullName: webhook.repositoryFullName,
+            sourceId: context.matchedProjection.source_id,
+            sourceAuthority: 'github' as const,
+            sourceRevision: revision,
+            observedAt: webhook.mergedAt,
+            title: webhook.title,
+            url: webhook.url,
+          };
+
+          yield* entities.PullRequest.upsert(pullRequest, {
+            conflictOn: ['id'],
+            strategy: 'merge',
+          }).run();
+          yield* entities.EvidenceBinding.where(binding =>
+            binding.pullRequestId.eq(pullRequestId),
+          ).delete().run();
+          if (bindings.length > 0) {
+            yield* entities.EvidenceBinding.upsertMany(bindings, {
+              conflictOn: ['id'],
+              strategy: 'merge',
+            }).run();
+          }
+
+          yield* recordMergedPullRequestActivity(webhook, {
+            AtlasPlan: yield* entities.AtlasPlan.all().run(),
+            EvidenceBinding: bindings,
+          });
+
+          const priorSnapshot = JSON.parse(
+            context.matchedProjection.snapshot_json,
+          ) as PlanWorkstreamSnapshot;
+          const evidence = [
+            ...(priorSnapshot.evidence ?? []).filter(
+              candidate => !candidate.id.startsWith(`${pullRequestId}->`),
+            ),
+            ...bindings.map(binding => ({
+              id: binding.id,
+              kind: binding.kind,
+              provenance: binding.provenance,
+              targetNodeId: binding.targetNodeId,
+              pullRequest: {
+                authorAvatarUrl: null,
+                authorLogin: webhook.authorLogin,
+                mergeCommitSha: webhook.mergeCommitSha,
+                mergedByAvatarUrl: null,
+                mergedByLogin: null,
+                mergedAt: webhook.mergedAt,
+                number: webhook.number,
+                repositoryFullName: webhook.repositoryFullName,
+                title: webhook.title,
+                url: webhook.url,
+              },
+            })),
+          ].sort((left, right) => left.id.localeCompare(right.id));
+          const projectionRevisionId = `projection:${randomUUID()}`;
+          const completedAt = new Date().toISOString();
+          const startedAt = new Date(
+            Date.parse(context.matchedProjection.started_at) + 1,
+          ).toISOString();
+
+          yield* entities.ProjectionRevision.insert({
+            id: projectionRevisionId,
+            trigger: 'webhook',
+            sourceRevisionSetHash: context.matchedProjection.source_revision_set_hash,
+            snapshotJson: JSON.stringify({ ...priorSnapshot, evidence }),
+            diagnosticsJson: JSON.stringify({
+              coalescedFrom: context.matchedProjection.projection_revision_id,
+              deliveryId: webhook.deliveryId,
+              mode: 'merged-pr-evidence',
+            }),
+            startedAt,
+            completedAt,
+            status: 'completed',
+          }).run();
+          if (context.lineage.length > 0) {
+            yield* entities.ProjectionSourceRevision.insertMany(
+              context.lineage.map(source => ({
+                id: `${projectionRevisionId}:${source.source_revision_id}`,
+                projectionRevisionId,
+                sourceRevisionId: source.source_revision_id,
+                sourceId: source.source_id,
+              })),
+            ).run();
+          }
+          yield* entities.WebhookDelivery.where(candidate =>
+            candidate.id.eq(webhook.deliveryId!),
+          )
+            .updateOne({ processedAt: completedAt, projectionRevisionId })
+            .run();
+
+          return {
+            invalidatePresentation: true,
+            workspaceFanOut: false,
+            result: {
+              duplicate: false,
+              evidenceBindingCount: evidence.length,
+              invalidated: true,
+              itemCount: context.counts?.item_count ?? 0,
+              planCount: context.counts?.plan_count ?? 0,
+              projectionRevisionId,
+              repositoryFullName: webhook.repositoryFullName,
+              sourceCount: context.lineage.length,
+            },
+          } satisfies ReconciliationExecution;
+        }));
+      }),
+    );
+  };
 
   const previewMergeCatchUp = async (previewInput: {
     since: string;
@@ -819,8 +1218,15 @@ export const createAtlasPostgresApplication = (input: {
     });
 
   reconcileProjection = request =>
-    Effect.promise(() => input.loadProjection(request)).pipe(
-      Effect.flatMap(projection => {
+    Effect.promise(() => readDuplicateWebhookResult(request)).pipe(
+      Effect.flatMap(duplicateResult =>
+        duplicateResult
+          ? Effect.succeed(duplicateResult)
+          : tryCoalesceWebhook(request).pipe(Effect.flatMap(coalescedResult =>
+            coalescedResult
+              ? Effect.succeed(coalescedResult)
+              : Effect.promise(() => input.loadProjection(request)).pipe(
+              Effect.flatMap(projection => {
         const catchUpSince =
           request.trigger === 'catch-up'
             ? requireCatchUpSince(request.catchUpSince)
@@ -1168,19 +1574,30 @@ export const createAtlasPostgresApplication = (input: {
             } satisfies AtlasReconciliationResult;
           }),
         );
-      }),
-      Effect.tap(result =>
-        request.webhook && !result.duplicate
+              }),
+              Effect.map(result => ({
+                invalidatePresentation: !result.duplicate,
+                result,
+                workspaceFanOut: !result.duplicate,
+              } satisfies ReconciliationExecution)),
+            ),
+          )),
+      ),
+      Effect.tap(execution =>
+        request.webhook && execution.workspaceFanOut
           ? reconcileWorkspaceWebhook(request.webhook)
           : Effect.void,
       ),
-      Effect.tap(() =>
-        Effect.sync(() => {
-          projectionSnapshotCache.invalidate();
-          pageProjectionSnapshotCache.invalidate();
-          input.invalidatePresentation?.();
-        }),
+      Effect.tap(execution =>
+        execution.invalidatePresentation
+          ? Effect.sync(() => {
+              projectionSnapshotCache.invalidate();
+              pageProjectionSnapshotCache.invalidate();
+              input.invalidatePresentation?.();
+            })
+          : Effect.void,
       ),
+      Effect.map(execution => execution.result),
       Effect.orDie,
     );
 
