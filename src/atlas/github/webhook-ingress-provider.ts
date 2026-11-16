@@ -105,6 +105,19 @@ const parseRepositoryPush = (payload: unknown, deliveryId: string | null) => {
   };
 };
 
+const repositoryPushTargetsDefaultBranch = (payload: unknown) => {
+  if (!isRecord(payload) || typeof payload.ref !== 'string') {
+    return false;
+  }
+
+  const repository = payload.repository;
+  if (!isRecord(repository) || typeof repository.default_branch !== 'string') {
+    return true;
+  }
+
+  return payload.ref === `refs/heads/${repository.default_branch}`;
+};
+
 export const createAtlasGitHubWebhookIngressProvider = (
   input: AtlasGitHubWebhookIngressProviderInput,
 ): GraphHttpIngressProvider => ({
@@ -173,6 +186,17 @@ export const createAtlasGitHubWebhookIngressProvider = (
     }
 
     if (event === 'push') {
+      if (!repositoryPushTargetsDefaultBranch(payload)) {
+        return {
+          kind: 'ignored',
+          provider,
+          providerKey,
+          event,
+          deliveryId,
+          details: { reason: 'non-default-branch' },
+        };
+      }
+
       const repositoryPush = parseRepositoryPush(payload, deliveryId);
 
       if (!repositoryPush) {

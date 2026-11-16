@@ -104,22 +104,26 @@ Durable Atlas projection.
   let adminPool!: Pool;
   let pool!: Pool;
   let atlas!: ReturnType<typeof createAtlasPostgresApplication>;
-  const loadProjection = async () => ({
-    evidenceFailures: evidenceAvailable
-      ? []
-      : [
-          {
-            repositoryFullName: 'javifernandes/atlas',
-            sourceId: 'atlas',
-            message: 'temporary GitHub failure',
-          },
-        ],
-    evidenceSourceIds: evidenceAvailable ? ['atlas'] : [],
-    observedAt: new Date(Date.UTC(2026, 8, 2, 0, 0, observedAtSequence++)).toISOString(),
-    observedPullRequests: evidenceAvailable ? [observedPullRequest] : [],
-    records,
-    sourceRevisions,
-  });
+  let loadProjectionCalls = 0;
+  const loadProjection = async () => {
+    loadProjectionCalls += 1;
+    return {
+      evidenceFailures: evidenceAvailable
+        ? []
+        : [
+            {
+              repositoryFullName: 'javifernandes/atlas',
+              sourceId: 'atlas',
+              message: 'temporary GitHub failure',
+            },
+          ],
+      evidenceSourceIds: evidenceAvailable ? ['atlas'] : [],
+      observedAt: new Date(Date.UTC(2026, 8, 2, 0, 0, observedAtSequence++)).toISOString(),
+      observedPullRequests: evidenceAvailable ? [observedPullRequest] : [],
+      records,
+      sourceRevisions,
+    };
+  };
   const startPostgres = async () => {
     container = await new PostgreSqlContainer('postgres:18-alpine').start();
     return container;
@@ -167,6 +171,9 @@ Durable Atlas projection.
         '015-workspace-source-imports.sql',
         '016-workspace-source-github-installations.sql',
         '017-workspace-webhook-import-provenance.sql',
+        '018-ontahi-task-runs.sql',
+        '019-workspace-source-removal.sql',
+        '020-atlas-item-type-bindings.sql',
       ],
       skipped: [],
     });
@@ -751,15 +758,18 @@ Atlas-Session: not-a-session`,
         atlas.application.graph.entities.PullRequest.domain.refreshAfterMerge,
         webhook,
       );
+    const loadCallsBeforeDelivery = loadProjectionCalls;
 
     await expect(invoke()).resolves.toMatchObject({
       ok: true,
       value: { duplicate: false },
     });
+    expect(loadProjectionCalls).toBe(loadCallsBeforeDelivery + 1);
     await expect(invoke()).resolves.toMatchObject({
       ok: true,
       value: { duplicate: true },
     });
+    expect(loadProjectionCalls).toBe(loadCallsBeforeDelivery + 1);
     await expect(atlas.getExecutionStreams(streamOwner.user.id)).resolves.toEqual([
       expect.objectContaining({
         mode: 'implicit',
@@ -1020,6 +1030,108 @@ Atlas-Session: not-a-session`,
       ok: true,
       value: { archived: false, archivedAt: null },
     });
+  }, postgresTestTimeout);
+
+  it('coalesces complementary merge signals in either delivery order', async () => {
+    const configuration = readAtlasAuthConfiguration({
+      ATLAS_AUTH_GITHUB_CLIENT_ID: 'github-client',
+      ATLAS_AUTH_GITHUB_CLIENT_SECRET: 'github-secret',
+      BETTER_AUTH_SECRET: 'a-high-entropy-secret-with-at-least-32-characters',
+      BETTER_AUTH_URL: 'http://localhost:3000',
+      DATABASE_URL: connectionString,
+    });
+    const auth = createAtlasAuth(configuration, pool);
+    const context = await auth.$context;
+    const owner = await context.internalAdapter.createOAuthUser(
+      {
+        email: 'coalesced-owner@example.com',
+        emailVerified: true,
+        image: null,
+        name: 'Coalesced Owner',
+      },
+      {
+        accountId: 'coalesced-github-user',
+        issuer: 'local:oauth:github',
+        providerId: 'github',
+      },
+    );
+    const originalRevision = sourceRevisions[0]!.revision;
+    const originalRevisionId = sourceRevisions[0]!.id;
+
+    try {
+      for (const [index, order] of [
+        ['push', 'pull-request'],
+        ['pull-request', 'push'],
+      ].entries()) {
+        const revision = `coalesced-merge-${index + 1}`;
+        const number = 201 + index;
+        sourceRevisions[0]!.id = `atlas:markdown:${revision}`;
+        sourceRevisions[0]!.revision = revision;
+        const push: AtlasRepositoryPushInput = {
+          after: revision,
+          before: `before-${revision}`,
+          deliveryId: `coalesced-push-${index}`,
+          installationId: '1234',
+          ref: 'refs/heads/main',
+          repositoryFullName: 'javifernandes/atlas',
+        };
+        const pullRequest: AtlasMergedPullRequestInput = {
+          authorProviderAccountId: 'coalesced-github-user',
+          authorLogin: 'coalesced-owner',
+          body: 'Atlas-Implements: atlas://plans/116-persistence',
+          deliveryId: `coalesced-pr-${index}`,
+          installationId: '1234',
+          mergeCommitSha: revision,
+          mergedAt: `2026-11-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`,
+          number,
+          repositoryFullName: 'javifernandes/atlas',
+          title: `Coalesced merge ${index + 1}`,
+          url: `https://github.com/javifernandes/atlas/pull/${number}`,
+        };
+        const invokePush = () => atlas.application.invokeOperation(
+          atlas.application.graph.entities.ProjectionRevision.domain.refreshAfterPush,
+          push,
+        );
+        const invokePullRequest = () => atlas.application.invokeOperation(
+          atlas.application.graph.entities.PullRequest.domain.refreshAfterMerge,
+          pullRequest,
+        );
+        const callsBeforeMerge = loadProjectionCalls;
+
+        for (const signal of order) {
+          await expect(
+            signal === 'push' ? invokePush() : invokePullRequest(),
+          ).resolves.toMatchObject({ ok: true, value: { duplicate: false } });
+        }
+
+        expect(loadProjectionCalls).toBe(callsBeforeMerge + 1);
+        await expect(
+          pool.query(
+            'SELECT count(*)::int AS count FROM evidence_bindings WHERE pull_request_id = $1',
+            [`github:javifernandes/atlas#${number}`],
+          ),
+        ).resolves.toMatchObject({ rows: [{ count: 1 }] });
+      }
+
+      await expect(
+        pool.query(
+          `SELECT count(*)::int AS count
+           FROM webhook_deliveries
+           WHERE id LIKE 'coalesced-%'`,
+        ),
+      ).resolves.toMatchObject({ rows: [{ count: 4 }] });
+      await expect(atlas.getExecutionStreams(owner.user.id)).resolves.toEqual([
+        expect.objectContaining({
+          activities: expect.arrayContaining([
+            expect.objectContaining({ pullRequest: expect.objectContaining({ number: 201 }) }),
+            expect.objectContaining({ pullRequest: expect.objectContaining({ number: 202 }) }),
+          ]),
+        }),
+      ]);
+    } finally {
+      sourceRevisions[0]!.id = originalRevisionId;
+      sourceRevisions[0]!.revision = originalRevision;
+    }
   }, postgresTestTimeout);
 
   it('fans a matching GitHub delivery into an idempotent Workspace import', async () => {

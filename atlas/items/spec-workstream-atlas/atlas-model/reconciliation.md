@@ -18,6 +18,8 @@ relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
   - plans/current/144-workspace-source-reconciliation-and-history.md
   - plans/current/145-workspace-source-durable-import-experience.md
+  - plans/done/150-contain-webhook-reconciliation-cpu.md
+  - plans/done/151-coalesce-merge-webhook-signals.md
 ---
 
 [[spec-workstream-atlas.atlas-model.reconciliation|Reconciliation]] is the operation family that compares intention, implementation, evidence, and the current atlas model.
@@ -41,6 +43,19 @@ commit one provenance-bearing PostgreSQL Projection Revision through Ontahi. Thi
 `ReviewPlanState`: it converges the operational graph without deciding whether curated intent is
 complete. A durable lock serializes reconcilers, older observations cannot overwrite newer ones,
 and degraded evidence sources retain their last successful bindings.
+
+The webhook boundary rejects repository pushes outside the signed payload's default branch before
+dispatching reconciliation. Durable delivery identity is checked before remote source observation,
+then claimed again inside the publication transaction to preserve the concurrent-race fence. A
+known delivery is an operational no-op: it neither rebuilds the projection, invalidates its read
+caches, nor fans out duplicate Workspace imports.
+
+Complementary default-branch `push` and merged-PR deliveries converge by repository and exact git
+SHA. The first signal performs full source convergence. A following push binds its delivery to that
+revision without new work; a following merged PR publishes only evidence bindings and Session
+activity as a lightweight immutable Projection Revision that reuses the existing source lineage.
+This preserves both provider deliveries and makes arrival order irrelevant without treating the PR
+payload as source-content authority.
 
 Webhook recovery is a distinct operational reconciliation mode. It re-observes a bounded GitHub
 history and compares stable Pull Request identities with durable Session activity, so a failed
