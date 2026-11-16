@@ -107,6 +107,7 @@ It should also make assisted editing more concrete: the assistant can choose ope
 1. [107. Plan Model Research And v0](../done/107-plan-model-research-and-v0.md)
 2. [109. Work Item Impact Surface](./109-work-item-impact-surface.md)
 3. [115. Atlas Definition Level Axis](../backlog/115-atlas-definition-level-axis.md)
+4. [149. Interaction Model v0](../current/149-interaction-model-v0.md)
 
 ## Closure / Evolution
 
