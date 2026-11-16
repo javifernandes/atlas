@@ -13,11 +13,13 @@ relatedPlans:
   - plans/next/108-atlas-item-type-model.md
   - plans/done/107-plan-model-research-and-v0.md
   - plans/current/146-package-manifest-and-classroom-model.md
+  - plans/current/149-interaction-model-v0.md
 exemplars:
   - spec-workstream-atlas.atlas-model.plan
   - spec-workstream-atlas.atlas-model.package
   - spec-workstream-atlas.atlas-model.entity
   - spec-workstream-atlas.atlas-model.operation
+  - spec-workstream-atlas.atlas-model.interaction
   - ontahi.examples.classroom.enrollment-invitation
   - bookops.model.book
   - bookops.reader-experience
@@ -50,3 +52,8 @@ interaction views without making a statechart or screen flow another source of t
 `Operation` is the next worked anatomy. It reifies behavior that outgrows an inline Entity row and
 gives receiver, actor, inputs, output, availability, transitions, effects, failures, and preserved
 invariants an independently navigable home.
+
+`Interaction` preserves the actor-facing goal that several readings, decisions, navigations,
+external stimuli, and Operations satisfy together. It owns scope, goal, actors, context, presented
+information, affordances, steps, and outcomes without becoming a screen definition or duplicating
+Operation contracts.
