@@ -89,6 +89,7 @@ export const WorkspaceModelSettings = ({
   };
 
   const loadModels = async () => {
+    if (apiKey.trim().length < 8) return;
     setLoadingModels(true);
     setMessage(null);
     setAvailableModels([]);
@@ -105,10 +106,10 @@ export const WorkspaceModelSettings = ({
       if (!response.ok) throw new Error(payload.message ?? 'Models could not be loaded.');
       const models = payload.models ?? [];
       setAvailableModels(models);
-      if (!model && models[0]) setModel(models[0].id);
+      if (models[0]) setModel(models[0].id);
       setMessage(models.length > 0
         ? `${models.length} available models found.`
-        : 'No compatible models were returned. You can still enter a model ID manually.');
+        : 'No compatible models were returned for this API key.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Models could not be loaded.');
     } finally {
@@ -185,55 +186,35 @@ export const WorkspaceModelSettings = ({
 
       {canManage && view?.secretStore.available ? (
         <div className='grid gap-4 rounded-lg border border-border p-4'>
-          <div className='grid gap-4 md:grid-cols-2'>
-            <Select
-              label='Provider'
-              onChange={nextProvider => {
-                setProvider(nextProvider);
-                setAvailableModels([]);
-                setModel('');
-              }}
-              options={[
-                { label: 'OpenAI', value: 'openai' },
-                { label: 'Anthropic', value: 'anthropic' },
-                { label: 'DeepSeek', value: 'deepseek' },
-              ]}
-              value={provider}
-            />
-            <label className='grid gap-1 text-sm'>
-              Model
-              <input
-                className='h-10 rounded-md border border-input bg-background px-3'
-                onChange={event => setModel(event.target.value)}
-                placeholder={provider === 'openai'
-                  ? 'gpt-6-luna'
-                  : provider === 'anthropic'
-                    ? 'claude-sonnet-4-6'
-                    : 'deepseek-flash'}
-                value={model}
-              />
-            </label>
-          </div>
-          <label className='grid gap-1 text-sm'>
-            Base URL <span className='text-xs text-muted-foreground'>(optional)</span>
-            <input
-              className='h-10 rounded-md border border-input bg-background px-3'
-              onChange={event => setBaseUrl(event.target.value)}
-              placeholder={provider === 'openai'
-                ? 'https://api.openai.com/v1'
-                : provider === 'anthropic'
-                  ? 'https://api.anthropic.com/v1'
-                  : 'https://api.deepseek.com'}
-              value={baseUrl}
-            />
-          </label>
-          <label className='grid gap-1 text-sm'>
+          <Select
+            label='Provider'
+            onChange={nextProvider => {
+              setProvider(nextProvider);
+              setApiKey('');
+              setAvailableModels([]);
+              setModel('');
+            }}
+            options={[
+              { label: 'OpenAI', value: 'openai' },
+              { label: 'Anthropic', value: 'anthropic' },
+              { label: 'DeepSeek', value: 'deepseek' },
+            ]}
+            value={provider}
+          />
+          <label className='grid gap-1 text-sm' htmlFor='workspace-model-api-key'>
             API key
             <span className='relative'>
               <input
+                aria-label='API key'
                 autoComplete='off'
                 className='h-10 w-full rounded-md border border-input bg-background px-3 pr-10'
-                onChange={event => setApiKey(event.target.value)}
+                id='workspace-model-api-key'
+                onBlur={() => void loadModels()}
+                onChange={event => {
+                  setApiKey(event.target.value);
+                  setAvailableModels([]);
+                  setModel('');
+                }}
                 placeholder={view.connection ? 'Enter a new key to replace the credential' : 'Provider API key'}
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKey}
@@ -247,29 +228,41 @@ export const WorkspaceModelSettings = ({
                 {showApiKey ? <EyeOff className='size-4' /> : <Eye className='size-4' />}
               </button>
             </span>
+            <span className='text-xs text-muted-foreground'>
+              Atlas validates the key and loads its available models when you leave this field.
+            </span>
           </label>
-          <div className='flex flex-wrap items-end gap-3'>
-            <button
-              className='h-10 rounded-md border border-border px-4 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
-              disabled={loadingModels || apiKey.trim().length < 8}
-              onClick={() => void loadModels()}
-              type='button'
-            >
-              {loadingModels ? 'Finding models…' : 'Find available models'}
-            </button>
-            <p className='text-xs text-muted-foreground'>Uses the API key above without saving it.</p>
-          </div>
-          {availableModels.length > 0 ? (
-            <Select
-              label='Available models'
-              onChange={setModel}
-              options={availableModels.map(available => ({
+          <Select
+            disabled={availableModels.length === 0}
+            label='Model'
+            onChange={setModel}
+            options={availableModels.length > 0
+              ? availableModels.map(available => ({
                 label: available.label,
                 value: available.id,
-              }))}
-              value={model}
-            />
-          ) : null}
+              }))
+              : [{
+                  label: loadingModels ? 'Loading models…' : 'Enter a valid API key first',
+                  value: '',
+                }]}
+            value={model}
+          />
+          <details className='rounded-md border border-border px-3 py-2'>
+            <summary className='cursor-pointer text-sm text-muted-foreground'>Advanced</summary>
+            <label className='mt-3 grid gap-1 text-sm'>
+              Base URL <span className='text-xs text-muted-foreground'>(optional)</span>
+              <input
+                className='h-10 rounded-md border border-input bg-background px-3'
+                onChange={event => setBaseUrl(event.target.value)}
+                placeholder={provider === 'openai'
+                  ? 'https://api.openai.com/v1'
+                  : provider === 'anthropic'
+                    ? 'https://api.anthropic.com/v1'
+                    : 'https://api.deepseek.com'}
+                value={baseUrl}
+              />
+            </label>
+          </details>
           <div>
             <button
               className='h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50'

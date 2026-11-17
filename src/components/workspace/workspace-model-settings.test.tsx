@@ -19,10 +19,16 @@ describe('WorkspaceModelSettings', () => {
     render(<WorkspaceModelSettings canManage workspaceSlug='atlas' />);
     await screen.findByLabelText('Provider');
 
-    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gpt-test' } });
-    fireEvent.change(screen.getByLabelText('API key'), {
+    const apiKey = screen.getByLabelText('API key');
+    fireEvent.change(apiKey, {
       target: { value: 'provider-secret-key' },
     });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      models: [{ id: 'gpt-test', label: 'GPT Test' }],
+    })));
+    fireEvent.blur(apiKey);
+    await screen.findByText('1 available models found.');
+
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
       connection: {
         baseUrl: null,
@@ -37,7 +43,7 @@ describe('WorkspaceModelSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save connection' }));
 
     await screen.findByText('Workspace model connection saved.');
-    const request = fetchMock.mock.calls[1]!;
+    const request = fetchMock.mock.calls[2]!;
     expect(request[0]).toBe('/api/workspaces/atlas/model-connection');
     expect(JSON.parse(request[1].body)).toMatchObject({
       apiKey: 'provider-secret-key',
@@ -72,10 +78,10 @@ describe('WorkspaceModelSettings', () => {
       ],
     })));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Find available models' }));
+    fireEvent.blur(apiKey);
 
     await screen.findByText('2 available models found.');
-    expect(screen.getByLabelText('Model')).toHaveValue('gpt-6-luna');
+    expect(screen.getByLabelText('Model')).toHaveTextContent('GPT-6 Luna');
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'POST' });
     expect(JSON.parse(fetchMock.mock.calls[1]?.[1].body)).toEqual({
       apiKey: 'provider-secret-key',
