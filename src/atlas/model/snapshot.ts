@@ -6,28 +6,12 @@ export type PlanStatusGroup =
   | 'done'
   | 'unmaterialized';
 
+import type { AtlasItemKind, AtlasItemModel } from './item-kind';
+
 export type PlanNodeKind =
   | 'root'
-  | 'project'
-  | 'package'
-  | 'goal'
-  | 'territory'
+  | AtlasItemKind
   | 'workstream'
-  | 'model'
-  | 'concept'
-  | 'experience'
-  | 'capability'
-  | 'entity'
-  | 'operation'
-  | 'artifact'
-  | 'policy'
-  | 'state'
-  | 'relation'
-  | 'system-primitive'
-  | 'tooling'
-  | 'evidence'
-  | 'practice'
-  | 'principle'
   | 'plan'
   | 'candidate';
 
@@ -103,8 +87,12 @@ export type PlanWorkstreamNode = {
   horizon?: string;
   area?: string;
   codename?: string;
+  itemModel?: AtlasItemModel;
+  /** @deprecated Read compatibility for snapshots produced before Item model payloads. */
   packageName?: string;
+  /** @deprecated Read compatibility for snapshots produced before Item model payloads. */
   packageType?: string;
+  /** @deprecated Read compatibility for snapshots produced before Item model payloads. */
   packagePath?: string;
   semanticId?: string;
   territory: string;
@@ -120,6 +108,7 @@ export type PlanWorkstreamNode = {
   summary?: string;
   sections: string[];
   exemplars?: string[];
+  /** @deprecated Read compatibility for snapshots produced before Item model payloads. */
   entityModel?: EntityModel;
   relatedCount: number;
   candidateCount: number;

@@ -211,9 +211,12 @@ status: active
         id: 'atlas:atlas.examples.classroom',
         kind: 'package',
         path: 'atlas://examples/classroom/atlas.package.md',
-        packageName: '@ontahi/example-classroom',
-        packagePath: 'examples/classroom',
-        packageType: 'example',
+        itemModel: {
+          kind: 'package',
+          name: '@ontahi/example-classroom',
+          packageType: 'example',
+          path: 'examples/classroom',
+        },
         sourcePath: 'examples/classroom/atlas.package.md',
         status: 'active',
         statusGroup: 'current',
@@ -221,9 +224,12 @@ status: active
       expect.objectContaining({
         id: 'atlas:atlas.examples.classroom.enrollment-invitation',
         kind: 'entity',
-        entityModel: expect.objectContaining({
-          operations: [expect.objectContaining({ name: 'Accept' })],
-          states: [expect.objectContaining({ name: 'Pending' })],
+        itemModel: expect.objectContaining({
+          entity: expect.objectContaining({
+            operations: [expect.objectContaining({ name: 'Accept' })],
+            states: [expect.objectContaining({ name: 'Pending' })],
+          }),
+          kind: 'entity',
         }),
       }),
       expect.objectContaining({

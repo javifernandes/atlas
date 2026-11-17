@@ -57,3 +57,15 @@ invariants an independently navigable home.
 external stimuli, and Operations satisfy together. It owns scope, goal, actors, context, presented
 information, affordances, steps, and outcomes without becoming a screen definition or duplicating
 Operation contracts.
+
+## Extension surface
+
+Atlas Item Types share a small static extension surface rather than one renderer with conditionals
+for every kind. The source layer owns the canonical authored-kind catalog. A kind registers a
+semantic-model parser only when its anatomy needs structure beyond ordinary Markdown. The viewer
+separately classifies presentation and evolution behavior, so model code does not depend on React.
+
+Simple kinds require no empty adapter. Package and Entity are the first specialized registrations;
+Interaction should become the first new kind added through the same contracts. Specialized data is
+carried as a typed Item model payload instead of accumulating unrelated optional properties on the
+generic graph node.
