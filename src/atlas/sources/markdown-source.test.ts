@@ -4,7 +4,11 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { loadAtlasSourceFiles, parseAtlasSources } from './markdown-source';
+import {
+  loadAtlasSourceFiles,
+  loadAtlasSourceObservation,
+  parseAtlasSources,
+} from './markdown-source';
 
 const temporaryDirectories: string[] = [];
 const originalSourcesYaml = process.env.ATLAS_SOURCES_YAML;
@@ -96,6 +100,49 @@ sources:
       { path: 'atlas/items/product.md', content: '# Product', source: 'product' },
     ]);
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('observes only the source registered for a webhook repository', async () => {
+    const repoRoot = createTemporaryDirectory();
+    const productRoot = createTemporaryDirectory();
+    const platformRoot = createTemporaryDirectory();
+    process.env.ATLAS_GITHUB_REPOSITORY = 'acme/atlas';
+    fs.writeFileSync(
+      path.join(repoRoot, 'atlas.sources.local.yaml'),
+      `version: 1
+sources:
+  product:
+    repository: https://github.com/acme/product
+    localRoot: ${productRoot}
+    ref: main
+  platform:
+    repository: https://github.com/acme/platform
+    localRoot: ${platformRoot}
+    ref: main
+`,
+    );
+    fs.mkdirSync(path.join(repoRoot, 'plans', 'current'), { recursive: true });
+    fs.mkdirSync(path.join(productRoot, 'plans', 'current'), { recursive: true });
+    fs.mkdirSync(path.join(platformRoot, 'plans', 'current'), { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, 'plans', 'current', '1-atlas.md'), '# Atlas');
+    fs.writeFileSync(path.join(productRoot, 'plans', 'current', '2-product.md'), '# Product');
+    fs.writeFileSync(path.join(platformRoot, 'plans', 'current', '3-platform.md'), '# Platform');
+
+    await expect(
+      loadAtlasSourceObservation({ repositoryFullName: 'ACME/PRODUCT', repoRoot }),
+    ).resolves.toMatchObject({
+      files: [expect.objectContaining({ path: 'plans/current/2-product.md', source: 'product' })],
+      sourceRevisions: [expect.objectContaining({ sourceId: 'product' })],
+    });
+  });
+
+  it('rejects targeted observation when a repository is not registered', async () => {
+    const repoRoot = createTemporaryDirectory();
+    process.env.ATLAS_GITHUB_REPOSITORY = 'acme/atlas';
+
+    await expect(
+      loadAtlasSourceObservation({ repositoryFullName: 'acme/unknown', repoRoot }),
+    ).rejects.toThrow('does not map to exactly one registered Markdown source');
   });
 
   it('discovers package manifests and package-local items without loading unrelated Markdown', async () => {

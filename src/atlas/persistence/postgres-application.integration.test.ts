@@ -30,6 +30,7 @@ import { runAtlasMigrations } from './migrations';
 import { createAtlasPostgresApplication } from './postgres-application';
 import { atlasPostgresMappingOverrides } from './postgres-mapping';
 import type { AtlasPostgresQueryObservation } from './postgres-observability';
+import type { AtlasProjectionSourceBaseline } from '../server/load-atlas-projection';
 
 const externalConnectionString =
   process.env.ATLAS_POSTGRES_TEST_URL ??
@@ -105,8 +106,13 @@ Durable Atlas projection.
   let pool!: Pool;
   let atlas!: ReturnType<typeof createAtlasPostgresApplication>;
   let loadProjectionCalls = 0;
-  const loadProjection = async () => {
+  const projectionBaselines: Array<AtlasProjectionSourceBaseline | undefined> = [];
+  const loadProjection = async (
+    _request?: unknown,
+    baseline?: AtlasProjectionSourceBaseline,
+  ) => {
     loadProjectionCalls += 1;
+    projectionBaselines.push(baseline);
     return {
       evidenceFailures: evidenceAvailable
         ? []
@@ -765,6 +771,23 @@ Atlas-Session: not-a-session`,
       value: { duplicate: false },
     });
     expect(loadProjectionCalls).toBe(loadCallsBeforeDelivery + 1);
+    expect(projectionBaselines.at(-1)).toMatchObject({
+      projectionRevisionId: expect.stringMatching(/^projection:/),
+      records: expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'atlas',
+          sourcePath: 'plans/current/116-persistence.md',
+          sourceRevision: 'test-revision',
+        }),
+      ]),
+      sourceRevisions: [
+        expect.objectContaining({
+          repository: 'javifernandes/atlas',
+          revision: 'test-revision',
+          sourceId: 'atlas',
+        }),
+      ],
+    });
     await expect(invoke()).resolves.toMatchObject({
       ok: true,
       value: { duplicate: true },

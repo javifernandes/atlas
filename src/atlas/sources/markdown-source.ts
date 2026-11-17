@@ -50,6 +50,7 @@ type GithubGraphQlBlobResponse = {
 type LoadAtlasSourcesInput = {
   fetcher?: typeof fetch;
   preferRemoteAtlas?: boolean;
+  repositoryFullName?: string;
   repoRoot: string;
 };
 
@@ -393,7 +394,7 @@ export const loadAtlasSourceDefinitions = (repoRoot: string) => {
   return registry ? parseAtlasSources(registry) : [];
 };
 
-const getAtlasRepository = () =>
+export const getAtlasRepository = () =>
   process.env.ATLAS_GITHUB_REPOSITORY?.trim() ??
   (process.env.VERCEL_GIT_REPO_OWNER && process.env.VERCEL_GIT_REPO_SLUG
     ? `${process.env.VERCEL_GIT_REPO_OWNER}/${process.env.VERCEL_GIT_REPO_SLUG}`
@@ -431,20 +432,44 @@ const loadAtlasOwnedFiles = async (input: LoadAtlasSourcesInput) => {
 const loadAtlasSourceFilesWithRevision = async ({
   fetcher = fetch,
   preferRemoteAtlas,
+  repositoryFullName,
   repoRoot,
 }: LoadAtlasSourcesInput) => {
   const sources = loadAtlasSourceDefinitions(repoRoot);
-  const atlasOwnedFiles = await loadAtlasOwnedFiles({
-    fetcher,
-    preferRemoteAtlas,
-    repoRoot,
-  });
+  const normalizedRepository = repositoryFullName?.toLowerCase();
+  const selectedSources = normalizedRepository
+    ? sources.filter(
+        source => parseGitHubRepositoryName(source.repository)?.toLowerCase() === normalizedRepository,
+      )
+    : sources;
+  const includeAtlas =
+    !normalizedRepository || getAtlasRepository().toLowerCase() === normalizedRepository;
+
+  if (normalizedRepository && selectedSources.length + Number(includeAtlas) !== 1) {
+    throw new Error(
+      `Atlas repository ${repositoryFullName} does not map to exactly one registered Markdown source.`,
+    );
+  }
+
+  const atlasOwnedFiles = includeAtlas
+    ? await loadAtlasOwnedFiles({ fetcher, preferRemoteAtlas, repoRoot })
+    : [];
 
   return [
-    ...(await Promise.all(sources.map(source => loadAtlasSource(source, repoRoot, fetcher)))).flat(),
+    ...(await Promise.all(
+      selectedSources.map(source => loadAtlasSource(source, repoRoot, fetcher)),
+    )).flat(),
     ...atlasOwnedFiles,
   ];
 };
+
+export const loadAtlasSourceRegistrations = (repoRoot: string) => [
+  ...loadAtlasSourceDefinitions(repoRoot).map(source => ({
+    repository: parseGitHubRepositoryName(source.repository),
+    sourceId: source.id,
+  })),
+  { repository: getAtlasRepository(), sourceId: 'atlas' },
+];
 
 export const loadAtlasSourceFiles = async (input: LoadAtlasSourcesInput) =>
   (await loadAtlasSourceFilesWithRevision(input)).map(file => ({
