@@ -100,7 +100,10 @@ packageType: example
     expect(fetcher).not.toHaveBeenCalled();
     expect(result.snapshot.nodes).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        packageName: '@ontahi/example-classroom',
+        itemModel: expect.objectContaining({
+          kind: 'package',
+          name: '@ontahi/example-classroom',
+        }),
         semanticId: 'ontahi.examples.classroom',
         sourceId: 'ontahi',
       }),

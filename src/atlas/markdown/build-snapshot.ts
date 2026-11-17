@@ -21,7 +21,8 @@ import type {
   PlanWorkstreamSnapshot,
   PlanWorkstreamTerritory,
 } from '../model/snapshot';
-import { parseEntityModel } from './entity-model';
+import { isAtlasItemKind, type AtlasItemKind } from '../model/item-kind';
+import { parseItemKindModel } from './item-kind-definitions';
 
 type PlanMarkdownFile = NormalizedAtlasSourceRecord;
 
@@ -56,29 +57,6 @@ export type ParsedPlan = {
   candidateChildren: string[];
 };
 
-type AtlasItemKind = Extract<
-  PlanWorkstreamNode['kind'],
-  | 'project'
-  | 'package'
-  | 'goal'
-  | 'territory'
-  | 'model'
-  | 'concept'
-  | 'experience'
-  | 'capability'
-  | 'entity'
-  | 'operation'
-  | 'artifact'
-  | 'policy'
-  | 'state'
-  | 'relation'
-  | 'system-primitive'
-  | 'tooling'
-  | 'evidence'
-  | 'practice'
-  | 'principle'
->;
-
 export type ParsedAtlasItem = {
   id: string;
   nodeId: string;
@@ -89,9 +67,7 @@ export type ParsedAtlasItem = {
   status: string;
   statusGroup: PlanStatusGroup;
   horizon?: string;
-  packageName?: string;
-  packageType?: string;
-  packagePath?: string;
+  itemModel?: PlanWorkstreamNode['itemModel'];
   typeOf: string[];
   supports: string[];
   relatedPlans: string[];
@@ -108,7 +84,6 @@ export type ParsedAtlasItem = {
   sourceRevisionKind?: 'git' | 'content-sha256';
   territory: string;
   workstream?: string;
-  entityModel?: PlanWorkstreamNode['entityModel'];
 };
 
 type FrontmatterValue = string | string[];
@@ -442,27 +417,6 @@ const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
   };
 };
 
-const isAtlasItemKind = (value: string): value is AtlasItemKind =>
-  value === 'project' ||
-  value === 'package' ||
-  value === 'goal' ||
-  value === 'territory' ||
-  value === 'model' ||
-  value === 'concept' ||
-  value === 'experience' ||
-  value === 'capability' ||
-  value === 'entity' ||
-  value === 'operation' ||
-  value === 'artifact' ||
-  value === 'policy' ||
-  value === 'state' ||
-  value === 'relation' ||
-  value === 'system-primitive' ||
-  value === 'tooling' ||
-  value === 'evidence' ||
-  value === 'practice' ||
-  value === 'principle';
-
 const getAtlasStatusGroup = (input: { horizon?: string; status: string }): PlanStatusGroup => {
   const status = input.status.toLowerCase();
   const horizon = input.horizon?.toLowerCase();
@@ -521,8 +475,7 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
   const title = getFrontmatterString(metadata, 'title', titleFromHeading(body, id));
   const status = getFrontmatterString(metadata, 'status', 'shaping');
   const horizon = getFrontmatterString(metadata, 'horizon') || undefined;
-  const packagePath =
-    kind === 'package' ? path.posix.dirname(file.sourcePath) || '.' : undefined;
+  const getString = (key: string) => getFrontmatterString(metadata, key);
 
   return {
     id,
@@ -534,9 +487,7 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
     status,
     statusGroup: getAtlasStatusGroup({ horizon, status }),
     horizon,
-    packageName: getFrontmatterString(metadata, 'packageName') || undefined,
-    packageType: getFrontmatterString(metadata, 'packageType') || undefined,
-    packagePath,
+    itemModel: parseItemKindModel(kind, { body, getString, sourcePath: file.sourcePath }),
     typeOf: getFrontmatterList(metadata, 'typeOf'),
     supports: getFrontmatterList(metadata, 'supports'),
     relatedPlans: getFrontmatterList(metadata, 'relatedPlans').flatMap(reference => {
@@ -556,7 +507,6 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
     sourceRevision: file.sourceRevision,
     sourceRevisionKind: file.sourceRevisionKind,
     territory: title,
-    entityModel: kind === 'entity' ? parseEntityModel(body) : undefined,
   };
 };
 
@@ -690,9 +640,7 @@ const toAtlasNode = (item: ParsedAtlasItem): PlanWorkstreamNode => ({
   statusGroup: item.statusGroup,
   status: item.status,
   horizon: item.horizon,
-  packageName: item.packageName,
-  packageType: item.packageType,
-  packagePath: item.packagePath,
+  itemModel: item.itemModel,
   semanticId: item.id,
   sourceId: item.sourceId ?? 'atlas',
   sourcePath: item.sourcePath,
@@ -707,7 +655,6 @@ const toAtlasNode = (item: ParsedAtlasItem): PlanWorkstreamNode => ({
   summary: item.summary,
   sections: item.sections,
   exemplars: item.exemplars,
-  entityModel: item.entityModel,
   relatedCount: 0,
   candidateCount: 0,
 });

@@ -248,6 +248,15 @@ mapping in advance.
 
 ## Execution Slices
 
+### Slice 0 — Item Kind extension surface
+
+- [x] Keep one canonical authored-kind catalog instead of repeating kind unions and guards.
+- [x] Give kinds with distinct anatomy a typed semantic-model parser contract.
+- [x] Give the viewer a presentation contract for visual role, detail extensions, and evolution
+      behavior without importing React into the model layer.
+- [x] Migrate Package and Entity through those contracts before adding Interaction.
+- [x] Keep simple Markdown kinds on the default path without requiring empty registrations.
+
 ### Slice 1 — durable model and exemplar
 
 - [x] Define Interaction Model v0 as a durable Atlas Item.
@@ -326,6 +335,11 @@ mapping in advance.
 9. UI realization metadata is optional and deferred until the exemplar proves what evidence is
    useful.
 10. The first exemplar uses existing behavior to keep the model accountable to a real product.
+11. Interaction must enter through a small Item Kind extension surface. Semantic parsing and UI
+    presentation use separate static registries; Atlas does not need runtime plugins or one
+    universal registry in v0.
+12. A specialized kind owns a typed model payload rather than adding another optional field to the
+    generic snapshot node. Kinds without specialized anatomy keep the default Markdown path.
 
 ## Open Questions
 

@@ -1,0 +1,26 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  getItemKindPresentation,
+  getItemKindSectionPresentation,
+} from './item-kind-presentations';
+
+describe('Item Kind presentation contract', () => {
+  it('keeps specialized detail and evolution behavior in one presentation definition', () => {
+    expect(getItemKindPresentation('package')).toMatchObject({
+      detail: { overview: 'package-details' },
+      evolution: 'descendant-plans',
+      visualRole: 'container',
+    });
+    expect(getItemKindSectionPresentation('entity', 'States')).toBe('entity-behavior');
+  });
+
+  it('gives simple Markdown kinds a useful default without registration', () => {
+    expect(getItemKindPresentation('operation')).toEqual({
+      detail: undefined,
+      evolution: 'self',
+      visualRole: 'shape',
+    });
+    expect(getItemKindSectionPresentation('operation', 'States')).toBeUndefined();
+  });
+});

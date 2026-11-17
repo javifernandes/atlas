@@ -42,6 +42,7 @@ import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { ScrollableOverflow } from '@/components/scrollable-overflow';
 import { useTheme } from '@/components/theme-provider';
 import type { AtlasExecutionStreamProjection } from '@/atlas/model/execution-stream';
+import { getEntityItemModel, getPackageItemModel } from '@/atlas/model/item-kind';
 import {
   buildEntityOperationAvailability,
   buildEntityStatechart,
@@ -57,6 +58,10 @@ import type {
   PlanWorkstreamSnapshot,
 } from '@/atlas/model/snapshot';
 import { ExecutionStreamView } from '@/atlas/viewer/execution-stream-view';
+import {
+  getItemKindPresentation,
+  getItemKindSectionPresentation,
+} from '@/atlas/viewer/item-kind-presentations';
 import {
   getPlanDisplayId,
   getPlanDisplayKey,
@@ -494,66 +499,38 @@ const getRenderedEdges = (edges: PlanWorkstreamEdge[]): RenderedPlanWorkstreamEd
   return renderedEdges;
 };
 
-const nodeClassName = (node: PlanWorkstreamNode, selected: boolean, focusLevel: NodeFocusLevel) =>
-  cn(
+const nodeClassName = (node: PlanWorkstreamNode, selected: boolean, focusLevel: NodeFocusLevel) => {
+  const { visualRole } = getItemKindPresentation(node.kind);
+
+  return cn(
     'group relative z-10 rounded-md border border-l-4 bg-card/95 px-3 py-2 text-left shadow-[0_2px_12px_rgba(15,23,42,0.08)] backdrop-blur-sm transition-[border-color,box-shadow,opacity,filter] hover:border-primary/50',
     statusAccentClassName(node.statusGroup),
     node.kind === 'candidate' && 'border-dashed bg-muted/45',
-    node.kind === 'project' && 'bg-background/95',
-    node.kind === 'package' && 'bg-background/95',
-    node.kind === 'model' && 'bg-background/95',
-    node.kind === 'concept' && 'bg-muted/55',
-    node.kind === 'experience' && 'bg-card/95',
-    node.kind === 'capability' && 'bg-card/90',
-    node.kind === 'entity' && 'bg-card/90',
-    node.kind === 'operation' && 'bg-card/90',
-    node.kind === 'artifact' && 'bg-muted/60',
-    node.kind === 'policy' && 'bg-muted/60',
+    visualRole === 'container' && node.kind !== 'root' && 'bg-background/95',
+    visualRole === 'shape' && 'bg-card/90',
+    visualRole === 'supporting' && 'bg-muted/60',
     node.kind === 'plan' && 'border-dashed bg-primary/5',
-    node.kind === 'state' && 'bg-muted/60',
-    node.kind === 'relation' && 'bg-muted/55',
-    node.kind === 'system-primitive' && 'bg-muted/65',
-    node.kind === 'tooling' && 'bg-muted/60',
-    node.kind === 'evidence' && 'bg-muted/60',
-    node.kind === 'practice' && 'bg-muted/55',
-    node.kind === 'principle' && 'bg-muted/55',
-    node.kind === 'workstream' && 'bg-muted/70',
-    node.kind === 'territory' && 'bg-background/95',
     node.kind === 'root' && 'border-l-foreground bg-foreground text-background',
     selected && 'border-primary ring-2 ring-primary/20',
     focusLevel === 'context' && 'opacity-70',
     focusLevel === 'distant' && 'opacity-[0.16] grayscale',
   );
+};
 
-const mutedNodeShieldKinds = new Set<PlanWorkstreamNode['kind']>([
-  'artifact',
-  'candidate',
-  'concept',
-  'evidence',
-  'policy',
-  'practice',
-  'principle',
-  'relation',
-  'state',
-  'system-primitive',
-  'tooling',
-  'workstream',
-]);
+const nodeShieldClassName = (node: PlanWorkstreamNode) => {
+  const { visualRole } = getItemKindPresentation(node.kind);
 
-const nodeShieldClassName = (node: PlanWorkstreamNode) =>
-  cn(
+  return cn(
     'pointer-events-none absolute inset-0 rounded-md shadow-[0_2px_12px_rgba(15,23,42,0.08)]',
     node.kind === 'root'
       ? 'bg-foreground'
-      : node.kind === 'project' ||
-          node.kind === 'package' ||
-          node.kind === 'model' ||
-          node.kind === 'territory'
+      : visualRole === 'container'
         ? 'bg-background'
-        : mutedNodeShieldKinds.has(node.kind)
+        : visualRole === 'supporting' || visualRole === 'temporal'
           ? 'bg-muted'
           : 'bg-card',
   );
+};
 
 const nodeFocusLevelRank: Record<NodeFocusLevel, number> = {
   context: 2,
@@ -2266,9 +2243,11 @@ const sourceFileHref = (node: PlanWorkstreamNode) => {
 };
 
 const packageCodeHref = (node: PlanWorkstreamNode) => {
-  if (!node.sourceRepository || !node.packagePath) return null;
+  const model = getPackageItemModel(node);
+
+  if (!node.sourceRepository || !model) return null;
   const revision = node.sourceRevisionKind === 'git' ? node.sourceRevision : 'main';
-  const encodedPath = node.packagePath
+  const encodedPath = model.path
     .split('/')
     .filter(part => part && part !== '.')
     .map(part => encodeURIComponent(part))
@@ -2278,14 +2257,16 @@ const packageCodeHref = (node: PlanWorkstreamNode) => {
 };
 
 const PackageOverview = ({ node }: { node: PlanWorkstreamNode }) => {
-  if (node.kind !== 'package') return null;
+  const model = getPackageItemModel(node);
+
+  if (!model) return null;
 
   const codeHref = packageCodeHref(node);
   const manifestHref = sourceFileHref(node);
   const facts = [
-    node.packageName ? { label: 'Package', value: node.packageName } : null,
-    node.packageType ? { label: 'Type', value: node.packageType } : null,
-    node.packagePath ? { label: 'Path', value: node.packagePath } : null,
+    model.name ? { label: 'Package', value: model.name } : null,
+    model.packageType ? { label: 'Type', value: model.packageType } : null,
+    { label: 'Path', value: model.path },
   ].filter((fact): fact is { label: string; value: string } => Boolean(fact));
 
   if (facts.length === 0 && !codeHref && !manifestHref) return null;
@@ -2322,8 +2303,14 @@ const PackageOverview = ({ node }: { node: PlanWorkstreamNode }) => {
   );
 };
 
+const ItemKindOverview = ({ node }: { node: PlanWorkstreamNode }) => {
+  const overview = getItemKindPresentation(node.kind).detail?.overview;
+
+  return overview === 'package-details' ? <PackageOverview node={node} /> : null;
+};
+
 const EntityStatechart = ({ node }: { node: PlanWorkstreamNode }) => {
-  const model = node.entityModel;
+  const model = getEntityItemModel(node)?.entity;
 
   if (node.kind !== 'entity' || !model || !hasEntityBehavior(model)) return null;
 
@@ -2338,7 +2325,7 @@ const EntityStatechart = ({ node }: { node: PlanWorkstreamNode }) => {
 
 const EntityOperationAvailabilityView = ({ context }: { context: MarkdownRenderContext }) => {
   const { sourceNode: node } = context;
-  const model = node.entityModel;
+  const model = getEntityItemModel(node)?.entity;
 
   if (node.kind !== 'entity' || !model || model.operations.length === 0) return null;
 
@@ -2417,7 +2404,7 @@ const EntityOperationAvailabilityView = ({ context }: { context: MarkdownRenderC
 
 const EntityBehaviorViews = ({ context }: { context: MarkdownRenderContext }) => {
   const { sourceNode: node } = context;
-  const model = node.entityModel;
+  const model = getEntityItemModel(node)?.entity;
   const [activeView, setActiveView] = useState<'availability' | 'flow'>('flow');
 
   if (node.kind !== 'entity' || !model || !hasEntityBehavior(model)) return null;
@@ -3479,7 +3466,12 @@ const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
         </HeadingTag>,
       );
 
-      if (level === 2 && /^states$/i.test(getMarkdownHeadingLabel(content))) {
+      const sectionPresentation = getItemKindSectionPresentation(
+        context.sourceNode.kind,
+        getMarkdownHeadingLabel(content),
+      );
+
+      if (level === 2 && sectionPresentation === 'entity-behavior') {
         blocks.push(
           <EntityBehaviorViews key={`entity-behavior-${index}`} context={context} />,
         );
@@ -4001,7 +3993,7 @@ const FullMarkdownModal = ({
   );
   const evolutionEntries = useMemo(
     () =>
-      node.kind === 'package'
+      getItemKindPresentation(node.kind).evolution === 'descendant-plans'
         ? getPackageEvolutionEntries(node.id, edges, nodesById)
         : getEvolutionEntries(node.id, edges, nodesById),
     [edges, node.id, node.kind, nodesById],
@@ -4293,7 +4285,7 @@ const FullMarkdownModal = ({
           ) : (
             <div className='grid min-w-0 gap-6 px-1 sm:px-2 xl:grid-cols-[minmax(0,1fr)_12rem]'>
               <article className='grid min-w-0 max-w-full gap-5 overflow-hidden break-words xl:pr-2 [&>*]:min-w-0 [&>*]:max-w-full'>
-                <PackageOverview node={node} />
+                <ItemKindOverview node={node} />
                 {renderMarkdownBody(overviewBody, markdownContext)}
               </article>
               {contentStatus === 'loaded' ? (
@@ -5060,10 +5052,10 @@ export const PlanWorkstreamExplorer = ({
       ? {
           ...fullNode,
           markdown: fullNodeContent.markdown,
-          entityModel:
+          itemModel:
             fullNode.kind === 'entity'
-              ? parseEntityModel(fullNodeContent.markdown)
-              : fullNode.entityModel,
+              ? { kind: 'entity' as const, entity: parseEntityModel(fullNodeContent.markdown) }
+              : fullNode.itemModel,
         }
       : fullNode;
   const fullNodeNavigationBackNode =
