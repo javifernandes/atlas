@@ -3,11 +3,33 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { atlasWorkspaceRef } from '../model/workspace-administration';
 import type { ModelProvider } from '@ontahi/core/runtime/server';
-import { createAtlasWorkspaceModelProviderResolver } from './model-provider';
+import {
+  createAtlasConfiguredModelProvider,
+  createAtlasWorkspaceModelProviderResolver,
+  readAtlasModelConfiguration,
+} from './model-provider';
 
 const input = { workspace: atlasWorkspaceRef('00000000-0000-4000-8000-000000000137'), question: 'Why?' };
 
 describe('Workspace model provider resolution', () => {
+  it('never enables the deployment fallback in production', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('ATLAS_LLM_PROVIDER', 'openai');
+    vi.stubEnv('ATLAS_LLM_MODEL', 'gpt-test');
+    vi.stubEnv('OPENAI_API_KEY', 'secret');
+
+    expect(readAtlasModelConfiguration().enabled).toBe(false);
+    vi.unstubAllEnvs();
+  });
+
+  it('creates the Ontahí DeepSeek adapter for Workspace connections', () => {
+    expect(createAtlasConfiguredModelProvider({
+      apiKey: 'secret',
+      model: 'deepseek-flash',
+      provider: 'deepseek',
+    })).toMatchObject({ generate: expect.any(Function) });
+  });
+
   it('uses the deployment provider when the Workspace has no active connection', async () => {
     const fallback = { generate: vi.fn() } as unknown as ModelProvider;
     const resolver = createAtlasWorkspaceModelProviderResolver({

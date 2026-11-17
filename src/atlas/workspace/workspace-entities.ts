@@ -188,7 +188,7 @@ export const atlasWorkspaceModelConnectionFields = {
   id: field.id(),
   workspaceId: field.id(),
   purpose: field.enum(['plans-assistant']),
-  provider: field.enum(['openai', 'anthropic']),
+  provider: field.enum(['openai', 'anthropic', 'deepseek']),
   model: field.nonEmptyString({ trim: true }),
   baseUrl: field.nullable(field.string()),
   secretRef: field.nonEmptyString({ trim: true }),

@@ -5,6 +5,7 @@ import { withInvocationContext } from '@ontahi/core/runtime/server';
 import { atlasWorkspaceRef } from '@/atlas/model/workspace-administration';
 import type { AtlasWorkspaceModelConnection } from '@/atlas/model/workspace-model-connection';
 import { getAtlasServerApplication } from '@/atlas/server/atlas-composition';
+import { listAtlasProviderModels } from '@/atlas/server/model-catalog';
 import { readAtlasModelConfiguration } from '@/atlas/server/model-provider';
 import {
   createAtlasSecretStore,
@@ -73,6 +74,28 @@ export const GET = async (request: Request, { params }: RouteContext) => {
   return Response.json(safeConnection(connection));
 };
 
+export const POST = async (request: Request, { params }: RouteContext) => {
+  const authorization = await authorizeOwner(request, params.slug);
+  if (!authorization.ok) return authorization.response;
+  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  const provider = body?.provider;
+  const apiKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : '';
+  if (
+    (provider !== 'openai' && provider !== 'anthropic' && provider !== 'deepseek') ||
+    apiKey.length < 8 || apiKey.length > 10_000
+  ) {
+    return Response.json({ message: 'Provider and API key are required.' }, { status: 400 });
+  }
+  try {
+    return Response.json({ models: await listAtlasProviderModels({ apiKey, provider }) });
+  } catch (error) {
+    return Response.json(
+      { message: error instanceof Error ? error.message : 'Models could not be loaded.' },
+      { status: 502 },
+    );
+  }
+};
+
 export const PUT = async (request: Request, { params }: RouteContext) => {
   const authorization = await authorizeOwner(request, params.slug);
   if (!authorization.ok) return authorization.response;
@@ -90,7 +113,7 @@ export const PUT = async (request: Request, { params }: RouteContext) => {
   const apiKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : '';
   const baseUrlValue = typeof body?.baseUrl === 'string' ? body.baseUrl.trim() : '';
   if (
-    (provider !== 'openai' && provider !== 'anthropic') ||
+    (provider !== 'openai' && provider !== 'anthropic' && provider !== 'deepseek') ||
     model.length === 0 || model.length > 200 ||
     apiKey.length < 8 || apiKey.length > 10_000
   ) {

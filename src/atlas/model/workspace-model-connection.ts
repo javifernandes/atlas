@@ -6,7 +6,7 @@ export const AtlasWorkspaceModelConnectionSchema = graphSchema.object({
   id: field.id(),
   workspaceId: field.id(),
   purpose: field.enum(['plans-assistant']),
-  provider: field.enum(['openai', 'anthropic']),
+  provider: field.enum(['openai', 'anthropic', 'deepseek']),
   model: field.nonEmptyString({ trim: true, maxLength: 200 }),
   baseUrl: field.nullable(field.string({ maxLength: 500 })),
   secretRef: field.nonEmptyString({ trim: true }),
@@ -25,7 +25,7 @@ export const AtlasWorkspaceReadModelConnectionOutputSchema = graphSchema.nullabl
 
 export const AtlasWorkspaceConfigureModelConnectionInputSchema = graphSchema.object({
   workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
-  provider: field.enum(['openai', 'anthropic']),
+  provider: field.enum(['openai', 'anthropic', 'deepseek']),
   model: field.nonEmptyString({ trim: true, maxLength: 200 }),
   baseUrl: field.nullable(field.string({ maxLength: 500 })),
   secretRef: field.nonEmptyString({ trim: true }),

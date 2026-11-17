@@ -9,14 +9,14 @@ type ModelConnectionView = {
   connection: null | {
     baseUrl: string | null;
     model: string;
-    provider: 'anthropic' | 'openai';
+    provider: 'anthropic' | 'deepseek' | 'openai';
     secretSuffix: string | null;
     status: 'active' | 'disabled';
   };
   deploymentFallback: {
     enabled: boolean;
     model: string | null;
-    provider: 'anthropic' | 'openai' | null;
+    provider: 'anthropic' | 'deepseek' | 'openai' | null;
   };
   secretStore: {
     available: boolean;
@@ -34,12 +34,14 @@ export const WorkspaceModelSettings = ({
   const [view, setView] = useState<ModelConnectionView | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [provider, setProvider] = useState<'anthropic' | 'openai'>('openai');
+  const [provider, setProvider] = useState<'anthropic' | 'deepseek' | 'openai'>('openai');
   const [model, setModel] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [availableModels, setAvailableModels] = useState<Array<{ id: string; label: string }>>([]);
   const endpoint = `/api/workspaces/${encodeURIComponent(workspaceSlug)}/model-connection`;
 
   const load = async () => {
@@ -83,6 +85,34 @@ export const WorkspaceModelSettings = ({
       setMessage(error instanceof Error ? error.message : 'The model connection could not be saved.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const loadModels = async () => {
+    setLoadingModels(true);
+    setMessage(null);
+    setAvailableModels([]);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ apiKey, provider }),
+      });
+      const payload = await response.json() as {
+        message?: string;
+        models?: Array<{ id: string; label: string }>;
+      };
+      if (!response.ok) throw new Error(payload.message ?? 'Models could not be loaded.');
+      const models = payload.models ?? [];
+      setAvailableModels(models);
+      if (!model && models[0]) setModel(models[0].id);
+      setMessage(models.length > 0
+        ? `${models.length} available models found.`
+        : 'No compatible models were returned. You can still enter a model ID manually.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Models could not be loaded.');
+    } finally {
+      setLoadingModels(false);
     }
   };
 
@@ -142,7 +172,7 @@ export const WorkspaceModelSettings = ({
 
       {view?.deploymentFallback.enabled ? (
         <p className='rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground'>
-          Deployment fallback: {view.deploymentFallback.provider} · {view.deploymentFallback.model}
+          Local development model: {view.deploymentFallback.provider} · {view.deploymentFallback.model}
         </p>
       ) : null}
 
@@ -158,10 +188,15 @@ export const WorkspaceModelSettings = ({
           <div className='grid gap-4 md:grid-cols-2'>
             <Select
               label='Provider'
-              onChange={setProvider}
+              onChange={nextProvider => {
+                setProvider(nextProvider);
+                setAvailableModels([]);
+                setModel('');
+              }}
               options={[
                 { label: 'OpenAI', value: 'openai' },
                 { label: 'Anthropic', value: 'anthropic' },
+                { label: 'DeepSeek', value: 'deepseek' },
               ]}
               value={provider}
             />
@@ -170,7 +205,11 @@ export const WorkspaceModelSettings = ({
               <input
                 className='h-10 rounded-md border border-input bg-background px-3'
                 onChange={event => setModel(event.target.value)}
-                placeholder={provider === 'openai' ? 'gpt-5-mini' : 'claude-sonnet-4-5'}
+                placeholder={provider === 'openai'
+                  ? 'gpt-6-luna'
+                  : provider === 'anthropic'
+                    ? 'claude-sonnet-4-6'
+                    : 'deepseek-flash'}
                 value={model}
               />
             </label>
@@ -182,7 +221,9 @@ export const WorkspaceModelSettings = ({
               onChange={event => setBaseUrl(event.target.value)}
               placeholder={provider === 'openai'
                 ? 'https://api.openai.com/v1'
-                : 'https://api.anthropic.com'}
+                : provider === 'anthropic'
+                  ? 'https://api.anthropic.com/v1'
+                  : 'https://api.deepseek.com'}
               value={baseUrl}
             />
           </label>
@@ -207,6 +248,28 @@ export const WorkspaceModelSettings = ({
               </button>
             </span>
           </label>
+          <div className='flex flex-wrap items-end gap-3'>
+            <button
+              className='h-10 rounded-md border border-border px-4 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+              disabled={loadingModels || apiKey.trim().length < 8}
+              onClick={() => void loadModels()}
+              type='button'
+            >
+              {loadingModels ? 'Finding models…' : 'Find available models'}
+            </button>
+            <p className='text-xs text-muted-foreground'>Uses the API key above without saving it.</p>
+          </div>
+          {availableModels.length > 0 ? (
+            <Select
+              label='Available models'
+              onChange={setModel}
+              options={availableModels.map(available => ({
+                label: available.label,
+                value: available.id,
+              }))}
+              value={model}
+            />
+          ) : null}
           <div>
             <button
               className='h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50'

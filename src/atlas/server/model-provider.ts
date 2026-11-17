@@ -1,5 +1,6 @@
 import {
   createAnthropicModelProvider,
+  createDeepSeekModelProvider,
   createOpenAIModelProvider,
   type ModelProvider,
 } from '@ontahi/core/runtime/server';
@@ -13,14 +14,14 @@ import { getAtlasPostgresPool } from '../../database/postgres-pool';
 export type AtlasModelConfiguration = {
   enabled: boolean;
   model: string | null;
-  provider: 'anthropic' | 'openai' | null;
+  provider: 'anthropic' | 'deepseek' | 'openai' | null;
 };
 
 export const readAtlasModelConfiguration = (): AtlasModelConfiguration => {
   const model = process.env.ATLAS_LLM_MODEL?.trim() || null;
   const configuredProvider = process.env.ATLAS_LLM_PROVIDER?.trim().toLowerCase();
   const provider =
-    configuredProvider === 'openai' || configuredProvider === 'anthropic'
+    configuredProvider === 'openai' || configuredProvider === 'anthropic' || configuredProvider === 'deepseek'
       ? configuredProvider
       : null;
   const credential =
@@ -28,9 +29,15 @@ export const readAtlasModelConfiguration = (): AtlasModelConfiguration => {
       ? process.env.OPENAI_API_KEY
       : provider === 'anthropic'
         ? process.env.ANTHROPIC_API_KEY
-        : null;
+        : provider === 'deepseek'
+          ? process.env.DEEPSEEK_API_KEY
+          : null;
 
-  return { enabled: Boolean(model && provider && credential), model, provider };
+  return {
+    enabled: process.env.NODE_ENV !== 'production' && Boolean(model && provider && credential),
+    model,
+    provider,
+  };
 };
 
 export const createAtlasModelProvider = (): ModelProvider | null => {
@@ -41,7 +48,9 @@ export const createAtlasModelProvider = (): ModelProvider | null => {
     apiKey:
       configuration.provider === 'openai'
         ? process.env.OPENAI_API_KEY ?? ''
-        : process.env.ANTHROPIC_API_KEY ?? '',
+        : configuration.provider === 'anthropic'
+          ? process.env.ANTHROPIC_API_KEY ?? ''
+          : process.env.DEEPSEEK_API_KEY ?? '',
     baseUrl: process.env.ATLAS_LLM_URL?.trim() || undefined,
     model: configuration.model,
     provider: configuration.provider,
@@ -52,26 +61,27 @@ export const createAtlasConfiguredModelProvider = (configuration: {
   apiKey: string;
   baseUrl?: string;
   model: string;
-  provider: 'anthropic' | 'openai';
-}): ModelProvider =>
-  configuration.provider === 'openai'
-    ? createOpenAIModelProvider({
-        apiKey: configuration.apiKey,
-        baseUrl: configuration.baseUrl,
-        model: configuration.model,
-        maxOutputTokens: 1200,
-      })
-    : createAnthropicModelProvider({
-        apiKey: configuration.apiKey,
-        baseUrl: configuration.baseUrl,
-        model: configuration.model,
-        maxOutputTokens: 1200,
-      });
+  provider: 'anthropic' | 'deepseek' | 'openai';
+}): ModelProvider => {
+  const common = {
+    apiKey: configuration.apiKey,
+    baseUrl: configuration.baseUrl,
+    model: configuration.model,
+    maxOutputTokens: 1200,
+  };
+  if (configuration.provider === 'openai') {
+    return createOpenAIModelProvider(common);
+  }
+  if (configuration.provider === 'deepseek') {
+    return createDeepSeekModelProvider(common);
+  }
+  return createAnthropicModelProvider(common);
+};
 
 type AtlasWorkspaceModelConnectionRow = {
   baseUrl: string | null;
   model: string;
-  provider: 'anthropic' | 'openai';
+  provider: 'anthropic' | 'deepseek' | 'openai';
   secretRef: string;
 };
 

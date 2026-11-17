@@ -5,6 +5,7 @@ const getAtlasServerApplicationMock = vi.hoisted(() => vi.fn());
 const putSecretMock = vi.hoisted(() => vi.fn());
 const getSecretMock = vi.hoisted(() => vi.fn());
 const deleteSecretMock = vi.hoisted(() => vi.fn());
+const listProviderModelsMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/atlas/server/atlas-composition', () => ({
   getAtlasServerApplication: getAtlasServerApplicationMock,
@@ -25,6 +26,9 @@ vi.mock('@/atlas/server/secret-store', () => ({
 vi.mock('@/atlas/server/model-provider', () => ({
   readAtlasModelConfiguration: () => ({ enabled: false, model: null, provider: null }),
 }));
+vi.mock('@/atlas/server/model-catalog', () => ({
+  listAtlasProviderModels: listProviderModelsMock,
+}));
 vi.mock('@/auth/server', () => ({
   getAtlasRequestAccess: () => Promise.resolve({
     canRead: true,
@@ -41,7 +45,7 @@ vi.mock('@/atlas/workspace/workspace-access', () => ({
 }));
 
 import { createAtlasOntahiApplication } from '@/atlas/domain/atlas-application';
-import { DELETE, GET, PUT } from './route';
+import { DELETE, GET, POST, PUT } from './route';
 
 const context = { params: { slug: 'atlas' } };
 
@@ -54,6 +58,27 @@ describe('Workspace model connection confidential ingress', () => {
     putSecretMock.mockReset().mockResolvedValue(undefined);
     getSecretMock.mockReset().mockResolvedValue('provider-secret-key');
     deleteSecretMock.mockReset().mockResolvedValue(undefined);
+    listProviderModelsMock.mockReset().mockResolvedValue([
+      { id: 'deepseek-flash', label: 'DeepSeek Flash' },
+    ]);
+  });
+
+  it('discovers models without storing the submitted credential', async () => {
+    const response = await POST(new Request('http://atlas.test/api/workspaces/atlas/model-connection', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ apiKey: 'provider-secret-key', provider: 'deepseek' }),
+    }), context);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      models: [{ id: 'deepseek-flash', label: 'DeepSeek Flash' }],
+    });
+    expect(listProviderModelsMock).toHaveBeenCalledWith({
+      apiKey: 'provider-secret-key',
+      provider: 'deepseek',
+    });
+    expect(putSecretMock).not.toHaveBeenCalled();
   });
 
   it('stores the credential externally and returns only safe metadata', async () => {

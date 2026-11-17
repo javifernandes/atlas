@@ -61,6 +61,28 @@ describe('WorkspaceModelSettings', () => {
     expect(apiKey).toHaveAttribute('type', 'password');
   });
 
+  it('discovers provider models and applies the selected model ID', async () => {
+    render(<WorkspaceModelSettings canManage workspaceSlug='atlas' />);
+    const apiKey = await screen.findByLabelText('API key');
+    fireEvent.change(apiKey, { target: { value: 'provider-secret-key' } });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      models: [
+        { id: 'gpt-6-luna', label: 'GPT-6 Luna' },
+        { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' },
+      ],
+    })));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Find available models' }));
+
+    await screen.findByText('2 available models found.');
+    expect(screen.getByLabelText('Model')).toHaveValue('gpt-6-luna');
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'POST' });
+    expect(JSON.parse(fetchMock.mock.calls[1]?.[1].body)).toEqual({
+      apiKey: 'provider-secret-key',
+      provider: 'openai',
+    });
+  });
+
   it('explains when confidential Workspace storage is unavailable', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
       connection: null,
@@ -70,7 +92,7 @@ describe('WorkspaceModelSettings', () => {
     render(<WorkspaceModelSettings canManage workspaceSlug='atlas' />);
 
     await waitFor(() => expect(screen.getByText(/credential storage is unavailable/i)).toBeInTheDocument());
-    expect(screen.getByText(/Deployment fallback: openai · fallback/)).toBeInTheDocument();
+    expect(screen.getByText(/Local development model: openai · fallback/)).toBeInTheDocument();
     expect(screen.queryByLabelText('API key')).not.toBeInTheDocument();
   });
 });
