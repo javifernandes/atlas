@@ -77,6 +77,12 @@ and a child retains its own detailed anatomy and source.
 The initial relationships are `presents`, `opens`, `invokes`, and `continuesWith`. They remain
 relationship vocabulary rather than separate Item Types.
 
+A semantic reference may intentionally point to an Item that has not been authored yet. Atlas
+preserves that reference as unresolved and presents it as visible shaping pressure, similar to a
+Wikipedia red link. It does not silently reduce the target to prose or create a placeholder Item:
+the gap remains attributable to the Interaction until the referenced Entity, Operation, or child
+Interaction acquires durable form.
+
 Atlas renders this anatomy as a dedicated detail projection rather than repeating the source
 tables. Scope and goal establish the boundary first; Actors, Context, Presents, Affordances, Steps,
 and Outcomes then expose the interaction in actor-facing order. Resolved references are navigable,

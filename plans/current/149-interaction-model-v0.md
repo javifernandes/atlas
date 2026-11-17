@@ -186,16 +186,15 @@ Decide which observed contributors should receive explicit Workspace access.
 | Observed contributor | contributor participation projection        |
 | Evidence summary     | registered Sources and merged Pull Requests |
 | Identity status      | linked External Identity and Atlas User     |
-| Access status        | Membership or Pending Invitation            |
+| Access status        | [[spec-workstream-atlas.access-identity.workspace\|Workspace access]] |
 
 ## Affordances
 
-| Affordance          | Kind    | Target                      |
-| ------------------- | ------- | --------------------------- |
-| Inspect contributor | inspect | Observed Contributor        |
-| Invite contributor  | opens   | Invite Person To Workspace  |
-| Open member         | opens   | Manage Membership           |
-| Open invitation     | opens   | Review Workspace Invitation |
+| Affordance          | Kind    | Target                                                                                                      |
+| ------------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| Inspect contributor | inspect | Observed Contributor                                                                                        |
+| Invite contributor  | opens   | [[spec-workstream-atlas.access-identity.workspace.invite-person-to-workspace\|Invite Person To Workspace]] |
+| Open member         | opens   | [[spec-workstream-atlas.access-identity.workspace.manage-membership\|Manage Membership]]                   |
 
 ## Outcomes
 
@@ -377,6 +376,11 @@ an older Projection Revision could still label the Item as `capability`, and the
 fallback rejected Context's valid one-column table. The deployment reconciliation remains
 responsible for recompiling the first edge; the viewer now accepts the authored one-column form so
 the fallback stays legible while convergence happens.
+
+The exemplar also proves unresolved semantic references as useful project evidence. Its invitation
+and membership affordances now target the intended child Interactions before those Items exist;
+Atlas renders them as not-defined shaping gaps while keeping the Workspace presentation reference
+navigable. Missing workflow pieces therefore remain explicit without manufacturing empty ontology.
 
 The plan should remain current until the exemplar renders end to end and the team decides whether
 realization bindings belong in Interaction v1. Runtime execution, UI generation, and Ontahí Durable

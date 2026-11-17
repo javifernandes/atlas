@@ -19,7 +19,13 @@ Review observed contributors.
 
 | Affordance | Kind | Target |
 | --- | --- | --- |
-| Invite | opens | [Invite person](./invite.md) |
+| Invite | opens | [[workspace.invite-person\\|Invite person]] |
+
+## Presents
+
+| Information | Source |
+| --- | --- |
+| Access status | [[workspace\\|Workspace access]] |
 
 ## Outcomes
 
@@ -32,10 +38,13 @@ Review observed contributors.
     expect(model).toMatchObject({
       actors: [{ actor: 'Owner', participation: 'Reviews access' }],
       affordances: [
-        { affordanceKind: 'opens', label: 'Invite', reference: './invite.md' },
+        { affordanceKind: 'opens', label: 'Invite', reference: 'workspace.invite-person' },
       ],
       goal: 'Review observed contributors.',
       outcomes: [{ continuesWith: './invite.md', outcome: 'Selected' }],
+      presents: [
+        { information: 'Access status', reference: 'workspace', source: 'Workspace access' },
+      ],
       scope: { binding: 'workspace', entity: 'AtlasWorkspace' },
     });
   });

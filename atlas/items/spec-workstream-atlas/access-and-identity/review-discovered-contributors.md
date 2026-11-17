@@ -40,15 +40,15 @@ Decide which observed contributors should receive explicit Workspace access.
 | Observed contributor | contributor participation projection                                    |
 | Evidence summary     | registered Sources and merged Pull Requests                             |
 | Identity status      | linked External Identity and Atlas User                                 |
-| Access status        | [[spec-workstream-atlas.access-identity.workspace\|Workspace]] access |
+| Access status        | [[spec-workstream-atlas.access-identity.workspace\|Workspace access]] |
 
 ## Affordances
 
-| Affordance          | Kind    | Target               |
-| ------------------- | ------- | -------------------- |
-| Inspect contributor | inspect | Observed Contributor |
-| Invite contributor  | opens   | Invitation           |
-| Open member         | opens   | Membership           |
+| Affordance          | Kind    | Target                                                                                                                  |
+| ------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Inspect contributor | inspect | Observed Contributor                                                                                                    |
+| Invite contributor  | opens   | [[spec-workstream-atlas.access-identity.workspace.invite-person-to-workspace\|Invite Person To Workspace]]             |
+| Open member         | opens   | [[spec-workstream-atlas.access-identity.workspace.manage-membership\|Manage Membership]]                               |
 
 ## Outcomes
 

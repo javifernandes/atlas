@@ -7,6 +7,7 @@ import {
   ArrowUp,
   BookOpen,
   Check,
+  CircleDashed,
   Columns3,
   Copy,
   Crosshair,
@@ -2309,10 +2310,14 @@ const PackageOverview = ({ node }: { node: PlanWorkstreamNode }) => {
 
 const InteractionReferenceButton = ({
   label,
+  reference,
+  resolution,
   targetNodeId,
   context,
 }: {
   label: string;
+  reference?: string;
+  resolution?: 'resolved' | 'unresolved';
   targetNodeId?: string;
   context: MarkdownRenderContext;
 }) => {
@@ -2326,6 +2331,19 @@ const InteractionReferenceButton = ({
     >
       {label} <ArrowRight className='size-3.5' />
     </button>
+  ) : resolution === 'unresolved' && reference ? (
+    <span
+      className='inline-flex min-w-0 items-center gap-2 text-amber-200/90'
+      title={`Not defined yet: ${reference}`}
+    >
+      <span className='min-w-0 border-b border-dashed border-amber-300/55 font-medium'>
+        {label}
+      </span>
+      <span className='inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/[0.06] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.08em] text-amber-200/70'>
+        <CircleDashed className='size-2.5' />
+        not defined
+      </span>
+    </span>
   ) : (
     <span className='text-foreground'>{label}</span>
   );
@@ -2364,14 +2382,14 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
       <div>
         <h3 className='font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground'>Presents</h3>
         <div className='mt-3 divide-y divide-border/35'>
-          {model.presents.map(item => <div key={item.information} className='grid gap-1 py-3 sm:grid-cols-[minmax(10rem,0.7fr)_1fr]'><span className='font-medium'>{item.information}</span><InteractionReferenceButton context={context} label={item.source} targetNodeId={item.targetNodeId} /></div>)}
+          {model.presents.map(item => <div key={item.information} className='grid gap-1 py-3 sm:grid-cols-[minmax(10rem,0.7fr)_1fr]'><span className='font-medium'>{item.information}</span><InteractionReferenceButton context={context} label={item.source} reference={item.reference} resolution={item.resolution} targetNodeId={item.targetNodeId} /></div>)}
         </div>
       </div>
 
       <div>
         <h3 className='font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground'>Affordances</h3>
         <div className='mt-3 grid gap-2'>
-          {model.affordances.map(item => <div key={`${item.affordanceKind}-${item.label}`} className='flex items-center justify-between gap-4 rounded-xl bg-muted/15 px-4 py-3'><InteractionReferenceButton context={context} label={item.label} targetNodeId={item.targetNodeId} /><span className='font-mono text-[10px] uppercase tracking-wider text-muted-foreground'>{item.affordanceKind}{item.resolution === 'unresolved' && item.reference ? ' · unresolved' : ''}</span></div>)}
+          {model.affordances.map(item => <div key={`${item.affordanceKind}-${item.label}`} className='flex items-center justify-between gap-4 rounded-xl bg-muted/15 px-4 py-3'><InteractionReferenceButton context={context} label={item.label} reference={item.reference} resolution={item.resolution} targetNodeId={item.targetNodeId} /><span className='font-mono text-[10px] uppercase tracking-wider text-muted-foreground'>{item.affordanceKind}</span></div>)}
         </div>
       </div>
 
@@ -2379,7 +2397,7 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
         <div>
           <h3 className='font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground'>Steps</h3>
           <ol className='mt-3 grid gap-2'>
-            {model.steps.map((item, index) => <li key={`${item.stepKind}-${item.label}`} className='grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl bg-muted/15 px-4 py-3'><span className='font-mono text-xs text-muted-foreground'>{index + 1}</span><InteractionReferenceButton context={context} label={item.label} targetNodeId={item.targetNodeId} /><span className='font-mono text-[10px] uppercase tracking-wider text-muted-foreground'>{item.stepKind}</span></li>)}
+            {model.steps.map((item, index) => <li key={`${item.stepKind}-${item.label}`} className='grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl bg-muted/15 px-4 py-3'><span className='font-mono text-xs text-muted-foreground'>{index + 1}</span><InteractionReferenceButton context={context} label={item.label} reference={item.reference} resolution={item.resolution} targetNodeId={item.targetNodeId} /><span className='font-mono text-[10px] uppercase tracking-wider text-muted-foreground'>{item.stepKind}</span></li>)}
           </ol>
         </div>
       ) : null}
