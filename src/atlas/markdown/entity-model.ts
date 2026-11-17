@@ -4,7 +4,7 @@ import type {
   EntityOperationAvailability,
 } from '../model/snapshot';
 
-const sectionText = (markdown: string, title: string) => {
+export const sectionText = (markdown: string, title: string) => {
   const escapedTitle = title.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = markdown.match(
     new RegExp(`(?:^|\\n)##\\s+${escapedTitle}\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)`, 'i'),
@@ -21,7 +21,7 @@ const cleanCell = (value: string) =>
     .replace(/^\[([^\]]+)\]\([^)]+\)$/, '$1')
     .replaceAll(/\\\|/g, '|');
 
-const markdownReference = (value: string) => {
+export const markdownReference = (value: string) => {
   const markdownLink = value.trim().match(/^\[(?:`)?[^\]]+(?:`)?\]\(([^)]+)\)$/);
   if (markdownLink?.[1]) return markdownLink[1].trim();
 
@@ -53,7 +53,7 @@ const splitRow = (line: string, clean = true) => {
   return cells;
 };
 
-const tableRows = (markdown: string, title: string, clean = true) => {
+export const tableRows = (markdown: string, title: string, clean = true) => {
   const lines = sectionText(markdown, title)
     .split('\n')
     .map(line => line.trim())

@@ -261,17 +261,17 @@ mapping in advance.
 
 - [x] Define Interaction Model v0 as a durable Atlas Item.
 - [x] Record `Review Discovered Contributors` as the guiding authored example in this plan.
-- [ ] Author the exemplar as a repository Item only after its field names survive the first parser
+- [x] Author the exemplar as a repository Item only after its field names survive the first parser
       and rendering spike.
-- [ ] Link the Interaction model from Atlas Item Type and the Workspace model.
+- [x] Link the Interaction model from Atlas Item Type and the Workspace model.
 
 ### Slice 2 — parsing and snapshot
 
-- [ ] Recognize `kind: interaction` without treating it as temporal evolution.
-- [ ] Preserve structured scope, actors, presented information, affordances, steps, and outcomes in
+- [x] Recognize `kind: interaction` without treating it as temporal evolution.
+- [x] Preserve structured scope, actors, presented information, affordances, steps, and outcomes in
       the semantic snapshot.
-- [ ] Resolve Operation and Interaction references without copying their contracts.
-- [ ] Report unresolved references as authoring evidence rather than silently dropping them.
+- [x] Resolve Operation and Interaction references without copying their contracts.
+- [x] Report unresolved references in the semantic model rather than silently dropping them.
 
 ### Slice 3 — detail surface
 
