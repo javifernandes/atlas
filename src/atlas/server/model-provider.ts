@@ -40,6 +40,16 @@ export const readAtlasModelConfiguration = (): AtlasModelConfiguration => {
   };
 };
 
+export const readAtlasModelFallbackConfiguration = (): AtlasModelConfiguration => {
+  const usesPersistentWorkspaces =
+    process.env.ATLAS_STORAGE_MODE === 'postgres'
+    || (!process.env.ATLAS_STORAGE_MODE && Boolean(process.env.DATABASE_URL));
+
+  return usesPersistentWorkspaces
+    ? { enabled: false, model: null, provider: null }
+    : readAtlasModelConfiguration();
+};
+
 export const createAtlasModelProvider = (): ModelProvider | null => {
   const configuration = readAtlasModelConfiguration();
   if (!configuration.enabled || !configuration.model || !configuration.provider) return null;
@@ -143,9 +153,8 @@ export const createAtlasWorkspaceModelProviderResolver = (input: {
   });
 
 export const hasAtlasWorkspaceModelProvider = async (workspaceId: string) => {
-  if (readAtlasModelConfiguration().enabled) return true;
   const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) return false;
+  if (!connectionString) return readAtlasModelFallbackConfiguration().enabled;
   const result = await getAtlasPostgresPool(connectionString).query<{ configured: boolean }>(
     `
       SELECT EXISTS (

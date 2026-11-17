@@ -7,7 +7,6 @@ import type { AtlasReconciliationRequest } from '../domain/atlas-application';
 import { createAtlasPostgresApplication } from '../persistence/postgres-application';
 import { loadAtlasProjectionInput } from './load-atlas-projection';
 import {
-  createAtlasModelProvider,
   createAtlasWorkspaceModelProviderResolver,
 } from './model-provider';
 import { createAtlasSecretStore } from './secret-store';
@@ -36,7 +35,6 @@ export const createAtlasPostgresComposition = (input: {
 
   return createAtlasPostgresApplication({
     assistantProvider: createAtlasWorkspaceModelProviderResolver({
-      fallback: createAtlasModelProvider(),
       pool: input.pool,
       secretStore: createAtlasSecretStore(),
     }),

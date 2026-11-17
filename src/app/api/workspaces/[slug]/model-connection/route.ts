@@ -6,7 +6,7 @@ import { atlasWorkspaceRef } from '@/atlas/model/workspace-administration';
 import type { AtlasWorkspaceModelConnection } from '@/atlas/model/workspace-model-connection';
 import { getAtlasServerApplication } from '@/atlas/server/atlas-composition';
 import { listAtlasProviderModels } from '@/atlas/server/model-catalog';
-import { readAtlasModelConfiguration } from '@/atlas/server/model-provider';
+import { readAtlasModelFallbackConfiguration } from '@/atlas/server/model-provider';
 import {
   createAtlasSecretStore,
   readAtlasSecretStoreConfiguration,
@@ -30,7 +30,7 @@ const safeView = (connections: AtlasWorkspaceModelConnection[]) => {
         secretSuffix: connection.secretSuffix,
         status: connection.status,
       })),
-    deploymentFallback: readAtlasModelConfiguration(),
+    deploymentFallback: readAtlasModelFallbackConfiguration(),
     secretStore: { available: secretStore.available, provider: secretStore.provider },
   };
 };

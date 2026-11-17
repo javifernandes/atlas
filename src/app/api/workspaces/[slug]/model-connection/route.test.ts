@@ -25,7 +25,7 @@ vi.mock('@/atlas/server/secret-store', () => ({
   }),
 }));
 vi.mock('@/atlas/server/model-provider', () => ({
-  readAtlasModelConfiguration: () => ({ enabled: false, model: null, provider: null }),
+  readAtlasModelFallbackConfiguration: () => ({ enabled: false, model: null, provider: null }),
 }));
 vi.mock('@/atlas/server/model-catalog', () => ({
   listAtlasProviderModels: listProviderModelsMock,

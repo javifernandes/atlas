@@ -6,6 +6,7 @@ import type { ModelProvider } from '@ontahi/core/runtime/server';
 import {
   createAtlasConfiguredModelProvider,
   createAtlasWorkspaceModelProviderResolver,
+  readAtlasModelFallbackConfiguration,
   readAtlasModelConfiguration,
 } from './model-provider';
 
@@ -19,6 +20,21 @@ describe('Workspace model provider resolution', () => {
     vi.stubEnv('OPENAI_API_KEY', 'secret');
 
     expect(readAtlasModelConfiguration().enabled).toBe(false);
+    vi.unstubAllEnvs();
+  });
+
+  it('does not expose the local fallback to persistent Workspaces', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('DATABASE_URL', 'postgres://atlas.test/atlas');
+    vi.stubEnv('ATLAS_LLM_PROVIDER', 'openai');
+    vi.stubEnv('ATLAS_LLM_MODEL', 'gpt-test');
+    vi.stubEnv('OPENAI_API_KEY', 'secret');
+
+    expect(readAtlasModelFallbackConfiguration()).toEqual({
+      enabled: false,
+      model: null,
+      provider: null,
+    });
     vi.unstubAllEnvs();
   });
 
