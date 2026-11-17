@@ -59,6 +59,7 @@ import {
   AtlasWorkspaceContributor,
   AtlasWorkspaceSourceImport,
   AtlasWorkspaceProjectionRevision,
+  AtlasWorkspaceModelConnection,
   type AtlasWorkspaceCapabilities,
   type AtlasWorkspaceRole,
 } from '../workspace/workspace-entities';
@@ -1128,6 +1129,7 @@ const buildAtlasOntahiDatasetFromSource = (
     }),
     AtlasWorkspaceSourceImport: [],
     AtlasWorkspaceProjectionRevision: [],
+    AtlasWorkspaceModelConnection: [],
     AtlasSourceRevision: sourceRevisions,
     AtlasSourceRecord: sourceRecords,
     AtlasItem: items.map(item => ({
@@ -1769,6 +1771,7 @@ export const atlasEntities = [
   AtlasWorkspaceContributor,
   AtlasWorkspaceSourceImport,
   AtlasWorkspaceProjectionRevision,
+  AtlasWorkspaceModelConnection,
   AtlasExecutionStream,
   AtlasExecutionStreamActivity,
   AtlasExecutionStreamRoot,
