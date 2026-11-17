@@ -114,6 +114,78 @@ describe('AtlasWorkspace.updateVisibility', () => {
   });
 });
 
+describe('AtlasWorkspace model connection metadata', () => {
+  it('lets an owner configure, select, list, and delete safe metadata', async () => {
+    const atlas = createAtlasOntahiApplication([], {
+      workspaceRoleFor: () => Effect.succeed('owner'),
+    });
+    const operations = atlas.application.graph.entities.AtlasWorkspace.domain;
+    const workspace = atlasWorkspaceRef(workspaceId);
+
+    const configured = await withInvocationContext(principal, () =>
+      atlas.application.invokeOperation(operations.configureModelConnection, {
+        workspace,
+        provider: 'openai',
+        model: 'gpt-test',
+        baseUrl: null,
+        secretRef: 'ATLAS_MODEL_CONNECTION_TEST',
+        secretSuffix: 'test',
+      }),
+    );
+    expect(configured).toMatchObject({
+      ok: true,
+      value: { provider: 'openai', model: 'gpt-test', status: 'active' },
+    });
+
+    const listed = await withInvocationContext(principal, () =>
+      atlas.application.invokeOperation(operations.listModelConnections, { workspace }),
+    );
+    expect(listed).toMatchObject({
+      ok: true,
+      value: [{ secretRef: 'ATLAS_MODEL_CONNECTION_TEST' }],
+    });
+
+    const connectionId = configured.ok ? (configured.value as { id: string }).id : '';
+    await expect(
+      withInvocationContext(principal, () =>
+        atlas.application.invokeOperation(operations.selectModelConnection, {
+          workspace,
+          connectionId,
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true, value: { status: 'active' } });
+
+    await expect(
+      withInvocationContext(principal, () =>
+        atlas.application.invokeOperation(operations.deleteModelConnection, {
+          workspace,
+          connectionId,
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true, value: { id: connectionId } });
+  });
+
+  it('refuses model connection administration to non-owners', async () => {
+    const atlas = createAtlasOntahiApplication([], {
+      workspaceRoleFor: () => Effect.succeed('viewer'),
+    });
+    const operation = atlas.application.graph.entities.AtlasWorkspace.domain.configureModelConnection;
+
+    await expect(
+      withInvocationContext(principal, () =>
+        atlas.application.invokeOperation(operation, {
+          workspace: atlasWorkspaceRef(workspaceId),
+          provider: 'openai',
+          model: 'gpt-test',
+          baseUrl: null,
+          secretRef: 'ATLAS_MODEL_CONNECTION_TEST',
+          secretSuffix: 'test',
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: false, failure: { reason: 'workspace_owner_required' } });
+  });
+});
+
 describe('AtlasWorkspace.delete', () => {
   it('requires the exact slug and deletes the owner Workspace aggregate', async () => {
     const workspaceDeleted = vi.fn(() => Effect.void);

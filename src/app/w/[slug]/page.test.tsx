@@ -22,7 +22,7 @@ vi.mock('@/atlas/workspace/workspace-task-runs', () => ({
   listAtlasWorkspaceSyncRuns: listAtlasWorkspaceSyncRunsMock,
 }));
 vi.mock('@/atlas/server/model-provider', () => ({
-  readAtlasModelConfiguration: () => ({ enabled: false }),
+  hasAtlasWorkspaceModelProvider: () => Promise.resolve(false),
 }));
 vi.mock('@/components/atlas-explorer-client', () => ({
   AtlasExplorerClient: ({ snapshot }: { snapshot: { nodes: Array<{ id: string; status: string; title: string }> } }) => (

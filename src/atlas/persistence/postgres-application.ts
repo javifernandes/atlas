@@ -27,7 +27,7 @@ import {
   resolveExecutionStreamPlanContext,
 } from '../model/execution-stream';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
-import type { ModelProvider } from '@ontahi/core/runtime/server';
+import type { AtlasWorkspaceCapabilities } from '../workspace/workspace-entities';
 import type {
   AtlasProjectionInput,
   AtlasProjectionSourceBaseline,
@@ -260,7 +260,7 @@ const retainEvidenceFromFailedSources = (input: {
 };
 
 export const createAtlasPostgresApplication = (input: {
-  assistantProvider?: ModelProvider | null;
+  assistantProvider?: NonNullable<AtlasWorkspaceCapabilities['runtime']['assistant']>['provider'];
   invalidatePresentation?: () => void;
   loadProjection: (
     request: AtlasReconciliationRequest,
@@ -278,8 +278,8 @@ export const createAtlasPostgresApplication = (input: {
 
   const capabilities: AtlasCapabilities = {
     runtime: {
-      assistant: {
-        provider: input.assistantProvider ?? null,
+      ...(input.assistantProvider ? { assistant: {
+        provider: input.assistantProvider,
         authorize: (userId, workspaceId) =>
           Effect.promise(async () => {
             const result = await input.pool.query<{ authorized: boolean }>(
@@ -328,7 +328,7 @@ export const createAtlasPostgresApplication = (input: {
             );
             return result.rows;
           }),
-      },
+      } } : {}),
       workspaceAuthorization: {
         roleFor: (userId, workspaceId) =>
           Effect.promise(async () => {

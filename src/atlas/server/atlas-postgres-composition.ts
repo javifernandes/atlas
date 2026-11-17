@@ -6,7 +6,10 @@ import type { Pool } from 'pg';
 import type { AtlasReconciliationRequest } from '../domain/atlas-application';
 import { createAtlasPostgresApplication } from '../persistence/postgres-application';
 import { loadAtlasProjectionInput } from './load-atlas-projection';
-import { createAtlasModelProvider } from './model-provider';
+import {
+  createAtlasWorkspaceModelProviderResolver,
+} from './model-provider';
+import { createAtlasSecretStore } from './secret-store';
 import { reconcileAtlasWorkspaceSources } from '../workspace/workspace-source-reconciliation';
 
 export const getAtlasRepoRoot = () => {
@@ -31,7 +34,10 @@ export const createAtlasPostgresComposition = (input: {
   const repoRoot = input.repoRoot ?? getAtlasRepoRoot();
 
   return createAtlasPostgresApplication({
-    assistantProvider: createAtlasModelProvider(),
+    assistantProvider: createAtlasWorkspaceModelProviderResolver({
+      pool: input.pool,
+      secretStore: createAtlasSecretStore(),
+    }),
     pool: input.pool,
     reconcileWorkspaceSources: ({ sources }) =>
       reconcileAtlasWorkspaceSources({ repoRoot, sources }),

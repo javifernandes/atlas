@@ -50,7 +50,7 @@ const createMemoryComposition = async () => {
   const projection = await loadAtlasProjectionInput({ repoRoot: getAtlasRepoRoot() });
 
   return createAtlasOntahiApplication(projection.records, {
-    assistantProvider: createAtlasModelProvider(),
+    assistantProvider: createAtlasModelProvider() ?? undefined,
     loadedSourceRevisions: projection.sourceRevisions,
     observedPullRequests: projection.observedPullRequests,
     workspaceCreated: ({ userId, workspace }) =>

@@ -20,13 +20,14 @@ import type { AtlasWorkspaceSyncRun } from '@/atlas/workspace/workspace-task-run
 
 import { WorkspaceAccessDenied } from './workspace-access-denied';
 import { WorkspaceSourceConnection } from './workspace-source-connection';
+import { WorkspaceModelSettings } from './workspace-model-settings';
 import { WorkspaceSyncActivity } from './workspace-sync-activity';
 import { Modal } from '../ui/modal';
 import { Select } from '../ui/select';
 
 const roleOrder = { owner: 0, collaborator: 1, viewer: 2 } as const;
 
-export type WorkspaceSettingsSection = 'general' | 'history' | 'people' | 'sources';
+export type WorkspaceSettingsSection = 'general' | 'history' | 'models' | 'people' | 'sources';
 
 const settingsSections: Array<{
   description: string;
@@ -35,6 +36,7 @@ const settingsSections: Array<{
 }> = [
   { description: 'Identity and access', id: 'general', label: 'General' },
   { description: 'Repositories and imports', id: 'sources', label: 'Sources' },
+  { description: 'Providers and credentials', id: 'models', label: 'Models' },
   { description: 'Imports and provider events', id: 'history', label: 'History' },
   { description: 'Members and contributors', id: 'people', label: 'People' },
 ];
@@ -803,6 +805,10 @@ export const WorkspaceSettings = ({
                 </section>
 
               </div>
+            ) : null}
+
+            {activeSection === 'models' ? (
+              <WorkspaceModelSettings canManage={canManage} workspaceSlug={workspace.slug} />
             ) : null}
 
             {activeSection === 'history' ? (

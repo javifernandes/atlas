@@ -6,6 +6,7 @@ import {
   modelOperation,
   relation,
   type ModelProvider,
+  type OperationFailure,
 } from '@ontahi/core/runtime/server';
 import { Effect } from 'effect';
 import { createHash, randomUUID } from 'node:crypto';
@@ -36,6 +37,16 @@ import {
   normalizeWorkspaceSlug,
 } from '../model/workspace-administration';
 import {
+  AtlasWorkspaceConfigureModelConnectionInputSchema,
+  AtlasWorkspaceConfigureModelConnectionOutputSchema,
+  AtlasWorkspaceDeleteModelConnectionInputSchema,
+  AtlasWorkspaceDeleteModelConnectionOutputSchema,
+  AtlasWorkspaceListModelConnectionsInputSchema,
+  AtlasWorkspaceListModelConnectionsOutputSchema,
+  AtlasWorkspaceSelectModelConnectionInputSchema,
+  AtlasWorkspaceSelectModelConnectionOutputSchema,
+} from '../model/workspace-model-connection';
+import {
   ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE,
   type AtlasGitHubRepositoryDiscovery,
 } from '../github/user-repositories';
@@ -49,7 +60,9 @@ export type AtlasWorkspaceRole = 'owner' | 'collaborator' | 'viewer';
 export type AtlasWorkspaceCapabilities = {
   runtime: {
     assistant?: {
-      provider: ModelProvider | null;
+      provider:
+        | ModelProvider
+        | ((input: AtlasPlanAssistantInput) => Effect.Effect<ModelProvider, OperationFailure>);
       authorize(userId: string, workspaceId: string): Effect.Effect<boolean>;
       retrievePlans(question: string): Effect.Effect<AtlasPlanAssistantDocument[]>;
     };
@@ -177,7 +190,7 @@ export const atlasWorkspaceModelConnectionFields = {
   id: field.id(),
   workspaceId: field.id(),
   purpose: field.enum(['plans-assistant']),
-  provider: field.enum(['openai', 'anthropic']),
+  provider: field.enum(['openai', 'anthropic', 'deepseek']),
   model: field.nonEmptyString({ trim: true }),
   baseUrl: field.nullable(field.string()),
   secretRef: field.nonEmptyString({ trim: true }),
@@ -287,12 +300,16 @@ export const AtlasWorkspace = entity({
       sources: AtlasWorkspaceSourceRef,
       sourceImports: AtlasWorkspaceSourceImportRef,
       projectionRevisions: AtlasWorkspaceProjectionRevisionRef,
+      modelConnections: AtlasWorkspaceModelConnectionRef,
     },
   },
   operations: ({ operation, app, commands, entities }) => {
-    const askWithModel = app.runtime.assistant?.provider
+    const askWithModel = app.runtime.assistant
       ? modelOperation({
-          provider: app.runtime.assistant.provider,
+          provider: input => {
+            const provider = app.runtime.assistant!.provider;
+            return typeof provider === 'function' ? provider(input) : Effect.succeed(provider);
+          },
           operation: {
             id: 'AtlasWorkspace.askPlans',
             description: 'Answer a question using only the supplied Atlas Plans.',
@@ -329,6 +346,18 @@ export const AtlasWorkspace = entity({
             }),
         })
       : null;
+
+    const requireOwner = (workspaceId: string, message: string) =>
+      Effect.gen(function* () {
+        const principal = getCurrentInvocationContext()?.principal;
+        const role =
+          principal?.kind === 'user'
+            ? yield* app.runtime.workspaceAuthorization.roleFor(principal.subject, workspaceId)
+            : null;
+        if (role !== 'owner') {
+          return yield* failOperation('workspace_owner_required', message);
+        }
+      });
 
     const validateOutput = (input: AtlasPlanAssistantInput, output: AtlasPlanAssistantOutput) =>
       Effect.flatMap(app.runtime.assistant!.retrievePlans(input.question), documents => {
@@ -511,6 +540,158 @@ export const AtlasWorkspace = entity({
                 'assistant_unavailable',
                 'The Atlas Plan assistant is not configured.',
               ),
+      }),
+      listModelConnections: operation({
+        description: 'List safe model connection metadata for a Workspace owner.',
+        receiver: { kind: 'input', path: 'workspace' },
+        input: AtlasWorkspaceListModelConnectionsInputSchema,
+        output: AtlasWorkspaceListModelConnectionsOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const workspaceId = String(input.workspace.locator.id);
+            yield* requireOwner(
+              workspaceId,
+              'Only an active Workspace owner can inspect model configuration.',
+            );
+            return yield* entities.modelConnections
+              .where(connection => connection.workspaceId.eq(workspaceId))
+              .where(connection => connection.purpose.eq('plans-assistant'))
+              .run();
+          }),
+      }),
+      configureModelConnection: operation.atomic({
+        description: 'Activate safe model connection metadata after confidential secret storage.',
+        receiver: { kind: 'input', path: 'workspace' },
+        input: AtlasWorkspaceConfigureModelConnectionInputSchema,
+        output: AtlasWorkspaceConfigureModelConnectionOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const workspaceId = String(input.workspace.locator.id);
+            yield* requireOwner(
+              workspaceId,
+              'Only an active Workspace owner can configure a model connection.',
+            );
+            const existing = (yield* entities.modelConnections
+              .where(connection => connection.workspaceId.eq(workspaceId))
+              .where(connection => connection.purpose.eq('plans-assistant'))
+              .where(connection => connection.provider.eq(input.provider))
+              .limit(1)
+              .run())[0];
+            const now = new Date().toISOString();
+            yield* entities.modelConnections
+              .where(connection => connection.workspaceId.eq(workspaceId))
+              .where(connection => connection.purpose.eq('plans-assistant'))
+              .where(connection => connection.status.eq('active'))
+              .update({ status: 'disabled', updatedAt: now })
+              .run();
+            if (existing) {
+              yield* entities.modelConnections
+                .where(connection => connection.id.eq(existing.id))
+                .update({
+                  provider: input.provider,
+                  model: input.model,
+                  baseUrl: input.baseUrl,
+                  secretRef: input.secretRef,
+                  secretSuffix: input.secretSuffix,
+                  status: 'active',
+                  updatedAt: now,
+                })
+                .run();
+              return {
+                ...existing,
+                provider: input.provider,
+                model: input.model,
+                baseUrl: input.baseUrl,
+                secretRef: input.secretRef,
+                secretSuffix: input.secretSuffix,
+                status: 'active' as const,
+                updatedAt: now,
+              };
+            }
+            const connection = {
+              id: randomUUID(),
+              workspaceId,
+              purpose: 'plans-assistant' as const,
+              provider: input.provider,
+              model: input.model,
+              baseUrl: input.baseUrl,
+              secretRef: input.secretRef,
+              secretSuffix: input.secretSuffix,
+              status: 'active' as const,
+              createdAt: now,
+              updatedAt: now,
+            };
+            yield* entities.modelConnections.insert(connection).run();
+            return connection;
+          }),
+      }),
+      selectModelConnection: operation.atomic({
+        description: 'Select one saved model connection as active for a Workspace.',
+        receiver: { kind: 'input', path: 'workspace' },
+        input: AtlasWorkspaceSelectModelConnectionInputSchema,
+        output: AtlasWorkspaceSelectModelConnectionOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const workspaceId = String(input.workspace.locator.id);
+            yield* requireOwner(
+              workspaceId,
+              'Only an active Workspace owner can select a model connection.',
+            );
+            const existing = (yield* entities.modelConnections
+              .where(connection => connection.workspaceId.eq(workspaceId))
+              .where(connection => connection.purpose.eq('plans-assistant'))
+              .where(connection => connection.id.eq(input.connectionId))
+              .limit(1)
+              .run())[0];
+            if (!existing) {
+              return yield* failOperation(
+                'model_connection_not_found',
+                'The selected Workspace model connection does not exist.',
+              );
+            }
+            const updatedAt = new Date().toISOString();
+            yield* entities.modelConnections
+              .where(connection => connection.workspaceId.eq(workspaceId))
+              .where(connection => connection.purpose.eq('plans-assistant'))
+              .where(connection => connection.status.eq('active'))
+              .update({ status: 'disabled', updatedAt })
+              .run();
+            yield* entities.modelConnections
+              .where(connection => connection.id.eq(existing.id))
+              .update({ status: 'active', updatedAt })
+              .run();
+            return { ...existing, status: 'active' as const, updatedAt };
+          }),
+      }),
+      deleteModelConnection: operation.atomic({
+        description: 'Delete one saved model connection from a Workspace.',
+        receiver: { kind: 'input', path: 'workspace' },
+        input: AtlasWorkspaceDeleteModelConnectionInputSchema,
+        output: AtlasWorkspaceDeleteModelConnectionOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const workspaceId = String(input.workspace.locator.id);
+            yield* requireOwner(
+              workspaceId,
+              'Only an active Workspace owner can delete a model connection.',
+            );
+            const existing = (yield* entities.modelConnections
+              .where(connection => connection.workspaceId.eq(workspaceId))
+              .where(connection => connection.id.eq(input.connectionId))
+              .limit(1)
+              .run())[0];
+            if (!existing) {
+              return yield* failOperation(
+                'model_connection_not_found',
+                'The Workspace model connection does not exist.',
+              );
+            }
+            yield* entities.modelConnections
+              .where(connection => connection.id.eq(existing.id))
+              .delete()
+              .run();
+            return existing;
+          }),
       }),
       updateVisibility: operation.atomic({
         description: 'Change Workspace visibility under active owner authority.',

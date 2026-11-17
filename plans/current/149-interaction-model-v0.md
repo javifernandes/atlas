@@ -297,6 +297,13 @@ mapping in advance.
 - [ ] Identify missing product behavior separately from missing implementation bindings.
 - [ ] Decide whether `realizedBy` belongs in Interaction v1 or in implementation evidence.
 
+`Configure Workspace Model Connection` in Plan 158 is the second exemplar and first
+design-before-realization experiment. Its Service Blueprint aligns actor action and visible
+evidence with Operations, confidential ingress, Entity state, Resources, external systems,
+failures, compensation, and telemetry. The experiment should determine whether this is a distinct
+useful projection and which links belong in the semantic model rather than copying implementation
+details into the Interaction.
+
 ### Slice 6 — Workspace membership adoption
 
 - [ ] Model Manage Contributors as a composed Workspace-scoped Interaction.
