@@ -16,6 +16,8 @@ relatedPlans:
   - plans/current/102-workstream-atlas-implementation-evidence.md
   - plans/done/116-atlas-ontahi-postgres-persistence.md
   - plans/done/124-implicit-personal-execution-streams-mvp.md
+  - plans/current/153-replication-and-adaptive-materialization.md
+  - plans/done/154-unified-source-and-derivation-model.md
 ---
 
 Atlas Model defines the language the atlas uses to describe systems: atlas items, item types, system form, work items, transformations, evidence, relations, states, and practices.
@@ -40,3 +42,7 @@ It is not a complete metamodel yet. It is the smallest shared vocabulary needed 
 14. [`Projection Revision`](./atlas-model/projection-revision.md)
 15. [`Execution Stream`](./atlas-model/execution-stream.md)
 16. [`Participation`](./atlas-model/participation.md)
+17. [`Source`](./atlas-model/source.md)
+18. [`Source Revision`](./atlas-model/source-revision.md)
+19. [`Source Binding`](./atlas-model/source-binding.md)
+20. [`Source Derivation`](./atlas-model/source-derivation.md)

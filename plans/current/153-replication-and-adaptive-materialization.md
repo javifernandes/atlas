@@ -130,7 +130,7 @@ confirms the authoritative revision. Revision drift produces an explicit rebase/
 
 ## Execution Slices
 
-1. Execute Plan 154 to settle Source identity, roles, bindings, revisions, and derivation.
+1. [x] Execute Plan 154 to settle Source identity, roles, bindings, revisions, and derivation.
 2. Execute Plan 155 to introduce provider-neutral ChangeSets and replica invariants in Atlas.
 3. Execute Plan 156 to declare materialization, retention, eviction, restore, and SLO policy.
 4. Adopt incremental parsed/semantic artifacts in Atlas behind full-rebuild equivalence checks.
@@ -158,19 +158,21 @@ confirms the authoritative revision. Revision drift produces an explicit rebase/
   Atlas authorship.
 - Treat physical persistence as policy when, and only when, the logical state has a proven
   reconstruction contract.
+- Represent Source as a portable Ontahí-compatible Entity and canonical receiver. Observation,
+  derivation, writing, replay, and reconstruction are composable capabilities.
 
 ## Open Questions
 
-1. Is `Source` itself an Ontahí Entity capability, or a separate runtime concept that Entities bind?
-2. Should `derivesFrom` point to Sources, exact Source Revisions, or both at different layers?
-3. Which granular update operators are needed beyond field set/unset and collection insert/remove/
+1. Which granular update operators are needed beyond field set/unset and collection insert/remove/
    move/replace?
-4. Does one ChangeSet span multiple Entity records inside one Source, while a Unit of Work
+2. Does one ChangeSet span multiple Entity records inside one Source, while a Unit of Work
    coordinates multiple ChangeSets across Sources?
-5. Which semantic dependencies can be inferred from parsing, and which must be declared?
-6. What minimum checkpoint is required before a Workspace projection may be evicted safely?
-7. Which policies are product tiers versus internal adaptive decisions?
+3. Which semantic dependencies can be inferred from parsing, and which must be declared?
+4. What minimum checkpoint is required before a Workspace projection may be evicted safely?
+5. Which policies are product tiers versus internal adaptive decisions?
 
 ## Closure / Evolution
 
-Shaping. Plans 154–157 own the detailed decisions and adoption checkpoints.
+Shaping. Plan 154 established Source as a portable Entity/receiver with capability-based behavior,
+normalized Entity bindings, stable Source derivations, and exact immutable revision lineage. Plans
+155–157 own the remaining runtime, materialization, and editing checkpoints.

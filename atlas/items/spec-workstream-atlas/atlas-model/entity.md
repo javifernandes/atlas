@@ -8,7 +8,7 @@ horizon: now
 relatedPlans:
   - plans/current/146-package-manifest-and-classroom-model.md
   - plans/current/153-replication-and-adaptive-materialization.md
-  - plans/next/154-unified-source-and-derivation-model.md
+  - plans/done/154-unified-source-and-derivation-model.md
 exemplars:
   - ontahi.examples.classroom.user
   - ontahi.examples.classroom.classroom
