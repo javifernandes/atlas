@@ -42,7 +42,12 @@ export const createAtlasPostgresComposition = (input: {
 
       return loadAtlasProjectionInput({
         baseline,
+        expectedBaseRevision:
+          request.webhook && 'before' in request.webhook
+            ? request.webhook.before
+            : undefined,
         preferRemoteAtlas: process.env.NODE_ENV === 'production',
+        providerDeliveryId: request.webhook?.deliveryId,
         repositoryFullName: request.webhook?.repositoryFullName,
         repoRoot,
       });

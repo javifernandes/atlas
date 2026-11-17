@@ -1,6 +1,6 @@
 # 155. ChangeSet and replica runtime
 
-Status: next
+Status: done
 
 ## Summary
 
@@ -54,12 +54,12 @@ different semantic layers.
 
 ## Execution Slices
 
-1. Define ChangeSet and operation schemas plus Unit of Work relationships.
-2. Persist observed ChangeSets and application outcomes.
-3. Derive a Git file ChangeSet between accepted revisions.
-4. Apply it transactionally to source records.
-5. Parse changed records and retain full semantic publication initially.
-6. Run incremental/full equivalence checks and retain full fallback.
+1. [x] Define ChangeSet and operation schemas plus Unit of Work relationships.
+2. [x] Persist observed ChangeSets and application outcomes.
+3. [x] Derive a Git file ChangeSet between accepted revisions.
+4. [x] Apply it with exact revision and record preconditions.
+5. [x] Retain full semantic publication from the converged record set initially.
+6. [x] Run incremental/full equivalence checks and retain full fallback.
 
 ## Verification
 
@@ -69,6 +69,28 @@ different semantic layers.
 - Attribution distinguishes Principal, Session, Unit of Work, provider event, and revision.
 - A history gap selects full observation rather than guessing operations.
 
+## Decisions
+
+1. Runtime ChangeSets carry a portable `AtlasSource` Ref while persistence retains the legacy
+   `source_id` during gradual Source-model adoption.
+2. ChangeSet identity is a deterministic hash of Source, revision pair, and canonical operations;
+   timestamps and delivery IDs are provenance, not identity.
+3. A unique target Source Revision accepts at most one durable ChangeSet.
+4. File move detection is deterministic and conservative: only a unique identical-content target
+   becomes `move`; ambiguous cases remain delete/create without semantic guessing.
+5. Git `push.before` must match the persisted base revision for incremental observation. A gap uses
+   the existing complete snapshot path.
+6. ChangeSet application converges source records; complete semantic parsing and atomic publication
+   remain the correctness oracle for this slice.
+
 ## Closure / Evolution
 
-Not started. Depends on Plan 154; parent Plan 153.
+Implemented for the global Git/Markdown webhook path. Atlas now derives deterministic file
+ChangeSets, applies create/update/delete/move operations with content preconditions, persists
+provider provenance and optional Unit of Work/Session/Principal attribution, and links one durable
+application to the publishing Projection Revision. Duplicate delivery stays a no-op; target-revision
+application is idempotent; base mismatch and push history gaps cannot mutate the replica.
+
+The next optimization belongs to parsed semantic artifacts and dependency-aware invalidation.
+Partial graph publication and Atlas-authored outbound ChangeSets remain future slices rather than
+being hidden inside this runtime foundation.

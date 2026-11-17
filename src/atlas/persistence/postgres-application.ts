@@ -1338,6 +1338,7 @@ export const createAtlasPostgresApplication = (input: {
         const diagnosticsJson = JSON.stringify({
           catchUpSince: catchUpSince?.iso ?? null,
           evidenceFailures: projection.evidenceFailures,
+          sourceChangeSetId: projection.sourceChangeSet?.id ?? null,
         });
         const reconciliationToken = randomUUID();
         const webhook = request.webhook;
@@ -1478,6 +1479,28 @@ export const createAtlasPostgresApplication = (input: {
                 conflictOn: ['id'],
                 strategy: 'merge',
               }).run();
+            }
+            if (projection.sourceChangeSet) {
+              const changeSet = projection.sourceChangeSet;
+              const sourceId = String(changeSet.source.locator.id);
+              yield* entities.AtlasSourceChangeSet.upsert(
+                {
+                  id: changeSet.id,
+                  sourceId,
+                  baseSourceRevisionId: `${sourceId}:markdown:${changeSet.baseRevision.revisionKey}`,
+                  targetSourceRevisionId: `${sourceId}:markdown:${changeSet.targetRevision.revisionKey}`,
+                  operationCount: changeSet.operations.length,
+                  operationsJson: JSON.stringify(changeSet.operations),
+                  provenanceJson: JSON.stringify(changeSet.provenance),
+                  provider: changeSet.provenance.provider,
+                  providerDeliveryId: changeSet.provenance.providerDeliveryId,
+                  unitOfWorkId: changeSet.attribution.unitOfWorkId,
+                  sessionId: changeSet.attribution.sessionId,
+                  principalId: changeSet.attribution.principalId,
+                  observedAt: changeSet.provenance.observedAt,
+                },
+                { conflictOn: ['id'], strategy: 'ignore' },
+              ).run();
             }
             if (dataset.AtlasSourceRecord.length > 0) {
               yield* entities.AtlasSourceRecord.upsertMany(dataset.AtlasSourceRecord, {
@@ -1629,6 +1652,19 @@ export const createAtlasPostgresApplication = (input: {
               completedAt,
               status: projection.evidenceFailures.length > 0 ? 'degraded' : 'completed',
             }).run();
+            if (projection.sourceChangeSet) {
+              yield* entities.AtlasSourceChangeSetApplication.upsert(
+                {
+                  id: `source-change-set-application:${projection.sourceChangeSet.id}`,
+                  changeSetId: projection.sourceChangeSet.id,
+                  projectionRevisionId,
+                  status: 'applied',
+                  appliedAt: completedAt,
+                  diagnosticsJson: '{}',
+                },
+                { conflictOn: ['changeSetId'], strategy: 'ignore' },
+              ).run();
+            }
             if (dataset.AtlasSourceRevision.length > 0) {
               yield* entities.ProjectionSourceRevision.insertMany(
                 dataset.AtlasSourceRevision.map(revision => ({

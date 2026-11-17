@@ -131,7 +131,7 @@ confirms the authoritative revision. Revision drift produces an explicit rebase/
 ## Execution Slices
 
 1. [x] Execute Plan 154 to settle Source identity, roles, bindings, revisions, and derivation.
-2. Execute Plan 155 to introduce provider-neutral ChangeSets and replica invariants in Atlas.
+2. [x] Execute Plan 155 to introduce provider-neutral ChangeSets and replica invariants in Atlas.
 3. Execute Plan 156 to declare materialization, retention, eviction, restore, and SLO policy.
 4. Adopt incremental parsed/semantic artifacts in Atlas behind full-rebuild equivalence checks.
 5. Execute Plan 157 to author and publish Git-backed changes from Atlas.
@@ -175,4 +175,6 @@ confirms the authoritative revision. Revision drift produces an explicit rebase/
 
 Shaping. Plan 154 established Source as a portable Entity/receiver with capability-based behavior,
 normalized Entity bindings, stable Source derivations, and exact immutable revision lineage. Plans
-155–157 own the remaining runtime, materialization, and editing checkpoints.
+155 then introduced deterministic file ChangeSets, exact base/target revision application,
+idempotent durable history, and snapshot fallback for gaps. Plans 156–157 own the remaining
+materialization and editing checkpoints.

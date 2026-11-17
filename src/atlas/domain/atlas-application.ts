@@ -159,6 +159,31 @@ const sourceRecordFields = {
   contentHash: field.nonEmptyString({ trim: true }),
 };
 
+const sourceChangeSetFields = {
+  id: field.id(),
+  sourceId: field.nonEmptyString({ trim: true }),
+  baseSourceRevisionId: field.id(),
+  targetSourceRevisionId: field.id(),
+  operationCount: field.number(),
+  operationsJson: field.string(),
+  provenanceJson: field.string(),
+  provider: field.enum(['github']),
+  providerDeliveryId: field.nullable(field.string()),
+  unitOfWorkId: field.nullable(field.string()),
+  sessionId: field.nullable(field.string()),
+  principalId: field.nullable(field.string()),
+  observedAt: field.nonEmptyString({ trim: true }),
+};
+
+const sourceChangeSetApplicationFields = {
+  id: field.id(),
+  changeSetId: field.id(),
+  projectionRevisionId: field.id(),
+  status: field.enum(['applied', 'duplicate']),
+  appliedAt: field.nonEmptyString({ trim: true }),
+  diagnosticsJson: field.string(),
+};
+
 const atlasItemFields = {
   id: field.id(),
   semanticId: field.nonEmptyString({ trim: true }),
@@ -393,6 +418,15 @@ export const AtlasSourceRecord = entity({
   fields: sourceRecordFields,
   relations: {
     revision: relation.belongsTo(AtlasSourceRevision, { via: 'sourceRevisionId' }),
+  },
+});
+
+export const AtlasSourceChangeSet = entity({
+  name: 'AtlasSourceChangeSet',
+  fields: sourceChangeSetFields,
+  relations: {
+    baseRevision: relation.belongsTo(AtlasSourceRevision, { via: 'baseSourceRevisionId' }),
+    targetRevision: relation.belongsTo(AtlasSourceRevision, { via: 'targetSourceRevisionId' }),
   },
 });
 
@@ -870,6 +904,17 @@ export const ProjectionRevision = entity({
       },
     }),
   }),
+});
+
+export const AtlasSourceChangeSetApplication = entity({
+  name: 'AtlasSourceChangeSetApplication',
+  fields: sourceChangeSetApplicationFields,
+  relations: {
+    changeSet: relation.belongsTo(AtlasSourceChangeSet, { via: 'changeSetId' }),
+    projectionRevision: relation.belongsTo(ProjectionRevision, {
+      via: 'projectionRevisionId',
+    }),
+  },
 });
 
 export const ProjectionSourceRevision = entity({
@@ -1777,6 +1822,8 @@ export const atlasEntities = [
   AtlasExecutionStreamRoot,
   AtlasSourceRevision,
   AtlasSourceRecord,
+  AtlasSourceChangeSet,
+  AtlasSourceChangeSetApplication,
   AtlasItem,
   AtlasPlan,
   AtlasShapingBinding,
