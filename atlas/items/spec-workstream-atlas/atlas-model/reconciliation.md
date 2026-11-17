@@ -20,6 +20,7 @@ relatedPlans:
   - plans/current/145-workspace-source-durable-import-experience.md
   - plans/done/150-contain-webhook-reconciliation-cpu.md
   - plans/done/151-coalesce-merge-webhook-signals.md
+  - plans/done/152-incremental-source-reconciliation.md
 ---
 
 [[spec-workstream-atlas.atlas-model.reconciliation|Reconciliation]] is the operation family that compares intention, implementation, evidence, and the current atlas model.
@@ -56,6 +57,14 @@ revision without new work; a following merged PR publishes only evidence binding
 activity as a lightweight immutable Projection Revision that reuses the existing source lineage.
 This preserves both provider deliveries and makes arrival order irrelevant without treating the PR
 payload as source-content authority.
+
+The first incremental observation boundary remains complete-set reconciliation. When a webhook
+names one registered Markdown source and the current projection has complete persisted source
+records and lineage, Atlas re-observes only that repository, replaces that source in the persisted
+baseline, and feeds the resulting complete logical set through the existing parser and atomic
+publication transaction. Bootstrap, manual, build, catch-up, unknown-source, and incomplete-lineage
+paths retain full observation. This optimization does not yet make evidence observation, graph
+derivation, or PostgreSQL publication incremental.
 
 Webhook recovery is a distinct operational reconciliation mode. It re-observes a bounded GitHub
 history and compares stable Pull Request identities with durable Session activity, so a failed

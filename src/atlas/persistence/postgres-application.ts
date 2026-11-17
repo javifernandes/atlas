@@ -28,7 +28,10 @@ import {
 } from '../model/execution-stream';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import type { ModelProvider } from '@ontahi/core/runtime/server';
-import type { AtlasProjectionInput } from '../server/load-atlas-projection';
+import type {
+  AtlasProjectionInput,
+  AtlasProjectionSourceBaseline,
+} from '../server/load-atlas-projection';
 import { deriveWorkspaceContributors } from '../workspace/workspace-contributors';
 import type { AtlasWorkspaceSourceReconciler } from '../workspace/workspace-source-reconciliation';
 import { atlasPostgresMappingOverrides } from './postgres-mapping';
@@ -259,7 +262,10 @@ const retainEvidenceFromFailedSources = (input: {
 export const createAtlasPostgresApplication = (input: {
   assistantProvider?: ModelProvider | null;
   invalidatePresentation?: () => void;
-  loadProjection: (request: AtlasReconciliationRequest) => Promise<AtlasProjectionInput>;
+  loadProjection: (
+    request: AtlasReconciliationRequest,
+    baseline?: AtlasProjectionSourceBaseline,
+  ) => Promise<AtlasProjectionInput>;
   observePostgresQueries?: boolean;
   onPostgresQuery?: (observation: AtlasPostgresQueryObservation) => void;
   pool: Pick<Pool, 'connect' | 'query'>;
@@ -1217,6 +1223,74 @@ export const createAtlasPostgresApplication = (input: {
       return proposePlanLink(parseAtlasSourceRecords(records), request);
     });
 
+  const loadSourceBaseline = async (): Promise<AtlasProjectionSourceBaseline> => {
+    const result = await input.pool.query<{
+      authority: 'markdown';
+      canonical_path: string;
+      content: string;
+      observed_at: string;
+      projection_revision_id: string | null;
+      repository: string | null;
+      revision: string;
+      revision_id: string;
+      revision_kind: 'git' | 'content-sha256';
+      source_file_path: string | null;
+      source_id: string;
+      source_path: string;
+    }>(`
+      SELECT
+        record.canonical_path,
+        record.content,
+        record.source_file_path,
+        record.source_id,
+        record.source_path,
+        revision.authority,
+        revision.id AS revision_id,
+        revision.observed_at,
+        latest_projection.id AS projection_revision_id,
+        revision.repository,
+        revision.revision,
+        revision.revision_kind
+      FROM atlas_source_records AS record
+      JOIN atlas_source_revisions AS revision ON revision.id = record.source_revision_id
+      CROSS JOIN LATERAL (
+        SELECT projection.id
+        FROM projection_revisions AS projection
+        ORDER BY projection.started_at DESC
+        LIMIT 1
+      ) AS latest_projection
+      ORDER BY record.source_id, record.source_path
+    `);
+    const revisions = new Map<string, AtlasProjectionSourceBaseline['sourceRevisions'][number]>();
+
+    for (const row of result.rows) {
+      revisions.set(row.source_id, {
+        authority: row.authority,
+        id: row.revision_id,
+        observedAt: row.observed_at,
+        repository: row.repository,
+        revision: row.revision,
+        revisionKind: row.revision_kind,
+        sourceId: row.source_id,
+      });
+    }
+
+    return {
+      projectionRevisionId: result.rows[0]?.projection_revision_id ?? null,
+      records: result.rows.map(row => ({
+        canonicalPath: row.canonical_path,
+        content: row.content,
+        sourceFilePath: row.source_file_path ?? undefined,
+        sourceId: row.source_id,
+        sourcePath: row.source_path,
+        sourceRepository: row.repository ?? undefined,
+        sourceRevision: row.revision,
+        sourceRevisionKind: row.revision_kind,
+      })),
+      sourceRevisions: [...revisions.values()],
+    };
+  };
+
   reconcileProjection = request =>
     Effect.promise(() => readDuplicateWebhookResult(request)).pipe(
       Effect.flatMap(duplicateResult =>
@@ -1225,7 +1299,12 @@ export const createAtlasPostgresApplication = (input: {
           : tryCoalesceWebhook(request).pipe(Effect.flatMap(coalescedResult =>
             coalescedResult
               ? Effect.succeed(coalescedResult)
-              : Effect.promise(() => input.loadProjection(request)).pipe(
+              : Effect.promise(async () =>
+                  input.loadProjection(
+                    request,
+                    request.webhook ? await loadSourceBaseline() : undefined,
+                  ),
+                ).pipe(
               Effect.flatMap(projection => {
         const catchUpSince =
           request.trigger === 'catch-up'
@@ -1334,6 +1413,16 @@ export const createAtlasPostgresApplication = (input: {
               .limit(1)
               .run();
             const latestRevision = latestRevisions[0];
+            if (
+              projection.incrementalBaselineProjectionRevisionId &&
+              latestRevision?.id !== projection.incrementalBaselineProjectionRevisionId
+            ) {
+              return yield* Effect.die(
+                new Error(
+                  'Atlas incremental source baseline changed before publication; retry reconciliation.',
+                ),
+              );
+            }
             if (latestRevision && Date.parse(latestRevision.startedAt) > Date.parse(startedAt)) {
               if (webhook?.deliveryId && processingToken) {
                 yield* entities.WebhookDelivery.where(candidate =>
