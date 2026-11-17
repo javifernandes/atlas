@@ -11,7 +11,8 @@ When working in this repository:
    relationships; use ordinary repository-relative paths for Atlas-owned references.
 5. Update the relevant plan checkpoint and smallest durable Atlas item before opening or updating a
    PR that changes system shape.
-6. Run `pnpm verify` for application changes. For Markdown-only ownership or reference changes, run
+6. Run `pnpm verify` for application changes. It checks text formatting across tracked and new
+   unignored files before tests, typecheck, and build. For Markdown-only ownership or reference changes, run
    the focused source/snapshot tests plus `git diff --check` at minimum.
 7. Read `docs/atlas-evidence-binding-guidelines.md` before preparing commits or PRs. Put supported
    Atlas directives in the PR body when the work implements or shapes a registered target; commit

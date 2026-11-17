@@ -173,6 +173,20 @@ export const atlasWorkspaceProjectionRevisionFields = {
   createdAt: field.nonEmptyString({ trim: true }),
 };
 
+export const atlasWorkspaceModelConnectionFields = {
+  id: field.id(),
+  workspaceId: field.id(),
+  purpose: field.enum(['plans-assistant']),
+  provider: field.enum(['openai', 'anthropic']),
+  model: field.nonEmptyString({ trim: true }),
+  baseUrl: field.nullable(field.string()),
+  secretRef: field.nonEmptyString({ trim: true }),
+  secretSuffix: field.nullable(field.string()),
+  status: field.enum(['active', 'disabled']),
+  createdAt: field.nonEmptyString({ trim: true }),
+  updatedAt: field.nonEmptyString({ trim: true }),
+};
+
 const sourceConfigurationRevision = (
   sources: Array<{
     id: string;
@@ -211,6 +225,9 @@ const AtlasWorkspaceSourceImportRef = entity.ref('AtlasWorkspaceSourceImport', {
 });
 const AtlasWorkspaceProjectionRevisionRef = entity.ref('AtlasWorkspaceProjectionRevision', {
   fields: atlasWorkspaceProjectionRevisionFields,
+});
+const AtlasWorkspaceModelConnectionRef = entity.ref('AtlasWorkspaceModelConnection', {
+  fields: atlasWorkspaceModelConnectionFields,
 });
 const AtlasExecutionStreamRef = entity.ref('AtlasExecutionStream');
 
@@ -256,6 +273,9 @@ export const AtlasWorkspace = entity({
     contributors: relation.hasMany(AtlasWorkspaceContributorRef, { via: 'workspaceId' }),
     sourceImports: relation.hasMany(AtlasWorkspaceSourceImportRef, { via: 'workspaceId' }),
     projectionRevisions: relation.hasMany(AtlasWorkspaceProjectionRevisionRef, {
+      via: 'workspaceId',
+    }),
+    modelConnections: relation.hasMany(AtlasWorkspaceModelConnectionRef, {
       via: 'workspaceId',
     }),
   },
@@ -984,5 +1004,18 @@ export const AtlasWorkspaceContributor = entity({
     workspace: relation.belongsTo(AtlasWorkspace, { via: 'workspaceId' }),
     source: relation.belongsTo(AtlasWorkspaceSource, { via: 'workspaceSourceId' }),
     linkedUser: relation.belongsTo(AtlasUser, { via: 'linkedUserId' }),
+  },
+});
+
+export const AtlasWorkspaceModelConnection = entity({
+  name: 'AtlasWorkspaceModelConnection',
+  fields: atlasWorkspaceModelConnectionFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.workspace',
+  },
+  relations: {
+    workspace: relation.belongsTo(AtlasWorkspace, { via: 'workspaceId' }),
   },
 });

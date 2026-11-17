@@ -67,11 +67,13 @@ Atlas keeps identity and Membership as separate authorized roots until Ontahí d
 intersection for relations materialized inside Views.
 
 Model configuration is also Workspace-shaped administration, but provider credentials are not
-ordinary Workspace fields. The first Plan assistant uses server deployment configuration while the
-future BYOK form should bind a Workspace to encrypted secret material or a host secret reference,
-safe provider/model metadata, usage policy, and explicit capability grants. Model execution never
-inherits Workspace access from a caller-supplied ID; Atlas reauthorizes the authenticated User's
-active Membership at the Operation boundary.
+ordinary Workspace fields. `AtlasWorkspaceModelConnection` owns safe provider, model, endpoint,
+status, purpose, and opaque secret-reference metadata with one connection per Workspace and
+purpose. Secret material remains behind a replaceable host `SecretStore`; it is neither Graph data
+nor an observable bridged Operation input. The first adapter uses a dedicated Doppler config while
+preserving that boundary. Model execution never inherits Workspace access from a caller-supplied
+ID; Atlas reauthorizes the authenticated User's active Membership at the Operation boundary and
+resolves the provider from the canonical Workspace receiver.
 
 When Atlas runs locally without PostgreSQL, an authenticated in-memory User receives ephemeral
 owner authority over the same canonical default Workspace. This is a development compatibility

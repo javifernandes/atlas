@@ -100,7 +100,7 @@ reads or Runtime Protocol responses.
 - [ ] Decide whether structured Atlas retrieval is sufficient.
 - [ ] Introduce an ephemeral checkout/sandbox only if real questions require repository history,
       arbitrary files, or command execution not represented by Atlas.
-- [ ] Shape Workspace BYOK secret storage separately from assistant interaction.
+- [x] Shape Workspace BYOK secret storage separately from assistant interaction (Plan 158).
 
 ## Verification
 
