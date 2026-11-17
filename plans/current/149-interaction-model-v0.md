@@ -365,6 +365,12 @@ prove that Atlas can preserve and render the interaction independently of its cu
 realization. Workspace invitation and membership workflows are the next adoption pressure, not the
 initial parser scope.
 
+The production exemplar exposed two compatibility edges after the first detail-surface deployment:
+an older Projection Revision could still label the Item as `capability`, and the generic Markdown
+fallback rejected Context's valid one-column table. The deployment reconciliation remains
+responsible for recompiling the first edge; the viewer now accepts the authored one-column form so
+the fallback stays legible while convergence happens.
+
 The plan should remain current until the exemplar renders end to end and the team decides whether
 realization bindings belong in Interaction v1. Runtime execution, UI generation, and Ontahí Durable
 Operation convergence should be extracted into focused follow-ups only after evidence from the v0

@@ -442,6 +442,28 @@ const selection: Selection = Selection.references(Book, refs);
     expect(screen.queryByText('Raw goal that should be represented by the model.')).not.toBeInTheDocument();
   });
 
+  it('renders a one-column Markdown table as a table', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=single-column-table');
+    const node = createNode('single-column-table', {
+      kind: 'capability',
+      markdown: `## Context
+
+| Requirement |
+| ----------- |
+| A Source is connected |
+| Evidence is reconciled |`,
+      semanticId: 'test.single-column-table',
+      shortTitle: 'Single-column table',
+    });
+
+    renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, node] } });
+
+    const table = screen.getByRole('table');
+    expect(within(table).getByRole('columnheader', { name: 'Requirement' })).toBeInTheDocument();
+    expect(within(table).getByRole('cell', { name: 'A Source is connected' })).toBeInTheDocument();
+    expect(within(table).getByRole('cell', { name: 'Evidence is reconciled' })).toBeInTheDocument();
+  });
+
   it('derives navigable operation availability from an Entity model', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=invitation-entity');
     const user = userEvent.setup();
