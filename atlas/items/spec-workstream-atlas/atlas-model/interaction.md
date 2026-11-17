@@ -77,6 +77,12 @@ and a child retains its own detailed anatomy and source.
 The initial relationships are `presents`, `opens`, `invokes`, and `continuesWith`. They remain
 relationship vocabulary rather than separate Item Types.
 
+Atlas renders this anatomy as a dedicated detail projection rather than repeating the source
+tables. Scope and goal establish the boundary first; Actors, Context, Presents, Affordances, Steps,
+and Outcomes then expose the interaction in actor-facing order. Resolved references are navigable,
+while unresolved references remain visible authoring pressure. The Source view retains the
+authoritative Markdown.
+
 ## Implementation Boundary
 
 Interaction is not executable framework code, a React component hierarchy, or a route map. Ontahí

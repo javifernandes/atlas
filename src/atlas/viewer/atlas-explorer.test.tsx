@@ -404,6 +404,44 @@ const selection: Selection = Selection.references(Book, refs);
     );
   });
 
+  it('renders Interaction anatomy without duplicating the raw Markdown tables', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=review-contributors');
+    const interactionNode = {
+      ...createNode('review-contributors', {
+        kind: 'interaction',
+        markdown: '## Goal\n\nRaw goal that should be represented by the model.',
+        semanticId: 'atlas.workspace.review-contributors',
+        shortTitle: 'Review Contributors',
+      }),
+      itemModel: {
+        kind: 'interaction' as const,
+        scope: { entity: 'AtlasWorkspace', binding: 'workspace' },
+        goal: 'Decide which observed contributors should receive access.',
+        actors: [{ actor: 'Workspace Owner', participation: 'Reviews collaborators' }],
+        context: ['Contributor evidence has been reconciled'],
+        presents: [{ information: 'Evidence summary', source: 'Merged pull requests' }],
+        affordances: [
+          {
+            label: 'Invite contributor',
+            affordanceKind: 'opens',
+            reference: 'missing.interaction',
+            resolution: 'unresolved' as const,
+          },
+        ],
+        steps: [],
+        outcomes: [{ outcome: 'Review completed', meaning: 'Workspace remains unchanged' }],
+      },
+    };
+
+    renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, interactionNode] } });
+
+    const details = screen.getByRole('region', { name: 'Interaction details' });
+    expect(within(details).getByText('Decide which observed contributors should receive access.')).toBeInTheDocument();
+    expect(within(details).getByText('Workspace Owner')).toBeInTheDocument();
+    expect(within(details).getByText('opens · unresolved')).toBeInTheDocument();
+    expect(screen.queryByText('Raw goal that should be represented by the model.')).not.toBeInTheDocument();
+  });
+
   it('derives navigable operation availability from an Entity model', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=invitation-entity');
     const user = userEvent.setup();

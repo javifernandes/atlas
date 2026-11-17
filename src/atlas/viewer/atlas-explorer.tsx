@@ -42,7 +42,11 @@ import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { ScrollableOverflow } from '@/components/scrollable-overflow';
 import { useTheme } from '@/components/theme-provider';
 import type { AtlasExecutionStreamProjection } from '@/atlas/model/execution-stream';
-import { getEntityItemModel, getPackageItemModel } from '@/atlas/model/item-kind';
+import {
+  getEntityItemModel,
+  getInteractionItemModel,
+  getPackageItemModel,
+} from '@/atlas/model/item-kind';
 import {
   buildEntityOperationAvailability,
   buildEntityStatechart,
@@ -2303,10 +2307,98 @@ const PackageOverview = ({ node }: { node: PlanWorkstreamNode }) => {
   );
 };
 
-const ItemKindOverview = ({ node }: { node: PlanWorkstreamNode }) => {
+const InteractionReferenceButton = ({
+  label,
+  targetNodeId,
+  context,
+}: {
+  label: string;
+  targetNodeId?: string;
+  context: MarkdownRenderContext;
+}) => {
+  const target = targetNodeId ? context.nodesById.get(targetNodeId) : undefined;
+
+  return target ? (
+    <button
+      type='button'
+      className='inline-flex items-center gap-1.5 text-left font-medium text-primary hover:underline'
+      onClick={() => context.onOpenFull(target.id)}
+    >
+      {label} <ArrowRight className='size-3.5' />
+    </button>
+  ) : (
+    <span className='text-foreground'>{label}</span>
+  );
+};
+
+const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) => {
+  const model = getInteractionItemModel(context.sourceNode);
+  if (!model) return null;
+
+  return (
+    <section aria-label='Interaction details' className='grid gap-8'>
+      <div className='grid gap-4 rounded-2xl border border-border/55 bg-muted/10 p-5 sm:grid-cols-[minmax(0,1fr)_auto]'>
+        <div>
+          <div className='font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground'>Goal</div>
+          <p className='mt-2 text-lg leading-relaxed text-foreground'>{model.goal}</p>
+        </div>
+        <div className='flex gap-2 self-start text-xs'>
+          <span className='rounded-full border border-border/70 px-2.5 py-1'>{model.scope.entity}</span>
+          <span className='rounded-full border border-primary/30 bg-primary/[0.06] px-2.5 py-1 text-primary'>{model.scope.binding}</span>
+        </div>
+      </div>
+
+      <div className='grid gap-6 lg:grid-cols-2'>
+        <div>
+          <h3 className='font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground'>Actors</h3>
+          <div className='mt-3 grid gap-3'>
+            {model.actors.map(actor => <div key={actor.actor}><div className='font-medium'>{actor.actor}</div><div className='text-sm text-muted-foreground'>{actor.participation}</div></div>)}
+          </div>
+        </div>
+        <div>
+          <h3 className='font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground'>Context</h3>
+          <ul className='mt-3 grid gap-2 text-sm text-muted-foreground'>{model.context.map(item => <li key={item}>— {item}</li>)}</ul>
+        </div>
+      </div>
+
+      <div>
+        <h3 className='font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground'>Presents</h3>
+        <div className='mt-3 divide-y divide-border/35'>
+          {model.presents.map(item => <div key={item.information} className='grid gap-1 py-3 sm:grid-cols-[minmax(10rem,0.7fr)_1fr]'><span className='font-medium'>{item.information}</span><InteractionReferenceButton context={context} label={item.source} targetNodeId={item.targetNodeId} /></div>)}
+        </div>
+      </div>
+
+      <div>
+        <h3 className='font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground'>Affordances</h3>
+        <div className='mt-3 grid gap-2'>
+          {model.affordances.map(item => <div key={`${item.affordanceKind}-${item.label}`} className='flex items-center justify-between gap-4 rounded-xl bg-muted/15 px-4 py-3'><InteractionReferenceButton context={context} label={item.label} targetNodeId={item.targetNodeId} /><span className='font-mono text-[10px] uppercase tracking-wider text-muted-foreground'>{item.affordanceKind}{item.resolution === 'unresolved' && item.reference ? ' · unresolved' : ''}</span></div>)}
+        </div>
+      </div>
+
+      {model.steps.length > 0 ? (
+        <div>
+          <h3 className='font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground'>Steps</h3>
+          <ol className='mt-3 grid gap-2'>
+            {model.steps.map((item, index) => <li key={`${item.stepKind}-${item.label}`} className='grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl bg-muted/15 px-4 py-3'><span className='font-mono text-xs text-muted-foreground'>{index + 1}</span><InteractionReferenceButton context={context} label={item.label} targetNodeId={item.targetNodeId} /><span className='font-mono text-[10px] uppercase tracking-wider text-muted-foreground'>{item.stepKind}</span></li>)}
+          </ol>
+        </div>
+      ) : null}
+
+      <div>
+        <h3 className='font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground'>Outcomes</h3>
+        <div className='mt-3 divide-y divide-border/35'>{model.outcomes.map(item => <div key={item.outcome} className='grid gap-1 py-3 sm:grid-cols-[minmax(12rem,0.8fr)_1fr_auto]'><span className='font-medium'>{item.outcome}</span><span className='text-sm text-muted-foreground'>{item.meaning}</span>{item.continuationTargetNodeId ? <InteractionReferenceButton context={context} label='Continue' targetNodeId={item.continuationTargetNodeId} /> : null}</div>)}</div>
+      </div>
+    </section>
+  );
+};
+
+const ItemKindOverview = ({ context }: { context: MarkdownRenderContext }) => {
+  const { sourceNode: node } = context;
   const overview = getItemKindPresentation(node.kind).detail?.overview;
 
-  return overview === 'package-details' ? <PackageOverview node={node} /> : null;
+  if (overview === 'package-details') return <PackageOverview node={node} />;
+  if (overview === 'interaction-details') return <InteractionOverview context={context} />;
+  return null;
 };
 
 const EntityStatechart = ({ node }: { node: PlanWorkstreamNode }) => {
@@ -4285,10 +4377,13 @@ const FullMarkdownModal = ({
           ) : (
             <div className='grid min-w-0 gap-6 px-1 sm:px-2 xl:grid-cols-[minmax(0,1fr)_12rem]'>
               <article className='grid min-w-0 max-w-full gap-5 overflow-hidden break-words xl:pr-2 [&>*]:min-w-0 [&>*]:max-w-full'>
-                <ItemKindOverview node={node} />
-                {renderMarkdownBody(overviewBody, markdownContext)}
+                <ItemKindOverview context={markdownContext} />
+                {getItemKindPresentation(node.kind).detail?.renderMarkdown === false
+                  ? null
+                  : renderMarkdownBody(overviewBody, markdownContext)}
               </article>
-              {contentStatus === 'loaded' ? (
+              {contentStatus === 'loaded' &&
+              getItemKindPresentation(node.kind).detail?.renderMarkdown !== false ? (
                 <MarkdownSectionIndex groups={markdownSectionGroups} />
               ) : null}
             </div>

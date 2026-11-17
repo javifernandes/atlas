@@ -275,11 +275,11 @@ mapping in advance.
 
 ### Slice 3 — detail surface
 
-- [ ] Render Goal, Actors, Context, Presents, Affordances, and Outcomes as Interaction-specific
+- [x] Render Goal, Actors, Context, Presents, Affordances, and Outcomes as Interaction-specific
       anatomy.
-- [ ] Link presented Entities/projections and invoked Operations.
-- [ ] Distinguish inspect, opens, invokes, and continues-with affordances visually.
-- [ ] Keep source Markdown available as the authoritative definition.
+- [x] Link presented Entities/projections and invoked Operations.
+- [x] Distinguish inspect, opens, invokes, and continues-with affordances visually.
+- [x] Keep source Markdown available as the authoritative definition.
 
 ### Slice 4 — composed activity view
 

@@ -103,3 +103,6 @@ export const getEntityItemModel = (node: ItemModelCarrier): EntityItemModel | un
     ? { entity: node.entityModel, kind: 'entity' }
     : undefined;
 };
+
+export const getInteractionItemModel = (node: ItemModelCarrier) =>
+  node.itemModel?.kind === 'interaction' ? node.itemModel : undefined;
