@@ -6,13 +6,14 @@ import { useEffect, useState } from 'react';
 import { Select } from '@/components/ui/select';
 
 type ModelConnectionView = {
-  connection: null | {
+  connections: Array<{
+    id: string;
     baseUrl: string | null;
     model: string;
     provider: 'anthropic' | 'deepseek' | 'openai';
     secretSuffix: string | null;
     status: 'active' | 'disabled';
-  };
+  }>;
   deploymentFallback: {
     enabled: boolean;
     model: string | null;
@@ -57,11 +58,6 @@ export const WorkspaceModelSettings = ({
       const payload = await response.json() as ModelConnectionView & { message?: string };
       if (!response.ok) throw new Error(payload.message ?? 'Model settings could not be loaded.');
       setView(payload);
-      if (payload.connection) {
-        setProvider(payload.connection.provider);
-        setModel(payload.connection.model);
-        setBaseUrl(payload.connection.baseUrl ?? '');
-      }
     } catch (error) {
       setFeedback({
         text: error instanceof Error ? error.message : 'Model settings could not be loaded.',
@@ -137,23 +133,61 @@ export const WorkspaceModelSettings = ({
     }
   };
 
-  const disable = async () => {
+  const selectConnection = async (connectionId: string) => {
     setSaving(true);
     setFeedback(null);
     try {
-      const response = await fetch(endpoint, { method: 'DELETE' });
+      const response = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ connectionId }),
+      });
       const payload = await response.json() as ModelConnectionView & { message?: string };
-      if (!response.ok) throw new Error(payload.message ?? 'The model connection could not be disabled.');
+      if (!response.ok) throw new Error(payload.message ?? 'The model connection could not be selected.');
       setView(payload);
-      setFeedback({ text: 'Workspace model connection disabled.', tone: 'success' });
+      setFeedback({ text: 'Active model connection updated.', tone: 'success' });
     } catch (error) {
       setFeedback({
-        text: error instanceof Error ? error.message : 'The model connection could not be disabled.',
+        text: error instanceof Error ? error.message : 'The model connection could not be selected.',
         tone: 'error',
       });
     } finally {
       setSaving(false);
     }
+  };
+
+  const deleteConnection = async (connectionId: string) => {
+    setSaving(true);
+    setFeedback(null);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ connectionId }),
+      });
+      const payload = await response.json() as ModelConnectionView & { message?: string };
+      if (!response.ok) throw new Error(payload.message ?? 'The model connection could not be deleted.');
+      setView(payload);
+      setEditingConnection(payload.connections.length === 0);
+      setFeedback({ text: 'Model connection deleted.', tone: 'success' });
+    } catch (error) {
+      setFeedback({
+        text: error instanceof Error ? error.message : 'The model connection could not be deleted.',
+        tone: 'error',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const editConnection = (connection?: ModelConnectionView['connections'][number]) => {
+    setProvider(connection?.provider ?? 'openai');
+    setModel(connection?.model ?? '');
+    setBaseUrl(connection?.baseUrl ?? '');
+    setApiKey('');
+    setAvailableModels([]);
+    setEditingConnection(true);
+    setFeedback(null);
   };
 
   return (
@@ -167,45 +201,38 @@ export const WorkspaceModelSettings = ({
 
       {loading ? <p className='text-sm text-muted-foreground'>Loading model connection…</p> : null}
 
-      {view?.connection ? (
-        <div className='grid gap-2 rounded-lg border border-border p-4'>
+      {view?.connections.map(connection => (
+        <div className={`grid gap-2 rounded-lg border p-4 ${connection.status === 'active' ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-border'}`} key={connection.id}>
           <div className='flex flex-wrap items-center justify-between gap-3'>
             <div>
-              <p className='font-medium'>{view.connection.provider} · {view.connection.model}</p>
+              <div className='flex items-center gap-2'>
+                <p className='font-medium'>{connection.provider} · {connection.model}</p>
+                {connection.status === 'active' ? (
+                  <span className='rounded-full bg-cyan-500/15 px-2 py-0.5 text-xs font-medium text-cyan-700 dark:text-cyan-300'>Active</span>
+                ) : null}
+              </div>
               <p className='text-xs text-muted-foreground'>
-                {view.connection.status}
-                {view.connection.secretSuffix
-                  ? ` · credential securely stored · ending ${view.connection.secretSuffix}`
-                  : ''}
+                {connection.secretSuffix
+                  ? `Credential securely stored · ending ${connection.secretSuffix}`
+                  : 'Credential securely stored'}
               </p>
             </div>
             {canManage ? (
               <div className='flex items-center gap-2'>
-                <button
-                  className='rounded-md border border-border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50'
-                  disabled={saving}
-                  onClick={() => setEditingConnection(true)}
-                  type='button'
-                >
-                  {view.connection.status === 'active' ? 'Replace' : 'Configure'}
-                </button>
-                {view.connection.status === 'active' ? (
-                  <button
-                    className='rounded-md border border-border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50'
-                    disabled={saving}
-                    onClick={() => void disable()}
-                    type='button'
-                  >
-                    Disable
-                  </button>
+                {connection.status !== 'active' ? (
+                  <button className='rounded-md border border-border px-3 py-2 text-sm hover:bg-muted' disabled={saving} onClick={() => void selectConnection(connection.id)} type='button'>Use</button>
                 ) : null}
+                <button className='rounded-md border border-border px-3 py-2 text-sm hover:bg-muted' disabled={saving} onClick={() => editConnection(connection)} type='button'>Edit</button>
+                <button className='rounded-md border border-red-500/40 px-3 py-2 text-sm text-red-700 hover:bg-red-500/10 dark:text-red-300' disabled={saving} onClick={() => void deleteConnection(connection.id)} type='button'>Delete</button>
               </div>
             ) : null}
           </div>
-          {view.connection.baseUrl ? (
-            <p className='break-all text-xs text-muted-foreground'>{view.connection.baseUrl}</p>
-          ) : null}
+          {connection.baseUrl ? <p className='break-all text-xs text-muted-foreground'>{connection.baseUrl}</p> : null}
         </div>
+      ))}
+
+      {canManage && view?.secretStore.available && view.connections.length > 0 && !editingConnection ? (
+        <div><button className='rounded-md border border-border px-3 py-2 text-sm hover:bg-muted' onClick={() => editConnection()} type='button'>Add provider</button></div>
       ) : null}
 
       {view?.deploymentFallback.enabled ? (
@@ -221,7 +248,7 @@ export const WorkspaceModelSettings = ({
         </p>
       ) : null}
 
-      {canManage && view?.secretStore.available && (!view.connection || editingConnection) ? (
+      {canManage && view?.secretStore.available && (view.connections.length === 0 || editingConnection) ? (
         <div className='grid gap-4 rounded-lg border border-border p-4'>
           <Select
             label='Provider'
@@ -252,7 +279,7 @@ export const WorkspaceModelSettings = ({
                   setAvailableModels([]);
                   setModel('');
                 }}
-                placeholder={view.connection ? 'Enter a new key to replace the credential' : 'Provider API key'}
+                placeholder={view.connections.some(connection => connection.provider === provider) ? 'Enter a new key to replace the credential' : 'Provider API key'}
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKey}
               />
@@ -314,7 +341,7 @@ export const WorkspaceModelSettings = ({
               onClick={() => void save()}
               type='button'
             >
-              {saving ? 'Saving…' : view.connection ? 'Replace connection' : 'Save connection'}
+              {saving ? 'Saving…' : view.connections.some(connection => connection.provider === provider) ? 'Replace connection' : 'Save connection'}
             </button>
           </div>
         </div>

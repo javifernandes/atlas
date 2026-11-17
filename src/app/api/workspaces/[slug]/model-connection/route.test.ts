@@ -47,7 +47,7 @@ vi.mock('@/atlas/workspace/workspace-access', () => ({
 }));
 
 import { createAtlasOntahiApplication } from '@/atlas/domain/atlas-application';
-import { DELETE, GET, POST, PUT } from './route';
+import { DELETE, GET, PATCH, POST, PUT } from './route';
 
 const context = { params: { slug: 'atlas' } };
 
@@ -106,23 +106,58 @@ describe('Workspace model connection confidential ingress', () => {
 
     const read = await GET(new Request('http://atlas.test/api/workspaces/atlas/model-connection'), context);
     expect(await read.json()).toMatchObject({
-      connection: { model: 'gpt-test', provider: 'openai', secretSuffix: '-key', status: 'active' },
+      connections: [{ model: 'gpt-test', provider: 'openai', secretSuffix: '-key', status: 'active' }],
     });
   });
 
-  it('disables metadata and removes its external secret', async () => {
+  it('deletes metadata and removes its external secret', async () => {
     await PUT(new Request('http://atlas.test/api/workspaces/atlas/model-connection', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ apiKey: 'provider-secret-key', model: 'gpt-test', provider: 'openai' }),
     }), context);
+    const configured = await GET(
+      new Request('http://atlas.test/api/workspaces/atlas/model-connection'),
+      context,
+    );
+    const connectionId = (await configured.json()).connections[0].id;
     const response = await DELETE(
-      new Request('http://atlas.test/api/workspaces/atlas/model-connection', { method: 'DELETE' }),
+      new Request('http://atlas.test/api/workspaces/atlas/model-connection', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ connectionId }),
+      }),
       context,
     );
 
     expect(response.status).toBe(200);
     expect(deleteSecretMock).toHaveBeenCalledOnce();
-    expect(await response.json()).toMatchObject({ connection: { status: 'disabled' } });
+    expect(await response.json()).toMatchObject({ connections: [] });
+  });
+
+  it('selects one of multiple saved provider connections', async () => {
+    for (const [provider, model] of [['openai', 'gpt-test'], ['deepseek', 'deepseek-flash']] as const) {
+      await PUT(new Request('http://atlas.test/api/workspaces/atlas/model-connection', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ apiKey: `provider-secret-${provider}`, model, provider }),
+      }), context);
+    }
+    const listed = await GET(new Request('http://atlas.test/api/workspaces/atlas/model-connection'), context);
+    const connections = (await listed.json()).connections as Array<{ id: string; provider: string }>;
+    const openai = connections.find(connection => connection.provider === 'openai')!;
+
+    const response = await PATCH(new Request('http://atlas.test/api/workspaces/atlas/model-connection', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ connectionId: openai.id }),
+    }), context);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      connections: expect.arrayContaining([
+        expect.objectContaining({ id: openai.id, status: 'active' }),
+      ]),
+    });
   });
 });

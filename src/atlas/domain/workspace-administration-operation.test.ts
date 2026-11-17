@@ -115,7 +115,7 @@ describe('AtlasWorkspace.updateVisibility', () => {
 });
 
 describe('AtlasWorkspace model connection metadata', () => {
-  it('lets an owner configure, inspect, and disable safe metadata', async () => {
+  it('lets an owner configure, select, list, and delete safe metadata', async () => {
     const atlas = createAtlasOntahiApplication([], {
       workspaceRoleFor: () => Effect.succeed('owner'),
     });
@@ -137,17 +137,32 @@ describe('AtlasWorkspace model connection metadata', () => {
       value: { provider: 'openai', model: 'gpt-test', status: 'active' },
     });
 
+    const listed = await withInvocationContext(principal, () =>
+      atlas.application.invokeOperation(operations.listModelConnections, { workspace }),
+    );
+    expect(listed).toMatchObject({
+      ok: true,
+      value: [{ secretRef: 'ATLAS_MODEL_CONNECTION_TEST' }],
+    });
+
+    const connectionId = configured.ok ? (configured.value as { id: string }).id : '';
     await expect(
       withInvocationContext(principal, () =>
-        atlas.application.invokeOperation(operations.readModelConnection, { workspace }),
+        atlas.application.invokeOperation(operations.selectModelConnection, {
+          workspace,
+          connectionId,
+        }),
       ),
-    ).resolves.toMatchObject({ ok: true, value: { secretRef: 'ATLAS_MODEL_CONNECTION_TEST' } });
+    ).resolves.toMatchObject({ ok: true, value: { status: 'active' } });
 
     await expect(
       withInvocationContext(principal, () =>
-        atlas.application.invokeOperation(operations.disableModelConnection, { workspace }),
+        atlas.application.invokeOperation(operations.deleteModelConnection, {
+          workspace,
+          connectionId,
+        }),
       ),
-    ).resolves.toMatchObject({ ok: true, value: { status: 'disabled' } });
+    ).resolves.toMatchObject({ ok: true, value: { id: connectionId } });
   });
 
   it('refuses model connection administration to non-owners', async () => {

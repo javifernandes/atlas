@@ -39,10 +39,12 @@ import {
 import {
   AtlasWorkspaceConfigureModelConnectionInputSchema,
   AtlasWorkspaceConfigureModelConnectionOutputSchema,
-  AtlasWorkspaceDisableModelConnectionInputSchema,
-  AtlasWorkspaceDisableModelConnectionOutputSchema,
-  AtlasWorkspaceReadModelConnectionInputSchema,
-  AtlasWorkspaceReadModelConnectionOutputSchema,
+  AtlasWorkspaceDeleteModelConnectionInputSchema,
+  AtlasWorkspaceDeleteModelConnectionOutputSchema,
+  AtlasWorkspaceListModelConnectionsInputSchema,
+  AtlasWorkspaceListModelConnectionsOutputSchema,
+  AtlasWorkspaceSelectModelConnectionInputSchema,
+  AtlasWorkspaceSelectModelConnectionOutputSchema,
 } from '../model/workspace-model-connection';
 import {
   ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE,
@@ -539,11 +541,11 @@ export const AtlasWorkspace = entity({
                 'The Atlas Plan assistant is not configured.',
               ),
       }),
-      readModelConnection: operation({
-        description: 'Read safe model connection metadata for a Workspace owner.',
+      listModelConnections: operation({
+        description: 'List safe model connection metadata for a Workspace owner.',
         receiver: { kind: 'input', path: 'workspace' },
-        input: AtlasWorkspaceReadModelConnectionInputSchema,
-        output: AtlasWorkspaceReadModelConnectionOutputSchema,
+        input: AtlasWorkspaceListModelConnectionsInputSchema,
+        output: AtlasWorkspaceListModelConnectionsOutputSchema,
         run: input =>
           Effect.gen(function* () {
             const workspaceId = String(input.workspace.locator.id);
@@ -551,11 +553,10 @@ export const AtlasWorkspace = entity({
               workspaceId,
               'Only an active Workspace owner can inspect model configuration.',
             );
-            return (yield* entities.modelConnections
+            return yield* entities.modelConnections
               .where(connection => connection.workspaceId.eq(workspaceId))
               .where(connection => connection.purpose.eq('plans-assistant'))
-              .limit(1)
-              .run())[0] ?? null;
+              .run();
           }),
       }),
       configureModelConnection: operation.atomic({
@@ -573,9 +574,16 @@ export const AtlasWorkspace = entity({
             const existing = (yield* entities.modelConnections
               .where(connection => connection.workspaceId.eq(workspaceId))
               .where(connection => connection.purpose.eq('plans-assistant'))
+              .where(connection => connection.provider.eq(input.provider))
               .limit(1)
               .run())[0];
             const now = new Date().toISOString();
+            yield* entities.modelConnections
+              .where(connection => connection.workspaceId.eq(workspaceId))
+              .where(connection => connection.purpose.eq('plans-assistant'))
+              .where(connection => connection.status.eq('active'))
+              .update({ status: 'disabled', updatedAt: now })
+              .run();
             if (existing) {
               yield* entities.modelConnections
                 .where(connection => connection.id.eq(existing.id))
@@ -617,35 +625,72 @@ export const AtlasWorkspace = entity({
             return connection;
           }),
       }),
-      disableModelConnection: operation.atomic({
-        description: 'Disable the active model connection for a Workspace.',
+      selectModelConnection: operation.atomic({
+        description: 'Select one saved model connection as active for a Workspace.',
         receiver: { kind: 'input', path: 'workspace' },
-        input: AtlasWorkspaceDisableModelConnectionInputSchema,
-        output: AtlasWorkspaceDisableModelConnectionOutputSchema,
+        input: AtlasWorkspaceSelectModelConnectionInputSchema,
+        output: AtlasWorkspaceSelectModelConnectionOutputSchema,
         run: input =>
           Effect.gen(function* () {
             const workspaceId = String(input.workspace.locator.id);
             yield* requireOwner(
               workspaceId,
-              'Only an active Workspace owner can disable a model connection.',
+              'Only an active Workspace owner can select a model connection.',
             );
             const existing = (yield* entities.modelConnections
               .where(connection => connection.workspaceId.eq(workspaceId))
               .where(connection => connection.purpose.eq('plans-assistant'))
+              .where(connection => connection.id.eq(input.connectionId))
               .limit(1)
               .run())[0];
             if (!existing) {
               return yield* failOperation(
                 'model_connection_not_found',
-                'No Workspace model connection is configured.',
+                'The selected Workspace model connection does not exist.',
               );
             }
             const updatedAt = new Date().toISOString();
             yield* entities.modelConnections
-              .where(connection => connection.id.eq(existing.id))
+              .where(connection => connection.workspaceId.eq(workspaceId))
+              .where(connection => connection.purpose.eq('plans-assistant'))
+              .where(connection => connection.status.eq('active'))
               .update({ status: 'disabled', updatedAt })
               .run();
-            return { ...existing, status: 'disabled' as const, updatedAt };
+            yield* entities.modelConnections
+              .where(connection => connection.id.eq(existing.id))
+              .update({ status: 'active', updatedAt })
+              .run();
+            return { ...existing, status: 'active' as const, updatedAt };
+          }),
+      }),
+      deleteModelConnection: operation.atomic({
+        description: 'Delete one saved model connection from a Workspace.',
+        receiver: { kind: 'input', path: 'workspace' },
+        input: AtlasWorkspaceDeleteModelConnectionInputSchema,
+        output: AtlasWorkspaceDeleteModelConnectionOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const workspaceId = String(input.workspace.locator.id);
+            yield* requireOwner(
+              workspaceId,
+              'Only an active Workspace owner can delete a model connection.',
+            );
+            const existing = (yield* entities.modelConnections
+              .where(connection => connection.workspaceId.eq(workspaceId))
+              .where(connection => connection.id.eq(input.connectionId))
+              .limit(1)
+              .run())[0];
+            if (!existing) {
+              return yield* failOperation(
+                'model_connection_not_found',
+                'The Workspace model connection does not exist.',
+              );
+            }
+            yield* entities.modelConnections
+              .where(connection => connection.id.eq(existing.id))
+              .delete()
+              .run();
+            return existing;
           }),
       }),
       updateVisibility: operation.atomic({

@@ -19,19 +19,18 @@ export const dynamic = 'force-dynamic';
 
 type RouteContext = { params: { slug: string } };
 
-const safeConnection = (connection: AtlasWorkspaceModelConnection | null) => {
+const safeView = (connections: AtlasWorkspaceModelConnection[]) => {
   const secretStore = readAtlasSecretStoreConfiguration();
   return {
-  connection: connection
-    ? {
+    connections: connections.map(connection => ({
+        id: connection.id,
         baseUrl: connection.baseUrl,
         model: connection.model,
         provider: connection.provider,
         secretSuffix: connection.secretSuffix,
         status: connection.status,
-      }
-    : null,
-  deploymentFallback: readAtlasModelConfiguration(),
+      })),
+    deploymentFallback: readAtlasModelConfiguration(),
     secretStore: { available: secretStore.available, provider: secretStore.provider },
   };
 };
@@ -50,7 +49,11 @@ const authorizeOwner = async (request: Request, slug: string) => {
 
 const invoke = async (
   principal: NonNullable<Awaited<ReturnType<typeof getAtlasRequestAccess>>['principal']>,
-  operationName: 'configureModelConnection' | 'disableModelConnection' | 'readModelConnection',
+  operationName:
+    | 'configureModelConnection'
+    | 'deleteModelConnection'
+    | 'listModelConnections'
+    | 'selectModelConnection',
   input: Record<string, unknown>,
 ) => {
   const atlas = await getAtlasServerApplication();
@@ -60,18 +63,18 @@ const invoke = async (
   );
 };
 
-const readConnection = async (principal: NonNullable<Awaited<ReturnType<typeof getAtlasRequestAccess>>['principal']>, workspaceId: string) => {
-  const result = await invoke(principal, 'readModelConnection', {
+const listConnections = async (principal: NonNullable<Awaited<ReturnType<typeof getAtlasRequestAccess>>['principal']>, workspaceId: string) => {
+  const result = await invoke(principal, 'listModelConnections', {
     workspace: atlasWorkspaceRef(workspaceId),
   });
-  return result.ok ? result.value as AtlasWorkspaceModelConnection | null : null;
+  return result.ok ? result.value as AtlasWorkspaceModelConnection[] : [];
 };
 
 export const GET = async (request: Request, { params }: RouteContext) => {
   const authorization = await authorizeOwner(request, params.slug);
   if (!authorization.ok) return authorization.response;
-  const connection = await readConnection(authorization.access.principal!, authorization.workspace.id);
-  return Response.json(safeConnection(connection));
+  const connections = await listConnections(authorization.access.principal!, authorization.workspace.id);
+  return Response.json(safeView(connections));
 };
 
 export const POST = async (request: Request, { params }: RouteContext) => {
@@ -129,7 +132,8 @@ export const PUT = async (request: Request, { params }: RouteContext) => {
   }
 
   const principal = authorization.access.principal!;
-  const previous = await readConnection(principal, authorization.workspace.id);
+  const previous = (await listConnections(principal, authorization.workspace.id))
+    .find(connection => connection.provider === provider);
   const reference = atlasSecretReference(
     `ATLAS_MODEL_CONNECTION_${randomUUID().replaceAll('-', '_').toUpperCase()}`,
   );
@@ -160,19 +164,41 @@ export const PUT = async (request: Request, { params }: RouteContext) => {
     await secretStore.delete(atlasSecretReference(previous.secretRef)).catch(() => undefined);
   }
   revalidatePath(`/w/${encodeURIComponent(params.slug)}`);
-  return Response.json(safeConnection(result.value as AtlasWorkspaceModelConnection));
+  return Response.json(safeView(await listConnections(principal, authorization.workspace.id)));
+};
+
+export const PATCH = async (request: Request, { params }: RouteContext) => {
+  const authorization = await authorizeOwner(request, params.slug);
+  if (!authorization.ok) return authorization.response;
+  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  const connectionId = typeof body?.connectionId === 'string' ? body.connectionId : '';
+  if (!connectionId) {
+    return Response.json({ message: 'A model connection is required.' }, { status: 400 });
+  }
+  const principal = authorization.access.principal!;
+  const result = await invoke(principal, 'selectModelConnection', {
+    workspace: atlasWorkspaceRef(authorization.workspace.id),
+    connectionId,
+  });
+  if (!result.ok) return Response.json({ message: result.message }, { status: 400 });
+  revalidatePath(`/w/${encodeURIComponent(params.slug)}`);
+  return Response.json(safeView(await listConnections(principal, authorization.workspace.id)));
 };
 
 export const DELETE = async (request: Request, { params }: RouteContext) => {
   const authorization = await authorizeOwner(request, params.slug);
   if (!authorization.ok) return authorization.response;
+  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  const connectionId = typeof body?.connectionId === 'string' ? body.connectionId : '';
   const principal = authorization.access.principal!;
-  const previous = await readConnection(principal, authorization.workspace.id);
+  const previous = (await listConnections(principal, authorization.workspace.id))
+    .find(connection => connection.id === connectionId);
   if (!previous) {
-    return Response.json({ message: 'No Workspace model connection is configured.' }, { status: 404 });
+    return Response.json({ message: 'The model connection does not exist.' }, { status: 404 });
   }
-  const result = await invoke(principal, 'disableModelConnection', {
+  const result = await invoke(principal, 'deleteModelConnection', {
     workspace: atlasWorkspaceRef(authorization.workspace.id),
+    connectionId,
   });
   if (!result.ok) return Response.json({ message: result.message }, { status: 400 });
 
@@ -182,10 +208,11 @@ export const DELETE = async (request: Request, { params }: RouteContext) => {
       await secretStore.delete(atlasSecretReference(previous.secretRef));
     } catch {
       return Response.json(
-        { ...safeConnection(result.value as AtlasWorkspaceModelConnection), cleanupPending: true },
+        { ...safeView(await listConnections(principal, authorization.workspace.id)), cleanupPending: true },
         { status: 502 },
       );
     }
   }
-  return Response.json(safeConnection(result.value as AtlasWorkspaceModelConnection));
+  revalidatePath(`/w/${encodeURIComponent(params.slug)}`);
+  return Response.json(safeView(await listConnections(principal, authorization.workspace.id)));
 };

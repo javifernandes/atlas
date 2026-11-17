@@ -16,10 +16,10 @@ export const AtlasWorkspaceModelConnectionSchema = graphSchema.object({
   updatedAt: field.nonEmptyString({ trim: true }),
 });
 
-export const AtlasWorkspaceReadModelConnectionInputSchema = graphSchema.object({
+export const AtlasWorkspaceListModelConnectionsInputSchema = graphSchema.object({
   workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
 });
-export const AtlasWorkspaceReadModelConnectionOutputSchema = graphSchema.nullable(
+export const AtlasWorkspaceListModelConnectionsOutputSchema = graphSchema.array(
   AtlasWorkspaceModelConnectionSchema,
 );
 
@@ -34,10 +34,16 @@ export const AtlasWorkspaceConfigureModelConnectionInputSchema = graphSchema.obj
 export const AtlasWorkspaceConfigureModelConnectionOutputSchema =
   AtlasWorkspaceModelConnectionSchema;
 
-export const AtlasWorkspaceDisableModelConnectionInputSchema = graphSchema.object({
+export const AtlasWorkspaceSelectModelConnectionInputSchema = graphSchema.object({
   workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
+  connectionId: field.id(),
 });
-export const AtlasWorkspaceDisableModelConnectionOutputSchema =
+export const AtlasWorkspaceSelectModelConnectionOutputSchema =
+  AtlasWorkspaceModelConnectionSchema;
+
+export const AtlasWorkspaceDeleteModelConnectionInputSchema =
+  AtlasWorkspaceSelectModelConnectionInputSchema;
+export const AtlasWorkspaceDeleteModelConnectionOutputSchema =
   AtlasWorkspaceModelConnectionSchema;
 
 export type AtlasWorkspaceModelConnection = GraphSchemaValue<

@@ -9,7 +9,7 @@ describe('WorkspaceModelSettings', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock);
     fetchMock.mockReset().mockResolvedValue(new Response(JSON.stringify({
-      connection: null,
+      connections: [],
       deploymentFallback: { enabled: false, model: null, provider: null },
       secretStore: { available: true, provider: 'doppler' },
     }), { status: 200 }));
@@ -32,13 +32,14 @@ describe('WorkspaceModelSettings', () => {
     fireEvent.click(screen.getByRole('option', { name: 'GPT Test' }));
 
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
-      connection: {
+      connections: [{
+        id: '00000000-0000-4000-8000-000000000201',
         baseUrl: null,
         model: 'gpt-test',
         provider: 'openai',
         secretSuffix: '-key',
         status: 'active',
-      },
+      }],
       deploymentFallback: { enabled: false, model: null, provider: null },
       secretStore: { available: true, provider: 'doppler' },
     }), { status: 200 }));
@@ -96,7 +97,7 @@ describe('WorkspaceModelSettings', () => {
 
   it('explains when confidential Workspace storage is unavailable', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
-      connection: null,
+      connections: [],
       deploymentFallback: { enabled: true, model: 'fallback', provider: 'openai' },
       secretStore: { available: false, provider: null },
     }), { status: 200 }));
@@ -121,22 +122,72 @@ describe('WorkspaceModelSettings', () => {
 
   it('keeps replacement credentials hidden behind an explicit action', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
-      connection: {
+      connections: [{
+        id: '00000000-0000-4000-8000-000000000201',
         baseUrl: null,
         model: 'deepseek-flash',
         provider: 'deepseek',
         secretSuffix: '63e0',
         status: 'active',
-      },
+      }],
       deploymentFallback: { enabled: false, model: null, provider: null },
       secretStore: { available: true, provider: 'doppler' },
     })));
 
     render(<WorkspaceModelSettings canManage workspaceSlug='atlas' />);
 
-    await screen.findByText(/credential securely stored · ending 63e0/);
+    await screen.findByText(/credential securely stored · ending 63e0/i);
     expect(screen.queryByLabelText('API key')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Replace' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     expect(screen.getByLabelText('API key')).toBeInTheDocument();
+  });
+
+  it('selects and deletes saved provider connections', async () => {
+    const connections = [
+      {
+        id: '00000000-0000-4000-8000-000000000201',
+        baseUrl: null,
+        model: 'deepseek-flash',
+        provider: 'deepseek',
+        secretSuffix: '63e0',
+        status: 'active',
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000202',
+        baseUrl: null,
+        model: 'gpt-test',
+        provider: 'openai',
+        secretSuffix: 'test',
+        status: 'disabled',
+      },
+    ];
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      connections,
+      deploymentFallback: { enabled: false, model: null, provider: null },
+      secretStore: { available: true, provider: 'doppler' },
+    })));
+    render(<WorkspaceModelSettings canManage workspaceSlug='atlas' />);
+    await screen.findByText('openai · gpt-test');
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      connections: connections.map(connection => ({
+        ...connection,
+        status: connection.provider === 'openai' ? 'active' : 'disabled',
+      })),
+      deploymentFallback: { enabled: false, model: null, provider: null },
+      secretStore: { available: true, provider: 'doppler' },
+    })));
+    fireEvent.click(screen.getByRole('button', { name: 'Use' }));
+    await screen.findByText('Active model connection updated.');
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'PATCH' });
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      connections: [connections[1]],
+      deploymentFallback: { enabled: false, model: null, provider: null },
+      secretStore: { available: true, provider: 'doppler' },
+    })));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0]!);
+    await screen.findByText('Model connection deleted.');
+    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: 'DELETE' });
   });
 });
