@@ -27,7 +27,9 @@ describe('WorkspaceModelSettings', () => {
       models: [{ id: 'gpt-test', label: 'GPT Test' }],
     })));
     fireEvent.blur(apiKey);
-    await screen.findByText('1 available models found.');
+    await screen.findByText('API key verified. Choose a model to finish connecting.');
+    fireEvent.click(screen.getByLabelText('Model'));
+    fireEvent.click(screen.getByRole('option', { name: 'GPT Test' }));
 
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
       connection: {
@@ -40,9 +42,9 @@ describe('WorkspaceModelSettings', () => {
       deploymentFallback: { enabled: false, model: null, provider: null },
       secretStore: { available: true, provider: 'doppler' },
     }), { status: 200 }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save connection' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect OpenAI' }));
 
-    await screen.findByText('Workspace model connection saved.');
+    await screen.findByText('Connected. Ask Atlas is now available in this Workspace.');
     const request = fetchMock.mock.calls[2]!;
     expect(request[0]).toBe('/api/workspaces/atlas/model-connection');
     expect(JSON.parse(request[1].body)).toMatchObject({
@@ -80,7 +82,10 @@ describe('WorkspaceModelSettings', () => {
 
     fireEvent.blur(apiKey);
 
-    await screen.findByText('2 available models found.');
+    await screen.findByText('API key verified. Choose a model to finish connecting.');
+    expect(screen.getByLabelText('Model')).toHaveTextContent('Choose a model');
+    fireEvent.click(screen.getByLabelText('Model'));
+    fireEvent.click(screen.getByRole('option', { name: 'GPT-6 Luna' }));
     expect(screen.getByLabelText('Model')).toHaveTextContent('GPT-6 Luna');
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'POST' });
     expect(JSON.parse(fetchMock.mock.calls[1]?.[1].body)).toEqual({

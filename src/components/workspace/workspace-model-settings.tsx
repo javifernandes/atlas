@@ -80,7 +80,8 @@ export const WorkspaceModelSettings = ({
       if (!response.ok) throw new Error(payload.message ?? 'The model connection could not be saved.');
       setView(payload);
       setApiKey('');
-      setMessage('Workspace model connection saved.');
+      setAvailableModels([]);
+      setMessage('Connected. Ask Atlas is now available in this Workspace.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'The model connection could not be saved.');
     } finally {
@@ -106,9 +107,9 @@ export const WorkspaceModelSettings = ({
       if (!response.ok) throw new Error(payload.message ?? 'Models could not be loaded.');
       const models = payload.models ?? [];
       setAvailableModels(models);
-      if (models[0]) setModel(models[0].id);
+      setModel('');
       setMessage(models.length > 0
-        ? `${models.length} available models found.`
+        ? 'API key verified. Choose a model to finish connecting.'
         : 'No compatible models were returned for this API key.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Models could not be loaded.');
@@ -236,17 +237,38 @@ export const WorkspaceModelSettings = ({
             disabled={availableModels.length === 0}
             label='Model'
             onChange={setModel}
-            options={availableModels.length > 0
+            options={availableModels.length > 0 && model
               ? availableModels.map(available => ({
                 label: available.label,
                 value: available.id,
               }))
               : [{
-                  label: loadingModels ? 'Loading models…' : 'Enter a valid API key first',
+                  label: loadingModels
+                    ? 'Loading models…'
+                    : availableModels.length > 0
+                      ? 'Choose a model'
+                      : 'Enter a valid API key first',
                   value: '',
-                }]}
+                }, ...availableModels.map(available => ({
+                  label: available.label,
+                  value: available.id,
+                }))]}
             value={model}
           />
+          <div>
+            <button
+              className='h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50'
+              disabled={saving || !model || apiKey.trim().length < 8}
+              onClick={() => void save()}
+              type='button'
+            >
+              {saving
+                ? 'Connecting…'
+                : view.connection
+                  ? 'Replace connection'
+                  : `Connect ${provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : 'DeepSeek'}`}
+            </button>
+          </div>
           <details className='rounded-md border border-border px-3 py-2'>
             <summary className='cursor-pointer text-sm text-muted-foreground'>Advanced</summary>
             <label className='mt-3 grid gap-1 text-sm'>
@@ -263,16 +285,6 @@ export const WorkspaceModelSettings = ({
               />
             </label>
           </details>
-          <div>
-            <button
-              className='h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50'
-              disabled={saving || !model.trim() || apiKey.trim().length < 8}
-              onClick={() => void save()}
-              type='button'
-            >
-              {saving ? 'Saving…' : view.connection ? 'Replace connection' : 'Save connection'}
-            </button>
-          </div>
         </div>
       ) : null}
 
