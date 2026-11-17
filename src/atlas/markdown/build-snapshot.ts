@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { parse as parseYaml } from 'yaml';
 
 import {
   isAtlasItemMarkdownPath,
@@ -22,6 +23,7 @@ import type {
   PlanWorkstreamTerritory,
 } from '../model/snapshot';
 import { isAtlasItemKind, type AtlasItemKind } from '../model/item-kind';
+import type { InteractionItemModel, InteractionReference } from '../model/item-kind';
 import { parseItemKindModel } from './item-kind-definitions';
 
 type PlanMarkdownFile = NormalizedAtlasSourceRecord;
@@ -86,7 +88,7 @@ export type ParsedAtlasItem = {
   workstream?: string;
 };
 
-type FrontmatterValue = string | string[];
+type FrontmatterValue = unknown;
 
 const rootNodeId = 'root:planning';
 
@@ -195,32 +197,9 @@ const parseFrontmatter = (content: string) => {
     };
   }
 
-  const metadata: Record<string, FrontmatterValue> = {};
-  let currentListKey: string | null = null;
-
-  for (const line of match[1]?.split('\n') ?? []) {
-    const listItem = line.match(/^\s+-\s+(.+)$/);
-
-    if (listItem && currentListKey) {
-      const currentValue = metadata[currentListKey];
-      const currentList = Array.isArray(currentValue) ? currentValue : [];
-      metadata[currentListKey] = [...currentList, listItem[1]?.trim() ?? ''];
-      continue;
-    }
-
-    const keyValue = line.match(/^([A-Za-z][A-Za-z0-9-]*):(?:\s*(.*))?$/);
-
-    if (!keyValue) {
-      currentListKey = null;
-      continue;
-    }
-
-    const key = keyValue[1];
-    const rawValue = keyValue[2]?.trim() ?? '';
-    const value = rawValue === '[]' ? [] : rawValue;
-    currentListKey = key;
-    metadata[key] = value;
-  }
+  const parsed = parseYaml(match[1] ?? '');
+  const metadata: Record<string, FrontmatterValue> =
+    typeof parsed === 'object' && parsed !== null ? parsed : {};
 
   return {
     body: content.slice(match[0].length),
@@ -476,6 +455,7 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
   const status = getFrontmatterString(metadata, 'status', 'shaping');
   const horizon = getFrontmatterString(metadata, 'horizon') || undefined;
   const getString = (key: string) => getFrontmatterString(metadata, key);
+  const getValue = (key: string) => metadata[key];
 
   return {
     id,
@@ -487,7 +467,7 @@ const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
     status,
     statusGroup: getAtlasStatusGroup({ horizon, status }),
     horizon,
-    itemModel: parseItemKindModel(kind, { body, getString, sourcePath: file.sourcePath }),
+    itemModel: parseItemKindModel(kind, { body, getString, getValue, sourcePath: file.sourcePath }),
     typeOf: getFrontmatterList(metadata, 'typeOf'),
     supports: getFrontmatterList(metadata, 'supports'),
     relatedPlans: getFrontmatterList(metadata, 'relatedPlans').flatMap(reference => {
@@ -949,11 +929,64 @@ const buildSemanticSnapshotFromFiles = (
       workstream: depth > 1 ? parent?.title : undefined,
     };
   });
-  const itemById = new Map(atlasItems.map(item => [item.id, item]));
+  const initialItemById = new Map(atlasItems.map(item => [item.id, item]));
+  const itemBySourcePath = new Map(atlasItems.map(item => [item.sourcePath, item]));
+  const resolveInteractionReference = <Reference extends InteractionReference>(
+    item: ParsedAtlasItem,
+    reference: Reference,
+  ): Reference & InteractionReference => {
+    if (!reference.reference) return reference;
+    const target = reference.reference.startsWith('.')
+      ? itemBySourcePath.get(
+          path.posix.normalize(path.posix.join(path.posix.dirname(item.sourcePath), reference.reference)),
+        )
+      : initialItemById.get(reference.reference);
+
+    return {
+      ...reference,
+      resolution: target ? ('resolved' as const) : ('unresolved' as const),
+      targetNodeId: target?.nodeId,
+    };
+  };
+  const resolvedAtlasItems = atlasItems.map(item => {
+    if (item.itemModel?.kind !== 'interaction') return item;
+    const model: InteractionItemModel = {
+      ...item.itemModel,
+      affordances: item.itemModel.affordances.map(reference =>
+        resolveInteractionReference(item, reference),
+      ),
+      presents: item.itemModel.presents.map(presentation => {
+        const resolved = resolveInteractionReference(item, {
+          label: presentation.information,
+          reference: presentation.reference,
+        });
+        return {
+          ...presentation,
+          resolution: resolved.resolution,
+          targetNodeId: resolved.targetNodeId,
+        };
+      }),
+      steps: item.itemModel.steps.map(reference => resolveInteractionReference(item, reference)),
+      outcomes: item.itemModel.outcomes.map(outcome => {
+        const resolved = resolveInteractionReference(item, {
+          label: outcome.outcome,
+          reference: outcome.continuesWith,
+        });
+        return {
+          ...outcome,
+          continuationResolution: resolved.resolution,
+          continuationTargetNodeId: resolved.targetNodeId,
+        };
+      }),
+    };
+    return { ...item, itemModel: model };
+  });
+  atlasItems.splice(0, atlasItems.length, ...resolvedAtlasItems);
+  const itemById = new Map(resolvedAtlasItems.map(item => [item.id, item]));
   const nodeById = new Map<string, PlanWorkstreamNode>();
   const edges: PlanWorkstreamEdge[] = [];
   const edgeIds = new Set<string>();
-  const referencedPlanPaths = new Set(atlasItems.flatMap(item => item.relatedPlans));
+  const referencedPlanPaths = new Set(resolvedAtlasItems.flatMap(item => item.relatedPlans));
   const advancingPlanPaths = new Set(
     plans
       .filter(plan =>

@@ -42,6 +42,10 @@ A Workspace Source may also yield observed contributor candidates. Those candida
 Repository activity may nominate a provider identity for invitation or approval, but it cannot grant
 Workspace access without the configured admission policy and a proven link to an Atlas User.
 
+The first authored Workspace Interaction is
+[[spec-workstream-atlas.access-identity.workspace.review-discovered-contributors|Review Discovered Contributors]].
+It preserves the owner's contributor-review goal independently of its current Settings realization.
+
 ## Evolution
 
 Workspace ownership V0 persists the default Workspace and Memberships, gates private projection,

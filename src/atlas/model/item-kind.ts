@@ -11,6 +11,7 @@ export const atlasItemKinds = [
   'capability',
   'entity',
   'operation',
+  'interaction',
   'artifact',
   'policy',
   'state',
@@ -41,7 +42,37 @@ export type EntityItemModel = {
   entity: EntityModel;
 };
 
-export type AtlasItemModel = PackageItemModel | EntityItemModel;
+export type InteractionReference = {
+  label: string;
+  reference?: string;
+  resolution?: 'resolved' | 'unresolved';
+  targetNodeId?: string;
+};
+export type InteractionItemModel = {
+  kind: 'interaction';
+  scope: { entity: string; binding: string };
+  goal: string;
+  actors: Array<{ actor: string; participation: string }>;
+  context: string[];
+  presents: Array<{
+    information: string;
+    source: string;
+    reference?: string;
+    resolution?: 'resolved' | 'unresolved';
+    targetNodeId?: string;
+  }>;
+  affordances: Array<InteractionReference & { affordanceKind: string }>;
+  steps: Array<InteractionReference & { stepKind: string }>;
+  outcomes: Array<{
+    outcome: string;
+    meaning: string;
+    continuesWith?: string;
+    continuationResolution?: 'resolved' | 'unresolved';
+    continuationTargetNodeId?: string;
+  }>;
+};
+
+export type AtlasItemModel = PackageItemModel | EntityItemModel | InteractionItemModel;
 
 type ItemModelCarrier = {
   entityModel?: EntityModel;

@@ -3,6 +3,69 @@ import { describe, expect, it } from 'vitest';
 import { buildPlanWorkstreamSnapshotFromFiles } from './build-snapshot';
 
 describe('plan workstream data', () => {
+  it('parses structured Interaction scope and anatomy through the Item Kind extension', () => {
+    const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
+      {
+        path: 'atlas/items/review-contributors.md',
+        content: `---
+id: atlas.workspace.review-contributors
+kind: interaction
+title: Review Contributors
+scope:
+  entity: AtlasWorkspace
+  binding: workspace
+status: shaping
+---
+
+## Goal
+
+Review observed contributors.
+
+## Actors
+
+| Actor | Participation |
+| --- | --- |
+| Owner | Reviews access |
+
+## Affordances
+
+| Affordance | Kind | Target |
+| --- | --- | --- |
+| Invite | opens | [Invite](./invite.md) |
+`,
+      },
+      {
+        path: 'atlas/items/invite.md',
+        content: `---
+id: atlas.workspace.invite
+kind: interaction
+title: Invite
+status: shaping
+---
+`,
+      },
+    ]);
+
+    expect(snapshot.nodes).toContainEqual(
+      expect.objectContaining({
+        itemModel: expect.objectContaining({
+          actors: [{ actor: 'Owner', participation: 'Reviews access' }],
+          affordances: [
+            expect.objectContaining({
+              reference: './invite.md',
+              resolution: 'resolved',
+              targetNodeId: 'atlas:atlas.workspace.invite',
+            }),
+          ],
+          goal: 'Review observed contributors.',
+          kind: 'interaction',
+          scope: { binding: 'workspace', entity: 'AtlasWorkspace' },
+        }),
+        kind: 'interaction',
+      }),
+    );
+  });
+
   it('projects explicit Plan advances Goal relations without accepting non-Goal targets', () => {
     const snapshot = buildPlanWorkstreamSnapshotFromFiles(
       [
