@@ -7,6 +7,8 @@ status: shaping
 horizon: now
 relatedPlans:
   - plans/current/146-package-manifest-and-classroom-model.md
+  - plans/current/153-replication-and-adaptive-materialization.md
+  - plans/next/154-unified-source-and-derivation-model.md
 exemplars:
   - ontahi.examples.classroom.user
   - ontahi.examples.classroom.classroom
@@ -18,6 +20,11 @@ An Entity is a durable Atlas Item whose identity, data, relations, state, operat
 describe one domain concept across time. It is not merely a database record or a TypeScript type:
 its anatomy explains what the concept knows, how it relates to other Items, and which state changes
 the system admits.
+
+An Entity may bind one or more [[spec-workstream-atlas.atlas-model.source|Sources]] through named
+roles such as definition, state, evidence, or activity. A compact map or array is suitable authoring
+syntax, but Atlas normalizes it into addressable relations so Source ownership, revision, lineage,
+and materialization do not become opaque Entity metadata.
 
 ## Entity Model v0
 
