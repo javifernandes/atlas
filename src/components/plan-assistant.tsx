@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Fragment, useState, type FormEvent, type ReactNode } from 'react';
 
 import { AtlasWorkspaceAssistantClient } from '@/atlas/client/workspace-assistant';
+import { atlasWorkspaceRef } from '@/atlas/model/workspace-administration';
 
 type Exchange = {
   question: string;
@@ -156,7 +157,10 @@ export const PlanAssistant = ({ workspaceId }: { workspaceId: string }) => {
     if (!text || askPlans.isExecuting) return;
     setError(null);
     try {
-      const result = await askPlans.executeAsync({ workspace: { id: workspaceId }, question: text });
+      const result = await askPlans.executeAsync({
+        workspace: atlasWorkspaceRef(workspaceId),
+        question: text,
+      });
       if (!result.ok) throw new Error(result.message);
       setExchange({ question: text, ...result.value });
       setQuestion('');

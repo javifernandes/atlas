@@ -7,6 +7,7 @@ import { createAtlasOntahiApplication } from './atlas-application';
 import { ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE } from '../github/user-repositories';
 import { ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE } from '../workspace/workspace-source-reconciliation';
 import { atlasWorkspaceSourceImportReadPolicy } from '../workspace/workspace-read-policies';
+import { atlasWorkspaceRef } from '../model/workspace-administration';
 
 const workspaceId = '00000000-0000-4000-8000-000000000137';
 const principal = {
@@ -65,7 +66,7 @@ describe('AtlasWorkspace.updateVisibility', () => {
 
     const result = await withInvocationContext(principal, () =>
       atlas.application.invokeOperation(operation, {
-        workspace: { id: workspaceId },
+        workspace: atlasWorkspaceRef(workspaceId),
         visibility: 'public',
       }),
     );
@@ -85,7 +86,7 @@ describe('AtlasWorkspace.updateVisibility', () => {
     await expect(
       withInvocationContext(principal, () =>
         atlas.application.invokeOperation(operation, {
-          workspace: { id: workspaceId },
+          workspace: atlasWorkspaceRef(workspaceId),
           visibility: 'public',
         }),
       ),
@@ -102,7 +103,7 @@ describe('AtlasWorkspace.updateVisibility', () => {
 
     await expect(
       atlas.application.invokeOperation(operation, {
-        workspace: { id: workspaceId },
+        workspace: atlasWorkspaceRef(workspaceId),
         visibility: 'public',
       }),
     ).resolves.toMatchObject({
@@ -131,7 +132,7 @@ describe('AtlasWorkspace.delete', () => {
     await expect(
       withInvocationContext(principal, () =>
         atlas.application.invokeOperation(remove, {
-          workspace: { id: createdWorkspace.id },
+          workspace: atlasWorkspaceRef(createdWorkspace.id),
           confirmationSlug: 'wrong',
         }),
       ),
@@ -143,7 +144,7 @@ describe('AtlasWorkspace.delete', () => {
     await expect(
       withInvocationContext(principal, () =>
         atlas.application.invokeOperation(remove, {
-          workspace: { id: createdWorkspace.id },
+          workspace: atlasWorkspaceRef(createdWorkspace.id),
           confirmationSlug: 'acme',
         }),
       ),
@@ -172,7 +173,7 @@ describe('AtlasWorkspace.delete', () => {
     await expect(
       withInvocationContext(principal, () =>
         atlas.application.invokeOperation(remove, {
-          workspace: { id: workspaceId },
+          workspace: atlasWorkspaceRef(workspaceId),
           confirmationSlug: 'atlas',
         }),
       ),
@@ -203,7 +204,7 @@ describe('AtlasWorkspace.registerSource', () => {
 
     await expect(
       withInvocationContext(context, () =>
-        atlas.application.invokeOperation(operation, { workspace: { id: workspaceId } }),
+        atlas.application.invokeOperation(operation, { workspace: atlasWorkspaceRef(workspaceId) }),
       ),
     ).resolves.toMatchObject({
       ok: true,
@@ -233,7 +234,7 @@ describe('AtlasWorkspace.registerSource', () => {
 
     const result = await withInvocationContext(ownerContext, () =>
       atlas.application.invokeOperation(operation, {
-        workspace: { id: workspaceId },
+        workspace: atlasWorkspaceRef(workspaceId),
         repository: 'acme/product',
       }),
     );
@@ -252,7 +253,7 @@ describe('AtlasWorkspace.registerSource', () => {
     await expect(
       withInvocationContext(principal, () =>
         viewerAtlas.application.invokeOperation(viewerOperation, {
-          workspace: { id: workspaceId },
+          workspace: atlasWorkspaceRef(workspaceId),
           repository: 'acme/product',
         }),
       ),
@@ -276,7 +277,7 @@ describe('AtlasWorkspace.registerSource', () => {
     const invoke = () =>
       withInvocationContext(ownerContext, () =>
         ownerAtlas.application.invokeOperation(ownerOperation, {
-          workspace: { id: workspaceId },
+          workspace: atlasWorkspaceRef(workspaceId),
           repository: 'acme/product',
         }),
       );
@@ -288,7 +289,7 @@ describe('AtlasWorkspace.registerSource', () => {
     await expect(
       withInvocationContext(ownerContext, () =>
         ownerAtlas.application.invokeOperation(ownerOperation, {
-          workspace: { id: workspaceId },
+          workspace: atlasWorkspaceRef(workspaceId),
           repository: 'someone-else/forged',
         }),
       ),
@@ -354,7 +355,7 @@ describe('AtlasWorkspace.reconcileSources', () => {
     } as never;
     const registered = await withInvocationContext(context, () =>
       atlas.application.invokeOperation(register, {
-        workspace: { id: workspaceId },
+        workspace: atlasWorkspaceRef(workspaceId),
         repository: 'acme/product',
       }),
     );
@@ -362,7 +363,7 @@ describe('AtlasWorkspace.reconcileSources', () => {
 
     const accepted = await withInvocationContext(context, () =>
         atlas.application.invokeOperation(reconcile, {
-          workspace: { id: workspaceId },
+          workspace: atlasWorkspaceRef(workspaceId),
           triggerSourceId: (registered.value as { id: string }).id,
           trigger: 'connection',
         }),
@@ -398,7 +399,7 @@ describe('AtlasWorkspace.reconcileSources', () => {
     reconciler.mockRejectedValueOnce(new Error('Temporary GitHub failure'));
     const retry = await withInvocationContext(context, () =>
         atlas.application.invokeOperation(reconcile, {
-          workspace: { id: workspaceId },
+          workspace: atlasWorkspaceRef(workspaceId),
           triggerSourceId: null,
           trigger: 'manual',
         }),
@@ -439,7 +440,7 @@ describe('AtlasWorkspace.reconcileSources', () => {
     } as never;
     const registered = await withInvocationContext(context, () =>
       atlas.application.invokeOperation(register, {
-        workspace: { id: workspaceId },
+        workspace: atlasWorkspaceRef(workspaceId),
         repository: 'acme/product',
       }),
     );
@@ -447,7 +448,7 @@ describe('AtlasWorkspace.reconcileSources', () => {
 
     const accepted = await withInvocationContext(context, () =>
         atlas.application.invokeOperation(reconcile, {
-          workspace: { id: workspaceId },
+          workspace: atlasWorkspaceRef(workspaceId),
           triggerSourceId: (registered.value as { id: string }).id,
           trigger: 'connection',
         }),
@@ -500,7 +501,7 @@ describe('AtlasWorkspace.removeSource', () => {
     } as never;
     const registered = await withInvocationContext(context, () =>
       atlas.application.invokeOperation(register, {
-        workspace: { id: workspaceId }, repository: 'acme/product',
+        workspace: atlasWorkspaceRef(workspaceId), repository: 'acme/product',
       }),
     );
     if (!registered.ok) throw new Error('Source fixture was not registered.');
@@ -509,7 +510,7 @@ describe('AtlasWorkspace.removeSource', () => {
     await expect(
       withInvocationContext(context, () =>
         atlas.application.invokeOperation(remove, {
-          workspace: { id: workspaceId }, source: { id: sourceId },
+          workspace: atlasWorkspaceRef(workspaceId), source: { id: sourceId },
           confirmationRepository: 'product',
         }),
       ),
@@ -520,7 +521,7 @@ describe('AtlasWorkspace.removeSource', () => {
     await expect(
       withInvocationContext(context, () =>
         atlas.application.invokeOperation(remove, {
-          workspace: { id: workspaceId }, source: { id: sourceId },
+          workspace: atlasWorkspaceRef(workspaceId), source: { id: sourceId },
           confirmationRepository: 'acme/product',
         }),
       ),
@@ -539,7 +540,7 @@ describe('AtlasWorkspace.removeSource', () => {
     await expect(
       withInvocationContext(context, () =>
         atlas.application.invokeOperation(register, {
-          workspace: { id: workspaceId }, repository: 'acme/product',
+          workspace: atlasWorkspaceRef(workspaceId), repository: 'acme/product',
         }),
       ),
     ).resolves.toMatchObject({ ok: true, value: { id: sourceId } });
@@ -576,14 +577,14 @@ describe('AtlasWorkspace.removeSource', () => {
     } as never;
     const registered = await withInvocationContext(context, () =>
       atlas.application.invokeOperation(operations.registerSource, {
-        workspace: { id: workspaceId }, repository: 'acme/product',
+        workspace: atlasWorkspaceRef(workspaceId), repository: 'acme/product',
       }),
     );
     if (!registered.ok) throw new Error('Source fixture was not registered.');
     const sourceId = (registered.value as { id: string }).id;
     const accepted = await withInvocationContext(context, () =>
       atlas.application.invokeOperation(operations.reconcileSources, {
-        workspace: { id: workspaceId }, triggerSourceId: sourceId, trigger: 'connection',
+        workspace: atlasWorkspaceRef(workspaceId), triggerSourceId: sourceId, trigger: 'connection',
       }),
     );
     if (!accepted.ok) throw new Error('Reconciliation was not accepted.');
@@ -591,7 +592,7 @@ describe('AtlasWorkspace.removeSource', () => {
 
     await withInvocationContext(context, () =>
       atlas.application.invokeOperation(operations.removeSource, {
-        workspace: { id: workspaceId }, source: { id: sourceId },
+        workspace: atlasWorkspaceRef(workspaceId), source: { id: sourceId },
         confirmationRepository: 'acme/product',
       }),
     );

@@ -309,6 +309,20 @@ resource or latency constraint.
 
 ## Closure / Evolution
 
+### 2026-11-17 — Ontahí `alpha.20` receiver checkpoint
+
+Atlas now consumes the coordinated Ontahí `1.0.0-alpha.20` release. Workspace instance Operations
+declare their `workspace` participant as the canonical input receiver in both server and client
+contracts. Their inputs now carry portable `AtlasWorkspace` Entity Refs rather than structurally
+similar `{ id }` objects, while the unchanged Runtime Protocol still transports the receiver inside
+the complete Operation input.
+
+This compatibility pass covers Plan assistance, visibility, deletion, Source registration and
+removal, Source reconciliation, and repository discovery. Workspace creation remains an
+Entity-type action without an instance receiver. The migration removes Atlas's last ambiguity
+between a business input that happens to contain an ID and the semantic receiver of a Workspace
+Operation before Workspace-scoped model configuration builds on that identity.
+
 ### 2026-11-01 — Sources and participation checkpoint
 
 The next collaboration slice is now shaped in

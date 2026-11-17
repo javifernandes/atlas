@@ -1,4 +1,17 @@
-import { field, graphSchema, type GraphSchemaValue } from '@ontahi/core/data-graph';
+import {
+  createEntityRef,
+  entity as defineEntitySchema,
+  field,
+  graphSchema,
+  type GraphSchemaValue,
+} from '@ontahi/core/data-graph';
+
+export const AtlasWorkspaceReferenceSchema = defineEntitySchema('AtlasWorkspace', {
+  id: field.id(),
+});
+
+export const atlasWorkspaceRef = (id: string) =>
+  createEntityRef(AtlasWorkspaceReferenceSchema, { id });
 
 export const AtlasWorkspaceCreateInputSchema = graphSchema.object({
   name: field.nonEmptyString({ trim: true }),
@@ -13,7 +26,7 @@ export const AtlasWorkspaceCreateOutputSchema = graphSchema.object({
 });
 
 export const AtlasWorkspaceUpdateVisibilityInputSchema = graphSchema.object({
-  workspace: graphSchema.object({ id: field.id() }),
+  workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
   visibility: field.enum(['private', 'public']),
 });
 
@@ -23,7 +36,7 @@ export const AtlasWorkspaceUpdateVisibilityOutputSchema = graphSchema.object({
 });
 
 export const AtlasWorkspaceDeleteInputSchema = graphSchema.object({
-  workspace: graphSchema.object({ id: field.id() }),
+  workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
   confirmationSlug: field.nonEmptyString({ trim: true }),
 });
 
@@ -33,7 +46,7 @@ export const AtlasWorkspaceDeleteOutputSchema = graphSchema.object({
 });
 
 export const AtlasWorkspaceRegisterSourceInputSchema = graphSchema.object({
-  workspace: graphSchema.object({ id: field.id() }),
+  workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
   repository: field.nonEmptyString({ trim: true }),
 });
 
@@ -45,7 +58,7 @@ export const AtlasWorkspaceRegisterSourceOutputSchema = graphSchema.object({
 });
 
 export const AtlasWorkspaceRemoveSourceInputSchema = graphSchema.object({
-  workspace: graphSchema.object({ id: field.id() }),
+  workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
   source: graphSchema.object({ id: field.id() }),
   confirmationRepository: field.nonEmptyString({ trim: true }),
 });
@@ -57,7 +70,7 @@ export const AtlasWorkspaceRemoveSourceOutputSchema = graphSchema.object({
 });
 
 export const AtlasWorkspaceReconcileSourcesInputSchema = graphSchema.object({
-  workspace: graphSchema.object({ id: field.id() }),
+  workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
   triggerSourceId: field.nullable(field.id()),
   trigger: field.enum(['connection', 'manual', 'source-removal']),
 });
@@ -78,7 +91,7 @@ export const AtlasWorkspaceRepositoryChoiceSchema = graphSchema.object({
 });
 
 export const AtlasWorkspaceListRepositoriesInputSchema = graphSchema.object({
-  workspace: graphSchema.object({ id: field.id() }),
+  workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
 });
 
 export const AtlasWorkspaceListRepositoriesOutputSchema = graphSchema.object({

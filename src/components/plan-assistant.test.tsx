@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { atlasWorkspaceRef } from '@/atlas/model/workspace-administration';
+
 const executeAsync = vi.hoisted(() => vi.fn());
 vi.mock('@ontahi/react/graph', () => ({
   useOperation: () => ({ executeAsync, isExecuting: false }),
@@ -31,7 +33,7 @@ describe('PlanAssistant', () => {
 
     await waitFor(() => expect(executeAsync).toHaveBeenCalledOnce());
     expect(executeAsync).toHaveBeenCalledWith({
-      workspace: { id: 'workspace-1' },
+      workspace: atlasWorkspaceRef('workspace-1'),
       question: 'What owns authorization?',
     });
     expect(screen.queryByText(/Plan consulted/)).not.toBeInTheDocument();
@@ -58,7 +60,7 @@ describe('PlanAssistant', () => {
     fireEvent.keyDown(composer, { key: 'Enter', metaKey: true });
 
     await waitFor(() => expect(executeAsync).toHaveBeenCalledWith({
-      workspace: { id: 'workspace-1' },
+      workspace: atlasWorkspaceRef('workspace-1'),
       question: 'What is bounded?',
     }));
   });

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { AtlasWorkspaceAdministrationClient } from '@/atlas/client/workspace-administration';
+import { atlasWorkspaceRef } from '@/atlas/model/workspace-administration';
 import {
   workspaceContributorsQuery,
   workspaceMembersQuery,
@@ -86,7 +87,7 @@ const WorkspaceSourceSettingsRow = ({
     if (!source.repository) return;
     setMessage(null);
     const result = await removeSource.executeAsync({
-      workspace: { id: workspaceId },
+      workspace: atlasWorkspaceRef(workspaceId),
       source: { id: source.id },
       confirmationRepository: confirmation,
     });
@@ -95,7 +96,7 @@ const WorkspaceSourceSettingsRow = ({
       return;
     }
     const reconciliation = await reconcileSources.executeAsync({
-      workspace: { id: workspaceId },
+      workspace: atlasWorkspaceRef(workspaceId),
       triggerSourceId: null,
       trigger: 'source-removal',
     });
@@ -273,7 +274,7 @@ const WorkspaceImportHistory = ({
   const retry = async () => {
     setMessage(null);
     const result = await reconcileSources.executeAsync({
-      workspace: { id: workspaceId },
+      workspace: atlasWorkspaceRef(workspaceId),
       triggerSourceId: null,
       trigger: 'manual',
     });
@@ -412,7 +413,7 @@ const WorkspaceVisibilitySettings = ({
     setMessage(null);
     try {
       const result = await updateVisibility.executeAsync({
-        workspace: { id: workspace.id },
+        workspace: atlasWorkspaceRef(workspace.id),
         visibility,
       });
       if (!result.ok) throw new Error(result.message);
@@ -497,7 +498,7 @@ const WorkspaceDangerZone = ({
     setMessage(null);
     try {
       const result = await deleteWorkspace.executeAsync({
-        workspace: { id: workspace.id },
+        workspace: atlasWorkspaceRef(workspace.id),
         confirmationSlug,
       });
       if (!result.ok) throw new Error(result.message);

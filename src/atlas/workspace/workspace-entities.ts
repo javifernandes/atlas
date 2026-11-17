@@ -288,7 +288,7 @@ export const AtlasWorkspace = entity({
                 principal?.kind === 'user' &&
                 (yield* app.runtime.assistant!.authorize(
                   principal.subject,
-                  input.workspace.id,
+                  String(input.workspace.locator.id),
                 ));
               if (!authorized) {
                 return yield* failOperation(
@@ -400,6 +400,7 @@ export const AtlasWorkspace = entity({
           }),
       }),
       delete: operation.atomic({
+        receiver: { kind: 'input', path: 'workspace' },
         description: 'Permanently delete a Workspace aggregate under active owner authority.',
         exposure: 'bridge',
         bridge: {},
@@ -417,7 +418,7 @@ export const AtlasWorkspace = entity({
             }
             const role = yield* app.runtime.workspaceAuthorization.roleFor(
               userId,
-              input.workspace.id,
+              String(input.workspace.locator.id),
             );
             if (role !== 'owner') {
               return yield* failOperation(
@@ -427,7 +428,7 @@ export const AtlasWorkspace = entity({
             }
 
             const workspace = (yield* commands
-              .where(candidate => candidate.id.eq(input.workspace.id))
+              .where(candidate => candidate.id.eq(String(input.workspace.locator.id)))
               .limit(1)
               .run())[0];
             if (!workspace) {
@@ -480,6 +481,7 @@ export const AtlasWorkspace = entity({
         description: 'Answer a read-only question from bounded Workspace Plan context.',
         exposure: 'bridge',
         bridge: {},
+        receiver: { kind: 'input', path: 'workspace' },
         input: AtlasPlanAssistantInputSchema,
         output: AtlasPlanAssistantOutputSchema,
         run: input =>
@@ -494,6 +496,7 @@ export const AtlasWorkspace = entity({
         description: 'Change Workspace visibility under active owner authority.',
         exposure: 'bridge',
         bridge: {},
+        receiver: { kind: 'input', path: 'workspace' },
         input: AtlasWorkspaceUpdateVisibilityInputSchema,
         output: AtlasWorkspaceUpdateVisibilityOutputSchema,
         run: input =>
@@ -503,7 +506,7 @@ export const AtlasWorkspace = entity({
               principal?.kind === 'user'
                 ? yield* app.runtime.workspaceAuthorization.roleFor(
                     principal.subject,
-                    input.workspace.id,
+                    String(input.workspace.locator.id),
                   )
                 : null;
             if (role !== 'owner') {
@@ -514,17 +517,18 @@ export const AtlasWorkspace = entity({
             }
 
             yield* commands
-              .where(workspace => workspace.id.eq(input.workspace.id))
+              .where(workspace => workspace.id.eq(String(input.workspace.locator.id)))
               .update({
                 visibility: input.visibility,
                 updatedAt: new Date().toISOString(),
               })
               .run();
 
-            return { id: input.workspace.id, visibility: input.visibility };
+            return { id: String(input.workspace.locator.id), visibility: input.visibility };
           }),
       }),
       registerSource: operation({
+        receiver: { kind: 'input', path: 'workspace' },
         description: 'Register a readable GitHub repository as a Workspace Source.',
         exposure: 'bridge',
         bridge: {},
@@ -537,7 +541,7 @@ export const AtlasWorkspace = entity({
               principal?.kind === 'user'
                 ? yield* app.runtime.workspaceAuthorization.roleFor(
                     principal.subject,
-                    input.workspace.id,
+                    String(input.workspace.locator.id),
                   )
                 : null;
             if (role !== 'owner') {
@@ -574,7 +578,7 @@ export const AtlasWorkspace = entity({
             }
             const providerInstallationId = inspected.installationId;
             const duplicate = yield* entities.sources
-              .where(source => source.workspaceId.eq(input.workspace.id))
+              .where(source => source.workspaceId.eq(String(input.workspace.locator.id)))
               .where(source => source.repository.eq(inspected.fullName))
               .limit(1)
               .run();
@@ -607,7 +611,7 @@ export const AtlasWorkspace = entity({
             const repositoryName = inspected.fullName.split('/').at(-1) ?? inspected.fullName;
             const sourceId = normalizeWorkspaceSlug(repositoryName);
             const sourceIdCollision = yield* entities.sources
-              .where(source => source.workspaceId.eq(input.workspace.id))
+              .where(source => source.workspaceId.eq(String(input.workspace.locator.id)))
               .where(source => source.sourceId.eq(sourceId))
               .limit(1)
               .run();
@@ -622,7 +626,7 @@ export const AtlasWorkspace = entity({
             const timestamp = new Date().toISOString();
             yield* entities.sources.insert({
               id,
-              workspaceId: input.workspace.id,
+              workspaceId: String(input.workspace.locator.id),
               sourceId,
               provider: 'github',
               providerInstallationId,
@@ -643,6 +647,7 @@ export const AtlasWorkspace = entity({
           }),
       }),
       removeSource: operation.atomic({
+        receiver: { kind: 'input', path: 'workspace' },
         description: 'Remove a Source from desired Workspace configuration under owner authority.',
         exposure: 'bridge',
         bridge: {},
@@ -655,7 +660,7 @@ export const AtlasWorkspace = entity({
               principal?.kind === 'user'
                 ? yield* app.runtime.workspaceAuthorization.roleFor(
                     principal.subject,
-                    input.workspace.id,
+                    String(input.workspace.locator.id),
                   )
                 : null;
             if (role !== 'owner') {
@@ -667,7 +672,7 @@ export const AtlasWorkspace = entity({
 
             const source = (yield* entities.sources
               .where(candidate => candidate.id.eq(input.source.id))
-              .where(candidate => candidate.workspaceId.eq(input.workspace.id))
+              .where(candidate => candidate.workspaceId.eq(String(input.workspace.locator.id)))
               .limit(1)
               .run())[0];
             if (!source || source.status !== 'active' || !source.repository) {
@@ -692,6 +697,7 @@ export const AtlasWorkspace = entity({
           }),
       }),
       reconcileSources: operation({
+        receiver: { kind: 'input', path: 'workspace' },
         description: 'Reconcile active Sources into an immutable Workspace projection revision.',
         exposure: 'bridge',
         bridge: {},
@@ -701,7 +707,7 @@ export const AtlasWorkspace = entity({
           runtime: 'in-process',
           taskId: 'atlas.workspace.reconcile-sources',
           finalOutput: AtlasWorkspaceReconcileSourcesOutputSchema,
-          subject: input => ({ type: 'atlas-workspace', id: input.workspace.id }),
+          subject: input => ({ type: 'atlas-workspace', id: String(input.workspace.locator.id) }),
           source: { provider: 'atlas', event: 'workspace.sources.reconcile' },
         },
         run: input =>
@@ -711,7 +717,7 @@ export const AtlasWorkspace = entity({
               principal?.kind === 'user'
                 ? yield* app.runtime.workspaceAuthorization.roleFor(
                     principal.subject,
-                    input.workspace.id,
+                    String(input.workspace.locator.id),
                   )
                 : null;
             if (role !== 'owner') {
@@ -722,7 +728,7 @@ export const AtlasWorkspace = entity({
             }
 
             const sources = yield* entities.sources
-              .where(source => source.workspaceId.eq(input.workspace.id))
+              .where(source => source.workspaceId.eq(String(input.workspace.locator.id)))
               .where(source => source.status.eq('active'))
               .run();
             if (sources.length === 0 && input.trigger !== 'source-removal') {
@@ -755,7 +761,7 @@ export const AtlasWorkspace = entity({
             const startedAt = new Date().toISOString();
             yield* entities.sourceImports.insert({
               id,
-              workspaceId: input.workspace.id,
+              workspaceId: String(input.workspace.locator.id),
               triggerSourceId: triggerSource?.id ?? null,
               trigger: input.trigger,
               providerDeliveryId: null,
@@ -776,7 +782,7 @@ export const AtlasWorkspace = entity({
             return yield* Effect.tryPromise({
               try: () =>
                 reconciler.reconcile({
-                  workspaceId: input.workspace.id,
+                  workspaceId: String(input.workspace.locator.id),
                   sources: sources.flatMap(source =>
                     source.repository
                       ? [{ id: source.sourceId, repository: source.repository, ref: source.ref }]
@@ -815,7 +821,7 @@ export const AtlasWorkspace = entity({
                   return app.graph.transaction(
                     Effect.gen(function* () {
                       const currentSources = yield* entities.sources
-                        .where(source => source.workspaceId.eq(input.workspace.id))
+                        .where(source => source.workspaceId.eq(String(input.workspace.locator.id)))
                         .where(source => source.status.eq('active'))
                         .run();
                       if (
@@ -838,7 +844,7 @@ export const AtlasWorkspace = entity({
                       }
                       yield* entities.projectionRevisions.insert({
                         id: projectionRevisionId,
-                        workspaceId: input.workspace.id,
+                        workspaceId: String(input.workspace.locator.id),
                         importId: id,
                         sourceRevisionSetHash: result.sourceRevisionSetHash,
                         snapshotJson: JSON.stringify(result.snapshot),
@@ -869,6 +875,7 @@ export const AtlasWorkspace = entity({
           }),
       }),
       listRepositories: operation({
+        receiver: { kind: 'input', path: 'workspace' },
         description: 'List GitHub repositories available to the authenticated Workspace owner.',
         exposure: 'bridge',
         bridge: {},
@@ -880,7 +887,7 @@ export const AtlasWorkspace = entity({
             const role = invocation?.principal?.kind === 'user'
               ? yield* app.runtime.workspaceAuthorization.roleFor(
                   invocation.principal.subject,
-                  input.workspace.id,
+                  String(input.workspace.locator.id),
                 )
               : null;
             if (role !== 'owner') {
