@@ -46,6 +46,7 @@ export const WorkspaceModelSettings = ({
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [editingConnection, setEditingConnection] = useState(false);
   const [availableModels, setAvailableModels] = useState<Array<{ id: string; label: string }>>([]);
   const endpoint = `/api/workspaces/${encodeURIComponent(workspaceSlug)}/model-connection`;
 
@@ -89,6 +90,7 @@ export const WorkspaceModelSettings = ({
       setView(payload);
       setApiKey('');
       setAvailableModels([]);
+      setEditingConnection(false);
       setFeedback({
         text: 'Connected. Ask Atlas is now available in this Workspace.',
         tone: 'success',
@@ -172,18 +174,32 @@ export const WorkspaceModelSettings = ({
               <p className='font-medium'>{view.connection.provider} · {view.connection.model}</p>
               <p className='text-xs text-muted-foreground'>
                 {view.connection.status}
-                {view.connection.secretSuffix ? ` · credential ending ${view.connection.secretSuffix}` : ''}
+                {view.connection.secretSuffix
+                  ? ` · credential securely stored · ending ${view.connection.secretSuffix}`
+                  : ''}
               </p>
             </div>
-            {view.connection.status === 'active' && canManage ? (
-              <button
-                className='rounded-md border border-border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50'
-                disabled={saving}
-                onClick={() => void disable()}
-                type='button'
-              >
-                Disable
-              </button>
+            {canManage ? (
+              <div className='flex items-center gap-2'>
+                <button
+                  className='rounded-md border border-border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50'
+                  disabled={saving}
+                  onClick={() => setEditingConnection(true)}
+                  type='button'
+                >
+                  {view.connection.status === 'active' ? 'Replace' : 'Configure'}
+                </button>
+                {view.connection.status === 'active' ? (
+                  <button
+                    className='rounded-md border border-border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50'
+                    disabled={saving}
+                    onClick={() => void disable()}
+                    type='button'
+                  >
+                    Disable
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
           {view.connection.baseUrl ? (
@@ -205,7 +221,7 @@ export const WorkspaceModelSettings = ({
         </p>
       ) : null}
 
-      {canManage && view?.secretStore.available ? (
+      {canManage && view?.secretStore.available && (!view.connection || editingConnection) ? (
         <div className='grid gap-4 rounded-lg border border-border p-4'>
           <Select
             label='Provider'

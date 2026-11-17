@@ -53,7 +53,7 @@ describe('WorkspaceModelSettings', () => {
       provider: 'openai',
     });
     expect(screen.queryByText('provider-secret-key')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('API key')).toHaveValue('');
+    expect(screen.queryByLabelText('API key')).not.toBeInTheDocument();
   });
 
   it('lets the owner reveal and hide the API key while entering it', async () => {
@@ -117,5 +117,26 @@ describe('WorkspaceModelSettings', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Model settings exploded.');
     expect(alert).toHaveClass('border-red-500/50');
+  });
+
+  it('keeps replacement credentials hidden behind an explicit action', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      connection: {
+        baseUrl: null,
+        model: 'deepseek-flash',
+        provider: 'deepseek',
+        secretSuffix: '63e0',
+        status: 'active',
+      },
+      deploymentFallback: { enabled: false, model: null, provider: null },
+      secretStore: { available: true, provider: 'doppler' },
+    })));
+
+    render(<WorkspaceModelSettings canManage workspaceSlug='atlas' />);
+
+    await screen.findByText(/credential securely stored · ending 63e0/);
+    expect(screen.queryByLabelText('API key')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Replace' }));
+    expect(screen.getByLabelText('API key')).toBeInTheDocument();
   });
 });

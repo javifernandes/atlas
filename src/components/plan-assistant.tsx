@@ -178,7 +178,7 @@ export const PlanAssistant = ({ workspaceId }: { workspaceId: string }) => {
     return (
       <button
         aria-label='Ask Atlas about Plans'
-        className='fixed bottom-5 right-5 z-50 grid size-12 place-items-center rounded-full border border-border bg-background text-foreground shadow-lg hover:bg-muted'
+        className={`fixed bottom-5 z-50 grid size-12 place-items-center rounded-full border border-border bg-background text-foreground shadow-lg hover:bg-muted ${process.env.NODE_ENV === 'production' ? 'right-5' : 'right-20'}`}
         onClick={() => setOpen(true)}
         type='button'
       >
