@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 
-import { withInvocationContext } from '@ontahi/core/runtime/server';
 import { revalidatePath } from 'next/cache';
 
 import { atlasWorkspaceRef } from '@/atlas/model/workspace-administration';
@@ -56,7 +55,7 @@ const invoke = async (
 ) => {
   const atlas = await getAtlasServerApplication();
   const operation = atlas.application.graph.entities.AtlasWorkspace.domain[operationName];
-  return withInvocationContext({ principal }, () =>
+  return atlas.application.app.runtime.withInvocationContext({ principal }, () =>
     atlas.application.invokeOperation(operation as never, input as never),
   );
 };
