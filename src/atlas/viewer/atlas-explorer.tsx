@@ -2310,12 +2310,14 @@ const PackageOverview = ({ node }: { node: PlanWorkstreamNode }) => {
 
 const InteractionReferenceButton = ({
   label,
+  plainClassName,
   reference,
   resolution,
   targetNodeId,
   context,
 }: {
   label: string;
+  plainClassName?: string;
   reference?: string;
   resolution?: 'resolved' | 'unresolved';
   targetNodeId?: string;
@@ -2345,7 +2347,7 @@ const InteractionReferenceButton = ({
       </span>
     </span>
   ) : (
-    <span className='text-foreground'>{label}</span>
+    <span className={plainClassName ?? 'text-foreground'}>{label}</span>
   );
 };
 
@@ -2389,7 +2391,7 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
       <div>
         <h3 className='font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground'>Affordances</h3>
         <div className='mt-3 grid gap-2'>
-          {model.affordances.map(item => <div key={`${item.affordanceKind}-${item.label}`} className='flex items-center justify-between gap-4 rounded-xl bg-muted/15 px-4 py-3'><InteractionReferenceButton context={context} label={item.label} reference={item.reference} resolution={item.resolution} targetNodeId={item.targetNodeId} /><span className='font-mono text-[10px] uppercase tracking-wider text-muted-foreground'>{item.affordanceKind}</span></div>)}
+          {model.affordances.map(item => <div key={`${item.affordanceKind}-${item.label}`} className='flex items-center justify-between gap-4 rounded-xl bg-muted/15 px-4 py-3'><div className='min-w-0'><div className='font-medium text-foreground'>{item.label}</div>{item.target ? <div className='mt-1 text-sm'><InteractionReferenceButton context={context} label={item.target} plainClassName='text-muted-foreground' reference={item.reference} resolution={item.resolution} targetNodeId={item.targetNodeId} /></div> : null}</div><span className='font-mono text-[10px] uppercase tracking-wider text-muted-foreground'>{item.affordanceKind}</span></div>)}
         </div>
       </div>
 

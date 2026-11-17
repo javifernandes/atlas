@@ -83,6 +83,11 @@ Wikipedia red link. It does not silently reduce the target to prose or create a 
 the gap remains attributable to the Interaction until the referenced Entity, Operation, or child
 Interaction acquires durable form.
 
+An Affordance label describes what the actor can attempt; its Target describes what that attempt
+inspects, opens, or invokes. The label is not itself a navigation control. Only an explicitly linked
+Target participates in semantic resolution. Plain target text remains descriptive, preventing
+Atlas from treating every noun in an Interaction as missing ontology.
+
 Atlas renders this anatomy as a dedicated detail projection rather than repeating the source
 tables. Scope and goal establish the boundary first; Actors, Context, Presents, Affordances, Steps,
 and Outcomes then expose the interaction in actor-facing order. Resolved references are navigable,

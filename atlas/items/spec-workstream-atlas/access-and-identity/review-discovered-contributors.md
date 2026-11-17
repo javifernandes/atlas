@@ -40,7 +40,7 @@ Decide which observed contributors should receive explicit Workspace access.
 | Observed contributor | contributor participation projection                                    |
 | Evidence summary     | registered Sources and merged Pull Requests                             |
 | Identity status      | linked External Identity and Atlas User                                 |
-| Access status        | [[spec-workstream-atlas.access-identity.workspace\|Workspace access]] |
+| Access status        | [Workspace access](spec-workstream-atlas.access-identity.workspace)    |
 
 ## Affordances
 

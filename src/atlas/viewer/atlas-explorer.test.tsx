@@ -426,6 +426,7 @@ const selection: Selection = Selection.references(Book, refs);
             affordanceKind: 'opens',
             reference: 'missing.interaction',
             resolution: 'unresolved' as const,
+            target: 'Invite Person To Workspace',
           },
         ],
         steps: [],
@@ -440,8 +441,9 @@ const selection: Selection = Selection.references(Book, refs);
     expect(within(details).getByText('Workspace Owner')).toBeInTheDocument();
     expect(within(details).getByText('not defined')).toBeInTheDocument();
     expect(within(details).getByText('opens')).toBeInTheDocument();
+    expect(within(details).getByText('Invite contributor')).toBeInTheDocument();
     expect(within(details).getByTitle('Not defined yet: missing.interaction')).toHaveTextContent(
-      'Invite contributor',
+      'Invite Person To Workspace',
     );
     expect(screen.queryByText('Raw goal that should be represented by the model.')).not.toBeInTheDocument();
   });
