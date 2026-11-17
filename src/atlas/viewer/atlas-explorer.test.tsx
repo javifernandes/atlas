@@ -438,7 +438,11 @@ const selection: Selection = Selection.references(Book, refs);
     const details = screen.getByRole('region', { name: 'Interaction details' });
     expect(within(details).getByText('Decide which observed contributors should receive access.')).toBeInTheDocument();
     expect(within(details).getByText('Workspace Owner')).toBeInTheDocument();
-    expect(within(details).getByText('opens · unresolved')).toBeInTheDocument();
+    expect(within(details).getByText('not defined')).toBeInTheDocument();
+    expect(within(details).getByText('opens')).toBeInTheDocument();
+    expect(within(details).getByTitle('Not defined yet: missing.interaction')).toHaveTextContent(
+      'Invite contributor',
+    );
     expect(screen.queryByText('Raw goal that should be represented by the model.')).not.toBeInTheDocument();
   });
 

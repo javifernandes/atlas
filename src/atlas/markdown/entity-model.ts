@@ -25,7 +25,10 @@ export const markdownReference = (value: string) => {
   const markdownLink = value.trim().match(/^\[(?:`)?[^\]]+(?:`)?\]\(([^)]+)\)$/);
   if (markdownLink?.[1]) return markdownLink[1].trim();
 
-  const wikiLink = value.trim().match(/^\[\[([^\]|]+)(?:\\?\|[^\]]+)?\]\]$/);
+  const wikiLink = value
+    .trim()
+    .replaceAll(/\\\|/g, '|')
+    .match(/^\[\[([^\]|]+)(?:\|[^\]]+)?\]\]$/);
   return wikiLink?.[1]?.trim();
 };
 

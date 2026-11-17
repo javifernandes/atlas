@@ -2,10 +2,16 @@ import type { InteractionItemModel } from '../model/item-kind';
 import { markdownReference, sectionText, tableRows } from './entity-model';
 
 const text = (value: string) => value.trim().replace(/^`([^`]*)`$/, '$1');
-const label = (value: string) =>
-  text(value)
+const label = (value: string) => {
+  const normalized = text(value).replaceAll(/\\\|/g, '|');
+  const wikiLink = normalized.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/);
+
+  if (wikiLink) return (wikiLink[2] ?? wikiLink[1] ?? '').trim();
+
+  return normalized
     .replace(/^\[`([^`]*)`\]\([^)]+\)$/, '$1')
     .replace(/^\[([^\]]+)\]\([^)]+\)$/, '$1');
+};
 
 export const parseInteractionModel = (
   markdown: string,
