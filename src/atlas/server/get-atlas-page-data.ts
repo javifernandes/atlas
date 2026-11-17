@@ -40,13 +40,17 @@ export const getAtlasPageData = async (
     async () => {
       const atlas = await getAtlasServerApplication();
       const [snapshot, executionStreams] = await Promise.all([
-        workspaceId && 'getWorkspaceProjectionSnapshot' in atlas
-          ? atlas.getWorkspaceProjectionSnapshot(workspaceId)
-          : 'getPageProjectionSnapshot' in atlas
-          ? atlas.getPageProjectionSnapshot()
-          : atlas.getProjectionSnapshot().then(value =>
-              value ? createAtlasPageSnapshot(value) : null,
-            ),
+        workspaceId && 'getWorkspacePageProjectionSnapshot' in atlas
+          ? atlas.getWorkspacePageProjectionSnapshot(workspaceId)
+          : workspaceId && 'getWorkspaceProjectionSnapshot' in atlas
+            ? atlas.getWorkspaceProjectionSnapshot(workspaceId).then(value =>
+                value ? createAtlasPageSnapshot(value) : null,
+              )
+            : 'getPageProjectionSnapshot' in atlas
+              ? atlas.getPageProjectionSnapshot()
+              : atlas.getProjectionSnapshot().then(value =>
+                  value ? createAtlasPageSnapshot(value) : null,
+                ),
         userId
           ? selectedStreamId
             ? atlas.getExecutionStreams(userId, { selectedStreamId })

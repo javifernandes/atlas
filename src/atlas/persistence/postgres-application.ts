@@ -418,6 +418,39 @@ export const createAtlasPostgresApplication = (input: {
       return result.rows[0]?.snapshot ?? null;
     },
   });
+  const readWorkspacePageProjectionSnapshot = async (workspaceId: string) => {
+    const result = await pool.query<{ snapshot: PlanWorkstreamSnapshot }>(
+      `
+        SELECT
+          (revision.snapshot_json::jsonb - 'nodes' - 'documents')
+          || jsonb_build_object(
+            'nodes', COALESCE(
+              (
+                SELECT jsonb_agg(node - 'markdown')
+                FROM jsonb_array_elements(revision.snapshot_json::jsonb -> 'nodes') AS node
+              ),
+              '[]'::jsonb
+            ),
+            'documents', COALESCE(
+              (
+                SELECT jsonb_agg(document - 'markdown')
+                FROM jsonb_array_elements(
+                  COALESCE(revision.snapshot_json::jsonb -> 'documents', '[]'::jsonb)
+                ) AS document
+              ),
+              '[]'::jsonb
+            )
+          ) AS snapshot
+        FROM atlas_workspace_projection_revisions AS revision
+        WHERE revision.workspace_id = $1
+        ORDER BY revision.started_at DESC, revision.id DESC
+        LIMIT 1
+      `,
+      [workspaceId],
+    );
+
+    return result.rows[0]?.snapshot ?? null;
+  };
 
   const getProjectionNodeContent = async (nodeId: string) => {
     const result = await pool.query<{ markdown: string | null }>(
@@ -1773,6 +1806,7 @@ export const createAtlasPostgresApplication = (input: {
   return {
     ...atlas,
     getPageProjectionSnapshot: pageProjectionSnapshotCache.read,
+    getWorkspacePageProjectionSnapshot: readWorkspacePageProjectionSnapshot,
     getProjectionNodeContent,
     getProjectionSnapshot: projectionSnapshotCache.read,
     previewMergeCatchUp: (previewInput: { since: string }) =>

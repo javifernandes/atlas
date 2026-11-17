@@ -185,6 +185,7 @@ Durable Atlas projection.
         '019-workspace-source-removal.sql',
         '020-atlas-item-type-bindings.sql',
         '021-source-change-sets.sql',
+        '021-workspace-model-connections.sql',
       ],
       skipped: [],
     });
@@ -1224,6 +1225,11 @@ Atlas-Session: not-a-session`,
     await expect(
       workspaceAtlas.getWorkspaceProjectionSnapshot(DEFAULT_ATLAS_WORKSPACE_ID),
     ).resolves.toMatchObject({ nodes: expect.any(Array) });
+    const pageSnapshot = await workspaceAtlas.getWorkspacePageProjectionSnapshot(
+      DEFAULT_ATLAS_WORKSPACE_ID,
+    );
+    expect(pageSnapshot).toMatchObject({ nodes: expect.any(Array) });
+    expect(JSON.stringify(pageSnapshot)).not.toContain('"markdown"');
   }, postgresTestTimeout);
 
   it('forks exact Plan roots and routes explicit Session activity without fallback', async () => {
