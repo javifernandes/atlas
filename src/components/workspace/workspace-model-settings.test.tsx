@@ -106,4 +106,16 @@ describe('WorkspaceModelSettings', () => {
     expect(screen.getByText(/Local development model: openai · fallback/)).toBeInTheDocument();
     expect(screen.queryByLabelText('API key')).not.toBeInTheDocument();
   });
+
+  it('renders loading failures as prominent alerts', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      message: 'Model settings exploded.',
+    }), { status: 500 }));
+
+    render(<WorkspaceModelSettings canManage workspaceSlug='atlas' />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Model settings exploded.');
+    expect(alert).toHaveClass('border-red-500/50');
+  });
 });

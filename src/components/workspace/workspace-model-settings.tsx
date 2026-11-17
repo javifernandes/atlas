@@ -1,6 +1,6 @@
 'use client';
 
-import { Eye, EyeOff } from 'lucide-react';
+import { CircleAlert, CircleCheck, Eye, EyeOff, Info } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Select } from '@/components/ui/select';
@@ -24,6 +24,11 @@ type ModelConnectionView = {
   };
 };
 
+type Feedback = {
+  text: string;
+  tone: 'error' | 'info' | 'success';
+};
+
 export const WorkspaceModelSettings = ({
   canManage,
   workspaceSlug,
@@ -35,7 +40,7 @@ export const WorkspaceModelSettings = ({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [provider, setProvider] = useState<'anthropic' | 'deepseek' | 'openai'>('openai');
   const [model, setModel] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -57,7 +62,10 @@ export const WorkspaceModelSettings = ({
         setBaseUrl(payload.connection.baseUrl ?? '');
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Model settings could not be loaded.');
+      setFeedback({
+        text: error instanceof Error ? error.message : 'Model settings could not be loaded.',
+        tone: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -69,7 +77,7 @@ export const WorkspaceModelSettings = ({
 
   const save = async () => {
     setSaving(true);
-    setMessage(null);
+    setFeedback(null);
     try {
       const response = await fetch(endpoint, {
         method: 'PUT',
@@ -81,9 +89,15 @@ export const WorkspaceModelSettings = ({
       setView(payload);
       setApiKey('');
       setAvailableModels([]);
-      setMessage('Connected. Ask Atlas is now available in this Workspace.');
+      setFeedback({
+        text: 'Connected. Ask Atlas is now available in this Workspace.',
+        tone: 'success',
+      });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'The model connection could not be saved.');
+      setFeedback({
+        text: error instanceof Error ? error.message : 'The model connection could not be saved.',
+        tone: 'error',
+      });
     } finally {
       setSaving(false);
     }
@@ -92,7 +106,7 @@ export const WorkspaceModelSettings = ({
   const loadModels = async () => {
     if (apiKey.trim().length < 8) return;
     setLoadingModels(true);
-    setMessage(null);
+    setFeedback(null);
     setAvailableModels([]);
     try {
       const response = await fetch(endpoint, {
@@ -108,11 +122,14 @@ export const WorkspaceModelSettings = ({
       const models = payload.models ?? [];
       setAvailableModels(models);
       setModel('');
-      setMessage(models.length > 0
-        ? 'API key verified. Choose a model to finish connecting.'
-        : 'No compatible models were returned for this API key.');
+      setFeedback(models.length > 0
+        ? { text: 'API key verified. Choose a model to finish connecting.', tone: 'info' }
+        : { text: 'No compatible models were returned for this API key.', tone: 'error' });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Models could not be loaded.');
+      setFeedback({
+        text: error instanceof Error ? error.message : 'Models could not be loaded.',
+        tone: 'error',
+      });
     } finally {
       setLoadingModels(false);
     }
@@ -120,15 +137,18 @@ export const WorkspaceModelSettings = ({
 
   const disable = async () => {
     setSaving(true);
-    setMessage(null);
+    setFeedback(null);
     try {
       const response = await fetch(endpoint, { method: 'DELETE' });
       const payload = await response.json() as ModelConnectionView & { message?: string };
       if (!response.ok) throw new Error(payload.message ?? 'The model connection could not be disabled.');
       setView(payload);
-      setMessage('Workspace model connection disabled.');
+      setFeedback({ text: 'Workspace model connection disabled.', tone: 'success' });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'The model connection could not be disabled.');
+      setFeedback({
+        text: error instanceof Error ? error.message : 'The model connection could not be disabled.',
+        tone: 'error',
+      });
     } finally {
       setSaving(false);
     }
@@ -284,7 +304,27 @@ export const WorkspaceModelSettings = ({
         </div>
       ) : null}
 
-      {message ? <p className='text-sm text-muted-foreground' role='status'>{message}</p> : null}
+      {feedback ? (
+        <div
+          className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            feedback.tone === 'error'
+              ? 'border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300'
+              : feedback.tone === 'success'
+                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                : 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300'
+          }`}
+          role={feedback.tone === 'error' ? 'alert' : 'status'}
+        >
+          {feedback.tone === 'error' ? (
+            <CircleAlert className='mt-0.5 size-4 shrink-0' />
+          ) : feedback.tone === 'success' ? (
+            <CircleCheck className='mt-0.5 size-4 shrink-0' />
+          ) : (
+            <Info className='mt-0.5 size-4 shrink-0' />
+          )}
+          <span className='font-medium'>{feedback.text}</span>
+        </div>
+      ) : null}
     </section>
   );
 };
