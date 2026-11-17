@@ -3495,7 +3495,7 @@ const isMarkdownTableSeparator = (line: string) => {
 
   const cells = splitMarkdownTableRow(line);
 
-  return cells.length > 1 && cells.every(cell => /^:?-{3,}:?$/.test(cell.trim()));
+  return cells.length > 0 && cells.every(cell => /^:?-{3,}:?$/.test(cell.trim()));
 };
 
 const isMarkdownTableStart = (lines: string[], index: number) =>

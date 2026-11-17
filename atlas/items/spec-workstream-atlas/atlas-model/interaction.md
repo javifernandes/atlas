@@ -81,7 +81,9 @@ Atlas renders this anatomy as a dedicated detail projection rather than repeatin
 tables. Scope and goal establish the boundary first; Actors, Context, Presents, Affordances, Steps,
 and Outcomes then expose the interaction in actor-facing order. Resolved references are navigable,
 while unresolved references remain visible authoring pressure. The Source view retains the
-authoritative Markdown.
+authoritative Markdown. A single-field section such as Context remains a valid one-column table in
+that source and in the generic Markdown fallback; presentation must not require incidental extra
+columns to recognize its structure.
 
 ## Implementation Boundary
 
