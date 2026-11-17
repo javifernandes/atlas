@@ -4,6 +4,7 @@ import { useDurableOperation, useOperation } from '@ontahi/react/graph';
 import { useEffect, useMemo, useState } from 'react';
 
 import { AtlasWorkspaceAdministrationClient } from '@/atlas/client/workspace-administration';
+import { atlasWorkspaceRef } from '@/atlas/model/workspace-administration';
 
 type RepositoryChoice = {
   defaultRef: string;
@@ -46,7 +47,7 @@ export const WorkspaceSourceConnection = ({
     if (!canManage) return Promise.resolve();
     setLoadingRepositories(true);
     let active = true;
-    return listRepositories.executeAsync({ workspace: { id: workspaceId } }).then(result => {
+    return listRepositories.executeAsync({ workspace: atlasWorkspaceRef(workspaceId) }).then(result => {
       if (!active) return;
       if (!result.ok) {
         setMessage(result.message);
@@ -89,13 +90,13 @@ export const WorkspaceSourceConnection = ({
     setMessage(null);
     try {
       const result = await registerSource.executeAsync({
-        workspace: { id: workspaceId },
+        workspace: atlasWorkspaceRef(workspaceId),
         repository,
       });
       if (!result.ok) throw new Error(result.message);
       setConnectedRepositories(current => [...current, result.value.repository]);
       const reconciliation = await reconcileSources.executeAsync({
-        workspace: { id: workspaceId },
+        workspace: atlasWorkspaceRef(workspaceId),
         triggerSourceId: result.value.id,
         trigger: 'connection',
       });

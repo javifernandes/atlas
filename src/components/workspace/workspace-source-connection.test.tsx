@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { atlasWorkspaceRef } from '@/atlas/model/workspace-administration';
+
 const registerAsync = vi.hoisted(() => vi.fn());
 const reconcileAsync = vi.hoisted(() => vi.fn());
 const listAsync = vi.hoisted(() => vi.fn());
@@ -107,12 +109,12 @@ describe('WorkspaceSourceConnection', () => {
 
     await waitFor(() => {
       expect(registerAsync).toHaveBeenCalledWith({
-        workspace: { id: 'workspace-1' },
+        workspace: atlasWorkspaceRef('workspace-1'),
         repository: 'acme/product',
       });
       expect(onConnected).toHaveBeenCalledOnce();
       expect(reconcileAsync).toHaveBeenCalledWith({
-        workspace: { id: 'workspace-1' },
+        workspace: atlasWorkspaceRef('workspace-1'),
         triggerSourceId: 'source-1',
         trigger: 'connection',
       });

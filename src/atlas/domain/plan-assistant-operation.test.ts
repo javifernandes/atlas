@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { withInvocationContext, type ModelProvider } from '@ontahi/core/runtime/server';
 
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
+import { atlasWorkspaceRef } from '../model/workspace-administration';
 import { createAtlasOntahiApplication } from './atlas-application';
 
 describe('AtlasWorkspace.askPlans', () => {
@@ -34,7 +35,7 @@ describe('AtlasWorkspace.askPlans', () => {
       } as never,
       () =>
         atlas.application.invokeOperation(operation, {
-          workspace: { id: '00000000-0000-4000-8000-000000000137' },
+          workspace: atlasWorkspaceRef('00000000-0000-4000-8000-000000000137'),
           question: 'What authorizes workspace access?',
         }),
     );
@@ -55,7 +56,7 @@ describe('AtlasWorkspace.askPlans', () => {
 
     await expect(
       atlas.application.invokeOperation(operation, {
-        workspace: { id: '00000000-0000-4000-8000-000000000137' },
+        workspace: atlasWorkspaceRef('00000000-0000-4000-8000-000000000137'),
         question: 'What authorizes workspace access?',
       }),
     ).resolves.toMatchObject({
@@ -74,7 +75,7 @@ describe('AtlasWorkspace.askPlans', () => {
         { principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' } } as never,
         () =>
           atlas.application.invokeOperation(operation, {
-            workspace: { id: '00000000-0000-4000-8000-000000000137' },
+            workspace: atlasWorkspaceRef('00000000-0000-4000-8000-000000000137'),
             question: 'What authorizes workspace access?',
           }),
       ),
@@ -111,7 +112,7 @@ describe('AtlasWorkspace.askPlans', () => {
         { principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' } } as never,
         () =>
           atlas.application.invokeOperation(operation, {
-            workspace: { id: '00000000-0000-4000-8000-000000000137' },
+            workspace: atlasWorkspaceRef('00000000-0000-4000-8000-000000000137'),
             question: 'What authorizes workspace access?',
           }),
       ),

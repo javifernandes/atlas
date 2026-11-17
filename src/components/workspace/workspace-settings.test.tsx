@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { atlasWorkspaceRef } from '@/atlas/model/workspace-administration';
+
 const useGraphQueryMock = vi.hoisted(() => vi.fn());
 const useOperationMock = vi.hoisted(() => vi.fn());
 const useDurableOperationMock = vi.hoisted(() => vi.fn());
@@ -174,12 +176,12 @@ describe('WorkspaceSettings', () => {
 
     await waitFor(() => {
       expect(removeAsync).toHaveBeenCalledWith({
-        workspace: { id: 'workspace-1' },
+        workspace: atlasWorkspaceRef('workspace-1'),
         source: { id: 'source-1' },
         confirmationRepository: 'acme/product',
       });
       expect(reconcileAsync).toHaveBeenCalledWith({
-        workspace: { id: 'workspace-1' },
+        workspace: atlasWorkspaceRef('workspace-1'),
         triggerSourceId: null,
         trigger: 'source-removal',
       });
@@ -239,7 +241,7 @@ describe('WorkspaceSettings', () => {
 
     await waitFor(() => {
       expect(useOperationMock.mock.results[0]?.value.executeAsync).toHaveBeenCalledWith({
-        workspace: { id: 'workspace-1' },
+        workspace: atlasWorkspaceRef('workspace-1'),
         visibility: 'public',
       });
       expect(workspaceRefetch).toHaveBeenCalledOnce();
@@ -461,7 +463,7 @@ describe('WorkspaceSettings', () => {
     const deleteOperation = useOperationMock.mock.results.at(-1)?.value;
     await waitFor(() => {
       expect(deleteOperation.executeAsync).toHaveBeenCalledWith({
-        workspace: { id: 'workspace-1' },
+        workspace: atlasWorkspaceRef('workspace-1'),
         confirmationSlug: 'acme',
       });
       expect(pushMock).toHaveBeenCalledWith('/');

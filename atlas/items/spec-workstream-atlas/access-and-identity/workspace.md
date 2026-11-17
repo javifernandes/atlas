@@ -113,6 +113,12 @@ provider authorization untouched. The first form is immediate rather than recove
 durable deployments rely on database backup until retention and restoration become explicit model
 concepts.
 
+Workspace instance Operations now expose their Workspace Entity Ref as canonical Ontahí receiver
+metadata. The receiver remains an explicit participant in the portable input and Runtime Protocol,
+but clients, reflection, and future Resource-scope projection no longer need to infer its meaning
+from an object-shaped ID or UI-only metadata. Workspace creation remains a type-level action rather
+than an instance action.
+
 Registered Sources become readable Workspace form only through a Workspace-partitioned
 reconciliation execution. The execution records why observation ran and whether it completed; a
 separate immutable projection revision records the exact Source revisions that were successfully

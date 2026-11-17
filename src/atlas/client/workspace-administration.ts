@@ -22,6 +22,15 @@ import {
   AtlasWorkspaceUpdateVisibilityOutputSchema,
 } from '../model/workspace-administration';
 
+const workspaceReceiver = {
+  kind: 'input',
+  path: 'workspace',
+  entityName: 'AtlasWorkspace',
+  participant: 'ref',
+  requirement: 'portable',
+  source: 'declaration',
+} as const;
+
 export const AtlasWorkspaceAdministrationClient = defineClientEntity('AtlasWorkspace', {
   domainOperations: {
     create: defineClientDomainOperation({
@@ -35,6 +44,7 @@ export const AtlasWorkspaceAdministrationClient = defineClientEntity('AtlasWorks
       authority: 'server',
       exposure: 'bridge',
       bridge: {},
+      receiver: workspaceReceiver,
       input: AtlasWorkspaceDeleteInputSchema,
       output: AtlasWorkspaceDeleteOutputSchema,
     }),
@@ -42,6 +52,7 @@ export const AtlasWorkspaceAdministrationClient = defineClientEntity('AtlasWorks
       authority: 'server',
       exposure: 'bridge',
       bridge: {},
+      receiver: workspaceReceiver,
       input: AtlasWorkspaceUpdateVisibilityInputSchema,
       output: AtlasWorkspaceUpdateVisibilityOutputSchema,
     }),
@@ -49,6 +60,7 @@ export const AtlasWorkspaceAdministrationClient = defineClientEntity('AtlasWorks
       authority: 'server',
       exposure: 'bridge',
       bridge: {},
+      receiver: workspaceReceiver,
       input: AtlasWorkspaceRegisterSourceInputSchema,
       output: AtlasWorkspaceRegisterSourceOutputSchema,
     }),
@@ -56,6 +68,7 @@ export const AtlasWorkspaceAdministrationClient = defineClientEntity('AtlasWorks
       authority: 'server',
       exposure: 'bridge',
       bridge: {},
+      receiver: workspaceReceiver,
       input: AtlasWorkspaceRemoveSourceInputSchema,
       output: AtlasWorkspaceRemoveSourceOutputSchema,
     }),
@@ -63,6 +76,7 @@ export const AtlasWorkspaceAdministrationClient = defineClientEntity('AtlasWorks
       authority: 'server',
       exposure: 'bridge',
       bridge: {},
+      receiver: workspaceReceiver,
       input: AtlasWorkspaceReconcileSourcesInputSchema,
       output: AtlasWorkspaceReconcileSourcesOutputSchema,
       durable: {
@@ -75,6 +89,7 @@ export const AtlasWorkspaceAdministrationClient = defineClientEntity('AtlasWorks
       authority: 'server',
       exposure: 'bridge',
       bridge: {},
+      receiver: workspaceReceiver,
       input: AtlasWorkspaceListRepositoriesInputSchema,
       output: AtlasWorkspaceListRepositoriesOutputSchema,
     }),

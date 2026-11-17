@@ -1,7 +1,14 @@
-import { field, graphSchema, type GraphSchemaValue } from '@ontahi/core/data-graph';
+import {
+  field,
+  graphSchema,
+  type EntityRef,
+  type GraphSchemaValue,
+} from '@ontahi/core/data-graph';
+
+import { AtlasWorkspaceReferenceSchema } from './workspace-administration';
 
 export const AtlasPlanAssistantInputSchema = graphSchema.object({
-  workspace: graphSchema.object({ id: field.id() }),
+  workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
   question: field.nonEmptyString({ trim: true, maxLength: 2000 }),
 });
 
@@ -16,7 +23,10 @@ export const AtlasPlanAssistantOutputSchema = graphSchema.object({
   citations: graphSchema.array(AtlasPlanAssistantCitationSchema),
 });
 
-export type AtlasPlanAssistantInput = GraphSchemaValue<typeof AtlasPlanAssistantInputSchema>;
+export type AtlasPlanAssistantInput = {
+  workspace: EntityRef<'AtlasWorkspace'>;
+  question: string;
+};
 export type AtlasPlanAssistantOutput = GraphSchemaValue<typeof AtlasPlanAssistantOutputSchema>;
 
 export type AtlasPlanAssistantDocument = {
