@@ -309,6 +309,18 @@ resource or latency constraint.
 
 ## Closure / Evolution
 
+### 2026-11-17 — Workspace page projection memory checkpoint
+
+Production Workspace reads exposed a missing boundary in the dynamic Workspace path: the server
+loaded and serialized the complete persisted snapshot, including every Markdown body, while the
+legacy deployment-wide path already projected those bodies out in PostgreSQL. As the federated
+corpus grew, Vercel killed the Workspace function for exceeding its memory limit and the browser
+reported the interrupted React Server Component stream as `Connection closed`.
+
+Workspace page reads now use the same storage-bounded contract: PostgreSQL removes Markdown bodies
+before the snapshot reaches the application process. The full revision remains available to
+reconciliation and explicit content reads.
+
 ### 2026-11-17 — Ontahí `alpha.20` receiver checkpoint
 
 Atlas now consumes the coordinated Ontahí `1.0.0-alpha.20` release. Workspace instance Operations

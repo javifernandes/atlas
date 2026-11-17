@@ -132,6 +132,11 @@ published. Reads select only the latest completed projection for the authorized 
 failed import retains prior visible state and one Workspace can never advance another Workspace's
 projection.
 
+The normal Workspace page read is storage-bounded: PostgreSQL removes Markdown bodies from nodes
+and documents before returning the persisted snapshot to the application process. Full Markdown
+remains in the revision for reconciliation and explicit content reads, but it is not parsed and
+serialized as part of every interactive Workspace request.
+
 Signed provider events select Sources by both canonical repository and provider installation.
 Every matching Workspace receives its own import execution with delivery and commit or Pull Request
 provenance. A valid webhook may still update the legacy compatibility projection, but it cannot use

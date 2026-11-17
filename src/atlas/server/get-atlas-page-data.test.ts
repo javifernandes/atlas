@@ -110,6 +110,63 @@ describe('Atlas page data', () => {
     expect(getProjectionSnapshot).not.toHaveBeenCalled();
   });
 
+  it('uses a storage-bounded Workspace page projection when one is available', async () => {
+    const pageSnapshot: PlanWorkstreamSnapshot = {
+      generatedAt: '2026-11-17T00:00:00.000Z',
+      nodes: [],
+      edges: [],
+      evidence: [],
+      metrics: [],
+      territories: [],
+    };
+    const getWorkspacePageProjectionSnapshot = vi.fn().mockResolvedValue(pageSnapshot);
+    const getWorkspaceProjectionSnapshot = vi.fn();
+    getApplication.mockResolvedValue({
+      getExecutionStreams: vi.fn().mockResolvedValue([]),
+      getWorkspacePageProjectionSnapshot,
+      getWorkspaceProjectionSnapshot,
+    } as never);
+
+    await expect(getAtlasPageData('user-1', null, 'workspace-1')).resolves.toMatchObject({
+      snapshot: pageSnapshot,
+    });
+    expect(getWorkspacePageProjectionSnapshot).toHaveBeenCalledWith('workspace-1');
+    expect(getWorkspaceProjectionSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('bounds a legacy Workspace projection before sending it to the page', async () => {
+    const snapshot: PlanWorkstreamSnapshot = {
+      generatedAt: '2026-11-17T00:00:00.000Z',
+      nodes: [
+        {
+          id: 'plan:one',
+          kind: 'plan',
+          markdown: '# Large plan body',
+          title: 'Plan one',
+          shortTitle: 'Plan one',
+          statusGroup: 'current',
+          status: 'active',
+          territory: 'Atlas',
+          sections: [],
+          relatedCount: 0,
+          candidateCount: 0,
+        },
+      ],
+      edges: [],
+      evidence: [],
+      metrics: [],
+      territories: [],
+    };
+    getApplication.mockResolvedValue({
+      getExecutionStreams: vi.fn().mockResolvedValue([]),
+      getWorkspaceProjectionSnapshot: vi.fn().mockResolvedValue(snapshot),
+    } as never);
+
+    const result = await getAtlasPageData('user-1', null, 'workspace-1');
+
+    expect(result.snapshot.nodes[0]).not.toHaveProperty('markdown');
+  });
+
   it('returns an empty view before the first bootstrap revision exists', async () => {
     getApplication.mockResolvedValue({
       getProjectionSnapshot: vi.fn().mockResolvedValue(null),
