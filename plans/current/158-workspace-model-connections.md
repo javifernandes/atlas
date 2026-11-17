@@ -156,4 +156,3 @@ without changing the Workspace model.
 4. Doppler is the first `SecretStore` adapter, not the semantic abstraction.
 5. The first purpose is `plans-assistant`; purpose remains explicit so later Operations can choose
    different models without a generic untyped settings bag.
-

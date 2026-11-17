@@ -74,4 +74,3 @@ describe('Atlas Doppler secret store', () => {
     expect(String(error)).not.toContain('credential leaked here');
   });
 });
-

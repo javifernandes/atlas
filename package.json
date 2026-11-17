@@ -26,7 +26,8 @@
     "test:postgres": "ATLAS_POSTGRES_TEST_ENABLED=1 vitest run src/atlas/persistence/postgres-application.integration.test.ts",
     "test:postgres:neon": "node scripts/test-postgres-neon.mjs",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm test && pnpm typecheck && pnpm build"
+    "check:text-format": "node scripts/check-text-format.mjs",
+    "verify": "pnpm check:text-format && pnpm test && pnpm typecheck && pnpm build"
   },
   "dependencies": {
     "@neon/config": "^1.2.0",

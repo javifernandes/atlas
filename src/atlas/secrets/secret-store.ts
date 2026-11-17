@@ -24,4 +24,3 @@ export const atlasSecretReference = (value: string): AtlasSecretReference => {
   }
   return value as AtlasSecretReference;
 };
-

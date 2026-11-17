@@ -14,4 +14,3 @@ CREATE TABLE atlas_workspace_model_connections (
 
 CREATE UNIQUE INDEX atlas_workspace_model_connections_workspace_purpose_uidx
   ON atlas_workspace_model_connections (workspace_id, purpose);
-

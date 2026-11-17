@@ -36,4 +36,3 @@ describe('Atlas secret store configuration', () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 });
-
