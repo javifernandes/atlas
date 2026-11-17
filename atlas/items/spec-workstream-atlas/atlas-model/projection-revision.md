@@ -14,6 +14,8 @@ relatedPlans:
   - plans/current/102-workstream-atlas-implementation-evidence.md
   - plans/done/129-neon-egress-audit-and-containment.md
   - plans/done/148-reconcile-projection-on-production-build.md
+  - plans/current/153-replication-and-adaptive-materialization.md
+  - plans/next/156-adaptive-materialization-policy.md
 ---
 
 Projection Revision is the durable operational observation served by Atlas. It records one trigger,
@@ -59,3 +61,9 @@ closes the interval in which a webhook handled by the previous deployment can ob
 syntax using old parser semantics. Schema migrations protect physical compatibility; deployment
 reconciliation separately protects semantic compatibility between source declarations and their
 persisted Projection Revision. Preview and local builds do not perform this production mutation.
+
+Projection Revision is one revisioned derived Source in the broader Source graph shaped by Plan
+153. Its logical identity and exact input lineage should remain stable across physical strategies:
+full snapshot, checkpoint plus ChangeSets, cached semantic artifacts, or rebuild from authoritative
+Sources. That generalization does not make Atlas-owned collaboration state disposable; eviction is
+valid only for state with an explicit reconstruction contract.
