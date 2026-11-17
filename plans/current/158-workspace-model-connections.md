@@ -86,12 +86,15 @@ without changing the Workspace model.
 
 ## Scope
 
-1. Add the provider-neutral `SecretStore` contract and a tested Doppler adapter.
-2. Add the persistent Workspace Model Connection and migration.
-3. Add owner-only read/configure/disable behavior without returning secret values.
-4. Resolve `askPlans` provider per invocation from its Workspace receiver.
-5. Add a Models section to Workspace Settings with replace, disable, and safe status states.
-6. Preserve deployment configuration as an explicit fallback during migration.
+1. Author `Configure Workspace Model Connection` as a Workspace-scoped Interaction.
+2. Use an experimental Service Blueprint to align actor actions, visible evidence, semantic
+   behavior, backstage support, external Resources, durable state, and failure paths.
+3. Add the provider-neutral `SecretStore` contract and a tested Doppler adapter.
+4. Add the persistent Workspace Model Connection and migration.
+5. Add owner-only read/configure/disable behavior without returning secret values.
+6. Resolve `askPlans` provider per invocation from its Workspace receiver.
+7. Add a Models section to Workspace Settings with replace, disable, and safe status states.
+8. Preserve deployment configuration as an explicit fallback during migration.
 
 ## Non-Goals
 
@@ -103,6 +106,13 @@ without changing the Workspace model.
 6. No model failover, A/B selection, or multiple simultaneous connections per purpose.
 
 ## Slices
+
+### Slice 0 — Interaction and blueprint experiment
+
+- [x] Author `Configure Workspace Model Connection` using Interaction Model v0.
+- [x] Add a first Service Blueprint reading without making implementation details authoritative.
+- [ ] Bind implemented Operations, ingress, Entity, Resource, and UI realization as they land.
+- [ ] Compare the designed and realized interaction before proposing Interaction Model v1 fields.
 
 ### Slice 1 — secret boundary
 
@@ -156,3 +166,16 @@ without changing the Workspace model.
 4. Doppler is the first `SecretStore` adapter, not the semantic abstraction.
 5. The first purpose is `plans-assistant`; purpose remains explicit so later Operations can choose
    different models without a generic untyped settings bag.
+
+## Interaction Model Experiment
+
+Plan 158 is the second grounded Interaction Model exemplar after contributor review and the first
+to shape behavior before its complete realization exists. It deliberately combines a familiar
+Service Blueprint projection with Atlas semantic identities. The Interaction remains actor-facing;
+the blueprint aligns that experience with backstage Operations, ingresses, Resources, external
+systems, durable state, failures, and evidence.
+
+This experiment must not introduce a generic diagram editor or make table cells authoritative over
+Entities and Operations. Descriptive workshop material may remain loose, while claims that a
+semantic behavior or realization exists should eventually resolve to an Atlas identity or remain a
+visible gap.
