@@ -1,6 +1,9 @@
 'use client';
 
+import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
+
+import { Select } from '@/components/ui/select';
 
 type ModelConnectionView = {
   connection: null | {
@@ -36,6 +39,7 @@ export const WorkspaceModelSettings = ({
   const [model, setModel] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
   const endpoint = `/api/workspaces/${encodeURIComponent(workspaceSlug)}/model-connection`;
 
   const load = async () => {
@@ -103,8 +107,7 @@ export const WorkspaceModelSettings = ({
       <div>
         <h2 className='text-xl font-medium'>Models</h2>
         <p className='text-sm text-muted-foreground'>
-          Choose the provider used by model-backed Operations in this Workspace. Credentials are
-          stored outside the Atlas graph and cannot be read back.
+          Connect an AI provider to use Atlas's intelligent features in this Workspace.
         </p>
       </div>
 
@@ -153,17 +156,15 @@ export const WorkspaceModelSettings = ({
       {canManage && view?.secretStore.available ? (
         <div className='grid gap-4 rounded-lg border border-border p-4'>
           <div className='grid gap-4 md:grid-cols-2'>
-            <label className='grid gap-1 text-sm'>
-              Provider
-              <select
-                className='h-10 rounded-md border border-input bg-background px-3'
-                onChange={event => setProvider(event.target.value as 'anthropic' | 'openai')}
-                value={provider}
-              >
-                <option value='openai'>OpenAI</option>
-                <option value='anthropic'>Anthropic</option>
-              </select>
-            </label>
+            <Select
+              label='Provider'
+              onChange={setProvider}
+              options={[
+                { label: 'OpenAI', value: 'openai' },
+                { label: 'Anthropic', value: 'anthropic' },
+              ]}
+              value={provider}
+            />
             <label className='grid gap-1 text-sm'>
               Model
               <input
@@ -179,20 +180,32 @@ export const WorkspaceModelSettings = ({
             <input
               className='h-10 rounded-md border border-input bg-background px-3'
               onChange={event => setBaseUrl(event.target.value)}
-              placeholder='https://api.example.com/v1'
+              placeholder={provider === 'openai'
+                ? 'https://api.openai.com/v1'
+                : 'https://api.anthropic.com'}
               value={baseUrl}
             />
           </label>
           <label className='grid gap-1 text-sm'>
             API key
-            <input
-              autoComplete='off'
-              className='h-10 rounded-md border border-input bg-background px-3'
-              onChange={event => setApiKey(event.target.value)}
-              placeholder={view.connection ? 'Enter a new key to replace the credential' : 'Provider API key'}
-              type='password'
-              value={apiKey}
-            />
+            <span className='relative'>
+              <input
+                autoComplete='off'
+                className='h-10 w-full rounded-md border border-input bg-background px-3 pr-10'
+                onChange={event => setApiKey(event.target.value)}
+                placeholder={view.connection ? 'Enter a new key to replace the credential' : 'Provider API key'}
+                type={showApiKey ? 'text' : 'password'}
+                value={apiKey}
+              />
+              <button
+                aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                className='absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+                onClick={() => setShowApiKey(current => !current)}
+                type='button'
+              >
+                {showApiKey ? <EyeOff className='size-4' /> : <Eye className='size-4' />}
+              </button>
+            </span>
           </label>
           <div>
             <button

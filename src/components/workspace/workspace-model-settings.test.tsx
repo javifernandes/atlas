@@ -48,6 +48,19 @@ describe('WorkspaceModelSettings', () => {
     expect(screen.getByLabelText('API key')).toHaveValue('');
   });
 
+  it('lets the owner reveal and hide the API key while entering it', async () => {
+    render(<WorkspaceModelSettings canManage workspaceSlug='atlas' />);
+    const apiKey = await screen.findByLabelText('API key');
+
+    expect(apiKey).toHaveAttribute('type', 'password');
+    fireEvent.change(apiKey, { target: { value: 'provider-secret-key' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Show API key' }));
+    expect(apiKey).toHaveAttribute('type', 'text');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide API key' }));
+    expect(apiKey).toHaveAttribute('type', 'password');
+  });
+
   it('explains when confidential Workspace storage is unavailable', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
       connection: null,
