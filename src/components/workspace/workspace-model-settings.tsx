@@ -1,0 +1,213 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+type ModelConnectionView = {
+  connection: null | {
+    baseUrl: string | null;
+    model: string;
+    provider: 'anthropic' | 'openai';
+    secretSuffix: string | null;
+    status: 'active' | 'disabled';
+  };
+  deploymentFallback: {
+    enabled: boolean;
+    model: string | null;
+    provider: 'anthropic' | 'openai' | null;
+  };
+  secretStore: {
+    available: boolean;
+    provider: 'doppler' | null;
+  };
+};
+
+export const WorkspaceModelSettings = ({
+  canManage,
+  workspaceSlug,
+}: {
+  canManage: boolean;
+  workspaceSlug: string;
+}) => {
+  const [view, setView] = useState<ModelConnectionView | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [provider, setProvider] = useState<'anthropic' | 'openai'>('openai');
+  const [model, setModel] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const endpoint = `/api/workspaces/${encodeURIComponent(workspaceSlug)}/model-connection`;
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(endpoint, { cache: 'no-store' });
+      const payload = await response.json() as ModelConnectionView & { message?: string };
+      if (!response.ok) throw new Error(payload.message ?? 'Model settings could not be loaded.');
+      setView(payload);
+      if (payload.connection) {
+        setProvider(payload.connection.provider);
+        setModel(payload.connection.model);
+        setBaseUrl(payload.connection.baseUrl ?? '');
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Model settings could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, [workspaceSlug]);
+
+  const save = async () => {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ apiKey, baseUrl, model, provider }),
+      });
+      const payload = await response.json() as ModelConnectionView & { message?: string };
+      if (!response.ok) throw new Error(payload.message ?? 'The model connection could not be saved.');
+      setView(payload);
+      setApiKey('');
+      setMessage('Workspace model connection saved.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'The model connection could not be saved.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const disable = async () => {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const response = await fetch(endpoint, { method: 'DELETE' });
+      const payload = await response.json() as ModelConnectionView & { message?: string };
+      if (!response.ok) throw new Error(payload.message ?? 'The model connection could not be disabled.');
+      setView(payload);
+      setMessage('Workspace model connection disabled.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'The model connection could not be disabled.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className='grid gap-6' id='models'>
+      <div>
+        <h2 className='text-xl font-medium'>Models</h2>
+        <p className='text-sm text-muted-foreground'>
+          Choose the provider used by model-backed Operations in this Workspace. Credentials are
+          stored outside the Atlas graph and cannot be read back.
+        </p>
+      </div>
+
+      {loading ? <p className='text-sm text-muted-foreground'>Loading model connection…</p> : null}
+
+      {view?.connection ? (
+        <div className='grid gap-2 rounded-lg border border-border p-4'>
+          <div className='flex flex-wrap items-center justify-between gap-3'>
+            <div>
+              <p className='font-medium'>{view.connection.provider} · {view.connection.model}</p>
+              <p className='text-xs text-muted-foreground'>
+                {view.connection.status}
+                {view.connection.secretSuffix ? ` · credential ending ${view.connection.secretSuffix}` : ''}
+              </p>
+            </div>
+            {view.connection.status === 'active' && canManage ? (
+              <button
+                className='rounded-md border border-border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50'
+                disabled={saving}
+                onClick={() => void disable()}
+                type='button'
+              >
+                Disable
+              </button>
+            ) : null}
+          </div>
+          {view.connection.baseUrl ? (
+            <p className='break-all text-xs text-muted-foreground'>{view.connection.baseUrl}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {view?.deploymentFallback.enabled ? (
+        <p className='rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground'>
+          Deployment fallback: {view.deploymentFallback.provider} · {view.deploymentFallback.model}
+        </p>
+      ) : null}
+
+      {!loading && view && !view.secretStore.available ? (
+        <p className='rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm'>
+          Workspace credential storage is unavailable on this Atlas host. Existing deployment
+          configuration remains unchanged.
+        </p>
+      ) : null}
+
+      {canManage && view?.secretStore.available ? (
+        <div className='grid gap-4 rounded-lg border border-border p-4'>
+          <div className='grid gap-4 md:grid-cols-2'>
+            <label className='grid gap-1 text-sm'>
+              Provider
+              <select
+                className='h-10 rounded-md border border-input bg-background px-3'
+                onChange={event => setProvider(event.target.value as 'anthropic' | 'openai')}
+                value={provider}
+              >
+                <option value='openai'>OpenAI</option>
+                <option value='anthropic'>Anthropic</option>
+              </select>
+            </label>
+            <label className='grid gap-1 text-sm'>
+              Model
+              <input
+                className='h-10 rounded-md border border-input bg-background px-3'
+                onChange={event => setModel(event.target.value)}
+                placeholder={provider === 'openai' ? 'gpt-5-mini' : 'claude-sonnet-4-5'}
+                value={model}
+              />
+            </label>
+          </div>
+          <label className='grid gap-1 text-sm'>
+            Base URL <span className='text-xs text-muted-foreground'>(optional)</span>
+            <input
+              className='h-10 rounded-md border border-input bg-background px-3'
+              onChange={event => setBaseUrl(event.target.value)}
+              placeholder='https://api.example.com/v1'
+              value={baseUrl}
+            />
+          </label>
+          <label className='grid gap-1 text-sm'>
+            API key
+            <input
+              autoComplete='off'
+              className='h-10 rounded-md border border-input bg-background px-3'
+              onChange={event => setApiKey(event.target.value)}
+              placeholder={view.connection ? 'Enter a new key to replace the credential' : 'Provider API key'}
+              type='password'
+              value={apiKey}
+            />
+          </label>
+          <div>
+            <button
+              className='h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50'
+              disabled={saving || !model.trim() || apiKey.trim().length < 8}
+              onClick={() => void save()}
+              type='button'
+            >
+              {saving ? 'Saving…' : view.connection ? 'Replace connection' : 'Save connection'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {message ? <p className='text-sm text-muted-foreground' role='status'>{message}</p> : null}
+    </section>
+  );
+};

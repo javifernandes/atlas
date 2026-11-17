@@ -88,3 +88,18 @@ It is an experiment for Interaction Model v1, not a second authoritative workflo
 | Compensate | Sees a safe failure | Existing configuration remains visible | Preserve previous connection | Delete newly written secret if metadata persistence fails | No partial replacement or newly orphaned secret |
 | Disable | Confirms disabling the connection | Disabled status and fallback explanation | Disable Workspace model connection | Owner reauthorization; metadata transition; secret cleanup policy | Workspace connection disabled |
 | Use | Asks a question about Plans | Answer, citations, pending and failure states | Invoke `AtlasWorkspace.askPlans` on the Workspace receiver | Resolve connection; `SecretStore.get`; invoke provider; record Resource evidence | Workspace-scoped usage or safe typed failure |
+
+## Realization Evidence
+
+| Interaction element | Semantic target | Current realization |
+| --- | --- | --- |
+| Inspect connection | `AtlasWorkspace.readModelConnection` | Models settings section and confidential model-connection `GET` ingress |
+| Configure or replace | `AtlasWorkspace.configureModelConnection` | Models form and confidential model-connection `PUT` ingress |
+| Disable | `AtlasWorkspace.disableModelConnection` | Models status control and confidential model-connection `DELETE` ingress |
+| Persist safe metadata | `AtlasWorkspaceModelConnection` | Ontahí Entity mapped to `atlas_workspace_model_connections` |
+| Store or resolve credential | `atlas.secret-store` Resource | Doppler `SecretStore` adapter with service Resource evidence |
+| Use configured model | `AtlasWorkspace.askPlans` | Per-invocation provider resolver keyed by the canonical Workspace receiver |
+
+The secret-write ingress is intentionally not the semantic Operation. It owns confidential
+transport and compensation, then internally invokes the server-only Operation with safe metadata.
+The Models component is one realization of this Interaction rather than its durable identity.

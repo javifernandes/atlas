@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 
 import { getAtlasPageData } from '@/atlas/server/get-atlas-page-data';
-import { readAtlasModelConfiguration } from '@/atlas/server/model-provider';
+import { hasAtlasWorkspaceModelProvider } from '@/atlas/server/model-provider';
 import {
   getAtlasWorkspaceForUser,
   listAtlasWorkspacesForUser,
@@ -188,7 +188,7 @@ const WorkspacePage = async ({ params, searchParams }: WorkspacePageProps) => {
         viewer={access.viewer}
       />
       <WorkspaceControl workspace={workspace} workspaces={workspaces} />
-      {readAtlasModelConfiguration().enabled ? (
+      {await hasAtlasWorkspaceModelProvider(workspace.id) ? (
         <PlanAssistant workspaceId={workspace.id} />
       ) : null}
       <WorkspaceSyncActivity runs={syncRuns} />

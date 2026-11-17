@@ -2166,8 +2166,8 @@ export const createAtlasOntahiApplication = (
     tasks: { runtime: createInProcessTaskRuntime({ storage: taskStorage }) },
     capabilities: {
       runtime: {
-        assistant: {
-          provider: options.assistantProvider ?? null,
+        ...(options.assistantProvider ? { assistant: {
+          provider: options.assistantProvider,
           authorize: (_userId, workspaceId) =>
             Effect.succeed(
               workspaceId === '00000000-0000-4000-8000-000000000137',
@@ -2193,7 +2193,7 @@ export const createAtlasOntahiApplication = (
                 }),
               );
             }),
-        },
+        } } : {}),
         workspaceAuthorization: {
           roleFor:
             options.workspaceRoleFor ??

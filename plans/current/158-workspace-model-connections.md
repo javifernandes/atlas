@@ -111,8 +111,8 @@ without changing the Workspace model.
 
 - [x] Author `Configure Workspace Model Connection` using Interaction Model v0.
 - [x] Add a first Service Blueprint reading without making implementation details authoritative.
-- [ ] Bind implemented Operations, ingress, Entity, Resource, and UI realization as they land.
-- [ ] Compare the designed and realized interaction before proposing Interaction Model v1 fields.
+- [x] Bind implemented Operations, ingress, Entity, Resource, and UI realization as they land.
+- [x] Compare the designed and realized interaction before proposing Interaction Model v1 fields.
 
 ### Slice 1 — secret boundary
 
@@ -124,39 +124,53 @@ without changing the Workspace model.
 
 - [x] Add `AtlasWorkspaceModelConnection` and PostgreSQL migration.
 - [x] Enforce one connection per Workspace and purpose.
-- [ ] Expose only safe status metadata to authorized Workspace owners.
+- [x] Expose only safe status metadata to authorized Workspace owners.
 
 ### Slice 3 — owner configuration ingress
 
-- [ ] Add a narrow authenticated route for secret writes.
-- [ ] Reauthorize active Workspace ownership on every mutation.
-- [ ] Store the secret first and compensate if metadata persistence fails.
-- [ ] Never echo, log, diagnose, or serialize the submitted secret.
+- [x] Add a narrow authenticated route for secret writes.
+- [x] Reauthorize active Workspace ownership on every mutation.
+- [x] Store the secret first and compensate if metadata persistence fails.
+- [x] Never echo, log, diagnose, or serialize the submitted secret.
 
 ### Slice 4 — dynamic model-backed Operation
 
-- [ ] Replace composition-time provider capture with Ontahí's per-input provider resolver.
-- [ ] Resolve connection and secret from the `AtlasWorkspace` receiver.
-- [ ] Retain deployment provider fallback until Workspace setup is complete.
-- [ ] Keep existing model Resource usage evidence provider-neutral.
+- [x] Replace composition-time provider capture with Ontahí's per-input provider resolver.
+- [x] Resolve connection and secret from the `AtlasWorkspace` receiver.
+- [x] Retain deployment provider fallback until Workspace setup is complete.
+- [x] Keep existing model Resource usage evidence provider-neutral.
 
 ### Slice 5 — Workspace Settings
 
-- [ ] Add Models to the settings navigation.
-- [ ] Show provider, model, endpoint, status, and safe credential hint only.
-- [ ] Support configure/replace and disable for owners.
-- [ ] Explain deployment fallback and unavailable secret storage honestly.
+- [x] Add Models to the settings navigation.
+- [x] Show provider, model, endpoint, status, and safe credential hint only.
+- [x] Support configure/replace and disable for owners.
+- [x] Explain deployment fallback and unavailable secret storage honestly.
 
 ## Verification
 
-- [ ] No API key appears in Runtime Protocol diagnostics or Graph data.
-- [ ] A non-owner cannot inspect or mutate model connection metadata.
-- [ ] A Workspace connection cannot be used by another Workspace.
-- [ ] Replacing a credential does not expose the previous or new value.
-- [ ] Doppler failures produce typed, non-secret errors.
-- [ ] `askPlans` resolves the provider belonging to its canonical receiver.
-- [ ] Existing deployment configuration continues to work during migration.
-- [ ] `pnpm verify` passes.
+- [x] No API key appears in Runtime Protocol diagnostics or Graph data.
+- [x] A non-owner cannot inspect or mutate model connection metadata.
+- [x] A Workspace connection cannot be used by another Workspace.
+- [x] Replacing a credential does not expose the previous or new value.
+- [x] Doppler failures produce typed, non-secret errors.
+- [x] `askPlans` resolves the provider belonging to its canonical receiver.
+- [x] Existing deployment configuration continues to work during migration.
+- [x] `pnpm verify` passes.
+
+## 2026-11-17 implementation contrast
+
+The realized vertical preserved the actor-facing Interaction while separating one important
+boundary more strongly than a conventional blueprint usually does: the confidential HTTP ingress
+accepts the plaintext credential, but the semantic `configureModelConnection` Operation accepts
+only an opaque secret reference and safe metadata. The ingress is therefore realization and
+security infrastructure, not the domain behavior itself.
+
+The Service Blueprint proved useful as a projection because it exposed the order of external and
+durable effects, compensation after metadata failure, deployment fallback, and Resource evidence
+without forcing those concerns into Interaction v0. `realizedBy`, `usesResource`, and durable-state
+bindings remain candidates for typed implementation evidence rather than required Interaction
+fields.
 
 ## Decisions
 

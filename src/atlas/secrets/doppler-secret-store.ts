@@ -3,6 +3,9 @@ import {
   type AtlasSecretReference,
   type AtlasSecretStore,
 } from './secret-store';
+import { withServiceResourceAttempt } from '@ontahi/core/runtime/server';
+
+export const ATLAS_SECRET_STORE_RESOURCE = 'atlas.secret-store';
 
 export type AtlasDopplerSecretStoreOptions = {
   config: string;
@@ -33,7 +36,10 @@ export const createAtlasDopplerSecretStore = (
     init: RequestInit,
   ) => {
     try {
-      return await fetcher(input, init);
+      return await withServiceResourceAttempt(
+        { action: operation, provider: 'doppler', resourceId: ATLAS_SECRET_STORE_RESOURCE },
+        () => fetcher(input, init),
+      );
     } catch {
       throw new AtlasSecretStoreError(operation);
     }
