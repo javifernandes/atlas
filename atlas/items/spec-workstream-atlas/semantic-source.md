@@ -13,11 +13,17 @@ relatedPlans:
   - plans/done/111-atlas-as-ontahi-application.md
   - plans/done/101-workstream-atlas-semantic-source.md
   - plans/done/116-atlas-ontahi-postgres-persistence.md
+  - plans/done/154-unified-source-and-derivation-model.md
 ---
 
 Semantic Source is the federated Markdown corpus that defines the atlas. Each source remains editable
 by humans, reviewable in its own Git repository, and simple enough for LLM agents to reorganize
 safely.
+
+Semantic Source is one specialized use of the provider-neutral
+[[spec-workstream-atlas.atlas-model.source|Source]] model. Its Git/Markdown authority, filesystem
+selectors, canonical URIs, and parsing contract do not constrain Atlas-owned or derived Sources to
+look like repositories.
 
 Atlas-owned declarations are loaded intrinsically from this repository. External sources are
 registered once and addressed through stable logical identities such as
