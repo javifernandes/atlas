@@ -42,7 +42,7 @@ describe('WorkspaceModelSettings', () => {
       deploymentFallback: { enabled: false, model: null, provider: null },
       secretStore: { available: true, provider: 'doppler' },
     }), { status: 200 }));
-    fireEvent.click(screen.getByRole('button', { name: 'Connect OpenAI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save connection' }));
 
     await screen.findByText('Connected. Ask Atlas is now available in this Workspace.');
     const request = fetchMock.mock.calls[2]!;

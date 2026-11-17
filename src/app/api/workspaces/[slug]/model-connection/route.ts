@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { withInvocationContext } from '@ontahi/core/runtime/server';
+import { revalidatePath } from 'next/cache';
 
 import { atlasWorkspaceRef } from '@/atlas/model/workspace-administration';
 import type { AtlasWorkspaceModelConnection } from '@/atlas/model/workspace-model-connection';
@@ -148,12 +149,18 @@ export const PUT = async (request: Request, { params }: RouteContext) => {
     secretSuffix: apiKey.slice(-4),
   });
   if (!result.ok) {
+    console.warn('[atlas:model-connection] configure failed', {
+      kind: result.kind,
+      message: result.message,
+      workspaceId: authorization.workspace.id,
+    });
     await secretStore.delete(reference).catch(() => undefined);
     return Response.json({ message: result.message }, { status: 400 });
   }
   if (previous?.secretRef && previous.secretRef !== reference) {
     await secretStore.delete(atlasSecretReference(previous.secretRef)).catch(() => undefined);
   }
+  revalidatePath(`/w/${encodeURIComponent(params.slug)}`);
   return Response.json(safeConnection(result.value as AtlasWorkspaceModelConnection));
 };
 

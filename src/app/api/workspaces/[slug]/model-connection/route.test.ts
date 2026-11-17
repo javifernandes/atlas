@@ -6,6 +6,7 @@ const putSecretMock = vi.hoisted(() => vi.fn());
 const getSecretMock = vi.hoisted(() => vi.fn());
 const deleteSecretMock = vi.hoisted(() => vi.fn());
 const listProviderModelsMock = vi.hoisted(() => vi.fn());
+const revalidatePathMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/atlas/server/atlas-composition', () => ({
   getAtlasServerApplication: getAtlasServerApplicationMock,
@@ -29,6 +30,7 @@ vi.mock('@/atlas/server/model-provider', () => ({
 vi.mock('@/atlas/server/model-catalog', () => ({
   listAtlasProviderModels: listProviderModelsMock,
 }));
+vi.mock('next/cache', () => ({ revalidatePath: revalidatePathMock }));
 vi.mock('@/auth/server', () => ({
   getAtlasRequestAccess: () => Promise.resolve({
     canRead: true,
@@ -61,6 +63,7 @@ describe('Workspace model connection confidential ingress', () => {
     listProviderModelsMock.mockReset().mockResolvedValue([
       { id: 'deepseek-flash', label: 'DeepSeek Flash' },
     ]);
+    revalidatePathMock.mockReset();
   });
 
   it('discovers models without storing the submitted credential', async () => {
@@ -99,6 +102,7 @@ describe('Workspace model connection confidential ingress', () => {
     expect(serialized).toContain('gpt-test');
     expect(serialized).not.toContain('provider-secret-key');
     expect(serialized).not.toContain('secretRef');
+    expect(revalidatePathMock).toHaveBeenCalledWith('/w/atlas');
 
     const read = await GET(new Request('http://atlas.test/api/workspaces/atlas/model-connection'), context);
     expect(await read.json()).toMatchObject({

@@ -255,20 +255,6 @@ export const WorkspaceModelSettings = ({
                 }))]}
             value={model}
           />
-          <div>
-            <button
-              className='h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50'
-              disabled={saving || !model || apiKey.trim().length < 8}
-              onClick={() => void save()}
-              type='button'
-            >
-              {saving
-                ? 'Connecting…'
-                : view.connection
-                  ? 'Replace connection'
-                  : `Connect ${provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : 'DeepSeek'}`}
-            </button>
-          </div>
           <details className='rounded-md border border-border px-3 py-2'>
             <summary className='cursor-pointer text-sm text-muted-foreground'>Advanced</summary>
             <label className='mt-3 grid gap-1 text-sm'>
@@ -285,6 +271,16 @@ export const WorkspaceModelSettings = ({
               />
             </label>
           </details>
+          <div>
+            <button
+              className='h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50'
+              disabled={saving || !model || apiKey.trim().length < 8}
+              onClick={() => void save()}
+              type='button'
+            >
+              {saving ? 'Saving…' : view.connection ? 'Replace connection' : 'Save connection'}
+            </button>
+          </div>
         </div>
       ) : null}
 
