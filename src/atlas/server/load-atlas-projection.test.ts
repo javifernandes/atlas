@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { AtlasLoadedSourceRevision } from '../sources/markdown-source';
 import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
-import { composeIncrementalSourceProjection } from './load-atlas-projection';
+import {
+  composeIncrementalSourceProjection,
+  hasExpectedSourceBaseRevision,
+} from './load-atlas-projection';
 
 const revision = (sourceId: string, value: string): AtlasLoadedSourceRevision => ({
   authority: 'markdown',
@@ -26,6 +29,18 @@ const record = (
 });
 
 describe('incremental Atlas source projection', () => {
+  it('requires an exact provider base revision when a push supplies one', () => {
+    const baseline = {
+      projectionRevisionId: 'projection:1',
+      records: [record('product', 'plans/current/product.md', '# Product')],
+      sourceRevisions: [revision('product', 'product-1')],
+    };
+
+    expect(hasExpectedSourceBaseRevision(baseline, 'product', 'product-1')).toBe(true);
+    expect(hasExpectedSourceBaseRevision(baseline, 'product', 'missing')).toBe(false);
+    expect(hasExpectedSourceBaseRevision(baseline, 'product')).toBe(true);
+  });
+
   it('replaces the changed source while retaining unchanged source records and lineage', () => {
     const result = composeIncrementalSourceProjection({
       baseline: {
@@ -43,6 +58,7 @@ describe('incremental Atlas source projection', () => {
       },
       changedRecords: [record('product', 'plans/current/2-new.md', '# New')],
       changedSourceRevisions: [revision('product', 'product-2')],
+      observedAt: '2026-11-17T00:00:00.000Z',
     });
 
     expect(result.records).toEqual([
@@ -55,6 +71,14 @@ describe('incremental Atlas source projection', () => {
       revision('platform', 'platform-1'),
       revision('product', 'product-2'),
     ]);
+    expect(result.sourceChangeSet).toMatchObject({
+      baseRevision: { revisionKey: 'product-1' },
+      targetRevision: { revisionKey: 'product-2' },
+      operations: expect.arrayContaining([
+        expect.objectContaining({ kind: 'delete', path: 'plans/current/2-old.md' }),
+        expect.objectContaining({ kind: 'create', path: 'plans/current/2-new.md' }),
+      ]),
+    });
   });
 
   it('removes changed-source records that disappeared from the fresh observation', () => {
@@ -70,6 +94,7 @@ describe('incremental Atlas source projection', () => {
       },
       changedRecords: [record('product', 'plans/current/kept.md', '# Kept after')],
       changedSourceRevisions: [revision('product', 'product-2')],
+      observedAt: '2026-11-17T00:00:00.000Z',
     });
 
     expect(result.records).toEqual([

@@ -13,7 +13,7 @@ supports:
 relatedPlans:
   - plans/current/153-replication-and-adaptive-materialization.md
   - plans/done/154-unified-source-and-derivation-model.md
-  - plans/next/155-changeset-and-replica-runtime.md
+  - plans/done/155-changeset-and-replica-runtime.md
   - plans/next/156-adaptive-materialization-policy.md
   - plans/backlog/157-atlas-editing-and-git-write-back.md
 ---
@@ -95,6 +95,8 @@ accepted Git-backed lineage.
   semantic role.
 - [[spec-workstream-atlas.atlas-model.source-derivation|Source Derivation]] declares stable Source
   dependencies and exact revision lineage.
+- [[spec-workstream-atlas.atlas-model.change-set|ChangeSet]] advances one Source between exact
+  revisions through replayable operations.
 
 `AtlasWorkspaceSource` currently represents desired Workspace registration and is the adoption
 precursor for `SourceRef`. It must not be conflated with an observed Source Revision or its import

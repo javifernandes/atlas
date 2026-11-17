@@ -18,6 +18,10 @@ import {
 } from '../domain/atlas-application';
 import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
+import {
+  atlasSourceRef,
+  deriveAtlasSourceChangeSet,
+} from '../sources/source-changeset';
 import { buildPlanWorkstreamSnapshotFromFiles } from '../markdown/build-snapshot';
 import {
   createAtlasWorkspaceAccessStore,
@@ -180,6 +184,7 @@ Durable Atlas projection.
         '018-ontahi-task-runs.sql',
         '019-workspace-source-removal.sql',
         '020-atlas-item-type-bindings.sql',
+        '021-source-change-sets.sql',
       ],
       skipped: [],
     });
@@ -1680,5 +1685,105 @@ Atlas-Session: ${explicitStreamId}`,
     ).length;
 
     expect(projectionReadsAfterReconciliation).toBe(5);
+  }, postgresTestTimeout);
+
+  it('persists one idempotent Source ChangeSet application for an incremental webhook', async () => {
+    const baselineRevisionResult = await pool.query<{
+      revision: string;
+      revision_kind: 'git' | 'content-sha256';
+    }>(`
+      SELECT revision.revision, revision.revision_kind
+      FROM atlas_source_records AS record
+      JOIN atlas_source_revisions AS revision ON revision.id = record.source_revision_id
+      WHERE record.source_id = 'atlas'
+      LIMIT 1
+    `);
+    const baselineRevision = baselineRevisionResult.rows[0]!;
+    const baselineRecords = await atlas.getSourceRecords();
+    const targetRecords = baselineRecords.map(record =>
+      record.sourcePath === 'plans/current/116-persistence.md'
+        ? { ...record, content: `${record.content}\nIncremental ChangeSet.` }
+        : record,
+    );
+    const targetRevisionKey = `changeset-${randomUUID()}`;
+    const observedAt = '2026-12-01T00:00:00.000Z';
+    const deliveryId = `changeset-delivery-${randomUUID()}`;
+    const source = atlasSourceRef('atlas');
+    const sourceChangeSet = deriveAtlasSourceChangeSet({
+      baseRecords: baselineRecords,
+      baseRevision: {
+        revisionKey: baselineRevision.revision,
+        revisionScheme: baselineRevision.revision_kind,
+        source,
+      },
+      observedAt,
+      providerDeliveryId: deliveryId,
+      targetRecords,
+      targetRevision: { revisionKey: targetRevisionKey, revisionScheme: 'git', source },
+    });
+    let loads = 0;
+    const changeSetAtlas = createAtlasPostgresApplication({
+      pool,
+      loadProjection: async () => {
+        loads += 1;
+        return {
+          evidenceFailures: [],
+          evidenceSourceIds: ['atlas'],
+          observedAt,
+          observedPullRequests: [observedPullRequest],
+          records: targetRecords,
+          sourceChangeSet,
+          sourceRevisions: [
+            {
+              ...sourceRevisions[0]!,
+              id: `atlas:markdown:${targetRevisionKey}`,
+              revision: targetRevisionKey,
+              observedAt,
+            },
+          ],
+        };
+      },
+    });
+    const webhook: AtlasRepositoryPushInput = {
+      after: targetRevisionKey,
+      before: baselineRevision.revision,
+      deliveryId,
+      installationId: '1234',
+      ref: 'refs/heads/main',
+      repositoryFullName: 'javifernandes/atlas',
+    };
+    const invoke = () =>
+      changeSetAtlas.application.invokeOperation(
+        changeSetAtlas.application.graph.entities.ProjectionRevision.domain.refreshAfterPush,
+        webhook,
+      );
+
+    await expect(invoke()).resolves.toMatchObject({ ok: true, value: { duplicate: false } });
+    await expect(invoke()).resolves.toMatchObject({ ok: true, value: { duplicate: true } });
+    expect(loads).toBe(1);
+    await expect(
+      pool.query(
+        `SELECT source_id, operation_count, provider_delivery_id
+         FROM atlas_source_change_sets
+         WHERE id = $1`,
+        [sourceChangeSet.id],
+      ),
+    ).resolves.toMatchObject({
+      rows: [
+        {
+          source_id: 'atlas',
+          operation_count: 1,
+          provider_delivery_id: deliveryId,
+        },
+      ],
+    });
+    await expect(
+      pool.query(
+        `SELECT application.status
+         FROM atlas_source_change_set_applications AS application
+         WHERE application.change_set_id = $1`,
+        [sourceChangeSet.id],
+      ),
+    ).resolves.toMatchObject({ rows: [{ status: 'applied' }] });
   }, postgresTestTimeout);
 });

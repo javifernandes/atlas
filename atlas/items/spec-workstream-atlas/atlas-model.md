@@ -46,3 +46,4 @@ It is not a complete metamodel yet. It is the smallest shared vocabulary needed 
 18. [`Source Revision`](./atlas-model/source-revision.md)
 19. [`Source Binding`](./atlas-model/source-binding.md)
 20. [`Source Derivation`](./atlas-model/source-derivation.md)
+21. [`ChangeSet`](./atlas-model/change-set.md)

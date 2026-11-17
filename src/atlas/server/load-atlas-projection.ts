@@ -8,13 +8,20 @@ import {
   normalizeAtlasSourceRecord,
   type NormalizedAtlasSourceRecord,
 } from '../sources/normalized-source';
+import {
+  applyAtlasSourceChangeSet,
+  atlasSourceRef,
+  deriveAtlasSourceChangeSet,
+  type AtlasSourceChangeSet,
+} from '../sources/source-changeset';
 
 type LoadedAtlasProjectionInput = Awaited<ReturnType<typeof loadAtlasProjectionInput>>;
 export type AtlasProjectionInput = Omit<
   LoadedAtlasProjectionInput,
-  'incrementalBaselineProjectionRevisionId'
+  'incrementalBaselineProjectionRevisionId' | 'sourceChangeSet'
 > & {
   incrementalBaselineProjectionRevisionId?: string | null;
+  sourceChangeSet?: AtlasSourceChangeSet | null;
 };
 export type AtlasProjectionSourceBaseline = {
   projectionRevisionId: string | null;
@@ -33,10 +40,22 @@ const hasCompleteSourceBaseline = (
   );
 };
 
+export const hasExpectedSourceBaseRevision = (
+  baseline: AtlasProjectionSourceBaseline,
+  sourceId: string,
+  expectedRevision?: string,
+) =>
+  !expectedRevision ||
+  baseline.sourceRevisions.some(
+    revision => revision.sourceId === sourceId && revision.revision === expectedRevision,
+  );
+
 export const composeIncrementalSourceProjection = (input: {
   baseline: AtlasProjectionSourceBaseline;
   changedRecords: NormalizedAtlasSourceRecord[];
   changedSourceRevisions: AtlasLoadedSourceRevision[];
+  observedAt: string;
+  providerDeliveryId?: string | null;
 }) => {
   const changedSourceIds = new Set(
     input.changedSourceRevisions.map(revision => revision.sourceId),
@@ -46,12 +65,50 @@ export const composeIncrementalSourceProjection = (input: {
     throw new Error('Incremental source observation must contain exactly one source revision.');
   }
 
+  const sourceId = [...changedSourceIds][0]!;
+  const baseRevision = input.baseline.sourceRevisions.find(
+    revision => revision.sourceId === sourceId,
+  );
+  const targetRevision = input.changedSourceRevisions[0]!;
+  if (!baseRevision) {
+    throw new Error(`Incremental Source ${sourceId} has no baseline revision.`);
+  }
+  const source = atlasSourceRef(sourceId);
+  const sourceChangeSet = deriveAtlasSourceChangeSet({
+    baseRecords: input.baseline.records.filter(
+      record => (record.sourceId ?? 'atlas') === sourceId,
+    ),
+    baseRevision: {
+      revisionKey: baseRevision.revision,
+      revisionScheme: baseRevision.revisionKind,
+      source,
+    },
+    observedAt: input.observedAt,
+    providerDeliveryId: input.providerDeliveryId,
+    targetRecords: input.changedRecords,
+    targetRevision: {
+      revisionKey: targetRevision.revision,
+      revisionScheme: targetRevision.revisionKind,
+      source,
+    },
+  });
+  const application = applyAtlasSourceChangeSet({
+    changeSet: sourceChangeSet,
+    currentRevision: sourceChangeSet.baseRevision,
+    records: input.baseline.records.filter(
+      record => (record.sourceId ?? 'atlas') === sourceId,
+    ),
+  });
+  if (application.status !== 'applied') {
+    throw new Error(`Incremental Source ChangeSet was not applied: ${application.status}.`);
+  }
+
   return {
     records: [
       ...input.baseline.records.filter(
         record => !changedSourceIds.has(record.sourceId ?? 'atlas'),
       ),
-      ...input.changedRecords,
+      ...application.records,
     ],
     sourceRevisions: [
       ...input.baseline.sourceRevisions.filter(
@@ -59,13 +116,16 @@ export const composeIncrementalSourceProjection = (input: {
       ),
       ...input.changedSourceRevisions,
     ],
+    sourceChangeSet,
   };
 };
 
 export const loadAtlasProjectionInput = async (input: {
   baseline?: AtlasProjectionSourceBaseline;
+  expectedBaseRevision?: string;
   fetcher?: typeof fetch;
   preferRemoteAtlas?: boolean;
+  providerDeliveryId?: string | null;
   repositoryFullName?: string;
   repoRoot: string;
 }) => {
@@ -79,6 +139,11 @@ export const loadAtlasProjectionInput = async (input: {
   const useIncrementalSourceObservation = Boolean(
     input.baseline &&
       targetRegistration.length === 1 &&
+      hasExpectedSourceBaseRevision(
+        input.baseline,
+        targetRegistration[0]!.sourceId,
+        input.expectedBaseRevision,
+      ) &&
       hasCompleteSourceBaseline(
         input.baseline,
         registrations.map(registration => registration.sourceId),
@@ -105,9 +170,12 @@ export const loadAtlasProjectionInput = async (input: {
         baseline: input.baseline!,
         changedRecords: observedRecords,
         changedSourceRevisions: sourceObservation.sourceRevisions,
+        observedAt: sourceObservation.observedAt,
+        providerDeliveryId: input.providerDeliveryId,
       })
     : {
         records: observedRecords,
+        sourceChangeSet: null,
         sourceRevisions: sourceObservation.sourceRevisions,
       };
 
@@ -120,6 +188,7 @@ export const loadAtlasProjectionInput = async (input: {
     observedAt: sourceObservation.observedAt,
     observedPullRequests: evidenceObservation.pullRequests,
     records: sourceProjection.records,
+    sourceChangeSet: sourceProjection.sourceChangeSet,
     sourceRevisions: sourceProjection.sourceRevisions,
   };
 };

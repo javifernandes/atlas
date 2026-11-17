@@ -11,7 +11,7 @@ supports:
 relatedPlans:
   - plans/current/153-replication-and-adaptive-materialization.md
   - plans/done/154-unified-source-and-derivation-model.md
-  - plans/next/155-changeset-and-replica-runtime.md
+  - plans/done/155-changeset-and-replica-runtime.md
 ---
 
 Source Revision is the immutable identity of one accepted logical state of a
@@ -35,3 +35,7 @@ execution mutate elsewhere.
 
 One Source may identify an accepted head without deleting historical revisions. A materialization
 may be replaced or evicted while the logical revision and reconstruction lineage remain intact.
+
+An accepted [[spec-workstream-atlas.atlas-model.change-set|ChangeSet]] names one base and one target
+Source Revision. Revision mismatch is a consistency outcome rather than permission to infer or
+merge missing operations.
