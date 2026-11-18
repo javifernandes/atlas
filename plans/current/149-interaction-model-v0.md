@@ -400,6 +400,13 @@ paths converge only on pending invitation intent. Recipient response remains a s
 Interaction, while create, claim, and accept remain separate unresolved Operation responsibilities.
 This prevents provider or email matching from silently becoming account linking or Membership.
 
+`Respond To Workspace Invitation` defines the recipient side against one invitation-scoped
+boundary. Authentication and identity proof enter as stimuli; claim binds the proven invitation to
+the authenticated User without granting access; accept creates Membership; decline closes the
+invitation without Membership. Expiry and owner revocation remain observed lifecycle changes rather
+than recipient affordances. The interaction therefore preserves the boundary between transport,
+identity proof, durable invitation state, and access mutation before implementation begins.
+
 The plan should remain current until the exemplar renders end to end and the team decides whether
 realization bindings belong in Interaction v1. Runtime execution, UI generation, and Ontahí Durable
 Operation convergence should be extracted into focused follow-ups only after evidence from the v0
