@@ -306,8 +306,8 @@ details into the Interaction.
 ### Slice 6 — Workspace membership adoption
 
 - [x] Model Manage Contributors as a composed Workspace-scoped Interaction.
-- [ ] Model invitation paths for a known Atlas User, observed GitHub identity, and verified email.
-- [ ] Keep identity proof, invitation claim, and invitation acceptance as separate Operation
+- [x] Model invitation paths for a known Atlas User, observed GitHub identity, and verified email.
+- [x] Keep identity proof, invitation claim, and invitation acceptance as separate Operation
       responsibilities.
 - [ ] Use the model to shape the first end-to-end invitation implementation plan.
 
@@ -393,6 +393,12 @@ administration goal while its defined and not-yet-defined children expose the cu
 boundary: contributor review exists, whereas invitation and membership management remain explicit
 shaping gaps. Composition therefore uses ordinary Interaction parenthood rather than introducing a
 separate composite kind.
+
+`Invite Person To Workspace` now defines the owner's side of invitation creation across three
+recipient paths: a stable Atlas User, an observed GitHub identity, or verified-email delivery. The
+paths converge only on pending invitation intent. Recipient response remains a separate unresolved
+Interaction, while create, claim, and accept remain separate unresolved Operation responsibilities.
+This prevents provider or email matching from silently becoming account linking or Membership.
 
 The plan should remain current until the exemplar renders end to end and the team decides whether
 realization bindings belong in Interaction v1. Runtime execution, UI generation, and Ontahí Durable
