@@ -49,8 +49,10 @@ first defined child is
 which preserves the owner's contributor-review goal independently of its current Settings
 realization. [[spec-workstream-atlas.access-identity.workspace.invite-person-to-workspace|Invite Person To Workspace]]
 now defines how an owner addresses a pending invitation without granting Membership. Recipient
-response and membership management remain explicit shaping gaps until their actor-facing contracts
-are defined.
+response is defined separately by
+[[spec-workstream-atlas.access-identity.workspace.respond-to-invitation|Respond To Workspace Invitation]],
+where proof, claim, acceptance, and decline remain distinct. Membership management remains an
+explicit shaping gap until its actor-facing contract is defined.
 
 ## Evolution
 
