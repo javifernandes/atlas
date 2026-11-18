@@ -305,7 +305,7 @@ details into the Interaction.
 
 ### Slice 6 — Workspace membership adoption
 
-- [ ] Model Manage Contributors as a composed Workspace-scoped Interaction.
+- [x] Model Manage Contributors as a composed Workspace-scoped Interaction.
 - [ ] Model invitation paths for a known Atlas User, observed GitHub identity, and verified email.
 - [ ] Keep identity proof, invitation claim, and invitation acceptance as separate Operation
       responsibilities.
@@ -386,6 +386,13 @@ The affordance presentation distinguishes the actor-facing action from its seman
 unlinked target such as `Observed Contributor` remains descriptive context and is not styled as a
 control. Only an explicitly authored semantic link participates in resolution and can become either
 navigable or a not-defined shaping gap; Atlas does not infer missing ontology from capitalized prose.
+
+The first authored composition places `Review Discovered Contributors` beneath the
+Workspace-scoped `Manage Contributors` Interaction. The parent preserves the actor's complete
+administration goal while its defined and not-yet-defined children expose the current product
+boundary: contributor review exists, whereas invitation and membership management remain explicit
+shaping gaps. Composition therefore uses ordinary Interaction parenthood rather than introducing a
+separate composite kind.
 
 The plan should remain current until the exemplar renders end to end and the team decides whether
 realization bindings belong in Interaction v1. Runtime execution, UI generation, and Ontahí Durable

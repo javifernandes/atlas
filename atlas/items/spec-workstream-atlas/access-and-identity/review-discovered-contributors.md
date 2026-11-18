@@ -2,7 +2,7 @@
 id: spec-workstream-atlas.access-identity.workspace.review-discovered-contributors
 kind: interaction
 title: Review Discovered Contributors
-parent: spec-workstream-atlas.access-identity.workspace
+parent: spec-workstream-atlas.access-identity.workspace.manage-contributors
 scope:
   entity: AtlasWorkspace
   binding: workspace
