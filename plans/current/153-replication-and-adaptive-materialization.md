@@ -1,4 +1,4 @@
-# 153. Replication and adaptive materialization architecture
+# 153. Replication and incremental derivation architecture
 
 Status: current
 
@@ -11,7 +11,8 @@ other Sources. Entities bind to those Sources by role without making storage str
 domain meaning.
 
 This plan coordinates four narrower plans: the Source/derivation model, durable ChangeSets and
-replica application, adaptive materialization policy, and Atlas editing with Git write-back.
+replica application, incremental Entity derivation/materialization, and Atlas editing with Git
+write-back.
 
 ## Context
 
@@ -27,9 +28,15 @@ history itself. Future editing from Atlas adds an outbound direction without nec
 two equal authorities: Atlas can author a ChangeSet against a source revision and publish it through
 a commit, branch, or Pull Request before normal observation confirms the result.
 
-The architecture should make persistence a policy over reproducible state. A Workspace projection
-may remain hot, cool after inactivity, retain only checkpoints plus ChangeSets, or be evicted and
-rebuilt. Those choices affect cost and latency, not the logical domain state exposed to consumers.
+The immediate architectural pressure is incremental semantic derivation: accepted Source
+ChangeSets should invalidate only affected parsed artifacts and Entities while full rebuilding
+remains the equivalence oracle and repair path. Physical persistence can later become policy over
+reproducible state, but cooling, eviction, and product tiers are not on the current execution path.
+
+The generic mechanism belongs in Ontahí. It should first expose a behavioral Materializer SPI, be
+proved by Atlas and then BookOps, and only then acquire a higher-level declarative API centered on
+Entities. Ontahí research Plan `ontahi://plans/164-derived-models-projections-and-provenance`
+provides the conceptual authority; a narrower executable provider plan still needs to be created.
 
 ## Research / Evidence
 
@@ -50,7 +57,8 @@ rebuilt. Those choices affect cost and latency, not the logical domain state exp
 - Define a flat Source graph with explicit authority, derivation, revision, and Entity binding.
 - Separate Unit of Work, ChangeSet, Source Revision, Projection Revision, and Session semantics.
 - Define which state is canonical, derivable, Atlas-owned, ephemeral, or pending publication.
-- Make materialization and retention policies structural and inspectable.
+- Make incremental derivation, dependency invalidation, and full-equivalence structural and
+  inspectable.
 - Establish an adoption sequence from current one-way Git replication to incremental semantic
   projection and later Atlas editing/write-back.
 - Preserve recovery through full observation whenever an incremental invariant cannot be proven.
@@ -60,8 +68,8 @@ rebuilt. Those choices affect cost and latency, not the logical domain state exp
 - Implement a multi-master CRDT or offline merge engine in the first adoption.
 - Treat every PostgreSQL table, cache entry, or serialized view as a Source.
 - Require Atlas-authored edits to bypass Git review or become an independent hidden authority.
-- Extract a generic Ontahí framework before Atlas proves the contracts through one real adoption.
-- Make commercial tier choices before latency and storage policies have explicit semantics.
+- Stabilize a declarative Ontahí Entity API before Atlas and BookOps prove the behavioral SPI.
+- Implement cooling, eviction, restore tiers, or commercial policy in this execution sequence.
 
 ## Proposed Form
 
@@ -105,7 +113,7 @@ A Unit of Work is an execution/atomicity boundary and may fail without producing
 ChangeSet is the durable description of accepted changes. One Unit of Work should initially target
 one Source; multi-source work remains an explicit coordination problem.
 
-### Materialization independence
+### Derivation and materialization independence
 
 The logical revision is independent from its physical realization:
 
@@ -122,6 +130,12 @@ Consumers ask for a logical revision. Policy decides whether it is already hot, 
 or must be rebuilt from authoritative inputs. Non-derivable Atlas-owned state cannot be evicted
 under a reconstructible-state policy.
 
+Before those physical choices matter, a versioned Materializer should consume an exact Source
+frontier and ChangeSet, reuse unchanged artifacts, invalidate affected semantic dependencies, and
+publish the same logical revision as a full derivation. The behavioral SPI is the foundational
+integration surface; a declarative Entity form may compile to it after multiple consumers expose
+the common subset.
+
 ### Editing without immediate multi-master semantics
 
 An Atlas edit is a principal-attributed Unit of Work against an exact base revision. Its ChangeSet
@@ -132,10 +146,13 @@ confirms the authoritative revision. Revision drift produces an explicit rebase/
 
 1. [x] Execute Plan 154 to settle Source identity, roles, bindings, revisions, and derivation.
 2. [x] Execute Plan 155 to introduce provider-neutral ChangeSets and replica invariants in Atlas.
-3. Execute Plan 156 to declare materialization, retention, eviction, restore, and SLO policy.
-4. Adopt incremental parsed/semantic artifacts in Atlas behind full-rebuild equivalence checks.
+3. Create the Ontahí executable provider plan beneath
+   `ontahi://plans/164-derived-models-projections-and-provenance`, then execute Plan 156 as the Atlas
+   adoption of its runtime kernel and behavioral Materializer SPI.
+4. Adopt incremental parsed/semantic artifacts in Atlas behind full-rebuild equivalence checks and
+   retain atomic Projection Revision publication.
 5. Execute Plan 157 to author and publish Git-backed changes from Atlas.
-6. Evaluate which proven primitives belong in Ontahí after the adoption exposes a stable boundary.
+6. Validate the same SPI in BookOps, then extract the shared declarative Entity API in Ontahí.
 
 ## Verification
 
@@ -144,7 +161,8 @@ confirms the authoritative revision. Revision drift produces an explicit rebase/
 - The model can explain current global reconciliation and source-incremental reconciliation without
   special cases in its vocabulary.
 - Full rebuild and incremental replay produce equivalent logical revisions for a fixed Source set.
-- Materialization eviction cannot delete state lacking a declared reconstruction path.
+- Incremental derivation invalidates all and only affected outputs, or falls back safely to a full
+  rebuild when that set cannot be proven.
 - Editing defines base-revision conflict behavior and attributable publication before implementation.
 - Each implementation PR binds its owning subplan and the smallest durable Atlas model Item.
 
@@ -156,8 +174,10 @@ confirms the authoritative revision. Revision drift produces an explicit rebase/
   projections over those normalized relations.
 - Keep single-authority replication as the first runtime contract while leaving room for outbound
   Atlas authorship.
-- Treat physical persistence as policy when, and only when, the logical state has a proven
-  reconstruction contract.
+- Treat the behavioral Materializer SPI as the foundational generic surface and defer the
+  declarative Entity API until Atlas and BookOps reveal its stable common shape.
+- Treat physical persistence as future policy when, and only when, the logical state has a proven
+  reconstruction contract; do not put cooling or tiers on the immediate path.
 - Represent Source as a portable Ontahí-compatible Entity and canonical receiver. Observation,
   derivation, writing, replay, and reconstruction are composable capabilities.
 
@@ -168,13 +188,16 @@ confirms the authoritative revision. Revision drift produces an explicit rebase/
 2. Does one ChangeSet span multiple Entity records inside one Source, while a Unit of Work
    coordinates multiple ChangeSets across Sources?
 3. Which semantic dependencies can be inferred from parsing, and which must be declared?
-4. What minimum checkpoint is required before a Workspace projection may be evicted safely?
-5. Which policies are product tiers versus internal adaptive decisions?
+4. Which BookOps derivation should serve as the second case before the declarative API stabilizes?
+5. Which parts of derived-model lineage and incremental maintenance belong in the Ontahí kernel,
+   and which remain application Materializer behavior?
 
 ## Closure / Evolution
 
 Shaping. Plan 154 established Source as a portable Entity/receiver with capability-based behavior,
 normalized Entity bindings, stable Source derivations, and exact immutable revision lineage. Plans
 155 then introduced deterministic file ChangeSets, exact base/target revision application,
-idempotent durable history, and snapshot fallback for gaps. Plans 156–157 own the remaining
-materialization and editing checkpoints.
+idempotent durable history, and snapshot fallback for gaps. Plan 156 is now the Atlas adoption of
+an Ontahí-owned incremental derivation kernel/SPI, with BookOps as the second validation case before
+a declarative Entity API. Plan 157 owns the remaining editing checkpoint. Cooling, eviction, and
+tier policy are explicitly deferred.
