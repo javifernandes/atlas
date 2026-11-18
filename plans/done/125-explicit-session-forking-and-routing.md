@@ -182,3 +182,11 @@ Verification passed with 88 default unit/UI tests, 7 PostgreSQL integration test
 ephemeral local `postgres:18-alpine` container, typecheck, the production build and lint pass, 78
 Atlas-owned source traces, `git diff --check`, and a browser smoke check of the addressable Sessions
 workspace with no console warnings or errors.
+
+### 2026-11-18 — fork eligibility aligned with attributed activity
+
+Production dogfooding exposed a drift between the visible Session tree and the fork Operation. The
+tree correctly included Plans introduced after Session creation by attributed Pull Request
+activity, while the Operation admitted only initial roots and their descendants. Fork validation
+now treats initial roots, attributed activity Plans, and current focus as source Session anchors.
+Unrelated Workspace Plans remain ineligible.

@@ -1358,7 +1358,7 @@ Atlas-Session: not-a-session`,
     await expect(
       merge(
         webhook({
-          body: `Atlas-Implements: atlas://plans/117-secondary
+          body: `Atlas-Implements: atlas://plans/116-persistence
 Atlas-Session: ${explicitStreamId}`,
           number: 31,
         }),
@@ -1380,6 +1380,27 @@ Atlas-Session: ${explicitStreamId}`,
     expect(implicitStream?.activities).toEqual([
       expect.objectContaining({ pullRequest: expect.objectContaining({ number: 30 }) }),
     ]);
+
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: owner.user.id } },
+        () =>
+          atlas.application.invokeOperation(
+            atlas.application.graph.entities.AtlasExecutionStream.domain.fork,
+            {
+              sourceStreamId: explicitStreamId,
+              title: 'Persistence continuation',
+              planIds: ['plan:atlas://plans/116-persistence'],
+            },
+          ),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        forkedFromStreamId: explicitStreamId,
+        rootPlanIds: ['plan:atlas://plans/116-persistence'],
+      },
+    });
 
     await expect(
       withInvocationContext(

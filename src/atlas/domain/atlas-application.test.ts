@@ -576,6 +576,11 @@ Status: current
 Parent plan: [Streams](124-streams.md)
 `,
       },
+      {
+        path: 'plans/current/149-interaction-model-v0.md',
+        source: 'atlas',
+        content: '# 149. Interaction Model v0\n\nStatus: current\n',
+      },
     ];
     const userId = '5c388354-c812-469e-b99d-a074ff108263';
     const sourceStreamId = '43bd10df-f2cf-4f05-8f1d-3666f5614771';
@@ -603,7 +608,7 @@ Parent plan: [Streams](124-streams.md)
           mode: 'implicit',
           status: 'open',
           title: 'Streams',
-          currentFocusPlanId: 'plan:atlas://plans/124-streams',
+          currentFocusPlanId: 'plan:atlas://plans/149-interaction-model-v0',
           forkedFromStreamId: null,
           openedAt: timestamp,
           closedAt: null,
@@ -752,6 +757,28 @@ Parent plan: [Streams](124-streams.md)
         }),
       ]),
     );
+
+    await expect(
+      withInvocationContext(
+        { principal: { issuer: 'atlas', kind: 'user', subject: userId } },
+        () =>
+          atlas.application.invokeOperation(
+            entities.AtlasExecutionStream.domain.fork,
+            {
+              sourceStreamId,
+              title: 'Interaction Model',
+              planIds: ['plan:atlas://plans/149-interaction-model-v0'],
+            },
+          ),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        forkedFromStreamId: sourceStreamId,
+        rootPlanIds: ['plan:atlas://plans/149-interaction-model-v0'],
+        title: 'Interaction Model',
+      },
+    });
 
     await withInvocationContext(
       { principal: { issuer: 'atlas', kind: 'user', subject: userId } },

@@ -175,13 +175,13 @@ export const resolveExecutionStreamActivityTarget = <
 export const resolveExecutionStreamForkPlans = <TPlan extends ExecutionStreamPlanNode>(input: {
   plans: readonly TPlan[];
   selectedPlanIds: readonly string[];
-  sourceRootPlanIds: readonly string[];
+  sourcePlanIds: readonly string[];
 }): [TPlan, ...TPlan[]] | null => {
   const plansById = new Map(input.plans.map(plan => [plan.id, plan] as const));
-  const sourceRootPlanIds = new Set(input.sourceRootPlanIds);
+  const sourcePlanIds = new Set(input.sourcePlanIds);
   const selectedPlanIds = [...new Set(input.selectedPlanIds)];
 
-  if (selectedPlanIds.length === 0 || sourceRootPlanIds.size === 0) {
+  if (selectedPlanIds.length === 0 || sourcePlanIds.size === 0) {
     return null;
   }
 
@@ -196,7 +196,7 @@ export const resolveExecutionStreamForkPlans = <TPlan extends ExecutionStreamPla
     const visited = new Set<string>();
 
     while (current && !visited.has(current.id)) {
-      if (sourceRootPlanIds.has(current.id)) {
+      if (sourcePlanIds.has(current.id)) {
         return [plan];
       }
 
