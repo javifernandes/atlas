@@ -47,8 +47,10 @@ Workspace contributor administration is composed under
 first defined child is
 [[spec-workstream-atlas.access-identity.workspace.review-discovered-contributors|Review Discovered Contributors]],
 which preserves the owner's contributor-review goal independently of its current Settings
-realization. Invitation and membership-management children remain explicit shaping gaps until
-their actor-facing contracts are defined.
+realization. [[spec-workstream-atlas.access-identity.workspace.invite-person-to-workspace|Invite Person To Workspace]]
+now defines how an owner addresses a pending invitation without granting Membership. Recipient
+response and membership management remain explicit shaping gaps until their actor-facing contracts
+are defined.
 
 ## Evolution
 
