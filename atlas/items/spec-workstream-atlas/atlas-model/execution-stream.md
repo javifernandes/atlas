@@ -36,6 +36,11 @@ retains one primary Plan as focus and activity. Activities remain append-only ob
 than one synthetic activity per target. Roots, lineage, and focus are navigation state scoped to
 the Stream; they neither own the referenced Plans nor mutate Plan lifecycle.
 
+The source tree eligible for a later fork includes both declared roots and Plans actually touched
+by attributed activity. Current focus is also an eligible anchor because it is the durable summary
+of the latest attributed Plan. This keeps fork selection aligned with the Session tree while still
+rejecting unrelated Plans from the surrounding Workspace snapshot.
+
 GitHub activity is attributable only when the event's stable provider account ID resolves through
 an `AtlasAuthAccount` to an `AtlasUser`. Login, email, and display name are presentation attributes,
 not identity keys. A Pull Request without an attributable User or resolved Plan evidence remains in

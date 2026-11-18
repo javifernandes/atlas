@@ -403,7 +403,9 @@ const EvidenceBindingRef = entity.ref('EvidenceBinding');
 const AtlasExecutionStreamRef = entity.ref('AtlasExecutionStream', {
   fields: atlasExecutionStreamFields,
 });
-const AtlasExecutionStreamActivityRef = entity.ref('AtlasExecutionStreamActivity');
+const AtlasExecutionStreamActivityRef = entity.ref('AtlasExecutionStreamActivity', {
+  fields: atlasExecutionStreamActivityFields,
+});
 const AtlasExecutionStreamRootRef = entity.ref('AtlasExecutionStreamRoot', {
   fields: atlasExecutionStreamRootFields,
 });
@@ -462,6 +464,7 @@ export const AtlasExecutionStream = entity({
   uses: {
     entities: {
       AtlasPlan,
+      AtlasExecutionStreamActivity: AtlasExecutionStreamActivityRef,
       AtlasExecutionStreamRoot: AtlasExecutionStreamRootRef,
     },
   },
@@ -575,16 +578,25 @@ export const AtlasExecutionStream = entity({
           );
         }
 
-        const [sourceRoots, plans] = yield* Effect.all([
+        const [sourceRoots, sourceActivities, plans] = yield* Effect.all([
           entities.AtlasExecutionStreamRoot.where(root =>
             root.streamId.eq(sourceStream.id),
+          ).run(),
+          entities.AtlasExecutionStreamActivity.where(activity =>
+            activity.streamId.eq(sourceStream.id),
           ).run(),
           entities.AtlasPlan.all().run(),
         ]);
         const forkPlans = resolveExecutionStreamForkPlans({
           plans,
           selectedPlanIds: planIds,
-          sourceRootPlanIds: sourceRoots.map(root => root.planId),
+          sourcePlanIds: [
+            ...sourceRoots.map(root => root.planId),
+            ...sourceActivities.flatMap(activity =>
+              activity.planId ? [activity.planId] : [],
+            ),
+            ...(sourceStream.currentFocusPlanId ? [sourceStream.currentFocusPlanId] : []),
+          ],
         });
 
         if (!forkPlans) {

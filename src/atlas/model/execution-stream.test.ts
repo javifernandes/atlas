@@ -140,7 +140,7 @@ describe('resolveExecutionStreamForkPlans', () => {
           'plan:relations',
           'plan:runtime-child',
         ],
-        sourceRootPlanIds: ['plan:runtime', 'plan:relations'],
+        sourcePlanIds: ['plan:runtime', 'plan:relations'],
       }),
     ).toEqual([plans[1], plans[2]]);
   });
@@ -150,16 +150,26 @@ describe('resolveExecutionStreamForkPlans', () => {
       resolveExecutionStreamForkPlans({
         plans,
         selectedPlanIds: [],
-        sourceRootPlanIds: ['plan:runtime'],
+        sourcePlanIds: ['plan:runtime'],
       }),
     ).toBeNull();
     expect(
       resolveExecutionStreamForkPlans({
         plans,
         selectedPlanIds: ['plan:relations-child'],
-        sourceRootPlanIds: ['plan:runtime'],
+        sourcePlanIds: ['plan:runtime'],
       }),
     ).toBeNull();
+  });
+
+  it('allows a Plan touched by source Session activity to become a fork root', () => {
+    expect(
+      resolveExecutionStreamForkPlans({
+        plans,
+        selectedPlanIds: ['plan:relations-child'],
+        sourcePlanIds: ['plan:runtime', 'plan:relations-child'],
+      }),
+    ).toEqual([plans[3]]);
   });
 });
 
