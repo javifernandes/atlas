@@ -61,7 +61,7 @@ export type InteractionItemModel = {
     resolution?: 'resolved' | 'unresolved';
     targetNodeId?: string;
   }>;
-  affordances: Array<InteractionReference & { affordanceKind: string }>;
+  affordances: Array<InteractionReference & { affordanceKind: string; target?: string }>;
   steps: Array<InteractionReference & { stepKind: string }>;
   outcomes: Array<{
     outcome: string;

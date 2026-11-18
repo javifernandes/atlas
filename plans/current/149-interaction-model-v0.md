@@ -186,7 +186,7 @@ Decide which observed contributors should receive explicit Workspace access.
 | Observed contributor | contributor participation projection        |
 | Evidence summary     | registered Sources and merged Pull Requests |
 | Identity status      | linked External Identity and Atlas User     |
-| Access status        | [[spec-workstream-atlas.access-identity.workspace\|Workspace access]] |
+| Access status        | [Workspace access](spec-workstream-atlas.access-identity.workspace)    |
 
 ## Affordances
 
@@ -381,6 +381,11 @@ The exemplar also proves unresolved semantic references as useful project eviden
 and membership affordances now target the intended child Interactions before those Items exist;
 Atlas renders them as not-defined shaping gaps while keeping the Workspace presentation reference
 navigable. Missing workflow pieces therefore remain explicit without manufacturing empty ontology.
+
+The affordance presentation distinguishes the actor-facing action from its semantic target. An
+unlinked target such as `Observed Contributor` remains descriptive context and is not styled as a
+control. Only an explicitly authored semantic link participates in resolution and can become either
+navigable or a not-defined shaping gap; Atlas does not infer missing ontology from capitalized prose.
 
 The plan should remain current until the exemplar renders end to end and the team decides whether
 realization bindings belong in Interaction v1. Runtime execution, UI generation, and Ontahí Durable

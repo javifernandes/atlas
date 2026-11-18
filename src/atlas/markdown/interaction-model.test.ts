@@ -38,7 +38,12 @@ Review observed contributors.
     expect(model).toMatchObject({
       actors: [{ actor: 'Owner', participation: 'Reviews access' }],
       affordances: [
-        { affordanceKind: 'opens', label: 'Invite', reference: 'workspace.invite-person' },
+        {
+          affordanceKind: 'opens',
+          label: 'Invite',
+          reference: 'workspace.invite-person',
+          target: 'Invite person',
+        },
       ],
       goal: 'Review observed contributors.',
       outcomes: [{ continuesWith: './invite.md', outcome: 'Selected' }],

@@ -36,6 +36,7 @@ export const parseInteractionModel = (
   affordances: tableRows(markdown, 'Affordances', false).map(row => ({
     label: label(row.affordance ?? ''),
     affordanceKind: text(row.kind ?? ''),
+    target: label(row.target ?? ''),
     reference: markdownReference(row.target ?? ''),
   })),
   steps: tableRows(markdown, 'Steps', false).map(row => ({
