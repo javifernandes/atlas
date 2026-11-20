@@ -12,6 +12,11 @@ const label = (value: string) => {
     .replace(/^\[`([^`]*)`\]\([^)]+\)$/, '$1')
     .replace(/^\[([^\]]+)\]\([^)]+\)$/, '$1');
 };
+const labels = (value: string) =>
+  text(value)
+    .split(',')
+    .map(item => label(item))
+    .filter(Boolean);
 
 export const parseInteractionModel = (
   markdown: string,
@@ -31,22 +36,37 @@ export const parseInteractionModel = (
   presents: tableRows(markdown, 'Presents', false).map(row => ({
     information: label(row.information ?? ''),
     source: label(row.source ?? ''),
+    atStep: label(row.step ?? '') || undefined,
     reference: markdownReference(row.source ?? ''),
   })),
   affordances: tableRows(markdown, 'Affordances', false).map(row => ({
     label: label(row.affordance ?? ''),
     affordanceKind: text(row.kind ?? ''),
+    atStep: label(row.step ?? '') || undefined,
     target: label(row.target ?? ''),
     reference: markdownReference(row.target ?? ''),
   })),
-  steps: tableRows(markdown, 'Steps', false).map(row => ({
-    label: label(row.step ?? ''),
-    stepKind: text(row.kind ?? ''),
-    reference: markdownReference(row.target ?? ''),
-  })),
+  steps: tableRows(markdown, 'Steps', false).map(row => {
+    const actorAction = label(row['actor interaction'] ?? '');
+    const externalSystems = label(row['external systems'] ?? '');
+    const rules = label(row['rules and validation'] ?? '');
+    const systemBehavior = label(row['system behavior'] ?? '');
+
+    return {
+      ...(actorAction ? { actorAction } : {}),
+      ...(externalSystems ? { externalSystems } : {}),
+      label: label(row.step ?? ''),
+      stepKind: text(row.kind ?? ''),
+      next: labels(row.next ?? ''),
+      reference: markdownReference(row.target ?? ''),
+      ...(rules ? { rules } : {}),
+      ...(systemBehavior ? { systemBehavior } : {}),
+    };
+  }),
   outcomes: tableRows(markdown, 'Outcomes', false).map(row => ({
     outcome: label(row.outcome ?? ''),
     meaning: label(row.meaning ?? ''),
+    fromStep: label(row.from ?? '') || undefined,
     continuesWith: markdownReference(row['continues with'] ?? ''),
   })),
 });

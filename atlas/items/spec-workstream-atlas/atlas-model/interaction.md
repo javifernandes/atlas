@@ -96,6 +96,22 @@ authoritative Markdown. A single-field section such as Context remains a valid o
 that source and in the generic Markdown fallback; presentation must not require incidental extra
 columns to recognize its structure.
 
+## Projection Lenses
+
+One Interaction semantic projection may support several coordinated lenses without changing the
+authoritative source. The default Graph lens emphasizes the actor path through moments, contextual
+forks, decisions, and outcomes. The Blueprint lens aligns the same moments with actor interaction,
+system behavior, rules and validation, and external systems. Selecting a moment in either lens
+opens the same inspector for Presents, Affordances, Operations, alternative exits, actor, and
+supporting responsibilities.
+
+A later Play lens may generate a navigable default realization to validate the model. That
+traversal remains experimental rather than prescribing the product's final screen design.
+
+Graph is the primary Interaction experience. Blueprint and Anatomy are provisional comparison
+lenses rather than equal product modes: concrete Interaction cases should determine whether their
+distinct information remains separate or is absorbed into Graph and its inspector.
+
 ## Implementation Boundary
 
 Interaction is not executable framework code, a React component hierarchy, or a route map. Ontahí

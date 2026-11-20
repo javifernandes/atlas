@@ -41,37 +41,36 @@ after proving the identity required by its addressing path.
 
 ## Presents
 
-| Information              | Source                                                        |
-| ------------------------ | ------------------------------------------------------------- |
-| Inviting Workspace       | Workspace invitation                                          |
-| Inviting owner           | invitation provenance and active owner Membership             |
-| Proposed role            | Workspace invitation intent                                   |
-| Addressing path          | known User, observed provider identity, or verified email     |
-| Required identity proof  | claim policy selected when the invitation was created         |
-| Expiry and current status | Workspace invitation lifecycle                               |
-| Current claim state      | unclaimed, claimed by current User, or incompatible claimant  |
+| Information               | Source                                                       | Step                         |
+| ------------------------- | ------------------------------------------------------------ | ---------------------------- |
+| Inviting Workspace        | Workspace invitation                                         | Inspect invitation           |
+| Inviting owner            | invitation provenance and active owner Membership            | Inspect invitation           |
+| Proposed role             | Workspace invitation intent                                  | Inspect invitation           |
+| Expiry and current status | Workspace invitation lifecycle                               | Inspect invitation           |
+| Addressing path           | known User, observed provider identity, or verified email    | Known User identity          |
+| Required identity proof   | claim policy selected when the invitation was created        | Known User identity          |
+| Current claim state       | unclaimed, claimed by current User, or incompatible claimant | Accept or decline invitation |
 
 ## Affordances
 
-| Affordance                 | Kind     | Target                                                                                                          |
-| -------------------------- | -------- | --------------------------------------------------------------------------------------------------------------- |
-| Sign in or switch account  | stimulus | authentication ingress                                                                                          |
-| Prove required identity    | stimulus | account linking or invitation-secret ingress                                                                    |
-| Claim invitation           | invokes  | [[spec-workstream-atlas.access-identity.workspace.invitation.claim\|Claim Workspace Invitation]]                |
-| Accept invitation          | invokes  | [[spec-workstream-atlas.access-identity.workspace.invitation.accept\|Accept Workspace Invitation]]              |
-| Decline invitation         | invokes  | [[spec-workstream-atlas.access-identity.workspace.invitation.decline\|Decline Workspace Invitation]]            |
+| Affordance                | Kind     | Target                                                                                               | Step                         |
+| ------------------------- | -------- | ---------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Sign in or switch account | stimulus | authentication ingress                                                                               | Known User identity          |
+| Prove GitHub identity     | stimulus | account-linking ingress                                                                               | GitHub identity              |
+| Prove invitation secret   | stimulus | invitation-secret ingress                                                                             | Verified email               |
+| Claim invitation          | invokes  | [[spec-workstream-atlas.access-identity.workspace.invitation.claim\|Claim Workspace Invitation]]     | Accept or decline invitation |
+| Accept invitation         | invokes  | [[spec-workstream-atlas.access-identity.workspace.invitation.accept\|Accept Workspace Invitation]]   | Accept or decline invitation |
+| Decline invitation        | invokes  | [[spec-workstream-atlas.access-identity.workspace.invitation.decline\|Decline Workspace Invitation]] | Accept or decline invitation |
 
 ## Steps
 
-| Step                               | Kind     | Target                                                                                                        |
-| ---------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
-| Inspect invitation                 | presents | Workspace invitation intent and lifecycle                                                                    |
-| Authenticate as an Atlas User      | stimulus | authentication ingress                                                                                        |
-| Prove the addressed identity       | stimulus | User identity, linked provider identity, or invitation secret                                                |
-| Bind invitation claim              | invokes  | [[spec-workstream-atlas.access-identity.workspace.invitation.claim\|Claim Workspace Invitation]]             |
-| Accept or decline                  | branch   | recipient choice                                                                                              |
-| Grant accepted access              | invokes  | [[spec-workstream-atlas.access-identity.workspace.invitation.accept\|Accept Workspace Invitation]]           |
-| Close declined invitation          | invokes  | [[spec-workstream-atlas.access-identity.workspace.invitation.decline\|Decline Workspace Invitation]]         |
+| Step                         | Kind     | Target                                     | Next                                                  | Actor interaction                          | System behavior                                      | Rules and validation                                  | External systems       |
+| ---------------------------- | -------- | ------------------------------------------ | ----------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------- | ----------------------------------------------------- | ---------------------- |
+| Inspect invitation           | presents | Workspace invitation intent and lifecycle | Known User identity, GitHub identity, Verified email | Recognize who invites, where, and with what access | Resolve invitation provenance and lifecycle          | Invitation is active, pending, and unexpired          |                        |
+| Known User identity          | context  | authenticated Atlas User                   | Accept or decline invitation                         | Confirm the currently authenticated account | Match the authenticated User ID                       | Current User equals the invitation target             | authentication ingress |
+| GitHub identity              | context  | linked provider identity                   | Accept or decline invitation                         | Prove control of the addressed GitHub identity | Verify provider and stable provider account ID        | Provider identity links to exactly one Atlas User     | GitHub authentication  |
+| Verified email               | context  | invitation secret                          | Accept or decline invitation                         | Sign in or create an Atlas account          | Verify the signed invitation secret and bind the User | Secret is valid and does not silently merge accounts  | email and authentication ingress |
+| Accept or decline invitation | branch   | recipient choice                           |                                                       | Choose whether to join the Workspace        | Claim the invitation, then apply the chosen response  | Invitation remains pending and claimed by this User   |                        |
 
 ## Identity Proof Paths
 
@@ -99,13 +98,13 @@ are lifecycle changes that this Interaction observes rather than recipient affor
 
 ## Outcomes
 
-| Outcome                    | Meaning                                                                    | Continues With                                                       |
-| -------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Invitation accepted        | Membership is active with the invited role                                 |                                                                      |
-| Invitation declined        | Invitation is closed and no Membership is created                          |                                                                      |
-| Invitation unavailable     | Invitation expired, was revoked, or no longer satisfies Workspace policy   |                                                                      |
-| Identity proof refused     | Current User cannot claim the addressed invitation                         |                                                                      |
-| Response abandoned         | Invitation remains pending until another lifecycle transition              |                                                                      |
+| Outcome                | Meaning                                                                  | From                         | Continues With |
+| ---------------------- | ------------------------------------------------------------------------ | ---------------------------- | -------------- |
+| Invitation accepted    | Membership is active with the invited role                               | Accept or decline invitation |                |
+| Invitation declined    | Invitation is closed and no Membership is created                        | Accept or decline invitation |                |
+| Invitation unavailable | Invitation expired, was revoked, or no longer satisfies Workspace policy | Inspect invitation           |                |
+| Identity proof refused | Current User cannot claim the addressed invitation                       |                              |                |
+| Response abandoned     | Invitation remains pending until another lifecycle transition            |                              |                |
 
 The invitation link, email click, OAuth callback, and sign-in form are stimuli or realization
 details. They may carry the actor into this Interaction, but they are not substitutes for claim or

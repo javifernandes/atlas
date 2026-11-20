@@ -2,7 +2,7 @@ import { buildPlanWorkstreamSnapshotFromFiles } from '../markdown/build-snapshot
 import type { AtlasExecutionStreamProjection } from '../model/execution-stream';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import { withAtlasPostgresQueryContext } from '../persistence/postgres-observability';
-import { getAtlasServerApplication } from './atlas-composition';
+import { getAtlasServerApplication, resolveAtlasStorageMode } from './atlas-composition';
 
 export type AtlasPageData = {
   executionStreams: AtlasExecutionStreamProjection[];
@@ -39,7 +39,7 @@ export const getAtlasPageData = async (
     },
     async () => {
       const atlas = await getAtlasServerApplication();
-      const [snapshot, executionStreams] = await Promise.all([
+      const [workspaceSnapshot, executionStreams] = await Promise.all([
         workspaceId && 'getWorkspacePageProjectionSnapshot' in atlas
           ? atlas.getWorkspacePageProjectionSnapshot(workspaceId)
           : workspaceId && 'getWorkspaceProjectionSnapshot' in atlas
@@ -57,6 +57,11 @@ export const getAtlasPageData = async (
             : atlas.getExecutionStreams(userId)
           : Promise.resolve([]),
       ]);
+
+      const snapshot =
+        workspaceId && resolveAtlasStorageMode() === 'memory' && 'getProjectionSnapshot' in atlas
+          ? await atlas.getProjectionSnapshot()
+          : workspaceSnapshot;
 
       return snapshot
         ? { executionStreams, snapshot }
