@@ -24,6 +24,7 @@ import type {
 } from '../model/snapshot';
 import { isAtlasItemKind, type AtlasItemKind } from '../model/item-kind';
 import type { InteractionItemModel, InteractionReference } from '../model/item-kind';
+import { resolveActivityGraphReferences } from '../model/activity-graph-resolution';
 import { parseItemKindModel } from './item-kind-definitions';
 
 type PlanMarkdownFile = NormalizedAtlasSourceRecord;
@@ -950,8 +951,18 @@ const buildSemanticSnapshotFromFiles = (
   };
   const resolvedAtlasItems = atlasItems.map(item => {
     if (item.itemModel?.kind !== 'interaction') return item;
+    const activity = item.itemModel.activity
+      ? resolveActivityGraphReferences(item.itemModel.activity, reference => {
+          const resolved = resolveInteractionReference(item, {
+            label: reference.label ?? reference.reference,
+            reference: reference.reference,
+          });
+          return { targetNodeId: resolved.targetNodeId };
+        }).graph
+      : undefined;
     const model: InteractionItemModel = {
       ...item.itemModel,
+      ...(activity ? { activity } : {}),
       affordances: item.itemModel.affordances.map(reference =>
         resolveInteractionReference(item, reference),
       ),

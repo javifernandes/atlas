@@ -448,6 +448,82 @@ const selection: Selection = Selection.references(Book, refs);
     expect(screen.queryByText('Raw goal that should be represented by the model.')).not.toBeInTheDocument();
   });
 
+  it('renders a resolved semantic Activity Graph and inspects its local nodes', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=respond-invitation');
+    const user = userEvent.setup();
+    const interactionNode = {
+      ...createNode('respond-invitation', {
+        kind: 'interaction',
+        markdown: 'Semantic activity source.',
+        semanticId: 'atlas.workspace.respond-invitation',
+        shortTitle: 'Respond To Invitation',
+      }),
+      itemModel: {
+        kind: 'interaction' as const,
+        scope: { entity: 'WorkspaceInvitation', binding: 'invitation' },
+        goal: 'Respond deliberately.',
+        actors: [],
+        context: [],
+        presents: [],
+        affordances: [],
+        steps: [],
+        outcomes: [],
+        activity: {
+          entry: 'open',
+          nodes: [
+            {
+              id: 'open',
+              kind: 'stimulus' as const,
+              label: 'Open invitation URL',
+              responsibility: 'external' as const,
+              reads: [],
+              presents: [],
+            },
+            {
+              id: 'claim',
+              kind: 'operation' as const,
+              label: 'Claim invitation',
+              responsibility: 'system' as const,
+              reads: [],
+              presents: [],
+              reference: {
+                label: 'Claim Invitation Operation',
+                reference: 'item-a',
+                resolution: 'resolved' as const,
+                targetNodeId: 'item-a',
+              },
+            },
+            {
+              id: 'accepted',
+              kind: 'outcome' as const,
+              label: 'Invitation accepted',
+              reads: [],
+              presents: [],
+            },
+          ],
+          transitions: [
+            { affordance: 'Continue', from: 'open', to: 'claim' },
+            { from: 'claim', result: 'Membership is active', to: 'accepted' },
+          ],
+        },
+      },
+    };
+
+    renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, interactionNode] } });
+
+    const details = screen.getByRole('region', { name: 'Interaction details' });
+    expect(within(details).getAllByText('Open invitation URL')).not.toHaveLength(0);
+    expect(within(details).getAllByText('Continue')).not.toHaveLength(0);
+    expect(within(details).getAllByText('Invitation accepted')).not.toHaveLength(0);
+
+    await user.click(within(details).getAllByRole('button', { name: /Claim invitation/ })[1]!);
+
+    const inspector = screen.getByRole('region', { name: 'Activity node details' });
+    expect(within(inspector).getByText('Semantic target')).toBeInTheDocument();
+    expect(within(inspector).getByRole('button', { name: /Claim Invitation Operation/ })).toBeInTheDocument();
+    expect(within(inspector).getByText('Membership is active')).toBeInTheDocument();
+  });
+
   it('renders a one-column Markdown table as a table', () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=single-column-table');
     const node = createNode('single-column-table', {

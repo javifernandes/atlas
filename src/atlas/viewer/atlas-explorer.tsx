@@ -69,6 +69,11 @@ import {
   type InteractionLensStep,
 } from '@/atlas/viewer/interaction-lens';
 import {
+  buildActivityGraphLensProjection,
+  type ActivityGraphLensProjection,
+  type ActivityGraphLensNode,
+} from '@/atlas/viewer/activity-graph-lens';
+import {
   getItemKindPresentation,
   getItemKindSectionPresentation,
 } from '@/atlas/viewer/item-kind-presentations';
@@ -2458,6 +2463,158 @@ const InteractionStepInspector = ({
   </section>
 );
 
+const activityTransitionLabel = (transition: ActivityGraphLensNode['outgoing'][number]) =>
+  transition.affordance ?? transition.guard ?? transition.trigger ?? transition.result;
+
+const ActivityNodeInspector = ({
+  context,
+  node,
+  nodes,
+}: {
+  context: MarkdownRenderContext;
+  node: ActivityGraphLensNode;
+  nodes: ActivityGraphLensNode[];
+}) => {
+  const nodesById = new Map(nodes.map(item => [item.id, item]));
+  const references = [...node.reads, ...node.presents];
+
+  return (
+    <section
+      aria-label='Activity node details'
+      className='grid gap-6 border-t border-border/45 pt-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]'
+    >
+      <div>
+        <div className='font-mono text-[10px] uppercase tracking-[0.14em] text-primary'>
+          {node.kind} · activity node
+        </div>
+        <h3 className='mt-2 text-xl font-medium text-foreground'>{node.label}</h3>
+        <div className='mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground'>
+          {node.actor ? <span className='rounded-full border border-border/60 px-2.5 py-1'>Actor · {node.actor}</span> : null}
+          {node.responsibility ? <span className='rounded-full border border-border/60 px-2.5 py-1'>Responsibility · {node.responsibility}</span> : null}
+          {node.isEntry ? <span className='rounded-full border border-primary/30 bg-primary/[0.06] px-2.5 py-1 text-primary'>Entry</span> : null}
+        </div>
+        {node.reference ? (
+          <div className='mt-5'>
+            <div className='font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground'>Semantic target</div>
+            <div className='mt-2 text-sm'>
+              <InteractionReferenceButton
+                context={context}
+                label={node.reference.label ?? node.label}
+                reference={node.reference.reference}
+                resolution={node.reference.resolution}
+                targetNodeId={node.reference.targetNodeId}
+              />
+            </div>
+          </div>
+        ) : null}
+        {references.length > 0 ? (
+          <div className='mt-5 grid gap-4 sm:grid-cols-2'>
+            {[
+              ['Reads', node.reads],
+              ['Presents', node.presents],
+            ].map(([label, items]) => (
+              <div key={label as string}>
+                <div className='font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground'>{label as string}</div>
+                <div className='mt-2 grid gap-2 text-sm'>
+                  {(items as typeof node.reads).map(reference => (
+                    <InteractionReferenceButton
+                      context={context}
+                      key={reference.reference}
+                      label={reference.label ?? reference.reference}
+                      reference={reference.reference}
+                      resolution={reference.resolution}
+                      targetNodeId={reference.targetNodeId}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className='grid content-start gap-5 border-l border-border/45 pl-5'>
+        {[
+          ['Arrives through', node.incoming, 'from'],
+          ['Continues through', node.outgoing, 'to'],
+        ].map(([label, transitions, endpoint]) => (
+          <div key={label as string}>
+            <div className='font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground'>{label as string}</div>
+            <div className='mt-2 grid gap-2'>
+              {(transitions as typeof node.outgoing).map((transition, index) => {
+                const targetId = transition[endpoint as 'from' | 'to'];
+                return (
+                  <div className='rounded-lg bg-muted/15 px-3 py-2 text-xs' key={`${transition.from}-${transition.to}-${index}`}>
+                    <div className='font-medium text-foreground'>{nodesById.get(targetId)?.label ?? targetId}</div>
+                    {activityTransitionLabel(transition) ? <div className='mt-1 text-muted-foreground'>{activityTransitionLabel(transition)}</div> : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
+
+const InteractionActivityGraphLens = ({
+  onSelect,
+  projection,
+  selectedNodeId,
+}: {
+  onSelect: (nodeId: string) => void;
+  projection: ActivityGraphLensProjection;
+  selectedNodeId: string;
+}) => {
+  const backTransitions = new Set(projection.backTransitions);
+  const nodesById = new Map(projection.nodes.map(node => [node.id, node]));
+
+  return (
+    <div className='overflow-x-auto pb-2'>
+      <div className='flex min-w-max items-stretch gap-3 py-4'>
+        {projection.columns.map((column, columnIndex) => (
+          <Fragment key={column.id}>
+            <div className='flex w-64 shrink-0 flex-col justify-center gap-3'>
+              {column.nodes.map(node => (
+                <button
+                  className={cn(
+                    'rounded-xl border px-4 py-3 text-left transition-colors',
+                    selectedNodeId === node.id
+                      ? 'border-primary/55 bg-primary/[0.07] shadow-[inset_3px_0_0_hsl(var(--primary))]'
+                      : node.kind === 'outcome'
+                        ? 'border-emerald-400/20 bg-emerald-400/[0.04] hover:border-emerald-400/35'
+                        : 'border-border/55 bg-muted/[0.07] hover:border-border',
+                  )}
+                  key={node.id}
+                  onClick={() => onSelect(node.id)}
+                  type='button'
+                >
+                  <span className='flex items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-[0.12em] text-primary'>
+                    {node.kind}
+                    {node.responsibility ? <span className='text-muted-foreground'>{node.responsibility}</span> : null}
+                  </span>
+                  <span className='mt-1 block text-sm font-medium text-foreground'>{node.label}</span>
+                  {node.outgoing.length > 0 ? (
+                    <span className='mt-3 grid gap-1.5 border-t border-border/35 pt-2'>
+                      {node.outgoing.map((transition, index) => (
+                        <span className='flex items-start gap-1.5 text-[10px] leading-relaxed text-muted-foreground' key={`${transition.from}-${transition.to}-${index}`}>
+                          {backTransitions.has(transition) ? <RotateCcw className='mt-0.5 size-3 shrink-0 text-primary/65' /> : <ArrowRight className='mt-0.5 size-3 shrink-0 text-primary/65' />}
+                          <span><span className='text-foreground/75'>{nodesById.get(transition.to)?.label ?? transition.to}</span>{activityTransitionLabel(transition) ? ` · ${activityTransitionLabel(transition)}` : ''}</span>
+                        </span>
+                      ))}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+            {columnIndex < projection.columns.length - 1 ? <div className='flex w-5 shrink-0 items-center justify-center text-primary/35'><ArrowRight className='size-4' /></div> : null}
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const InteractionGraphLens = ({
   model,
   onSelect,
@@ -2541,19 +2698,34 @@ const InteractionBlueprintLens = ({
 
 const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) => {
   const model = getInteractionItemModel(context.sourceNode);
-  const hasFlow = Boolean(model?.steps.some(step => step.next.length > 0));
+  const activityProjection = useMemo(
+    () => (model?.activity ? buildActivityGraphLensProjection(model.activity) : undefined),
+    [model?.activity],
+  );
+  const hasActivity = Boolean(model?.activity);
+  const hasLegacyFlow = Boolean(model?.steps.some(step => step.next.length > 0));
+  const hasFlow = hasActivity || hasLegacyFlow;
   const [view, setView] = useState<'anatomy' | 'blueprint' | 'graph'>(hasFlow ? 'graph' : 'anatomy');
+  const [selectedActivityNodeId, setSelectedActivityNodeId] = useState(model?.activity?.entry ?? '');
   const [selectedStep, setSelectedStep] = useState(model?.steps[0]?.label ?? '');
 
   if (!model) return null;
   const selected = model.steps.find(step => step.label === selectedStep) ?? model.steps[0];
+  const selectedActivityNode =
+    activityProjection?.nodes.find(node => node.id === selectedActivityNodeId) ??
+    activityProjection?.nodes[0];
+  const viewOptions = [
+    ...(hasFlow ? (['graph'] as const) : []),
+    ...(hasLegacyFlow ? (['blueprint'] as const) : []),
+    'anatomy' as const,
+  ];
 
   return (
     <section aria-label='Interaction details' className='grid gap-6'>
       {hasFlow ? (
         <div className='flex justify-end'>
           <div className='inline-flex rounded-xl border border-border/55 bg-muted/10 p-1'>
-            {(['graph', 'blueprint', 'anatomy'] as const).map(option => (
+            {viewOptions.map(option => (
               <button className={cn('rounded-lg px-3 py-1.5 text-xs font-medium transition-colors', view === option ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:text-foreground')} key={option} onClick={() => setView(option)} type='button'>
                 {option === 'graph' ? 'Graph' : option === 'blueprint' ? 'Blueprint' : 'Anatomy'}
               </button>
@@ -2561,10 +2733,13 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
           </div>
         </div>
       ) : null}
-      {view === 'graph' && hasFlow ? <InteractionGraphLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /> : null}
+      {view === 'graph' && activityProjection ? <InteractionActivityGraphLens onSelect={setSelectedActivityNodeId} projection={activityProjection} selectedNodeId={selectedActivityNodeId} /> : null}
+      {view === 'graph' && !model.activity && hasFlow ? <InteractionGraphLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /> : null}
       {view === 'blueprint' && hasFlow ? <InteractionBlueprintLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /> : null}
       {view === 'anatomy' || !hasFlow ? <InteractionAnatomy context={context} /> : null}
-      {view !== 'anatomy' && selected ? <InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /> : null}
+      {view === 'graph' && activityProjection && selectedActivityNode ? <ActivityNodeInspector context={context} node={selectedActivityNode} nodes={activityProjection.nodes} /> : null}
+      {view === 'blueprint' && selected ? <InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /> : null}
+      {view === 'graph' && !model.activity && selected ? <InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /> : null}
     </section>
   );
 };

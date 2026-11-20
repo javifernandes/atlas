@@ -148,6 +148,14 @@ React, Mermaid, or layout coordinates. Parsing does not resolve Atlas references
 does not parse authoring syntax. React renders projections rather than inferring behavior from
 labels.
 
+Reference resolution runs only after Atlas knows the complete source snapshot. It resolves
+absolute semantic IDs and source-relative references with the same rules as the rest of an
+Interaction, preserving unresolved targets as shaping pressure. The Activity Graph lens then adds
+presentation adjacency, back-transition detection, and derived columns without mutating authored
+nodes or introducing layout coordinates into the durable model. Selecting a local node reveals its
+responsibility, reads, presentations, semantic target, and transitions while remaining inside the
+owning Interaction.
+
 ## Implementation Boundary
 
 Interaction is not executable framework code, a React component hierarchy, or a route map. Ontahí
