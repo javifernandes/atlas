@@ -473,11 +473,11 @@ later compact language, visual editor, or Mermaid importer must compile to the s
 
 ### Slice 5 — semantic Activity Graph
 
-- [ ] Define pure Activity Graph types in the model layer without Markdown, YAML, React, Mermaid, or
+- [x] Define pure Activity Graph types in the model layer without Markdown, YAML, React, Mermaid, or
       layout dependencies.
-- [ ] Parse an optional fenced YAML activity block through the existing `yaml` dependency in a
+- [x] Parse an optional fenced YAML activity block through the existing `yaml` dependency in a
       dedicated Markdown adapter; do not hand-parse YAML.
-- [ ] Keep the existing Interaction tables compatible while the activity block is optional and the
+- [x] Keep the existing Interaction tables compatible while the activity block is optional and the
       first exemplars evolve.
 - [ ] Validate duplicate node IDs, missing entry nodes, dangling transitions, invalid node-kind
       fields, unresolved semantic references, and unreachable authored nodes with attributable
@@ -612,6 +612,13 @@ administration goal while its defined and not-yet-defined children expose the cu
 boundary: contributor review exists, whereas invitation and membership management remain explicit
 shaping gaps. Composition therefore uses ordinary Interaction parenthood rather than introducing a
 separate composite kind.
+
+The first executable Activity Graph checkpoint introduces pure normalized nodes and transitions,
+an explicit `atlas-activity` YAML adapter, structural validation, and an authored
+`Respond To Workspace Invitation` graph. The existing anatomy tables remain compatible and
+authoritative for their current detail surfaces. Atlas reference resolution and Graph/Blueprint
+projection over the new model remain separate subsequent checkpoints; parser code neither resolves
+Items nor imports viewer concerns.
 
 `Invite Person To Workspace` now defines the owner's side of invitation creation across three
 recipient paths: a stable Atlas User, an observed GitHub identity, or verified-email delivery. The
