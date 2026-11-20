@@ -63,6 +63,11 @@ Related work:
 6. An invitation may address a known Atlas User, an observed GitHub identity, or a verified email.
    Identity proof, invitation claim, and invitation acceptance remain separate responsibilities;
    matching email or provider data must not silently merge Atlas Users.
+7. The `Respond To Workspace Invitation` shaping experiment exposed that a screen storyboard is
+   already too opinionated for the durable Interaction. The same model needs a spatial Graph lens
+   and a textual Blueprint lens over one projection.
+8. A service-blueprint reading makes the actor path primary while aligning system behavior, rules
+   and validation, and external systems beneath the same interaction moments.
 
 ## Scope
 
@@ -81,6 +86,8 @@ Related work:
 7. Use `Review Discovered Contributors` as the first authored and rendered exemplar.
 8. Identify how the current Workspace Settings implementation can later bind as realization
    evidence without making realization metadata mandatory in v0.
+9. Prototype Graph and Blueprint lenses over one shared Interaction projection, with Graph as the
+   default and a shared semantic inspector for both.
 
 ## Non-Goals
 
@@ -95,6 +102,8 @@ Related work:
 6. Do not redesign the complete Workspace invitation and membership implementation in this plan;
    use it as pressure and a follow-up adoption target.
 7. Do not require one interaction tree to match product navigation or component hierarchy.
+8. Do not implement generated or executable UI in the first lens prototype. Preserve a future
+   `Play` lens as architectural pressure without treating it as product design.
 
 ## Proposed Form
 
@@ -245,6 +254,23 @@ the actor's goal across several runtimes, pauses, reads, ingresses, and Operatio
 experiment may find that a subset maps naturally to a Durable Operation; v0 must not assume that
 mapping in advance.
 
+### Projection lenses
+
+Interaction source remains authoritative while Atlas derives coordinated Graph and Blueprint
+lenses from one semantic projection. Graph is the default spatial reading of moments, contextual
+branches, decisions, outcomes, and attached supporting behavior. Blueprint aligns the same moments
+as columns with actor interaction, system behavior, rules and validation, and external systems as
+rows. Both lenses select the same moment and open the same semantic inspector.
+
+`Play` remains a later generated traversal for validating the model. It is not part of the first
+slice and must not turn a default generated realization into prescribed product UI.
+
+The first running checkpoint keeps Graph as the primary experience. Blueprint and Anatomy remain
+secondary comparison lenses: Blueprint tests whether aligned actor, system, rule, and external
+responsibilities reveal information missing from Graph; Anatomy exposes the authored contract with
+minimal projection. Later concrete Interactions should decide whether those distinctions deserve
+separate views or belong in Graph's inspector.
+
 ## Execution Slices
 
 ### Slice 0 — Item Kind extension surface
@@ -282,11 +308,22 @@ mapping in advance.
 
 ### Slice 4 — composed activity view
 
-- [ ] Render a high-level activity diagram for a parent Interaction.
+- [x] Introduce one shared lens projection for interaction moments, contextual branches, outcomes,
+      and inspector detail.
+- [x] Render Graph as the default Interaction lens, keeping the actor path primary and supporting
+      system behavior attached to its moment.
+- [x] Render Blueprint as a secondary textual lens with whitespace and subtle row separators rather
+      than a visually dominant table grid.
+- [x] Keep lens selection, semantic selection, and inspector content coordinated without duplicating
+      model derivation in the React components.
+- [ ] Render a high-level activity diagram for a parent Interaction through the Graph lens.
 - [ ] Let a user open a child Interaction from the diagram and return to the parent context.
 - [ ] Show branches and multiple outcomes without inventing Event Items.
-- [ ] Compare activity, sequence, and journey readings; retain only projections that expose distinct
-      useful information.
+- [x] Validate the first local slice against `Respond To Workspace Invitation`, including the three
+      contextual identity-proof branches and the accept/decline decision.
+- [ ] Compare Graph and Blueprint readings in the running application; retain both only while each
+      exposes distinct useful information.
+- [x] Record `Play` as a follow-up lens without implementing generated screens in this slice.
 
 ### Slice 5 — implementation contrast
 

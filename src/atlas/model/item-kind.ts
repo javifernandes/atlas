@@ -57,15 +57,28 @@ export type InteractionItemModel = {
   presents: Array<{
     information: string;
     source: string;
+    atStep?: string;
     reference?: string;
     resolution?: 'resolved' | 'unresolved';
     targetNodeId?: string;
   }>;
-  affordances: Array<InteractionReference & { affordanceKind: string; target?: string }>;
-  steps: Array<InteractionReference & { stepKind: string }>;
+  affordances: Array<
+    InteractionReference & { affordanceKind: string; atStep?: string; target?: string }
+  >;
+  steps: Array<
+    InteractionReference & {
+      actorAction?: string;
+      externalSystems?: string;
+      next: string[];
+      rules?: string;
+      stepKind: string;
+      systemBehavior?: string;
+    }
+  >;
   outcomes: Array<{
     outcome: string;
     meaning: string;
+    fromStep?: string;
     continuesWith?: string;
     continuationResolution?: 'resolved' | 'unresolved';
     continuationTargetNodeId?: string;

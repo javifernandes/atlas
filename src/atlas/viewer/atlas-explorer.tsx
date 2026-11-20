@@ -47,6 +47,7 @@ import {
   getEntityItemModel,
   getInteractionItemModel,
   getPackageItemModel,
+  type InteractionItemModel,
 } from '@/atlas/model/item-kind';
 import {
   buildEntityOperationAvailability,
@@ -63,6 +64,10 @@ import type {
   PlanWorkstreamSnapshot,
 } from '@/atlas/model/snapshot';
 import { ExecutionStreamView } from '@/atlas/viewer/execution-stream-view';
+import {
+  buildInteractionLensProjection,
+  type InteractionLensStep,
+} from '@/atlas/viewer/interaction-lens';
 import {
   getItemKindPresentation,
   getItemKindSectionPresentation,
@@ -2351,12 +2356,12 @@ const InteractionReferenceButton = ({
   );
 };
 
-const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) => {
+const InteractionAnatomy = ({ context }: { context: MarkdownRenderContext }) => {
   const model = getInteractionItemModel(context.sourceNode);
   if (!model) return null;
 
   return (
-    <section aria-label='Interaction details' className='grid gap-8'>
+    <section aria-label='Interaction anatomy' className='grid gap-8'>
       <div className='grid gap-4 rounded-2xl border border-border/55 bg-muted/10 p-5 sm:grid-cols-[minmax(0,1fr)_auto]'>
         <div>
           <div className='font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground'>Goal</div>
@@ -2408,6 +2413,158 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
         <h3 className='font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground'>Outcomes</h3>
         <div className='mt-3 divide-y divide-border/35'>{model.outcomes.map(item => <div key={item.outcome} className='grid gap-1 py-3 sm:grid-cols-[minmax(12rem,0.8fr)_1fr_auto]'><span className='font-medium'>{item.outcome}</span><span className='text-sm text-muted-foreground'>{item.meaning}</span>{item.continuationTargetNodeId ? <InteractionReferenceButton context={context} label='Continue' targetNodeId={item.continuationTargetNodeId} /> : null}</div>)}</div>
       </div>
+    </section>
+  );
+};
+
+const InteractionStepInspector = ({
+  context,
+  step,
+}: {
+  context: MarkdownRenderContext;
+  step: InteractionLensStep;
+}) => (
+  <section aria-label='Interaction moment details' className='grid gap-5 border-t border-border/45 pt-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(14rem,0.65fr)]'>
+    <div>
+      <div className='font-mono text-[10px] uppercase tracking-[0.14em] text-primary'>
+        {step.stepKind} · interaction moment
+      </div>
+      <h3 className='mt-2 text-xl font-medium text-foreground'>{step.label}</h3>
+      {step.actorAction ? <p className='mt-2 text-sm leading-relaxed text-muted-foreground'>{step.actorAction}</p> : null}
+      <div className='mt-5 grid gap-5 sm:grid-cols-3'>
+        <div>
+          <div className='font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground'>Presents</div>
+          <div className='mt-2 grid gap-2 text-sm'>
+            {step.presents.length > 0 ? step.presents.map(item => <div key={item.information}><div className='font-medium'>{item.information}</div><InteractionReferenceButton context={context} label={item.source} plainClassName='text-xs text-muted-foreground' reference={item.reference} resolution={item.resolution} targetNodeId={item.targetNodeId} /></div>) : <span className='text-muted-foreground'>None authored</span>}
+          </div>
+        </div>
+        <div>
+          <div className='font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground'>Affordances</div>
+          <div className='mt-2 grid gap-2 text-sm'>
+            {step.affordances.length > 0 ? step.affordances.map(item => <div key={`${item.affordanceKind}-${item.label}`}><div className='font-medium'>{item.label}</div><div className='text-xs text-muted-foreground'>{item.affordanceKind}</div></div>) : <span className='text-muted-foreground'>None authored</span>}
+          </div>
+        </div>
+        <div>
+          <div className='font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground'>Alternative exits</div>
+          <div className='mt-2 grid gap-2 text-sm'>
+            {step.outcomes.length > 0 ? step.outcomes.map(item => <div key={item.outcome}><div className='font-medium'>{item.outcome}</div><div className='text-xs text-muted-foreground'>{item.meaning}</div></div>) : <span className='text-muted-foreground'>None authored</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+    <dl className='divide-y divide-border/35 border-l border-border/45 pl-5 text-sm'>
+      {[['Actor', step.actorAction ? 'Invitation recipient' : 'Not specified'], ['System', step.systemBehavior ?? 'Not specified'], ['Rules', step.rules ?? 'Not specified'], ['External', step.externalSystems ?? 'None']].map(([term, value]) => <div className='grid gap-1 py-3 first:pt-0' key={term}><dt className='text-xs text-muted-foreground'>{term}</dt><dd className='text-foreground'>{value}</dd></div>)}
+    </dl>
+  </section>
+);
+
+const InteractionGraphLens = ({
+  model,
+  onSelect,
+  selectedStep,
+}: {
+  model: InteractionItemModel;
+  onSelect: (label: string) => void;
+  selectedStep: string;
+}) => {
+  const projection = buildInteractionLensProjection(model);
+  const outcomeSteps = projection.moments.at(-1)?.steps ?? [];
+  const boundOutcomes = outcomeSteps.flatMap(step => step.outcomes);
+
+  return (
+    <div className='overflow-x-auto pb-2'>
+      <div className='flex min-w-[52rem] items-stretch gap-3 py-4'>
+        {projection.moments.map((moment, index) => (
+          <Fragment key={moment.id}>
+            <div className='flex min-w-[11rem] flex-1 flex-col justify-center gap-3'>
+              {moment.steps.map(step => (
+                <button
+                  className={cn('rounded-xl border px-4 py-3 text-left transition-colors', selectedStep === step.label ? 'border-primary/55 bg-primary/[0.07] shadow-[inset_3px_0_0_hsl(var(--primary))]' : 'border-border/55 bg-muted/[0.07] hover:border-border')}
+                  key={step.label}
+                  onClick={() => onSelect(step.label)}
+                  type='button'
+                >
+                  <span className='font-mono text-[9px] uppercase tracking-[0.12em] text-primary'>{step.stepKind}</span>
+                  <span className='mt-1 block text-sm font-medium text-foreground'>{step.label}</span>
+                  {step.actorAction ? <span className='mt-1 block text-xs leading-relaxed text-muted-foreground'>{step.actorAction}</span> : null}
+                  {step.systemBehavior ? <span className='mt-3 block border-t border-border/35 pt-2 text-[11px] leading-relaxed text-muted-foreground'><span className='font-medium text-foreground/75'>System · </span>{step.systemBehavior}</span> : null}
+                </button>
+              ))}
+            </div>
+            {index < projection.moments.length - 1 ? <div className='flex w-7 shrink-0 items-center justify-center text-primary/55'><ArrowRight className='size-4' /></div> : null}
+          </Fragment>
+        ))}
+        {boundOutcomes.length > 0 ? (
+          <>
+            <div className='flex w-7 shrink-0 items-center justify-center text-primary/55'><ArrowRight className='size-4' /></div>
+            <div className='flex min-w-[11rem] flex-1 flex-col justify-center gap-3'>
+              {boundOutcomes.map(outcome => <div className='rounded-xl border border-emerald-400/20 bg-emerald-400/[0.04] px-4 py-3' key={outcome.outcome}><span className='font-mono text-[9px] uppercase tracking-[0.12em] text-emerald-300/70'>Outcome</span><div className='mt-1 text-sm font-medium'>{outcome.outcome}</div><div className='mt-1 text-xs text-muted-foreground'>{outcome.meaning}</div></div>)}
+            </div>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
+const InteractionBlueprintLens = ({
+  model,
+  onSelect,
+  selectedStep,
+}: {
+  model: InteractionItemModel;
+  onSelect: (label: string) => void;
+  selectedStep: string;
+}) => {
+  const projection = buildInteractionLensProjection(model);
+  const columns = projection.moments.length;
+  const rows = [
+    { key: 'actorAction' as const, label: 'Actor interaction' },
+    { key: 'systemBehavior' as const, label: 'System behavior' },
+    { key: 'rules' as const, label: 'Rules & validation' },
+    { key: 'externalSystems' as const, label: 'External systems' },
+  ];
+
+  return (
+    <div className='overflow-x-auto'>
+      <div className='grid min-w-[48rem]' style={{ gridTemplateColumns: `minmax(8rem,0.72fr) repeat(${columns}, minmax(10rem,1fr))` }}>
+        <div className='border-b border-border/45' />
+        {projection.moments.map(moment => <div className='border-b border-border/45 px-4 py-3' key={moment.id}>{moment.steps.map(step => <button className={cn('block w-full text-left', selectedStep === step.label && 'text-primary')} key={step.label} onClick={() => onSelect(step.label)} type='button'><span className='font-mono text-[9px] uppercase tracking-[0.12em] text-primary'>{step.stepKind}</span><span className='mt-1 block text-sm font-medium'>{step.label}</span></button>)}</div>)}
+        {rows.flatMap(row => [
+          <div className='border-b border-border/25 py-4 pr-4 font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground' key={`${row.key}-label`}>{row.label}</div>,
+          ...projection.moments.map(moment => <div className='border-b border-border/25 px-4 py-4' key={`${row.key}-${moment.id}`}>{moment.steps.map(step => <button className='mb-3 block w-full text-left text-xs leading-relaxed last:mb-0' key={step.label} onClick={() => onSelect(step.label)} type='button'><span className={cn('font-medium', selectedStep === step.label ? 'text-primary' : 'text-foreground')}>{step.label}</span><span className='mt-1 block text-muted-foreground'>{step[row.key] ?? '—'}</span></button>)}</div>),
+        ])}
+      </div>
+    </div>
+  );
+};
+
+const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) => {
+  const model = getInteractionItemModel(context.sourceNode);
+  const hasFlow = Boolean(model?.steps.some(step => step.next.length > 0));
+  const [view, setView] = useState<'anatomy' | 'blueprint' | 'graph'>(hasFlow ? 'graph' : 'anatomy');
+  const [selectedStep, setSelectedStep] = useState(model?.steps[0]?.label ?? '');
+
+  if (!model) return null;
+  const selected = model.steps.find(step => step.label === selectedStep) ?? model.steps[0];
+
+  return (
+    <section aria-label='Interaction details' className='grid gap-6'>
+      {hasFlow ? (
+        <div className='flex justify-end'>
+          <div className='inline-flex rounded-xl border border-border/55 bg-muted/10 p-1'>
+            {(['graph', 'blueprint', 'anatomy'] as const).map(option => (
+              <button className={cn('rounded-lg px-3 py-1.5 text-xs font-medium transition-colors', view === option ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:text-foreground')} key={option} onClick={() => setView(option)} type='button'>
+                {option === 'graph' ? 'Graph' : option === 'blueprint' ? 'Blueprint' : 'Anatomy'}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {view === 'graph' && hasFlow ? <InteractionGraphLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /> : null}
+      {view === 'blueprint' && hasFlow ? <InteractionBlueprintLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /> : null}
+      {view === 'anatomy' || !hasFlow ? <InteractionAnatomy context={context} /> : null}
+      {view !== 'anatomy' && selected ? <InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /> : null}
     </section>
   );
 };
@@ -4086,6 +4243,8 @@ const FullMarkdownModal = ({
   }, [parsedDocument.metadata]);
   const sourceHref = sourceFileHref(node);
   const sourceFilePath = node.sourcePath ?? node.sourceFilePath ?? node.path;
+  const overviewRendersMarkdown =
+    getItemKindPresentation(node.kind).detail?.renderMarkdown !== false;
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
       nodesById,
@@ -4395,15 +4554,25 @@ const FullMarkdownModal = ({
           ) : contentStatus === 'error' ? (
             <DetailContentError node={node} />
           ) : (
-            <div className='grid min-w-0 gap-6 px-1 sm:px-2 xl:grid-cols-[minmax(0,1fr)_12rem]'>
-              <article className='grid min-w-0 max-w-full gap-5 overflow-hidden break-words xl:pr-2 [&>*]:min-w-0 [&>*]:max-w-full'>
+            <div
+              className={cn(
+                'grid min-w-0 gap-6 px-1 sm:px-2',
+                overviewRendersMarkdown &&
+                  'xl:grid-cols-[minmax(0,1fr)_12rem]',
+              )}
+            >
+              <article
+                className={cn(
+                  'grid min-w-0 max-w-full gap-5 overflow-hidden break-words [&>*]:min-w-0 [&>*]:max-w-full',
+                  overviewRendersMarkdown && 'xl:pr-2',
+                )}
+              >
                 <ItemKindOverview context={markdownContext} />
-                {getItemKindPresentation(node.kind).detail?.renderMarkdown === false
-                  ? null
-                  : renderMarkdownBody(overviewBody, markdownContext)}
+                {overviewRendersMarkdown
+                  ? renderMarkdownBody(overviewBody, markdownContext)
+                  : null}
               </article>
-              {contentStatus === 'loaded' &&
-              getItemKindPresentation(node.kind).detail?.renderMarkdown !== false ? (
+              {contentStatus === 'loaded' && overviewRendersMarkdown ? (
                 <MarkdownSectionIndex groups={markdownSectionGroups} />
               ) : null}
             </div>

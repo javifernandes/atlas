@@ -1,18 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
-import { getAtlasServerApplication } from './atlas-composition';
+import { getAtlasServerApplication, resolveAtlasStorageMode } from './atlas-composition';
 import { getAtlasPageData } from './get-atlas-page-data';
 
 vi.mock('./atlas-composition', () => ({
   getAtlasServerApplication: vi.fn(),
+  resolveAtlasStorageMode: vi.fn(),
 }));
 
 const getApplication = vi.mocked(getAtlasServerApplication);
+const getStorageMode = vi.mocked(resolveAtlasStorageMode);
 
 describe('Atlas page data', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getStorageMode.mockReturnValue('postgres');
   });
 
   it('reads one durable projection revision without rebuilding sources', async () => {
@@ -165,6 +168,36 @@ describe('Atlas page data', () => {
     const result = await getAtlasPageData('user-1', null, 'workspace-1');
 
     expect(result.snapshot.nodes[0]).not.toHaveProperty('markdown');
+  });
+
+  it('prefers the checkout projection over a Workspace revision in memory mode', async () => {
+    const workspaceSnapshot: PlanWorkstreamSnapshot = {
+      generatedAt: '2026-11-18T00:00:00.000Z',
+      nodes: [],
+      edges: [],
+      evidence: [],
+      metrics: [],
+      territories: [],
+    };
+    const checkoutSnapshot: PlanWorkstreamSnapshot = {
+      generatedAt: '2026-11-19T00:00:00.000Z',
+      nodes: [],
+      edges: [],
+      evidence: [],
+      metrics: [],
+      territories: [],
+    };
+
+    getStorageMode.mockReturnValue('memory');
+    getApplication.mockResolvedValue({
+      getExecutionStreams: vi.fn().mockResolvedValue([]),
+      getProjectionSnapshot: vi.fn().mockResolvedValue(checkoutSnapshot),
+      getWorkspaceProjectionSnapshot: vi.fn().mockResolvedValue(workspaceSnapshot),
+    } as never);
+
+    await expect(getAtlasPageData('user-1', null, 'atlas')).resolves.toMatchObject({
+      snapshot: checkoutSnapshot,
+    });
   });
 
   it('returns an empty view before the first bootstrap revision exists', async () => {
