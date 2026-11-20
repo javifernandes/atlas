@@ -68,6 +68,20 @@ Related work:
    and a textual Blueprint lens over one projection.
 8. A service-blueprint reading makes the actor path primary while aligning system behavior, rules
    and validation, and external systems beneath the same interaction moments.
+9. The invitation-resolution drill-down exposed that the earlier contextual-fork prototype mixed
+   three independent concerns: invitation lifecycle, actor authentication state, and invitation
+   addressing policy. An activity graph can keep those decisions separate while showing every
+   branch, guard, affordance, merge, Entity read, and Operation boundary together.
+10. A case-specific selector is useful for exploring scenarios, but it is not a durable Interaction
+    representation. Atlas needs one semantic Activity Graph from which scenario simulation, Graph,
+    Blueprint, and later Play projections can derive.
+11. Mermaid is useful interchange and may remain a rendering or export option, but it cannot be the
+    authoritative model. Atlas must preserve distinctions Mermaid does not own, including guard
+    versus affordance, actor action versus system responsibility, Entity reads, Operation and child
+    Interaction references, external stimuli, and local versus independently addressable elements.
+12. Atlas already depends on `yaml` and parses YAML in the Markdown ingestion layer. The first
+    structured authoring form can use that maintained parser rather than introducing a handwritten
+    YAML subset or a premature custom textual language.
 
 ## Scope
 
@@ -88,6 +102,15 @@ Related work:
    evidence without making realization metadata mandatory in v0.
 9. Prototype Graph and Blueprint lenses over one shared Interaction projection, with Graph as the
    default and a shared semantic inspector for both.
+10. Define a renderer-independent Activity Graph semantic model with typed nodes, transitions,
+    context bindings, and semantic references.
+11. Keep YAML parsing, semantic validation and reference resolution, lens projection, and React
+    rendering as separate modules with focused unit tests.
+12. Use a fenced YAML activity block as the first explicit authoring form while preserving the
+    semantic model as authority inside Atlas after parsing.
+13. Validate the model against three deliberately different pressures: responding to a Workspace
+    invitation, importing a Workspace Source in the background, and configuring a Workspace model
+    connection.
 
 ## Non-Goals
 
@@ -104,6 +127,13 @@ Related work:
 7. Do not require one interaction tree to match product navigation or component hierarchy.
 8. Do not implement generated or executable UI in the first lens prototype. Preserve a future
    `Play` lens as architectural pressure without treating it as product design.
+9. Do not make Mermaid syntax, layout decisions, or generated SVG the source of semantic truth.
+10. Do not design a compact custom textual DSL, visual editor, or round-trip source formatter before
+    the semantic model and YAML experiment survive the three exemplar interactions.
+11. Do not add wait, retry, compensation, parallel fork/join, timeout, or durable-execution
+    primitives speculatively. Add them only when one exemplar demonstrates a missing semantic.
+12. Do not promote Activity, Decision, Affordance, Stimulus, Merge, or Outcome to global Atlas Item
+    Types merely because they are locally typed Activity Graph elements.
 
 ## Proposed Form
 
@@ -271,6 +301,122 @@ responsibilities reveal information missing from Graph; Anatomy exposes the auth
 minimal projection. Later concrete Interactions should decide whether those distinctions deserve
 separate views or belong in Graph's inspector.
 
+### Activity semantic model
+
+The durable architecture separates authoring syntax, semantic meaning, validation, and
+presentation:
+
+```text
+Interaction Markdown
+  fenced YAML activity block
+          |
+          v
+YAML adapter using the maintained `yaml` package
+          |
+          v
+ActivityGraph semantic model
+  nodes + transitions + context bindings + references
+          |
+          v
+semantic validation and Atlas reference resolution
+          |
+          +--> Graph lens
+          +--> Blueprint lens
+          +--> later Play lens
+          +--> optional Mermaid import/export
+```
+
+The semantic model belongs in the model layer and must not depend on Markdown tables, YAML node
+shapes, React, Mermaid, or layout coordinates. The Markdown adapter parses one authoring form into
+that model. Lens projectors consume only the normalized model. React renders lens projections rather
+than interpreting source syntax. This boundary lets Atlas add a compact language or visual editor
+later without replacing the model or its tests.
+
+The first model stays deliberately small:
+
+```ts
+type ActivityNodeKind =
+  | 'stimulus'
+  | 'activity'
+  | 'decision'
+  | 'merge'
+  | 'operation'
+  | 'interaction'
+  | 'outcome';
+
+type ActivityNode = {
+  id: string;
+  kind: ActivityNodeKind;
+  label: string;
+  actor?: string;
+  responsibility?: 'actor' | 'system' | 'external';
+  reads?: SemanticReference[];
+  presents?: SemanticReference[];
+  invokes?: SemanticReference;
+};
+
+type ActivityTransition = {
+  from: string;
+  to: string;
+  guard?: string;
+  trigger?: string;
+  affordance?: string;
+  result?: string;
+};
+
+type ActivityGraph = {
+  entry: string;
+  nodes: ActivityNode[];
+  transitions: ActivityTransition[];
+};
+```
+
+The distinctions are semantic rather than visual:
+
+1. a `guard` explains why the system permits a path;
+2. an `affordance` explains what the actor can attempt;
+3. a `trigger` explains which external or internal occurrence advances the flow;
+4. `reads` and `presents` bind behavior to Entity state or derived context;
+5. `operation` and `interaction` nodes reference independently authored contracts rather than
+   copying them;
+6. a local node remains part of its owning Interaction until reuse, ownership, contract, or evidence
+   pressure justifies an independent Atlas Item.
+
+The first authoring syntax is explicit YAML because it is easy to inspect, parse, validate, and
+migrate:
+
+```yaml
+activity:
+  entry: open-invitation
+  nodes:
+    open-invitation:
+      kind: stimulus
+      actor: invitation-recipient
+      label: Open invitation URL
+    lifecycle:
+      kind: decision
+      label: Invitation allows response
+      reads:
+        - WorkspaceInvitation.status
+        - WorkspaceInvitation.expiresAt
+    claim:
+      kind: operation
+      ref: WorkspaceInvitation.claim
+  transitions:
+    - from: open-invitation
+      to: lifecycle
+    - from: lifecycle
+      to: invitation-unavailable
+      guard: invitation is not pending
+    - from: lifecycle
+      to: claim
+      guard: invitation is claimable
+```
+
+YAML is an authoring adapter, not the public semantic API. The adapter should use `yaml`'s parser and
+document diagnostics rather than manual indentation, quoting, scalar, or collection handling. A
+later compact language, visual editor, or Mermaid importer must compile to the same `ActivityGraph`.
+
 ## Execution Slices
 
 ### Slice 0 — Item Kind extension surface
@@ -325,7 +471,29 @@ separate views or belong in Graph's inspector.
       exposes distinct useful information.
 - [x] Record `Play` as a follow-up lens without implementing generated screens in this slice.
 
-### Slice 5 — implementation contrast
+### Slice 5 — semantic Activity Graph
+
+- [ ] Define pure Activity Graph types in the model layer without Markdown, YAML, React, Mermaid, or
+      layout dependencies.
+- [ ] Parse an optional fenced YAML activity block through the existing `yaml` dependency in a
+      dedicated Markdown adapter; do not hand-parse YAML.
+- [ ] Keep the existing Interaction tables compatible while the activity block is optional and the
+      first exemplars evolve.
+- [ ] Validate duplicate node IDs, missing entry nodes, dangling transitions, invalid node-kind
+      fields, unresolved semantic references, and unreachable authored nodes with attributable
+      diagnostics.
+- [ ] Resolve Entity, Operation, and child Interaction references after parsing rather than inside
+      the YAML adapter.
+- [ ] Unit-test the semantic model independently, parser success and diagnostics independently,
+      reference resolution independently, and lens projection independently.
+- [ ] Prove that a second authoring adapter or a programmatically constructed graph produces the same
+      normalized model and lens projections.
+- [ ] Expand a local activity node in place and return to its parent Interaction without promoting
+      that node to an Atlas Item.
+- [ ] Treat Mermaid only as an optional derived export or import experiment; no Atlas behavior may
+      depend on Mermaid layout or generated markup.
+
+### Slice 6 — implementation contrast
 
 - [ ] Map the existing Workspace Settings contributor section to the exemplar by hand.
 - [ ] Record which React components, Graph Queries, selections, and Operations currently realize
@@ -340,12 +508,18 @@ failures, compensation, and telemetry. The experiment should determine whether t
 useful projection and which links belong in the semantic model rather than copying implementation
 details into the Interaction.
 
-### Slice 6 — Workspace membership adoption
+### Slice 7 — cross-domain validation and Workspace membership adoption
 
 - [x] Model Manage Contributors as a composed Workspace-scoped Interaction.
 - [x] Model invitation paths for a known Atlas User, observed GitHub identity, and verified email.
 - [x] Keep identity proof, invitation claim, and invitation acceptance as separate Operation
       responsibilities.
+- [ ] Model Workspace Source import far enough to pressure asynchronous progress, webhook stimuli,
+      cancellation, retry, and completion without adding unsupported primitives in advance.
+- [ ] Model Workspace model-connection configuration far enough to pressure secret ingress,
+      external validation, failure, and compensation boundaries.
+- [ ] Record which additional Activity Graph primitives are justified by at least one exemplar and
+      which remain projection-only concepts.
 - [ ] Use the model to shape the first end-to-end invitation implementation plan.
 
 ## Verification
@@ -383,6 +557,14 @@ details into the Interaction.
     universal registry in v0.
 12. A specialized kind owns a typed model payload rather than adding another optional field to the
     generic snapshot node. Kinds without specialized anatomy keep the default Markdown path.
+13. Activity Graph is a renderer-independent semantic model. YAML is its first authoring adapter;
+    Graph, Blueprint, later Play, and optional Mermaid interoperability are projections or adapters.
+14. Guards, triggers, affordances, Entity reads, and Operation references remain distinct even when
+    a diagram chooses a compact edge label for several of them.
+15. New activity semantics require exemplar pressure. The implementation must not recreate BPMN,
+    workflow execution, or a custom language before the current minimal graph proves insufficient.
+16. The existing `yaml` dependency is the parser boundary for the first form; Atlas will not own a
+    bespoke YAML parser.
 
 ## Open Questions
 
