@@ -452,9 +452,31 @@ export const createAtlasPostgresApplication = (input: {
     return result.rows[0]?.snapshot ?? null;
   };
 
-  const getProjectionNodeContent = async (nodeId: string) => {
+  const getProjectionNodeContent = async (nodeId: string, workspaceId?: string) => {
     const result = await pool.query<{ markdown: string | null }>(
+      workspaceId
+        ? `
+        WITH latest AS (
+          SELECT snapshot_json::jsonb AS snapshot
+          FROM atlas_workspace_projection_revisions
+          WHERE workspace_id = $2
+          ORDER BY started_at DESC, id DESC
+          LIMIT 1
+        ), candidates AS (
+          SELECT node
+          FROM latest,
+            LATERAL jsonb_array_elements(COALESCE(snapshot -> 'nodes', '[]'::jsonb)) AS node
+          UNION ALL
+          SELECT document
+          FROM latest,
+            LATERAL jsonb_array_elements(COALESCE(snapshot -> 'documents', '[]'::jsonb)) AS document
+        )
+        SELECT node ->> 'markdown' AS markdown
+        FROM candidates
+        WHERE node ->> 'id' = $1
+        LIMIT 1
       `
+        : `
         WITH latest AS (
           SELECT snapshot_json::jsonb AS snapshot
           FROM projection_revisions
@@ -474,7 +496,7 @@ export const createAtlasPostgresApplication = (input: {
         WHERE node ->> 'id' = $1
         LIMIT 1
       `,
-      [nodeId],
+      workspaceId ? [nodeId, workspaceId] : [nodeId],
     );
 
     return result.rows.length > 0 ? (result.rows[0]?.markdown ?? '') : null;

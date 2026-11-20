@@ -90,6 +90,7 @@ type PlanWorkstreamExplorerProps = {
   executionStreams?: AtlasExecutionStreamProjection[];
   isAuthenticated?: boolean;
   snapshot: PlanWorkstreamSnapshot;
+  workspaceSlug?: string;
 };
 
 type FullMarkdownModalTab = 'context' | 'evolution' | 'overview' | 'source';
@@ -5294,6 +5295,7 @@ export const PlanWorkstreamExplorer = ({
   executionStreams = [],
   isAuthenticated = false,
   snapshot,
+  workspaceSlug,
 }: PlanWorkstreamExplorerProps) => {
   const { theme, toggleTheme } = useTheme();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -5604,7 +5606,10 @@ export const PlanWorkstreamExplorer = ({
       return next;
     });
 
-    void fetch(`/api/node-content?nodeId=${encodeURIComponent(fullNodeId)}`, {
+    const contentSearchParams = new URLSearchParams({ nodeId: fullNodeId });
+    if (workspaceSlug) contentSearchParams.set('workspace', workspaceSlug);
+
+    void fetch(`/api/node-content?${contentSearchParams.toString()}`, {
       signal: controller.signal,
     })
       .then(async response => {
@@ -5635,7 +5640,7 @@ export const PlanWorkstreamExplorer = ({
       });
 
     return () => controller.abort();
-  }, [fullNodeId, nodesById]);
+  }, [fullNodeId, nodesById, workspaceSlug]);
 
   const getFitViewport = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();

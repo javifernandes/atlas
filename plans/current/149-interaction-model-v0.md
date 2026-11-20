@@ -627,6 +627,12 @@ coordinates to the semantic model. The Graph lens now consumes that projection, 
 table-derived flows as a fallback, and opens local node detail in place with navigable Entity,
 Operation, and Interaction references.
 
+The local end-to-end checkpoint now reconciles the real `atlas` Workspace through the declared
+Workspace Entity reference and reads full-detail Markdown from that Workspace's latest projection,
+not from the legacy global projection. This keeps the map and detail surfaces on one projection
+boundary and verifies the authored Activity Graph through the same path used by dynamic
+Workspaces.
+
 `Invite Person To Workspace` now defines the owner's side of invitation creation across three
 recipient paths: a stable Atlas User, an observed GitHub identity, or verified-email delivery. The
 paths converge only on pending invitation intent. Recipient response remains a separate unresolved

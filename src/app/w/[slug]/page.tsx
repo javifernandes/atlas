@@ -181,6 +181,7 @@ const WorkspacePage = async ({ params, searchParams }: WorkspacePageProps) => {
         executionStreams={executionStreams}
         isAuthenticated
         snapshot={visibleSnapshot}
+        workspaceSlug={workspace.slug}
       />
       <AuthControl
         authAvailable={access.authAvailable}

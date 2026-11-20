@@ -5,6 +5,7 @@ import {
   createAtlasPostgresComposition,
   getAtlasRepoRoot,
 } from '../src/atlas/server/atlas-postgres-composition';
+import { atlasWorkspaceRef } from '../src/atlas/model/workspace-administration';
 import {
   ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE,
   reconcileAtlasWorkspaceSources,
@@ -56,7 +57,7 @@ try {
     } as never,
     () =>
       atlas.application.invokeOperation(operation, {
-        workspace: { id: workspace.id },
+        workspace: atlasWorkspaceRef(workspace.id),
         triggerSourceId: null,
         trigger: 'manual',
       }),

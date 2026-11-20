@@ -132,13 +132,19 @@ const snapshot: PlanWorkstreamSnapshot = {
 const renderExplorer = ({
   isAuthenticated = true,
   value = snapshot,
+  workspaceSlug,
 }: {
   isAuthenticated?: boolean;
   value?: PlanWorkstreamSnapshot;
+  workspaceSlug?: string;
 } = {}) =>
   render(
     <ThemeProvider forcedTheme='dark'>
-      <PlanWorkstreamExplorer isAuthenticated={isAuthenticated} snapshot={value} />
+      <PlanWorkstreamExplorer
+        isAuthenticated={isAuthenticated}
+        snapshot={value}
+        workspaceSlug={workspaceSlug}
+      />
     </ThemeProvider>,
   );
 
@@ -365,6 +371,27 @@ const selection: Selection = Selection.references(Book, refs);
     const loading = screen.getByRole('status', { name: 'Loading Item B' });
     expect(within(loading).getByText('Loading source')).toBeInTheDocument();
     expect(within(loading).getByText('Item B')).toBeInTheDocument();
+    fetchMock.mockRestore();
+  });
+
+  it('requests source content from the active Workspace projection', async () => {
+    globalThis.history.replaceState({}, '', '/w/atlas?full=item-b');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-b' ? { ...node, markdown: undefined } : node,
+      ),
+    };
+
+    renderExplorer({ value, workspaceSlug: 'atlas' });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/node-content?nodeId=item-b&workspace=atlas',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      ),
+    );
     fetchMock.mockRestore();
   });
 
