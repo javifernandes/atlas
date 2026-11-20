@@ -1,4 +1,5 @@
 import type { EntityModel } from './snapshot';
+import type { ActivityGraph } from './activity-graph';
 
 export const atlasItemKinds = [
   'project',
@@ -50,6 +51,7 @@ export type InteractionReference = {
 };
 export type InteractionItemModel = {
   kind: 'interaction';
+  activity?: ActivityGraph;
   scope: { entity: string; binding: string };
   goal: string;
   actors: Array<{ actor: string; participation: string }>;

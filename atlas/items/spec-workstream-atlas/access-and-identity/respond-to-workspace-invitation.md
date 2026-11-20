@@ -21,6 +21,209 @@ relatedPlans:
 Let the intended recipient understand and deliberately accept or decline a Workspace invitation
 after proving the identity required by its addressing path.
 
+## Activity
+
+```atlas-activity
+activity:
+  entry: open-invitation
+  nodes:
+    open-invitation:
+      kind: stimulus
+      label: Open invitation URL
+      actor: Invitation Recipient
+      responsibility: external
+    resolve-context:
+      kind: activity
+      label: Resolve invitation context
+      responsibility: system
+      reads:
+        - ref: spec-workstream-atlas.access-identity.workspace.invitation
+          label: Workspace invitation
+        - ref: spec-workstream-atlas.access-identity.workspace
+          label: Workspace
+        - ref: spec-workstream-atlas.access-identity.workspace.membership
+          label: Membership
+      presents:
+        - ref: spec-workstream-atlas.access-identity.workspace.invitation
+          label: Invitation intent and lifecycle
+    lifecycle-allows-response:
+      kind: decision
+      label: Invitation allows response?
+      responsibility: system
+      reads:
+        - ref: spec-workstream-atlas.access-identity.workspace.invitation
+          label: Invitation lifecycle
+    invitation-unavailable:
+      kind: outcome
+      label: Invitation unavailable
+    actor-authenticated:
+      kind: decision
+      label: Actor is authenticated?
+      responsibility: system
+      reads:
+        - ref: spec-workstream-atlas.access-identity.user
+          label: Current User
+    authenticate:
+      kind: activity
+      label: Sign in or switch account
+      actor: Invitation Recipient
+      responsibility: actor
+    addressing-policy:
+      kind: decision
+      label: Which addressing policy applies?
+      responsibility: system
+      reads:
+        - ref: spec-workstream-atlas.access-identity.workspace.invitation
+          label: Invitation addressing policy
+    user-id-matches:
+      kind: decision
+      label: Authenticated User matches target?
+      responsibility: system
+      reads:
+        - ref: spec-workstream-atlas.access-identity.user
+          label: Current User
+    prove-github-identity:
+      kind: activity
+      label: Prove GitHub identity
+      actor: Invitation Recipient
+      responsibility: actor
+    provider-id-matches:
+      kind: decision
+      label: Provider identity matches target?
+      responsibility: system
+      reads:
+        - ref: spec-workstream-atlas.access-identity.external-identity
+          label: External Identity
+    prove-invitation-secret:
+      kind: activity
+      label: Prove invitation secret
+      actor: Invitation Recipient
+      responsibility: actor
+    invitation-secret-valid:
+      kind: decision
+      label: Invitation secret is valid?
+      responsibility: system
+      reads:
+        - ref: spec-workstream-atlas.access-identity.workspace.invitation
+          label: Invitation claim policy
+    identity-proof-refused:
+      kind: outcome
+      label: Identity proof refused
+    eligible-recipient:
+      kind: merge
+      label: Eligible recipient
+    claim-invitation:
+      kind: operation
+      label: Claim Workspace Invitation
+      ref:
+        ref: spec-workstream-atlas.access-identity.workspace.invitation.claim
+        label: Claim Workspace Invitation
+    choose-response:
+      kind: decision
+      label: Accept or decline invitation?
+      actor: Invitation Recipient
+      responsibility: actor
+    accept-invitation:
+      kind: operation
+      label: Accept Workspace Invitation
+      ref:
+        ref: spec-workstream-atlas.access-identity.workspace.invitation.accept
+        label: Accept Workspace Invitation
+    decline-invitation:
+      kind: operation
+      label: Decline Workspace Invitation
+      ref:
+        ref: spec-workstream-atlas.access-identity.workspace.invitation.decline
+        label: Decline Workspace Invitation
+    invitation-accepted:
+      kind: outcome
+      label: Invitation accepted
+    invitation-declined:
+      kind: outcome
+      label: Invitation declined
+    response-abandoned:
+      kind: outcome
+      label: Response abandoned
+  transitions:
+    - from: open-invitation
+      to: resolve-context
+      trigger: invitation URL opened
+    - from: resolve-context
+      to: lifecycle-allows-response
+    - from: lifecycle-allows-response
+      to: invitation-unavailable
+      guard: invitation is missing, expired, revoked, or no longer pending
+    - from: lifecycle-allows-response
+      to: actor-authenticated
+      guard: invitation is pending and claimable
+    - from: actor-authenticated
+      to: authenticate
+      guard: no authenticated Atlas User
+      affordance: Sign in
+    - from: authenticate
+      to: actor-authenticated
+      result: authentication state changed
+    - from: actor-authenticated
+      to: addressing-policy
+      guard: an Atlas User is authenticated
+    - from: addressing-policy
+      to: user-id-matches
+      guard: invitation targets a known Atlas User
+    - from: user-id-matches
+      to: eligible-recipient
+      guard: authenticated User ID equals target User ID
+    - from: user-id-matches
+      to: authenticate
+      guard: authenticated User ID differs from target User ID
+      affordance: Switch account
+    - from: addressing-policy
+      to: prove-github-identity
+      guard: invitation targets an observed GitHub identity
+      affordance: Continue with GitHub
+    - from: prove-github-identity
+      to: provider-id-matches
+      result: provider identity is available
+    - from: provider-id-matches
+      to: eligible-recipient
+      guard: provider and stable account ID equal the invitation target
+    - from: provider-id-matches
+      to: identity-proof-refused
+      guard: provider identity does not equal the invitation target
+    - from: addressing-policy
+      to: prove-invitation-secret
+      guard: invitation uses a verified-email secret
+      affordance: Continue with invitation link
+    - from: prove-invitation-secret
+      to: invitation-secret-valid
+      result: signed invitation secret is available
+    - from: invitation-secret-valid
+      to: eligible-recipient
+      guard: secret is valid for this pending invitation
+    - from: invitation-secret-valid
+      to: identity-proof-refused
+      guard: secret is missing, invalid, or belongs to another invitation
+    - from: eligible-recipient
+      to: claim-invitation
+    - from: claim-invitation
+      to: choose-response
+      result: invitation is claimed by the current User
+    - from: choose-response
+      to: accept-invitation
+      affordance: Accept invitation
+    - from: choose-response
+      to: decline-invitation
+      affordance: Decline invitation
+    - from: choose-response
+      to: response-abandoned
+      affordance: Respond later
+    - from: accept-invitation
+      to: invitation-accepted
+      result: active Membership exists with the invited role
+    - from: decline-invitation
+      to: invitation-declined
+      result: invitation is closed without Membership
+```
+
 ## Actors
 
 | Actor                | Participation                                                |

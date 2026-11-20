@@ -74,4 +74,41 @@ Review observed contributors.
       ],
     });
   });
+
+  it('keeps Activity Graph parsing separate from the legacy anatomy tables', () => {
+    const model = parseInteractionModel(
+      `## Goal
+
+Respond to one invitation.
+
+## Activity
+
+\`\`\`atlas-activity
+activity:
+  entry: open
+  nodes:
+    open:
+      kind: stimulus
+      label: Open invitation
+    done:
+      kind: outcome
+      label: Invitation inspected
+  transitions:
+    - from: open
+      to: done
+\`\`\`
+`,
+      { binding: 'workspace', entity: 'WorkspaceInvitation' },
+    );
+
+    expect(model.goal).toBe('Respond to one invitation.');
+    expect(model.activity).toMatchObject({
+      entry: 'open',
+      nodes: [
+        { id: 'open', kind: 'stimulus' },
+        { id: 'done', kind: 'outcome' },
+      ],
+      transitions: [{ from: 'open', to: 'done' }],
+    });
+  });
 });
