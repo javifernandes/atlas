@@ -10,7 +10,7 @@ supports:
 relatedPlans:
   - plans/current/153-replication-and-adaptive-materialization.md
   - plans/done/154-unified-source-and-derivation-model.md
-  - plans/next/156-adaptive-materialization-policy.md
+  - plans/current/156-adaptive-materialization-policy.md
 ---
 
 Source Derivation separates stable dependency declaration from exact revision lineage.
@@ -44,6 +44,11 @@ not fit one-file/one-Entity or another declarative subset.
 Cooling, eviction, storage tiers, and restore policy are optional physical policies over
 reconstructible outputs. They do not define Source Derivation and are not prerequisites for
 incremental execution.
+
+Atlas first represents each Markdown Source Record parse as a versioned artifact identified by the
+record's canonical identity, content hash, and Materializer version. Per-record parsing remains
+separate from cross-record alias resolution and semantic assembly, allowing unchanged artifacts to
+be reused without pretending that all dependencies are record-local.
 
 A Projection Revision is therefore a specialized derived Source Revision, not merely a cache row.
 Execution attempts and Task runs explain how derivation ran; they are not substitutes for accepted

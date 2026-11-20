@@ -347,7 +347,7 @@ const parseCandidateChildren = (content: string) => {
     .filter(Boolean) as string[];
 };
 
-const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
+export const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
   const title = titleFromHeading(file.content, path.basename(file.sourcePath, '.md'));
   const metadata = parseMetadata(file.content);
   const key = getPlanKey(file.sourcePath);
@@ -441,7 +441,7 @@ const getBodySummary = (content: string) => {
     ?.slice(0, 360);
 };
 
-const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
+export const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null => {
   const { body, metadata } = parseFrontmatter(file.content);
   const id = getFrontmatterString(metadata, 'id');
 

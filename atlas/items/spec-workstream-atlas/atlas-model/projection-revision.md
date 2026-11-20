@@ -15,7 +15,7 @@ relatedPlans:
   - plans/done/129-neon-egress-audit-and-containment.md
   - plans/done/148-reconcile-projection-on-production-build.md
   - plans/current/153-replication-and-adaptive-materialization.md
-  - plans/next/156-adaptive-materialization-policy.md
+  - plans/current/156-adaptive-materialization-policy.md
 ---
 
 Projection Revision is the durable operational observation served by Atlas. It records one trigger,
