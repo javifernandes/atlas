@@ -1,6 +1,6 @@
 # 156. Incremental Entity derivation and materialization
 
-Status: next
+Status: current
 
 ## Summary
 
@@ -22,11 +22,11 @@ durable file ChangeSets. Parsing and semantic derivation still rebuild the compl
 though most Pull Requests modify fewer than ten files. The next optimization is therefore not a
 more sophisticated cache policy; it is dependency-aware derivation from an exact committed delta.
 
-Ontahí research Plan `ontahi://plans/164-derived-models-projections-and-provenance` already
-distinguishes a source model, derivation, identity-bearing derived model, provenance, freshness,
-rebuild, incremental update, validation, and repair. This Atlas plan is the first concrete adopter
-of that model. Before implementation starts, Ontahí should own a narrower executable provider plan
-for the runtime kernel and behavioral SPI; its canonical URI must be linked here once assigned.
+Ontahí research Plan `ontahi://plans/164-derived-models-projections-and-provenance` established the
+conceptual model. Executable Plan
+`ontahi://plans/169-replicated-versioned-models-kernel-and-materializer-spi` now supplies the
+provider-neutral acceptance kernel and behavioral Materializer SPI. This Atlas plan is their first
+concrete adopter.
 
 ## Architectural Layers
 
@@ -115,12 +115,17 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
 
 ## Execution Slices
 
-1. Link an Ontahí-owned executable provider plan beneath
-   `ontahi://plans/164-derived-models-projections-and-provenance`.
-2. Define the minimal runtime kernel and behavioral Materializer SPI in Ontahí, including identity,
-   dependency, affected-set, provenance, and full-equivalence contracts.
-3. Add versioned parsed-record artifacts in Atlas and reuse unchanged artifacts for an exact
-   ChangeSet.
+1. [x] Link the executable provider plan:
+       `ontahi://plans/169-replicated-versioned-models-kernel-and-materializer-spi`.
+2. [x] Define the minimal runtime kernel and behavioral Materializer SPI in Ontahí, including
+       identity, dependency, affected-set, provenance, and safe rebuild contracts.
+3. [ ] Add versioned parsed-record artifacts in Atlas and reuse unchanged artifacts for an exact
+       ChangeSet.
+   - [x] Extract a per-record parsing boundary and prove that assembling its artifacts is equivalent
+         to the existing global parser.
+   - [ ] Persist compatible artifacts by Source Record identity, content hash, and Materializer
+         version.
+   - [ ] Connect exact ChangeSets to affected artifact reuse through the Ontahí SPI.
 4. Derive only affected Atlas Entities and semantic dependencies while retaining atomic Projection
    Revision publication and full-rebuild fallback.
 5. Run incremental and full derivation in comparison mode until equivalence and invalidation
@@ -175,6 +180,9 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
 
 ## Closure / Evolution
 
-Reshaped from adaptive storage policy to incremental Entity derivation. Depends on Plans 154 and
-155; parent Plan 153. Ontahí Plan 164 is the provider-side research authority. Cooling, eviction,
-and tier policy remain possible later plugins but have no execution slice here.
+Current. Reshaped from adaptive storage policy to incremental Entity derivation. Plans 154 and 155
+provide exact Source revisions and durable ChangeSets; parent Plan 153 coordinates the broader
+line. Ontahí Plans 164 and 169 own the provider-neutral model and executable SPI. The first Atlas
+slice extracts a versioned per-record parsing artifact and comparison path without changing
+production reconciliation or requiring persistence prematurely. Cooling, eviction, and tier policy
+remain possible later plugins but have no execution slice here.

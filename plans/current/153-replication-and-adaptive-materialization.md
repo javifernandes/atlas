@@ -36,7 +36,9 @@ reproducible state, but cooling, eviction, and product tiers are not on the curr
 The generic mechanism belongs in Ontahí. It should first expose a behavioral Materializer SPI, be
 proved by Atlas and then BookOps, and only then acquire a higher-level declarative API centered on
 Entities. Ontahí research Plan `ontahi://plans/164-derived-models-projections-and-provenance`
-provides the conceptual authority; a narrower executable provider plan still needs to be created.
+provides the conceptual authority, while executable Plan
+`ontahi://plans/169-replicated-versioned-models-kernel-and-materializer-spi` supplies the kernel and
+behavioral SPI adopted by Plan 156.
 
 ## Research / Evidence
 
@@ -146,9 +148,9 @@ confirms the authoritative revision. Revision drift produces an explicit rebase/
 
 1. [x] Execute Plan 154 to settle Source identity, roles, bindings, revisions, and derivation.
 2. [x] Execute Plan 155 to introduce provider-neutral ChangeSets and replica invariants in Atlas.
-3. Create the Ontahí executable provider plan beneath
-   `ontahi://plans/164-derived-models-projections-and-provenance`, then execute Plan 156 as the Atlas
-   adoption of its runtime kernel and behavioral Materializer SPI.
+3. [x] Create and execute the first two slices of
+       `ontahi://plans/169-replicated-versioned-models-kernel-and-materializer-spi`, then begin Plan
+       156 as the Atlas adoption of its runtime kernel and behavioral Materializer SPI.
 4. Adopt incremental parsed/semantic artifacts in Atlas behind full-rebuild equivalence checks and
    retain atomic Projection Revision publication.
 5. Execute Plan 157 to author and publish Git-backed changes from Atlas.

@@ -14,7 +14,7 @@ relatedPlans:
   - plans/current/153-replication-and-adaptive-materialization.md
   - plans/done/154-unified-source-and-derivation-model.md
   - plans/done/155-changeset-and-replica-runtime.md
-  - plans/next/156-adaptive-materialization-policy.md
+  - plans/current/156-adaptive-materialization-policy.md
   - plans/backlog/157-atlas-editing-and-git-write-back.md
 ---
 
