@@ -112,6 +112,42 @@ Graph is the primary Interaction experience. Blueprint and Anatomy are provision
 lenses rather than equal product modes: concrete Interaction cases should determine whether their
 distinct information remains separate or is absorbed into Graph and its inspector.
 
+## Activity Semantics
+
+An Interaction may carry one renderer-independent Activity Graph that makes its behavior explicit
+without turning the Interaction into executable workflow code. The graph separates typed local
+nodes, transitions, context bindings, and semantic references from every authoring and presentation
+form.
+
+The initial local node vocabulary is `stimulus`, `activity`, `decision`, `merge`, `operation`,
+`interaction`, and `outcome`. A transition may independently carry a guard, trigger, affordance, or
+result. An activity may name its actor or responsibility and bind the Entity state it reads or
+presents. Operation and child Interaction nodes resolve independently authored Atlas Items rather
+than copying their contracts.
+
+These are local Activity Graph elements, not new global Atlas Item Types. A node can receive a
+stable local identity for selection, drill-down, comments, diagnostics, and implementation evidence
+while remaining owned by its Interaction. Reuse, independent ownership, a durable contract, or
+cross-Interaction evidence may later justify promotion to an Item; visual prominence alone does
+not.
+
+The first explicit authoring adapter is a fenced YAML block parsed through Atlas's maintained `yaml`
+dependency. YAML is not the semantic API. A later compact language, visual editor, programmatic
+builder, or Mermaid importer must compile into the same normalized Activity Graph. Graph, Blueprint,
+Play, and Mermaid export consume projections of that model and never reinterpret source text or
+generated SVG as semantic truth.
+
+The implementation boundary is strict:
+
+```text
+authoring adapter -> Activity Graph -> validation / reference resolution -> lens projection -> UI
+```
+
+Each boundary remains independently unit-testable. Model code does not import Markdown, YAML,
+React, Mermaid, or layout coordinates. Parsing does not resolve Atlas references. Lens projection
+does not parse authoring syntax. React renders projections rather than inferring behavior from
+labels.
+
 ## Implementation Boundary
 
 Interaction is not executable framework code, a React component hierarchy, or a route map. Ontahí

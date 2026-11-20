@@ -6,3 +6,4 @@ coverage/
 !.env.example
 atlas.sources.local.yaml
 .neon
+.DS_Store
