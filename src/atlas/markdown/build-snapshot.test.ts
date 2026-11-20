@@ -21,6 +21,28 @@ status: shaping
 
 Review observed contributors.
 
+## Activity
+
+\`\`\`atlas-activity
+activity:
+  entry: inspect
+  nodes:
+    inspect:
+      kind: activity
+      reads:
+        - ref: ./invite.md
+          label: Invitation
+      presents:
+        - ref: atlas.workspace.missing
+          label: Missing projection
+    invite:
+      kind: interaction
+      ref: ./invite.md
+  transitions:
+    - from: inspect
+      to: invite
+\`\`\`
+
 ## Actors
 
 | Actor | Participation |
@@ -57,6 +79,32 @@ status: shaping
               targetNodeId: 'atlas:atlas.workspace.invite',
             }),
           ],
+          activity: expect.objectContaining({
+            entry: 'inspect',
+            nodes: [
+              expect.objectContaining({
+                id: 'inspect',
+                reads: [
+                  expect.objectContaining({
+                    resolution: 'resolved',
+                    targetNodeId: 'atlas:atlas.workspace.invite',
+                  }),
+                ],
+                presents: [
+                  expect.objectContaining({
+                    resolution: 'unresolved',
+                  }),
+                ],
+              }),
+              expect.objectContaining({
+                id: 'invite',
+                reference: expect.objectContaining({
+                  resolution: 'resolved',
+                  targetNodeId: 'atlas:atlas.workspace.invite',
+                }),
+              }),
+            ],
+          }),
           goal: 'Review observed contributors.',
           kind: 'interaction',
           scope: { binding: 'workspace', entity: 'AtlasWorkspace' },

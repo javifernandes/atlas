@@ -52,6 +52,7 @@ export type ActivityGraph = {
 
 export type ActivityGraphDiagnosticCode =
   | 'duplicate-node-id'
+  | 'unresolved-semantic-reference'
   | 'missing-entry'
   | 'missing-entry-node'
   | 'dangling-transition'

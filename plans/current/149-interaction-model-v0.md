@@ -479,16 +479,16 @@ later compact language, visual editor, or Mermaid importer must compile to the s
       dedicated Markdown adapter; do not hand-parse YAML.
 - [x] Keep the existing Interaction tables compatible while the activity block is optional and the
       first exemplars evolve.
-- [ ] Validate duplicate node IDs, missing entry nodes, dangling transitions, invalid node-kind
+- [x] Validate duplicate node IDs, missing entry nodes, dangling transitions, invalid node-kind
       fields, unresolved semantic references, and unreachable authored nodes with attributable
       diagnostics.
-- [ ] Resolve Entity, Operation, and child Interaction references after parsing rather than inside
+- [x] Resolve Entity, Operation, and child Interaction references after parsing rather than inside
       the YAML adapter.
-- [ ] Unit-test the semantic model independently, parser success and diagnostics independently,
+- [x] Unit-test the semantic model independently, parser success and diagnostics independently,
       reference resolution independently, and lens projection independently.
 - [ ] Prove that a second authoring adapter or a programmatically constructed graph produces the same
       normalized model and lens projections.
-- [ ] Expand a local activity node in place and return to its parent Interaction without promoting
+- [x] Expand a local activity node in place and return to its parent Interaction without promoting
       that node to an Atlas Item.
 - [ ] Treat Mermaid only as an optional derived export or import experiment; no Atlas behavior may
       depend on Mermaid layout or generated markup.
@@ -619,6 +619,19 @@ an explicit `atlas-activity` YAML adapter, structural validation, and an authore
 authoritative for their current detail surfaces. Atlas reference resolution and Graph/Blueprint
 projection over the new model remain separate subsequent checkpoints; parser code neither resolves
 Items nor imports viewer concerns.
+
+The next checkpoint resolves every Activity semantic reference only after all source records are
+known, preserving unresolved Items as attributable diagnostics. A renderer-independent lens
+projection attaches adjacency, detects cyclic back-transitions, and derives columns without adding
+coordinates to the semantic model. The Graph lens now consumes that projection, keeps legacy
+table-derived flows as a fallback, and opens local node detail in place with navigable Entity,
+Operation, and Interaction references.
+
+The local end-to-end checkpoint now reconciles the real `atlas` Workspace through the declared
+Workspace Entity reference and reads full-detail Markdown from that Workspace's latest projection,
+not from the legacy global projection. This keeps the map and detail surfaces on one projection
+boundary and verifies the authored Activity Graph through the same path used by dynamic
+Workspaces.
 
 `Invite Person To Workspace` now defines the owner's side of invitation creation across three
 recipient paths: a stable Atlas User, an observed GitHub identity, or verified-email delivery. The
