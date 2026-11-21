@@ -2903,11 +2903,12 @@ const InteractionActivityGraphLens = ({
               data-activity-node-id={node.id}
               className={cn(
                 'absolute cursor-pointer rounded-lg border px-3.5 py-2.5 text-left transition-colors',
-                selected
-                  ? 'border-primary/65 bg-primary/[0.09] shadow-[inset_3px_0_0_hsl(var(--primary))] ring-2 ring-primary/15'
-                  : node.kind === 'outcome'
-                    ? 'border-emerald-400/25 bg-emerald-400/[0.05] hover:border-emerald-400/45'
+                node.kind === 'outcome'
+                  ? 'rounded-xl border-emerald-400/40 bg-emerald-400/[0.09] shadow-[inset_3px_0_0_rgb(52_211_153_/_0.7)] hover:border-emerald-300/60'
+                  : selected
+                    ? 'border-primary/65 bg-primary/[0.09] shadow-[inset_3px_0_0_hsl(var(--primary))]'
                     : 'border-border/55 bg-background/90 hover:border-primary/35',
+                selected && 'ring-2 ring-primary/20',
               )}
               key={node.id}
               onClick={selectNode}
@@ -2915,7 +2916,10 @@ const InteractionActivityGraphLens = ({
               tabIndex={-1}
               type='button'
             >
-              <span className='flex items-center justify-between gap-2 font-mono text-[8px] uppercase tracking-[0.12em] text-primary'>
+              <span className={cn(
+                'flex items-center justify-between gap-2 font-mono text-[8px] uppercase tracking-[0.12em]',
+                node.kind === 'outcome' ? 'text-emerald-300' : 'text-primary',
+              )}>
                 {node.kind}
                 {node.responsibility ? <span className='text-muted-foreground'>{node.responsibility}</span> : null}
               </span>
