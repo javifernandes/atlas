@@ -527,6 +527,9 @@ later compact language, visual editor, or Mermaid importer must compile to the s
       explicit without duplicating successor or outcome content inside nodes.
 - [x] Make pointer selection and directional keyboard navigation update the same Activity node
       inspector reliably while preserving canvas pan and zoom gestures.
+- [x] Keep selected-node detail beside the spatial graph in a dismissible right-hand panel rather
+      than below the canvas, and represent keyboard focus through node selection without outlining
+      the entire graph surface.
 - [x] Replace low-frequency Workspace switching and creation chrome with one quiet menu that
   returns home, opens settings, and recalls recently inspected Items in the current Workspace.
 - [ ] Explore a per-user spatial-navigation sensitivity preference with an inline preview before

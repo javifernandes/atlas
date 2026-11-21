@@ -2477,9 +2477,11 @@ const InteractionStepInspector = ({
 );
 
 const ActivityNodeInspector = ({
+  appearance = 'inline',
   context,
   node,
 }: {
+  appearance?: 'inline' | 'panel';
   context: MarkdownRenderContext;
   node: ActivityGraphLensNode;
 }) => {
@@ -2488,9 +2490,9 @@ const ActivityNodeInspector = ({
   return (
     <section
       aria-label='Activity node details'
-      className='border-t border-border/45 pt-6'
+      className={cn(appearance === 'inline' && 'border-t border-border/45 pt-6')}
     >
-      <div className='max-w-5xl'>
+      <div className={cn(appearance === 'inline' && 'max-w-5xl')}>
         <div className='font-mono text-[10px] uppercase tracking-[0.14em] text-primary'>
           {node.kind} · activity node
         </div>
@@ -2804,7 +2806,7 @@ const InteractionActivityGraphLens = ({
       aria-label='Activity graph'
       aria-keyshortcuts='ArrowUp ArrowDown ArrowLeft ArrowRight'
       className={cn(
-        'relative h-full min-h-[30rem] select-none overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px]',
+        'relative h-full min-h-[30rem] select-none overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px] focus:outline-none',
         isPanning ? 'cursor-grabbing' : 'cursor-grab',
       )}
       role='region'
@@ -3038,6 +3040,7 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
   const hasFlow = hasActivity || hasLegacyFlow;
   const [view, setView] = useState<'anatomy' | 'blueprint' | 'graph'>(hasFlow ? 'graph' : 'anatomy');
   const [selectedActivityNodeId, setSelectedActivityNodeId] = useState(model?.activity?.entry ?? '');
+  const [activityInspectorOpen, setActivityInspectorOpen] = useState(false);
   const [selectedStep, setSelectedStep] = useState(model?.steps[0]?.label ?? '');
 
   if (!model) return null;
@@ -3064,11 +3067,26 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
           </div>
         </div>
       ) : null}
-      {view === 'graph' && activityProjection ? <InteractionActivityGraphLens onSelect={setSelectedActivityNodeId} projection={activityProjection} selectedNodeId={selectedActivityNodeId} /> : null}
+      {view === 'graph' && activityProjection ? <InteractionActivityGraphLens onSelect={nodeId => { setSelectedActivityNodeId(nodeId); setActivityInspectorOpen(true); }} projection={activityProjection} selectedNodeId={selectedActivityNodeId} /> : null}
       {view === 'graph' && !model.activity && hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionGraphLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /></div> : null}
       {view === 'blueprint' && hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionBlueprintLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /></div> : null}
       {view === 'anatomy' || !hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionAnatomy context={context} /></div> : null}
-      {view === 'graph' && activityProjection && selectedActivityNode ? <div className='px-6 py-6 sm:px-8 lg:px-10'><ActivityNodeInspector context={context} node={selectedActivityNode} /></div> : null}
+      {view === 'graph' && activityProjection && selectedActivityNode && activityInspectorOpen ? (
+        <aside
+          aria-label='Activity node details panel'
+          className='absolute inset-y-0 right-0 z-30 flex w-full max-w-[28rem] flex-col border-l border-border/65 bg-background/95 shadow-[-18px_0_44px_rgba(0,0,0,0.28)] backdrop-blur-xl'
+        >
+          <div className='flex items-center justify-between border-b border-border/45 px-5 py-3'>
+            <span className='font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground'>Node detail</span>
+            <IconButton label='Close activity node details' onClick={() => setActivityInspectorOpen(false)}>
+              <X className='size-4' />
+            </IconButton>
+          </div>
+          <div className='min-h-0 flex-1 overflow-y-auto px-5 py-5'>
+            <ActivityNodeInspector appearance='panel' context={context} node={selectedActivityNode} />
+          </div>
+        </aside>
+      ) : null}
       {view === 'blueprint' && selected ? <div className='px-6 pb-6 sm:px-8 lg:px-10'><InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /></div> : null}
       {view === 'graph' && !model.activity && selected ? <div className='px-6 pb-6 sm:px-8 lg:px-10'><InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /></div> : null}
     </section>
