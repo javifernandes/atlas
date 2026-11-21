@@ -522,6 +522,11 @@ later compact language, visual editor, or Mermaid importer must compile to the s
   available without reading as floating cards above the Item.
 - [x] Add reusable spatial keyboard navigation and prove it with arrow-key traversal in the
   Activity Graph before adopting the same primitive in the Workspace graph.
+- [x] Replace column-sized Activity cards and textual adjacency with compact selectable nodes and
+      an SVG connection layer that makes forks, convergence, and transition labels spatially
+      explicit without duplicating successor or outcome content inside nodes.
+- [x] Make pointer selection and directional keyboard navigation update the same Activity node
+      inspector reliably while preserving canvas pan and zoom gestures.
 - [x] Replace low-frequency Workspace switching and creation chrome with one quiet menu that
   returns home, opens settings, and recalls recently inspected Items in the current Workspace.
 - [ ] Explore a per-user spatial-navigation sensitivity preference with an inline preview before

@@ -164,6 +164,13 @@ primitive that the Workspace graph may also adopt. It does not add ordering or c
 semantic model. Merge nodes appear as compact convergence points because they establish a
 control-flow condition without performing actor or system work.
 
+Graph topology belongs to connections rather than node copy. A decision node does not repeat its
+successor nodes as a list, and an Operation does not repeat the Outcome already reached by its
+outgoing transition. The spatial lens renders compact selectable nodes above a derived SVG
+connection layer; concise guards, triggers, or affordances may label those connections while the
+node inspector carries semantic detail. SVG paths and all layout coordinates remain disposable
+presentation projections, never durable Activity Graph truth.
+
 The spatial projection owns the Interaction detail subsection while it is active. It does not sit
 inside a second editorial card, and wheel or pinch gestures over that surface are consumed by the
 canvas for pan and zoom instead of leaking to the surrounding detail scroller. Blueprint and

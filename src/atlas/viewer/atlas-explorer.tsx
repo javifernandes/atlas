@@ -74,6 +74,11 @@ import {
   type ActivityGraphLensProjection,
   type ActivityGraphLensNode,
 } from '@/atlas/viewer/activity-graph-lens';
+import {
+  activityGraphEdgeLabel,
+  buildActivityGraphEdgePath,
+  buildActivityGraphLayout,
+} from '@/atlas/viewer/activity-graph-layout';
 import { atlasDetailSurfaceChangedEvent } from '@/atlas/viewer/detail-surface-events';
 import {
   getItemKindPresentation,
@@ -2471,9 +2476,6 @@ const InteractionStepInspector = ({
   </section>
 );
 
-const activityTransitionLabel = (transition: ActivityGraphLensNode['outgoing'][number]) =>
-  transition.affordance ?? transition.guard ?? transition.trigger ?? transition.result;
-
 const ActivityNodeInspector = ({
   context,
   node,
@@ -2572,7 +2574,11 @@ const InteractionActivityGraphLens = ({
   selectedNodeId: string;
 }) => {
   const backTransitions = new Set(projection.backTransitions);
-  const nodesById = new Map(projection.nodes.map(node => [node.id, node]));
+  const layout = useMemo(() => buildActivityGraphLayout(projection), [projection]);
+  const layoutNodesById = useMemo(
+    () => new Map(layout.nodes.map(node => [node.id, node])),
+    [layout.nodes],
+  );
   const canvasRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport>({ x: 32, y: 32, scale: 1 });
@@ -2588,15 +2594,12 @@ const InteractionActivityGraphLens = ({
   const [viewport, setViewport] = useState(viewportRef.current);
   const [isPanning, setIsPanning] = useState(false);
   const keyboardNodes = useMemo(
-    () =>
-      projection.columns.flatMap((column, columnIndex) =>
-        column.nodes.map((node, rowIndex) => ({
-          id: node.id,
-          x: columnIndex * 100,
-          y: rowIndex * 100,
-        })),
-      ),
-    [projection.columns],
+    () => layout.nodes.map(node => ({
+      id: node.id,
+      x: node.x + node.width / 2,
+      y: node.y + node.height / 2,
+    })),
+    [layout.nodes],
   );
 
   const applyActivityViewport = useCallback((next: Viewport) => {
@@ -2686,6 +2689,7 @@ const InteractionActivityGraphLens = ({
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if ((event.target as HTMLElement).closest('[data-activity-node-id], [data-activity-controls]')) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     const current = viewportRef.current;
     dragRef.current = {
@@ -2777,6 +2781,20 @@ const InteractionActivityGraphLens = ({
     globalThis.requestAnimationFrame(() => revealActivityNode(target.id));
   };
 
+  const layoutTransitions = projection.transitions.flatMap(transition => {
+    const source = layoutNodesById.get(transition.from);
+    const target = layoutNodesById.get(transition.to);
+    if (!source || !target) return [];
+    return [{
+      isBack: backTransitions.has(transition),
+      label: activityGraphEdgeLabel(transition),
+      labelX: (source.x + source.width + target.x) / 2,
+      labelY: (source.y + source.height / 2 + target.y + target.height / 2) / 2,
+      path: buildActivityGraphEdgePath(source, target, backTransitions.has(transition)),
+      transition,
+    }];
+  });
+
   return (
     <div
       ref={canvasRef}
@@ -2784,6 +2802,7 @@ const InteractionActivityGraphLens = ({
         selectedNodeId ? `activity-node-${selectedNodeId}` : undefined
       }
       aria-label='Activity graph'
+      aria-keyshortcuts='ArrowUp ArrowDown ArrowLeft ArrowRight'
       className={cn(
         'relative h-full min-h-[30rem] select-none overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px]',
         isPanning ? 'cursor-grabbing' : 'cursor-grab',
@@ -2805,88 +2824,109 @@ const InteractionActivityGraphLens = ({
     >
       <div
         ref={contentRef}
-        className='absolute left-0 top-0 flex min-w-max origin-top-left items-stretch gap-3 p-6 will-change-transform'
-        style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}
+        className='absolute left-0 top-0 origin-top-left will-change-transform'
+        style={{
+          height: layout.height,
+          transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
+          width: layout.width,
+        }}
       >
-        {projection.columns.map((column, columnIndex) => (
-          <Fragment key={column.id}>
-            <div className='flex w-64 shrink-0 flex-col justify-center gap-3'>
-              {column.nodes.map(node => {
-                const selected = selectedNodeId === node.id;
-                if (node.kind === 'merge') {
-                  return (
-                    <button
-                      id={`activity-node-${node.id}`}
-                      data-activity-node-id={node.id}
-                      className={cn(
-                        'group mx-auto flex w-48 items-center justify-center gap-3 rounded-full border border-dashed px-4 py-3 text-left transition-colors',
-                        selected
-                          ? 'border-primary/60 bg-primary/[0.08] text-primary'
-                          : 'border-border/60 bg-background/65 text-foreground hover:border-primary/35',
-                      )}
-                      key={node.id}
-                      onClick={() => {
-                        onSelect(node.id);
-                        canvasRef.current?.focus({ preventScroll: true });
-                      }}
-                      tabIndex={-1}
-                      type='button'
-                    >
-                      <span className='size-3 rotate-45 border border-current bg-background' />
-                      <span>
-                        <span className='block font-mono text-[8px] uppercase tracking-[0.12em] text-muted-foreground'>merge</span>
-                        <span className='mt-0.5 block text-xs font-medium'>{node.label}</span>
-                      </span>
-                    </button>
-                  );
-                }
+        <svg
+          aria-hidden='true'
+          className='pointer-events-none absolute inset-0 overflow-visible'
+          height={layout.height}
+          width={layout.width}
+        >
+          <defs>
+            <marker id='activity-arrowhead' markerHeight='8' markerWidth='8' orient='auto' refX='7' refY='4'>
+              <path className='fill-primary/60' d='M 0 0 L 8 4 L 0 8 z' />
+            </marker>
+          </defs>
+          {layoutTransitions.map(({ isBack, path, transition }) => (
+            <path
+              className={cn(
+                'fill-none stroke-primary/45 [stroke-width:1.5]',
+                isBack && '[stroke-dasharray:5_5] stroke-primary/30',
+              )}
+              d={path}
+              key={transition.id}
+              markerEnd='url(#activity-arrowhead)'
+            />
+          ))}
+        </svg>
 
-                return (
-                  <button
-                    id={`activity-node-${node.id}`}
-                    data-activity-node-id={node.id}
-                    className={cn(
-                      'rounded-xl border px-4 py-3 text-left transition-colors',
-                      selected
-                        ? 'border-primary/55 bg-primary/[0.07] shadow-[inset_3px_0_0_hsl(var(--primary))]'
-                        : node.kind === 'outcome'
-                          ? 'border-emerald-400/20 bg-emerald-400/[0.04] hover:border-emerald-400/35'
-                          : 'border-border/55 bg-background/80 hover:border-border',
-                    )}
-                    key={node.id}
-                    onClick={() => {
-                      onSelect(node.id);
-                      canvasRef.current?.focus({ preventScroll: true });
-                    }}
-                    tabIndex={-1}
-                    type='button'
-                  >
-                    <span className='flex items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-[0.12em] text-primary'>
-                      {node.kind}
-                      {node.responsibility ? <span className='text-muted-foreground'>{node.responsibility}</span> : null}
-                    </span>
-                    <span className='mt-1 block text-sm font-medium text-foreground'>{node.label}</span>
-                    {node.outgoing.length > 0 ? (
-                      <span className='mt-3 grid gap-1.5 border-t border-border/35 pt-2'>
-                        {node.outgoing.map(transition => (
-                          <span className='flex items-start gap-1.5 text-[10px] leading-relaxed text-muted-foreground' key={transition.id}>
-                            {backTransitions.has(transition) ? <RotateCcw className='mt-0.5 size-3 shrink-0 text-primary/65' /> : <ArrowRight className='mt-0.5 size-3 shrink-0 text-primary/65' />}
-                            <span><span className='text-foreground/75'>{nodesById.get(transition.to)?.label ?? transition.to}</span>{activityTransitionLabel(transition) ? ` · ${activityTransitionLabel(transition)}` : ''}</span>
-                          </span>
-                        ))}
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-            {columnIndex < projection.columns.length - 1 ? <div className='flex w-5 shrink-0 items-center justify-center text-primary/35'><ArrowRight className='size-4' /></div> : null}
-          </Fragment>
-        ))}
+        {layoutTransitions.map(({ label, labelX, labelY, transition }) => label ? (
+          <span
+            className='pointer-events-none absolute max-w-36 -translate-x-1/2 -translate-y-1/2 rounded bg-background/90 px-1.5 py-0.5 text-center font-mono text-[8px] leading-tight text-muted-foreground'
+            key={`${transition.id}-label`}
+            style={{ left: labelX, top: labelY }}
+          >
+            {label}
+          </span>
+        ) : null)}
+
+        {layout.nodes.map(node => {
+          const selected = selectedNodeId === node.id;
+          const selectNode = () => {
+            onSelect(node.id);
+            canvasRef.current?.focus({ preventScroll: true });
+          };
+
+          if (node.kind === 'merge') {
+            return (
+              <button
+                id={`activity-node-${node.id}`}
+                aria-label={`merge: ${node.label}`}
+                data-activity-node-id={node.id}
+                className={cn(
+                  'absolute flex cursor-pointer items-center justify-center gap-2 rounded-full border border-dashed px-3 text-left transition-colors',
+                  selected
+                    ? 'border-primary/70 bg-primary/[0.1] text-primary ring-2 ring-primary/20'
+                    : 'border-border/60 bg-background/90 text-foreground hover:border-primary/45',
+                )}
+                key={node.id}
+                onClick={selectNode}
+                style={{ height: node.height, left: node.x, top: node.y, width: node.width }}
+                tabIndex={-1}
+                type='button'
+              >
+                <span className='size-2.5 rotate-45 border border-current bg-background' />
+                <span className='truncate text-xs font-medium'>{node.label}</span>
+              </button>
+            );
+          }
+
+          return (
+            <button
+              id={`activity-node-${node.id}`}
+              aria-label={`${node.kind}: ${node.label}`}
+              data-activity-node-id={node.id}
+              className={cn(
+                'absolute cursor-pointer rounded-lg border px-3.5 py-2.5 text-left transition-colors',
+                selected
+                  ? 'border-primary/65 bg-primary/[0.09] shadow-[inset_3px_0_0_hsl(var(--primary))] ring-2 ring-primary/15'
+                  : node.kind === 'outcome'
+                    ? 'border-emerald-400/25 bg-emerald-400/[0.05] hover:border-emerald-400/45'
+                    : 'border-border/55 bg-background/90 hover:border-primary/35',
+              )}
+              key={node.id}
+              onClick={selectNode}
+              style={{ height: node.height, left: node.x, top: node.y, width: node.width }}
+              tabIndex={-1}
+              type='button'
+            >
+              <span className='flex items-center justify-between gap-2 font-mono text-[8px] uppercase tracking-[0.12em] text-primary'>
+                {node.kind}
+                {node.responsibility ? <span className='text-muted-foreground'>{node.responsibility}</span> : null}
+              </span>
+              <span className='mt-1.5 block line-clamp-2 text-sm font-medium leading-snug text-foreground'>{node.label}</span>
+            </button>
+          );
+        })}
       </div>
       <div
+        data-activity-controls
         className='absolute bottom-3 right-3 flex items-center gap-1 rounded-lg border border-border/70 bg-background/80 p-1.5 shadow-lg backdrop-blur-xl'
-        onPointerDown={event => event.stopPropagation()}
       >
         <IconButton label='Zoom out activity graph' onClick={() => zoomActivityGraph(-0.2)}>
           <Minus className='size-4' />
