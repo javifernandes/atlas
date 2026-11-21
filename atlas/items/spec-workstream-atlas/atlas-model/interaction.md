@@ -153,8 +153,30 @@ absolute semantic IDs and source-relative references with the same rules as the 
 Interaction, preserving unresolved targets as shaping pressure. The Activity Graph lens then adds
 presentation adjacency, back-transition detection, and derived columns without mutating authored
 nodes or introducing layout coordinates into the durable model. Selecting a local node reveals its
-responsibility, reads, presentations, semantic target, and transitions while remaining inside the
-owning Interaction.
+responsibility, reads, presentations, and semantic target while remaining inside the owning
+Interaction. Incoming and outgoing topology stays in the Graph lens rather than being duplicated
+in the inspector.
+
+The Graph lens is a spatial projection: pan, zoom, reset, and fit-to-content belong to the viewer,
+not to the durable Activity Graph. Merge nodes appear as compact convergence points because they
+establish a control-flow condition without performing actor or system work.
+
+Actors are named Interaction-local bindings. Activity nodes reference those bindings rather than
+copying display labels, but v0 deliberately leaves their executable resolution as descriptive
+semantics. A role such as `Invitation Recipient` may later be proven through a User identity,
+provider identity, or invitation secret without prematurely inventing an Atlas expression
+language or Entity type for the role.
+
+Nodes and transitions have stable local identities. They can later anchor comments,
+implementation evidence, runtime traces, branch metrics, and experiment variants while remaining
+owned by the Interaction. A stimulus is the semantic fact that enters the graph; an Ontahí Ingress
+or external Event may realize that entry later, but transport is not part of the stimulus's
+identity.
+
+This preserves a possible execution bridge without equating the current concepts: an Interaction
+describes observable actor-system behavior, Operations remain executable domain capabilities, and
+durable execution may eventually interpret or report against the same Activity Graph. Whether an
+Operation may also own an Activity Graph body remains exemplar-driven follow-up work.
 
 ## Implementation Boundary
 

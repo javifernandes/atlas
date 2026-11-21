@@ -496,6 +496,7 @@ const selection: Selection = Selection.references(Book, refs);
         steps: [],
         outcomes: [],
         activity: {
+          actors: [],
           entry: 'open',
           nodes: [
             {
@@ -529,8 +530,13 @@ const selection: Selection = Selection.references(Book, refs);
             },
           ],
           transitions: [
-            { affordance: 'Continue', from: 'open', to: 'claim' },
-            { from: 'claim', result: 'Membership is active', to: 'accepted' },
+            { id: 'continue', affordance: 'Continue', from: 'open', to: 'claim' },
+            {
+              id: 'membership-active',
+              from: 'claim',
+              result: 'Membership is active',
+              to: 'accepted',
+            },
           ],
         },
       },
@@ -540,15 +546,18 @@ const selection: Selection = Selection.references(Book, refs);
 
     const details = screen.getByRole('region', { name: 'Interaction details' });
     expect(within(details).getAllByText('Open invitation URL')).not.toHaveLength(0);
-    expect(within(details).getAllByText('Continue')).not.toHaveLength(0);
+    expect(within(details).getAllByText(/Continue/)).not.toHaveLength(0);
     expect(within(details).getAllByText('Invitation accepted')).not.toHaveLength(0);
+    expect(within(details).getByRole('button', { name: 'Zoom in activity graph' })).toBeInTheDocument();
+    expect(within(details).getByRole('button', { name: 'Fit activity graph' })).toBeInTheDocument();
 
     await user.click(within(details).getAllByRole('button', { name: /Claim invitation/ })[1]!);
 
     const inspector = screen.getByRole('region', { name: 'Activity node details' });
     expect(within(inspector).getByText('Semantic target')).toBeInTheDocument();
     expect(within(inspector).getByRole('button', { name: /Claim Invitation Operation/ })).toBeInTheDocument();
-    expect(within(inspector).getByText('Membership is active')).toBeInTheDocument();
+    expect(within(inspector).queryByText('Arrives through')).not.toBeInTheDocument();
+    expect(within(inspector).queryByText('Continues through')).not.toBeInTheDocument();
   });
 
   it('renders a one-column Markdown table as a table', () => {

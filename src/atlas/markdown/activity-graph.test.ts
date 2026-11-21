@@ -13,6 +13,12 @@ describe('Activity Graph YAML adapter', () => {
 \`\`\`atlas-activity
 activity:
   entry: open-invitation
+  actors:
+    recipient:
+      label: Invitation Recipient
+      description: The person responding to the invitation.
+      context:
+        - workspace-invitation
   nodes:
     open-invitation:
       kind: stimulus
@@ -31,9 +37,11 @@ activity:
       label: Claim invitation
       ref: workspace-invitation.claim
   transitions:
-    - from: open-invitation
+    - id: invitation-opened
+      from: open-invitation
       to: can-respond
-    - from: can-respond
+    - id: invitation-claimable
+      from: can-respond
       to: claim
       guard: invitation is pending
       affordance: Continue
@@ -42,6 +50,14 @@ activity:
 
     expect(parsed.diagnostics).toEqual([]);
     expect(parsed.graph).toMatchObject({
+      actors: [
+        {
+          context: [{ reference: 'workspace-invitation' }],
+          description: 'The person responding to the invitation.',
+          id: 'recipient',
+          label: 'Invitation Recipient',
+        },
+      ],
       entry: 'open-invitation',
       nodes: [
         {
@@ -62,8 +78,9 @@ activity:
         },
       ],
       transitions: [
-        { from: 'open-invitation', to: 'can-respond' },
+        { id: 'invitation-opened', from: 'open-invitation', to: 'can-respond' },
         {
+          id: 'invitation-claimable',
           affordance: 'Continue',
           from: 'can-respond',
           guard: 'invitation is pending',
@@ -100,7 +117,8 @@ activity:
     open:
       kind: screen
   transitions:
-    - from: open
+    - id: open-to-nowhere
+      from: open
       to: nowhere
 \`\`\`
 `);

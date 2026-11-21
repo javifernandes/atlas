@@ -26,11 +26,18 @@ after proving the identity required by its addressing path.
 ```atlas-activity
 activity:
   entry: open-invitation
+  actors:
+    invitation-recipient:
+      label: Invitation Recipient
+      description: The person proving control of the invitation's addressed identity and choosing its response.
+      context:
+        - ref: spec-workstream-atlas.access-identity.workspace.invitation
+          label: Workspace invitation addressee
   nodes:
     open-invitation:
       kind: stimulus
       label: Open invitation URL
-      actor: Invitation Recipient
+      actor: invitation-recipient
       responsibility: external
     resolve-context:
       kind: activity
@@ -66,7 +73,7 @@ activity:
     authenticate:
       kind: activity
       label: Sign in or switch account
-      actor: Invitation Recipient
+      actor: invitation-recipient
       responsibility: actor
     addressing-policy:
       kind: decision
@@ -85,7 +92,7 @@ activity:
     prove-github-identity:
       kind: activity
       label: Prove GitHub identity
-      actor: Invitation Recipient
+      actor: invitation-recipient
       responsibility: actor
     provider-id-matches:
       kind: decision
@@ -97,7 +104,7 @@ activity:
     prove-invitation-secret:
       kind: activity
       label: Prove invitation secret
-      actor: Invitation Recipient
+      actor: invitation-recipient
       responsibility: actor
     invitation-secret-valid:
       kind: decision
@@ -111,7 +118,7 @@ activity:
       label: Identity proof refused
     eligible-recipient:
       kind: merge
-      label: Eligible recipient
+      label: Recipient identity proven
     claim-invitation:
       kind: operation
       label: Claim Workspace Invitation
@@ -121,7 +128,7 @@ activity:
     choose-response:
       kind: decision
       label: Accept or decline invitation?
-      actor: Invitation Recipient
+      actor: invitation-recipient
       responsibility: actor
     accept-invitation:
       kind: operation
@@ -145,81 +152,106 @@ activity:
       kind: outcome
       label: Response abandoned
   transitions:
-    - from: open-invitation
+    - id: invitation-opened
+      from: open-invitation
       to: resolve-context
       trigger: invitation URL opened
-    - from: resolve-context
+    - id: context-resolved
+      from: resolve-context
       to: lifecycle-allows-response
-    - from: lifecycle-allows-response
+    - id: invitation-unavailable
+      from: lifecycle-allows-response
       to: invitation-unavailable
       guard: invitation is missing, expired, revoked, or no longer pending
-    - from: lifecycle-allows-response
+    - id: invitation-claimable
+      from: lifecycle-allows-response
       to: actor-authenticated
       guard: invitation is pending and claimable
-    - from: actor-authenticated
+    - id: authentication-required
+      from: actor-authenticated
       to: authenticate
       guard: no authenticated Atlas User
       affordance: Sign in
-    - from: authenticate
+    - id: authentication-changed
+      from: authenticate
       to: actor-authenticated
       result: authentication state changed
-    - from: actor-authenticated
+    - id: actor-authenticated
+      from: actor-authenticated
       to: addressing-policy
       guard: an Atlas User is authenticated
-    - from: addressing-policy
+    - id: known-user-policy
+      from: addressing-policy
       to: user-id-matches
       guard: invitation targets a known Atlas User
-    - from: user-id-matches
+    - id: known-user-proven
+      from: user-id-matches
       to: eligible-recipient
       guard: authenticated User ID equals target User ID
-    - from: user-id-matches
+    - id: known-user-mismatch
+      from: user-id-matches
       to: authenticate
       guard: authenticated User ID differs from target User ID
       affordance: Switch account
-    - from: addressing-policy
+    - id: github-identity-policy
+      from: addressing-policy
       to: prove-github-identity
       guard: invitation targets an observed GitHub identity
       affordance: Continue with GitHub
-    - from: prove-github-identity
+    - id: github-identity-available
+      from: prove-github-identity
       to: provider-id-matches
       result: provider identity is available
-    - from: provider-id-matches
+    - id: github-identity-proven
+      from: provider-id-matches
       to: eligible-recipient
       guard: provider and stable account ID equal the invitation target
-    - from: provider-id-matches
+    - id: github-identity-refused
+      from: provider-id-matches
       to: identity-proof-refused
       guard: provider identity does not equal the invitation target
-    - from: addressing-policy
+    - id: verified-email-policy
+      from: addressing-policy
       to: prove-invitation-secret
       guard: invitation uses a verified-email secret
       affordance: Continue with invitation link
-    - from: prove-invitation-secret
+    - id: invitation-secret-available
+      from: prove-invitation-secret
       to: invitation-secret-valid
       result: signed invitation secret is available
-    - from: invitation-secret-valid
+    - id: invitation-secret-proven
+      from: invitation-secret-valid
       to: eligible-recipient
       guard: secret is valid for this pending invitation
-    - from: invitation-secret-valid
+    - id: invitation-secret-refused
+      from: invitation-secret-valid
       to: identity-proof-refused
       guard: secret is missing, invalid, or belongs to another invitation
-    - from: eligible-recipient
+    - id: recipient-eligible-to-claim
+      from: eligible-recipient
       to: claim-invitation
-    - from: claim-invitation
+    - id: invitation-claimed
+      from: claim-invitation
       to: choose-response
       result: invitation is claimed by the current User
-    - from: choose-response
+    - id: invitation-accept-selected
+      from: choose-response
       to: accept-invitation
       affordance: Accept invitation
-    - from: choose-response
+    - id: invitation-decline-selected
+      from: choose-response
       to: decline-invitation
       affordance: Decline invitation
-    - from: choose-response
+    - id: invitation-response-deferred
+      from: choose-response
       to: response-abandoned
       affordance: Respond later
-    - from: accept-invitation
+    - id: invitation-accepted
+      from: accept-invitation
       to: invitation-accepted
       result: active Membership exists with the invited role
-    - from: decline-invitation
+    - id: invitation-declined
+      from: decline-invitation
       to: invitation-declined
       result: invitation is closed without Membership
 ```

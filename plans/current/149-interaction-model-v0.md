@@ -355,7 +355,15 @@ type ActivityNode = {
   invokes?: SemanticReference;
 };
 
+type ActivityActorBinding = {
+  id: string;
+  label: string;
+  description?: string;
+  context: SemanticReference[];
+};
+
 type ActivityTransition = {
+  id: string;
   from: string;
   to: string;
   guard?: string;
@@ -365,6 +373,7 @@ type ActivityTransition = {
 };
 
 type ActivityGraph = {
+  actors: ActivityActorBinding[];
   entry: string;
   nodes: ActivityNode[];
   transitions: ActivityTransition[];
@@ -388,6 +397,11 @@ migrate:
 ```yaml
 activity:
   entry: open-invitation
+  actors:
+    invitation-recipient:
+      label: Invitation Recipient
+      context:
+        - WorkspaceInvitation.recipient
   nodes:
     open-invitation:
       kind: stimulus
@@ -403,12 +417,15 @@ activity:
       kind: operation
       ref: WorkspaceInvitation.claim
   transitions:
-    - from: open-invitation
+    - id: invitation-opened
+      from: open-invitation
       to: lifecycle
-    - from: lifecycle
+    - id: invitation-unavailable
+      from: lifecycle
       to: invitation-unavailable
       guard: invitation is not pending
-    - from: lifecycle
+    - id: invitation-claimable
+      from: lifecycle
       to: claim
       guard: invitation is claimable
 ```
@@ -493,6 +510,24 @@ later compact language, visual editor, or Mermaid importer must compile to the s
 - [ ] Treat Mermaid only as an optional derived export or import experiment; no Atlas behavior may
       depend on Mermaid layout or generated markup.
 
+### Slice 5b — spatial and semantic refinement
+
+- [x] Make the Graph lens pannable, zoomable, resettable, and fit-to-content without adding layout
+      coordinates to the Activity Graph model.
+- [x] Keep the selected-node inspector focused on semantic payload; do not repeat incoming and
+      outgoing topology already visible in the graph.
+- [x] Render merge nodes as compact control-flow convergence rather than activity cards, and name
+      the invitation exemplar's merge by the condition established there.
+- [x] Give transitions stable local IDs suitable for selection, diagnostics, future traces, and
+      experiment attribution.
+- [x] Replace free-form actor labels on nodes with references to named actor bindings owned by the
+      Interaction, while deferring an executable predicate language until another exemplar proves
+      its shape.
+- [x] Preserve stimuli as semantic entry facts that may later reference an Ontahí Ingress or Event;
+      do not collapse the stimulus itself into an HTTP endpoint.
+- [x] Record the execution pressure connecting Interaction, Activity Graph, Operation, durable
+      execution, observability, and experiment variants without making v0 executable.
+
 ### Slice 6 — implementation contrast
 
 - [ ] Map the existing Workspace Settings contributor section to the exemplar by hand.
@@ -565,6 +600,14 @@ details into the Interaction.
     workflow execution, or a custom language before the current minimal graph proves insufficient.
 16. The existing `yaml` dependency is the parser boundary for the first form; Atlas will not own a
     bespoke YAML parser.
+17. Actor bindings are Interaction-local semantic roles, not automatically Entity types. Their
+    eventual runtime resolution may use identity, Entity state, or claim policy without embedding a
+    bespoke expression language in the YAML adapter.
+18. Stable Activity transition IDs are authored semantics. A future runtime may correlate traces,
+    branch metrics, and experiment variants with them, but rendering and execution remain separate
+    concerns in v0.
+19. A stimulus is the semantic fact that enters an Activity Graph. Ingress is one possible
+    technological realization that produces it; the two are not synonyms.
 
 ## Open Questions
 
@@ -582,6 +625,10 @@ details into the Interaction.
    implementation evidence, or a stronger semantic type relationship?
 8. Can Atlas eventually produce a Wizard-of-Oz runtime from Presents and Affordances without
    prematurely treating generated UI as product design?
+9. Should the same Activity Graph model eventually describe an Operation body, or should an
+   Operation realize only selected nodes in an Interaction-owned graph?
+10. Which Ontahí primitive should correlate runtime execution with stable Activity node and
+    transition IDs without making Atlas the execution authority?
 
 ## Closure / Evolution
 
@@ -632,6 +679,14 @@ Workspace Entity reference and reads full-detail Markdown from that Workspace's 
 not from the legacy global projection. This keeps the map and detail surfaces on one projection
 boundary and verifies the authored Activity Graph through the same path used by dynamic
 Workspaces.
+
+The spatial and semantic refinement checkpoint gives the Graph lens pan, zoom, and fit controls
+without persisting layout coordinates. The selected-node inspector now keeps semantic payload and
+actor context while topology remains in the graph. Merge nodes render as compact convergence,
+transitions carry stable authored IDs, and nodes refer to Interaction-local actor bindings instead
+of treating actor prose as an implicit runtime predicate. The invitation exemplar validates the
+result end to end while preserving stimulus, ingress, Interaction, Operation, and durable execution
+as related but distinct concepts.
 
 `Invite Person To Workspace` now defines the owner's side of invitation creation across three
 recipient paths: a stable Atlas User, an observed GitHub identity, or verified-email delivery. The

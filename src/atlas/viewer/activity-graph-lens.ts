@@ -1,6 +1,12 @@
-import type { ActivityGraph, ActivityNode, ActivityTransition } from '../model/activity-graph';
+import type {
+  ActivityActorBinding,
+  ActivityGraph,
+  ActivityNode,
+  ActivityTransition,
+} from '../model/activity-graph';
 
 export type ActivityGraphLensNode = ActivityNode & {
+  actorBinding?: ActivityActorBinding;
   incoming: ActivityTransition[];
   isEntry: boolean;
   outgoing: ActivityTransition[];
@@ -17,8 +23,12 @@ export type ActivityGraphLensProjection = {
 export const buildActivityGraphLensProjection = (
   graph: ActivityGraph,
 ): ActivityGraphLensProjection => {
+  const actorsById = new Map(graph.actors.map(actor => [actor.id, actor]));
   const nodes = graph.nodes.map<ActivityGraphLensNode>(node => ({
     ...node,
+    ...(node.actor && actorsById.get(node.actor)
+      ? { actorBinding: actorsById.get(node.actor) }
+      : {}),
     incoming: graph.transitions.filter(transition => transition.to === node.id),
     isEntry: node.id === graph.entry,
     outgoing: graph.transitions.filter(transition => transition.from === node.id),

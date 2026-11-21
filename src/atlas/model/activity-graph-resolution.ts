@@ -50,6 +50,12 @@ export const resolveActivityGraphReferences = (
     diagnostics,
     graph: {
       ...graph,
+      actors: graph.actors.map(actor => ({
+        ...actor,
+        context: actor.context.map((reference, index) =>
+          resolveReference(reference, `actors.${actor.id}.context.${index}`),
+        ),
+      })),
       nodes: graph.nodes.map(node => ({
         ...node,
         reads: node.reads.map((reference, index) =>

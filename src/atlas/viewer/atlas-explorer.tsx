@@ -2470,27 +2470,24 @@ const activityTransitionLabel = (transition: ActivityGraphLensNode['outgoing'][n
 const ActivityNodeInspector = ({
   context,
   node,
-  nodes,
 }: {
   context: MarkdownRenderContext;
   node: ActivityGraphLensNode;
-  nodes: ActivityGraphLensNode[];
 }) => {
-  const nodesById = new Map(nodes.map(item => [item.id, item]));
   const references = [...node.reads, ...node.presents];
 
   return (
     <section
       aria-label='Activity node details'
-      className='grid gap-6 border-t border-border/45 pt-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]'
+      className='border-t border-border/45 pt-6'
     >
-      <div>
+      <div className='max-w-5xl'>
         <div className='font-mono text-[10px] uppercase tracking-[0.14em] text-primary'>
           {node.kind} · activity node
         </div>
         <h3 className='mt-2 text-xl font-medium text-foreground'>{node.label}</h3>
         <div className='mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground'>
-          {node.actor ? <span className='rounded-full border border-border/60 px-2.5 py-1'>Actor · {node.actor}</span> : null}
+          {node.actor ? <span className='rounded-full border border-border/60 px-2.5 py-1'>Actor · {node.actorBinding?.label ?? node.actor}</span> : null}
           {node.responsibility ? <span className='rounded-full border border-border/60 px-2.5 py-1'>Responsibility · {node.responsibility}</span> : null}
           {node.isEntry ? <span className='rounded-full border border-primary/30 bg-primary/[0.06] px-2.5 py-1 text-primary'>Entry</span> : null}
         </div>
@@ -2506,6 +2503,27 @@ const ActivityNodeInspector = ({
                 targetNodeId={node.reference.targetNodeId}
               />
             </div>
+          </div>
+        ) : null}
+        {node.actorBinding ? (
+          <div className='mt-5'>
+            <div className='font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground'>Actor binding</div>
+            <div className='mt-2 text-sm font-medium text-foreground'>{node.actorBinding.label}</div>
+            {node.actorBinding.description ? <p className='mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground'>{node.actorBinding.description}</p> : null}
+            {node.actorBinding.context.length > 0 ? (
+              <div className='mt-3 flex flex-wrap gap-2 text-sm'>
+                {node.actorBinding.context.map(reference => (
+                  <InteractionReferenceButton
+                    context={context}
+                    key={reference.reference}
+                    label={reference.label ?? reference.reference}
+                    reference={reference.reference}
+                    resolution={reference.resolution}
+                    targetNodeId={reference.targetNodeId}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
         {references.length > 0 ? (
@@ -2533,27 +2551,6 @@ const ActivityNodeInspector = ({
           </div>
         ) : null}
       </div>
-      <div className='grid content-start gap-5 border-l border-border/45 pl-5'>
-        {[
-          ['Arrives through', node.incoming, 'from'],
-          ['Continues through', node.outgoing, 'to'],
-        ].map(([label, transitions, endpoint]) => (
-          <div key={label as string}>
-            <div className='font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground'>{label as string}</div>
-            <div className='mt-2 grid gap-2'>
-              {(transitions as typeof node.outgoing).map((transition, index) => {
-                const targetId = transition[endpoint as 'from' | 'to'];
-                return (
-                  <div className='rounded-lg bg-muted/15 px-3 py-2 text-xs' key={`${transition.from}-${transition.to}-${index}`}>
-                    <div className='font-medium text-foreground'>{nodesById.get(targetId)?.label ?? targetId}</div>
-                    {activityTransitionLabel(transition) ? <div className='mt-1 text-muted-foreground'>{activityTransitionLabel(transition)}</div> : null}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
     </section>
   );
 };
@@ -2569,48 +2566,230 @@ const InteractionActivityGraphLens = ({
 }) => {
   const backTransitions = new Set(projection.backTransitions);
   const nodesById = new Map(projection.nodes.map(node => [node.id, node]));
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<Viewport>({ x: 32, y: 32, scale: 1 });
+  const dragRef = useRef<{
+    moved: boolean;
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
+  const [viewport, setViewport] = useState(viewportRef.current);
+  const [isPanning, setIsPanning] = useState(false);
+
+  const applyActivityViewport = useCallback((next: Viewport) => {
+    viewportRef.current = next;
+    setViewport(next);
+  }, []);
+
+  const fitActivityGraph = useCallback(() => {
+    const canvas = canvasRef.current;
+    const content = contentRef.current;
+    if (!canvas || !content) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const padding = 40;
+    const scale = Math.min(
+      1,
+      Math.max(
+        0.42,
+        Math.min(
+          (canvasRect.width - padding * 2) / content.offsetWidth,
+          (canvasRect.height - padding * 2) / content.offsetHeight,
+        ),
+      ),
+    );
+
+    applyActivityViewport({
+      scale,
+      x: (canvasRect.width - content.offsetWidth * scale) / 2,
+      y: (canvasRect.height - content.offsetHeight * scale) / 2,
+    });
+  }, [applyActivityViewport]);
+
+  const zoomActivityGraph = useCallback(
+    (delta: number, anchor?: { x: number; y: number }) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const current = viewportRef.current;
+      const nextScale = Math.min(1.6, Math.max(0.42, current.scale + delta));
+      const point = anchor ?? { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 };
+      const ratio = nextScale / current.scale;
+      applyActivityViewport({
+        scale: nextScale,
+        x: point.x - (point.x - current.x) * ratio,
+        y: point.y - (point.y - current.y) * ratio,
+      });
+    },
+    [applyActivityViewport],
+  );
+
+  useLayoutEffect(() => {
+    fitActivityGraph();
+  }, [fitActivityGraph, projection]);
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const current = viewportRef.current;
+    dragRef.current = {
+      moved: false,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: current.x,
+      startY: current.y,
+    };
+    setIsPanning(true);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - drag.startClientX;
+    const deltaY = event.clientY - drag.startClientY;
+    if (Math.hypot(deltaX, deltaY) > 4) drag.moved = true;
+    applyActivityViewport({
+      ...viewportRef.current,
+      x: drag.startX + deltaX,
+      y: drag.startY + deltaY,
+    });
+  };
+
+  const handlePointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+    suppressClickRef.current = Boolean(drag?.moved);
+    dragRef.current = null;
+    setIsPanning(false);
+  };
 
   return (
-    <div className='overflow-x-auto pb-2'>
-      <div className='flex min-w-max items-stretch gap-3 py-4'>
+    <div
+      ref={canvasRef}
+      aria-label='Activity graph'
+      className={cn(
+        'relative h-[min(62vh,44rem)] min-h-[30rem] select-none overflow-hidden rounded-2xl border border-border/45 bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px]',
+        isPanning ? 'cursor-grabbing' : 'cursor-grab',
+      )}
+      role='region'
+      style={{ overscrollBehavior: 'none', touchAction: 'none' }}
+      onClickCapture={event => {
+        if (!suppressClickRef.current) return;
+        event.preventDefault();
+        event.stopPropagation();
+        suppressClickRef.current = false;
+      }}
+      onPointerCancel={handlePointerEnd}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onWheel={event => {
+        event.preventDefault();
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (event.ctrlKey || event.metaKey) {
+          zoomActivityGraph(-event.deltaY * 0.0015, {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+          });
+          return;
+        }
+        const current = viewportRef.current;
+        applyActivityViewport({
+          ...current,
+          x: current.x - event.deltaX,
+          y: current.y - event.deltaY,
+        });
+      }}
+    >
+      <div
+        ref={contentRef}
+        className='absolute left-0 top-0 flex min-w-max origin-top-left items-stretch gap-3 p-6 will-change-transform'
+        style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}
+      >
         {projection.columns.map((column, columnIndex) => (
           <Fragment key={column.id}>
             <div className='flex w-64 shrink-0 flex-col justify-center gap-3'>
-              {column.nodes.map(node => (
-                <button
-                  className={cn(
-                    'rounded-xl border px-4 py-3 text-left transition-colors',
-                    selectedNodeId === node.id
-                      ? 'border-primary/55 bg-primary/[0.07] shadow-[inset_3px_0_0_hsl(var(--primary))]'
-                      : node.kind === 'outcome'
-                        ? 'border-emerald-400/20 bg-emerald-400/[0.04] hover:border-emerald-400/35'
-                        : 'border-border/55 bg-muted/[0.07] hover:border-border',
-                  )}
-                  key={node.id}
-                  onClick={() => onSelect(node.id)}
-                  type='button'
-                >
-                  <span className='flex items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-[0.12em] text-primary'>
-                    {node.kind}
-                    {node.responsibility ? <span className='text-muted-foreground'>{node.responsibility}</span> : null}
-                  </span>
-                  <span className='mt-1 block text-sm font-medium text-foreground'>{node.label}</span>
-                  {node.outgoing.length > 0 ? (
-                    <span className='mt-3 grid gap-1.5 border-t border-border/35 pt-2'>
-                      {node.outgoing.map((transition, index) => (
-                        <span className='flex items-start gap-1.5 text-[10px] leading-relaxed text-muted-foreground' key={`${transition.from}-${transition.to}-${index}`}>
-                          {backTransitions.has(transition) ? <RotateCcw className='mt-0.5 size-3 shrink-0 text-primary/65' /> : <ArrowRight className='mt-0.5 size-3 shrink-0 text-primary/65' />}
-                          <span><span className='text-foreground/75'>{nodesById.get(transition.to)?.label ?? transition.to}</span>{activityTransitionLabel(transition) ? ` · ${activityTransitionLabel(transition)}` : ''}</span>
-                        </span>
-                      ))}
+              {column.nodes.map(node => {
+                const selected = selectedNodeId === node.id;
+                if (node.kind === 'merge') {
+                  return (
+                    <button
+                      className={cn(
+                        'group mx-auto flex w-48 items-center justify-center gap-3 rounded-full border border-dashed px-4 py-3 text-left transition-colors',
+                        selected
+                          ? 'border-primary/60 bg-primary/[0.08] text-primary'
+                          : 'border-border/60 bg-background/65 text-foreground hover:border-primary/35',
+                      )}
+                      key={node.id}
+                      onClick={() => onSelect(node.id)}
+                      type='button'
+                    >
+                      <span className='size-3 rotate-45 border border-current bg-background' />
+                      <span>
+                        <span className='block font-mono text-[8px] uppercase tracking-[0.12em] text-muted-foreground'>merge</span>
+                        <span className='mt-0.5 block text-xs font-medium'>{node.label}</span>
+                      </span>
+                    </button>
+                  );
+                }
+
+                return (
+                  <button
+                    className={cn(
+                      'rounded-xl border px-4 py-3 text-left transition-colors',
+                      selected
+                        ? 'border-primary/55 bg-primary/[0.07] shadow-[inset_3px_0_0_hsl(var(--primary))]'
+                        : node.kind === 'outcome'
+                          ? 'border-emerald-400/20 bg-emerald-400/[0.04] hover:border-emerald-400/35'
+                          : 'border-border/55 bg-background/80 hover:border-border',
+                    )}
+                    key={node.id}
+                    onClick={() => onSelect(node.id)}
+                    type='button'
+                  >
+                    <span className='flex items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-[0.12em] text-primary'>
+                      {node.kind}
+                      {node.responsibility ? <span className='text-muted-foreground'>{node.responsibility}</span> : null}
                     </span>
-                  ) : null}
-                </button>
-              ))}
+                    <span className='mt-1 block text-sm font-medium text-foreground'>{node.label}</span>
+                    {node.outgoing.length > 0 ? (
+                      <span className='mt-3 grid gap-1.5 border-t border-border/35 pt-2'>
+                        {node.outgoing.map(transition => (
+                          <span className='flex items-start gap-1.5 text-[10px] leading-relaxed text-muted-foreground' key={transition.id}>
+                            {backTransitions.has(transition) ? <RotateCcw className='mt-0.5 size-3 shrink-0 text-primary/65' /> : <ArrowRight className='mt-0.5 size-3 shrink-0 text-primary/65' />}
+                            <span><span className='text-foreground/75'>{nodesById.get(transition.to)?.label ?? transition.to}</span>{activityTransitionLabel(transition) ? ` · ${activityTransitionLabel(transition)}` : ''}</span>
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
             {columnIndex < projection.columns.length - 1 ? <div className='flex w-5 shrink-0 items-center justify-center text-primary/35'><ArrowRight className='size-4' /></div> : null}
           </Fragment>
         ))}
+      </div>
+      <div
+        className='absolute bottom-3 right-3 flex items-center gap-1 rounded-lg border border-border/70 bg-background/80 p-1.5 shadow-lg backdrop-blur-xl'
+        onPointerDown={event => event.stopPropagation()}
+      >
+        <IconButton label='Zoom out activity graph' onClick={() => zoomActivityGraph(-0.15)}>
+          <Minus className='size-4' />
+        </IconButton>
+        <IconButton label='Fit activity graph' onClick={fitActivityGraph}>
+          <RotateCcw className='size-4' />
+        </IconButton>
+        <IconButton label='Zoom in activity graph' onClick={() => zoomActivityGraph(0.15)}>
+          <Plus className='size-4' />
+        </IconButton>
       </div>
     </div>
   );
@@ -2738,7 +2917,7 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
       {view === 'graph' && !model.activity && hasFlow ? <InteractionGraphLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /> : null}
       {view === 'blueprint' && hasFlow ? <InteractionBlueprintLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /> : null}
       {view === 'anatomy' || !hasFlow ? <InteractionAnatomy context={context} /> : null}
-      {view === 'graph' && activityProjection && selectedActivityNode ? <ActivityNodeInspector context={context} node={selectedActivityNode} nodes={activityProjection.nodes} /> : null}
+      {view === 'graph' && activityProjection && selectedActivityNode ? <ActivityNodeInspector context={context} node={selectedActivityNode} /> : null}
       {view === 'blueprint' && selected ? <InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /> : null}
       {view === 'graph' && !model.activity && selected ? <InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /> : null}
     </section>

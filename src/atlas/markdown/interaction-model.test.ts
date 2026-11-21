@@ -94,7 +94,8 @@ activity:
       kind: outcome
       label: Invitation inspected
   transitions:
-    - from: open
+    - id: invitation-opened
+      from: open
       to: done
 \`\`\`
 `,
@@ -108,7 +109,7 @@ activity:
         { id: 'open', kind: 'stimulus' },
         { id: 'done', kind: 'outcome' },
       ],
-      transitions: [{ from: 'open', to: 'done' }],
+      transitions: [{ id: 'invitation-opened', from: 'open', to: 'done' }],
     });
   });
 });

@@ -24,6 +24,13 @@ export type ActivitySemanticReference = {
   targetNodeId?: string;
 };
 
+export type ActivityActorBinding = {
+  id: string;
+  label: string;
+  description?: string;
+  context: ActivitySemanticReference[];
+};
+
 export type ActivityNode = {
   id: string;
   kind: ActivityNodeKind;
@@ -36,6 +43,7 @@ export type ActivityNode = {
 };
 
 export type ActivityTransition = {
+  id: string;
   from: string;
   to: string;
   guard?: string;
@@ -45,19 +53,23 @@ export type ActivityTransition = {
 };
 
 export type ActivityGraph = {
+  actors: ActivityActorBinding[];
   entry: string;
   nodes: ActivityNode[];
   transitions: ActivityTransition[];
 };
 
 export type ActivityGraphDiagnosticCode =
+  | 'duplicate-actor-id'
   | 'duplicate-node-id'
+  | 'duplicate-transition-id'
   | 'unresolved-semantic-reference'
   | 'missing-entry'
   | 'missing-entry-node'
   | 'dangling-transition'
   | 'unreachable-node'
-  | 'missing-semantic-reference';
+  | 'missing-semantic-reference'
+  | 'missing-actor-binding';
 
 export type ActivityGraphDiagnostic = {
   code: ActivityGraphDiagnosticCode;
@@ -68,7 +80,21 @@ export type ActivityGraphDiagnostic = {
 
 export const validateActivityGraph = (graph: ActivityGraph): ActivityGraphDiagnostic[] => {
   const diagnostics: ActivityGraphDiagnostic[] = [];
+  const actorIds = new Set<string>();
   const nodeIds = new Set<string>();
+  const transitionIds = new Set<string>();
+
+  for (const actor of graph.actors) {
+    if (actorIds.has(actor.id)) {
+      diagnostics.push({
+        code: 'duplicate-actor-id',
+        message: `Activity actor ${actor.id} is declared more than once.`,
+        path: `actors.${actor.id}`,
+        severity: 'error',
+      });
+    }
+    actorIds.add(actor.id);
+  }
 
   for (const node of graph.nodes) {
     if (nodeIds.has(node.id)) {
@@ -80,6 +106,15 @@ export const validateActivityGraph = (graph: ActivityGraph): ActivityGraphDiagno
       });
     }
     nodeIds.add(node.id);
+
+    if (node.actor && !actorIds.has(node.actor)) {
+      diagnostics.push({
+        code: 'missing-actor-binding',
+        message: `Activity node ${node.id} references missing actor binding ${node.actor}.`,
+        path: `nodes.${node.id}.actor`,
+        severity: 'error',
+      });
+    }
 
     if ((node.kind === 'operation' || node.kind === 'interaction') && !node.reference) {
       diagnostics.push({
@@ -108,6 +143,16 @@ export const validateActivityGraph = (graph: ActivityGraph): ActivityGraphDiagno
   }
 
   for (const [index, transition] of graph.transitions.entries()) {
+    if (transitionIds.has(transition.id)) {
+      diagnostics.push({
+        code: 'duplicate-transition-id',
+        message: `Activity transition ${transition.id} is declared more than once.`,
+        path: `transitions.${index}.id`,
+        severity: 'error',
+      });
+    }
+    transitionIds.add(transition.id);
+
     for (const endpoint of ['from', 'to'] as const) {
       if (!nodeIds.has(transition[endpoint])) {
         diagnostics.push({
