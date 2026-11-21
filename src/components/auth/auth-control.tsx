@@ -135,7 +135,7 @@ export const AuthControl = ({
       <div
         className={cn(
           'flex items-center transition-[top]',
-          detailSurfaceOpen ? 'top-[3.1rem]' : 'top-3',
+          detailSurfaceOpen ? 'top-[2.875rem]' : 'top-3',
           className,
         )}
         ref={menuRef}

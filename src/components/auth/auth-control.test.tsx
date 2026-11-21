@@ -96,6 +96,6 @@ describe('AuthControl', () => {
       new CustomEvent(atlasDetailSurfaceChangedEvent, { detail: true }),
     );
 
-    expect(container.firstElementChild).toHaveClass('top-[3.1rem]');
+    expect(container.firstElementChild).toHaveClass('top-[2.875rem]');
   });
 });
