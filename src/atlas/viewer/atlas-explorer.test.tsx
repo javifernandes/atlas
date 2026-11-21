@@ -173,11 +173,8 @@ describe('PlanWorkstreamExplorer', () => {
     expect(
       within(dialog).getByRole('scrollbar', { name: 'Detail reading position' }),
     ).toHaveAttribute('aria-valuenow', '0');
-    const titleRow = detailTitle.parentElement;
-
-    expect(titleRow).not.toBeNull();
     expect(
-      within(titleRow as HTMLElement).getByRole('navigation', { name: 'Detail sections' }),
+      within(dialog).getByRole('navigation', { name: 'Detail sections' }),
     ).toBeInTheDocument();
     expect(within(dialog).getByText('Item A overview text.')).toBeInTheDocument();
 
@@ -554,12 +551,17 @@ const selection: Selection = Selection.references(Book, refs);
     const activityGraph = within(details).getByRole('region', { name: 'Activity graph' });
     expect(activityGraph).not.toHaveClass('rounded-2xl', 'border');
     expect(activityGraph).toHaveClass('h-full');
+    expect(activityGraph).toHaveAttribute('tabindex', '0');
+    expect(activityGraph).toHaveAttribute('aria-activedescendant', 'activity-node-open');
     expect(fireEvent.wheel(activityGraph, { ctrlKey: true, deltaY: -120 })).toBe(false);
     expect(document.getElementById('full-detail-content-scroll')).not.toHaveClass('px-6');
     expect(detailSurface).toHaveClass('inset-0', 'z-[120]', 'bg-background');
     expect(detailSurface).not.toHaveAttribute('aria-modal');
     expect(detailSurface.firstElementChild).toHaveClass('h-full', 'w-full');
     expect(detailSurface.firstElementChild).not.toHaveClass('rounded-lg', 'border', 'shadow-2xl');
+
+    fireEvent.keyDown(activityGraph, { key: 'ArrowRight' });
+    expect(activityGraph).toHaveAttribute('aria-activedescendant', 'activity-node-claim');
 
     await user.click(within(details).getAllByRole('button', { name: /Claim invitation/ })[1]!);
 
@@ -983,7 +985,7 @@ const selection: Selection = Selection.references(Book, refs);
     ).not.toBeInTheDocument();
   });
 
-  it('navigates to the parent and direct children inside the same modal', async () => {
+  it('navigates to the parent and direct children inside the same focus surface', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();
     const value: PlanWorkstreamSnapshot = {
@@ -1036,13 +1038,9 @@ const selection: Selection = Selection.references(Book, refs);
 
     expect(screen.getByRole('dialog')).toBe(dialog);
     expect(within(dialog).getByRole('heading', { name: 'Item C' })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Back to Item A' })).not.toBeInTheDocument();
+    const backToItem = within(dialog).getByRole('button', { name: 'Back to Item A' });
 
-    await user.click(
-      within(dialog).getByRole('link', {
-        name: 'Parent node: Item A',
-      }),
-    );
+    await user.click(backToItem);
 
     expect(screen.getByRole('dialog')).toBe(dialog);
     expect(within(dialog).getByRole('heading', { name: 'Item A' })).toBeInTheDocument();

@@ -12,6 +12,7 @@ vi.mock('@/auth/client', () => ({
 }));
 
 import { AuthControl } from './auth-control';
+import { atlasDetailSurfaceChangedEvent } from '@/atlas/viewer/detail-surface-events';
 
 describe('AuthControl', () => {
   beforeEach(() => {
@@ -59,7 +60,7 @@ describe('AuthControl', () => {
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
   });
 
-  it('renders viewer chrome without a floating card container', () => {
+  it('keeps viewer chrome avatar-only until its menu opens', () => {
     const { container } = render(
       <AuthControl
         authAvailable
@@ -68,7 +69,33 @@ describe('AuthControl', () => {
       />,
     );
 
-    expect(container.firstElementChild).toHaveClass('px-1', 'py-0.5');
+    expect(screen.getByRole('button', { name: 'Open account menu' })).toBeInTheDocument();
+    expect(screen.queryByText('Javi')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
     expect(container.firstElementChild).not.toHaveClass('border', 'shadow-lg', 'backdrop-blur-xl');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open account menu' }));
+
+    expect(screen.getByText('Javi')).toBeInTheDocument();
+    expect(screen.getByText('javi@example.com')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeInTheDocument();
+  });
+
+  it('aligns viewer chrome with detail sections while a focus surface is open', () => {
+    const { container } = render(
+      <AuthControl
+        authAvailable
+        className='fixed right-4'
+        variant='chrome'
+        viewer={{ email: 'javi@example.com', id: '1', image: null, name: 'Javi' }}
+      />,
+    );
+
+    fireEvent(
+      globalThis.window,
+      new CustomEvent(atlasDetailSurfaceChangedEvent, { detail: true }),
+    );
+
+    expect(container.firstElementChild).toHaveClass('top-[3.1rem]');
   });
 });

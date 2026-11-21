@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import {
   Fragment,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useCallback,
@@ -73,6 +74,7 @@ import {
   type ActivityGraphLensProjection,
   type ActivityGraphLensNode,
 } from '@/atlas/viewer/activity-graph-lens';
+import { atlasDetailSurfaceChangedEvent } from '@/atlas/viewer/detail-surface-events';
 import {
   getItemKindPresentation,
   getItemKindSectionPresentation,
@@ -83,6 +85,11 @@ import {
   PlanIdBadge,
   PlanTitle,
 } from '@/atlas/viewer/plan-title';
+import { recordRecentAtlasNode } from '@/atlas/viewer/recent-nodes';
+import {
+  getDirectionalNavigationTarget,
+  type SpatialNavigationDirection,
+} from '@/atlas/viewer/spatial-keyboard-navigation';
 import { cn } from '@/lib/classes';
 import { Select } from '@/components/ui/select';
 
@@ -2580,6 +2587,17 @@ const InteractionActivityGraphLens = ({
   const suppressClickRef = useRef(false);
   const [viewport, setViewport] = useState(viewportRef.current);
   const [isPanning, setIsPanning] = useState(false);
+  const keyboardNodes = useMemo(
+    () =>
+      projection.columns.flatMap((column, columnIndex) =>
+        column.nodes.map((node, rowIndex) => ({
+          id: node.id,
+          x: columnIndex * 100,
+          y: rowIndex * 100,
+        })),
+      ),
+    [projection.columns],
+  );
 
   const applyActivityViewport = useCallback((next: Viewport) => {
     viewportRef.current = next;
@@ -2641,7 +2659,7 @@ const InteractionActivityGraphLens = ({
       const rect = canvas.getBoundingClientRect();
 
       if (event.ctrlKey || event.metaKey) {
-        zoomActivityGraph(-event.deltaY * 0.0015, {
+        zoomActivityGraph(-event.deltaY * 0.003, {
           x: event.clientX - rect.left,
           y: event.clientY - rect.top,
         });
@@ -2704,15 +2722,74 @@ const InteractionActivityGraphLens = ({
     setIsPanning(false);
   };
 
+  const revealActivityNode = useCallback(
+    (nodeId: string) => {
+      const canvas = canvasRef.current;
+      const node = Array.from(
+        canvas?.querySelectorAll<HTMLElement>('[data-activity-node-id]') ?? [],
+      ).find(candidate => candidate.dataset.activityNodeId === nodeId);
+      if (!canvas || !node) return;
+
+      const canvasRect = canvas.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      const margin = 48;
+      const deltaX =
+        nodeRect.left < canvasRect.left + margin
+          ? canvasRect.left + margin - nodeRect.left
+          : nodeRect.right > canvasRect.right - margin
+            ? canvasRect.right - margin - nodeRect.right
+            : 0;
+      const deltaY =
+        nodeRect.top < canvasRect.top + margin
+          ? canvasRect.top + margin - nodeRect.top
+          : nodeRect.bottom > canvasRect.bottom - margin
+            ? canvasRect.bottom - margin - nodeRect.bottom
+            : 0;
+
+      if (deltaX !== 0 || deltaY !== 0) {
+        const current = viewportRef.current;
+        applyActivityViewport({
+          ...current,
+          x: current.x + deltaX,
+          y: current.y + deltaY,
+        });
+      }
+    },
+    [applyActivityViewport],
+  );
+
+  const handleActivityKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const directionByKey: Partial<Record<string, SpatialNavigationDirection>> = {
+      ArrowDown: 'down',
+      ArrowLeft: 'left',
+      ArrowRight: 'right',
+      ArrowUp: 'up',
+    };
+    const direction = directionByKey[event.key];
+    if (!direction) return;
+
+    const target = getDirectionalNavigationTarget(selectedNodeId, direction, keyboardNodes);
+    if (!target) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    onSelect(target.id);
+    globalThis.requestAnimationFrame(() => revealActivityNode(target.id));
+  };
+
   return (
     <div
       ref={canvasRef}
+      aria-activedescendant={
+        selectedNodeId ? `activity-node-${selectedNodeId}` : undefined
+      }
       aria-label='Activity graph'
       className={cn(
         'relative h-full min-h-[30rem] select-none overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px]',
         isPanning ? 'cursor-grabbing' : 'cursor-grab',
       )}
       role='region'
+      tabIndex={0}
       style={{ overscrollBehavior: 'none', touchAction: 'none' }}
       onClickCapture={event => {
         if (!suppressClickRef.current) return;
@@ -2724,6 +2801,7 @@ const InteractionActivityGraphLens = ({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
+      onKeyDown={handleActivityKeyDown}
     >
       <div
         ref={contentRef}
@@ -2738,6 +2816,8 @@ const InteractionActivityGraphLens = ({
                 if (node.kind === 'merge') {
                   return (
                     <button
+                      id={`activity-node-${node.id}`}
+                      data-activity-node-id={node.id}
                       className={cn(
                         'group mx-auto flex w-48 items-center justify-center gap-3 rounded-full border border-dashed px-4 py-3 text-left transition-colors',
                         selected
@@ -2745,7 +2825,11 @@ const InteractionActivityGraphLens = ({
                           : 'border-border/60 bg-background/65 text-foreground hover:border-primary/35',
                       )}
                       key={node.id}
-                      onClick={() => onSelect(node.id)}
+                      onClick={() => {
+                        onSelect(node.id);
+                        canvasRef.current?.focus({ preventScroll: true });
+                      }}
+                      tabIndex={-1}
                       type='button'
                     >
                       <span className='size-3 rotate-45 border border-current bg-background' />
@@ -2759,6 +2843,8 @@ const InteractionActivityGraphLens = ({
 
                 return (
                   <button
+                    id={`activity-node-${node.id}`}
+                    data-activity-node-id={node.id}
                     className={cn(
                       'rounded-xl border px-4 py-3 text-left transition-colors',
                       selected
@@ -2768,7 +2854,11 @@ const InteractionActivityGraphLens = ({
                           : 'border-border/55 bg-background/80 hover:border-border',
                     )}
                     key={node.id}
-                    onClick={() => onSelect(node.id)}
+                    onClick={() => {
+                      onSelect(node.id);
+                      canvasRef.current?.focus({ preventScroll: true });
+                    }}
+                    tabIndex={-1}
                     type='button'
                   >
                     <span className='flex items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-[0.12em] text-primary'>
@@ -2798,13 +2888,13 @@ const InteractionActivityGraphLens = ({
         className='absolute bottom-3 right-3 flex items-center gap-1 rounded-lg border border-border/70 bg-background/80 p-1.5 shadow-lg backdrop-blur-xl'
         onPointerDown={event => event.stopPropagation()}
       >
-        <IconButton label='Zoom out activity graph' onClick={() => zoomActivityGraph(-0.15)}>
+        <IconButton label='Zoom out activity graph' onClick={() => zoomActivityGraph(-0.2)}>
           <Minus className='size-4' />
         </IconButton>
         <IconButton label='Fit activity graph' onClick={fitActivityGraph}>
           <RotateCcw className='size-4' />
         </IconButton>
-        <IconButton label='Zoom in activity graph' onClick={() => zoomActivityGraph(0.15)}>
+        <IconButton label='Zoom in activity graph' onClick={() => zoomActivityGraph(0.2)}>
           <Plus className='size-4' />
         </IconButton>
       </div>
@@ -2920,8 +3010,8 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
   return (
     <section aria-label='Interaction details' className='relative min-h-full'>
       {hasFlow ? (
-        <div className='absolute right-5 top-4 z-20 flex justify-end'>
-          <div className='inline-flex rounded-xl border border-border/55 bg-background/80 p-1 shadow-lg backdrop-blur-xl'>
+        <div className='absolute left-1/2 top-0 z-20 -translate-x-1/2'>
+          <div className='inline-flex rounded-b-xl border border-t-0 border-border/55 bg-background/80 p-1 shadow-lg backdrop-blur-xl'>
             {viewOptions.map(option => (
               <button className={cn('rounded-lg px-3 py-1.5 text-xs font-medium transition-colors', view === option ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:text-foreground')} key={option} onClick={() => setView(option)} type='button'>
                 {option === 'graph' ? 'Graph' : option === 'blueprint' ? 'Blueprint' : 'Anatomy'}
@@ -4795,33 +4885,7 @@ const FullDetailSurface = ({
         className='flex h-full w-full flex-col overflow-hidden bg-background'
       >
         <header className='relative border-b border-border/70 px-4 pb-2.5 pt-2.5 sm:px-5'>
-          <div className='absolute right-4 top-2.5 flex items-center gap-2 lg:right-[13.5rem]'>
-            {navigationBackNode && navigationBackNode.id !== parentNode?.id ? (
-              <IconButton
-                label={`Back to ${navigationBackNode.shortTitle}`}
-                onClick={onNavigateBack}
-              >
-                <ArrowLeft className='size-4' />
-              </IconButton>
-            ) : null}
-            <IconButton
-              label={permalinkCopied ? 'Permalink copied' : 'Copy permalink'}
-              onClick={() => {
-                const permalink = new URL(getTabHref(activeTab), globalThis.location.href).href;
-
-                void globalThis.navigator.clipboard.writeText(permalink).then(() => {
-                  setPermalinkCopied(true);
-                });
-              }}
-            >
-              {permalinkCopied ? <Check className='size-4' /> : <Link2 className='size-4' />}
-            </IconButton>
-            <IconButton label='Close full detail' onClick={onClose}>
-              <X className='size-4' />
-            </IconButton>
-          </div>
-
-          <div className='grid min-h-8 grid-cols-[minmax(0,1fr)_auto_minmax(6rem,1fr)] items-center gap-3 pr-24 lg:pl-[17rem] lg:pr-[26rem]'>
+          <div className='grid min-h-8 grid-cols-[minmax(0,1fr)_auto_minmax(6rem,1fr)] items-center gap-3 lg:pl-14 lg:pr-14'>
             <div className='flex min-w-0 flex-wrap items-center gap-2'>
               <span className={cn('size-2 rounded-full', statusDotClassName(node.statusGroup))} />
               <span className='font-mono text-xs uppercase text-muted-foreground'>{node.kind}</span>
@@ -4875,11 +4939,41 @@ const FullDetailSurface = ({
             )}
           </div>
 
-          <div className='mt-1 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1'>
-            <h2 className='min-w-0 flex-[1_1_18rem] text-2xl font-semibold leading-tight tracking-tight'>
-              <PlanTitle node={node} titleClassName='truncate' />
-            </h2>
-            <nav aria-label='Detail sections' className='ml-auto flex shrink-0 gap-1'>
+          <div className='mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3'>
+            <div className='flex min-w-0 items-center gap-2'>
+              <button
+                type='button'
+                aria-label={
+                  navigationBackNode
+                    ? `Back to ${navigationBackNode.shortTitle}`
+                    : 'Back to Workspace graph'
+                }
+                className='grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
+                title={navigationBackNode ? `Back to ${navigationBackNode.shortTitle}` : 'Back to Workspace graph'}
+                onClick={navigationBackNode ? onNavigateBack : onClose}
+              >
+                <ArrowLeft className='size-4' />
+              </button>
+              <h2 className='min-w-0 text-2xl font-semibold leading-tight tracking-tight'>
+                <PlanTitle node={node} titleClassName='truncate' />
+              </h2>
+              <button
+                type='button'
+                aria-label={permalinkCopied ? 'Permalink copied' : 'Copy permalink'}
+                className='grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground/65 transition-colors hover:bg-muted/55 hover:text-foreground'
+                title={permalinkCopied ? 'Permalink copied' : 'Copy permalink'}
+                onClick={() => {
+                  const permalink = new URL(getTabHref(activeTab), globalThis.location.href).href;
+
+                  void globalThis.navigator.clipboard.writeText(permalink).then(() => {
+                    setPermalinkCopied(true);
+                  });
+                }}
+              >
+                {permalinkCopied ? <Check className='size-3.5' /> : <Link2 className='size-3.5' />}
+              </button>
+            </div>
+            <nav aria-label='Detail sections' className='flex shrink-0 gap-1'>
               {fullMarkdownModalTabs.map(tab => (
                 <a
                   key={tab}
@@ -4910,6 +5004,7 @@ const FullDetailSurface = ({
                 </a>
               ))}
             </nav>
+            <span aria-hidden='true' />
           </div>
         </header>
 
@@ -5730,6 +5825,28 @@ export const PlanWorkstreamExplorer = ({
   const fullNodeActiveTab = fullNode
     ? (fullNodeTabsById.get(fullNode.id) ?? defaultFullMarkdownModalTab)
     : defaultFullMarkdownModalTab;
+
+  useEffect(() => {
+    globalThis.dispatchEvent(
+      new CustomEvent(atlasDetailSurfaceChangedEvent, { detail: Boolean(fullNode) }),
+    );
+  }, [fullNode]);
+
+  useEffect(() => {
+    if (!fullNode || !workspaceSlug) return;
+
+    recordRecentAtlasNode({
+      href: getAtlasRouteHref({
+        fullNodeId: fullNode.id,
+        fullNodeTab: fullNodeActiveTab,
+        selectedNodeId,
+      }),
+      id: fullNode.id,
+      kind: fullNode.kind,
+      title: fullNode.shortTitle,
+      workspaceSlug,
+    });
+  }, [fullNode, fullNodeActiveTab, selectedNodeId, workspaceSlug]);
   const edgeHover = edgeHoverHint
     ? (renderedEdges.find(edge => edge.id === edgeHoverHint.edgeId) ?? null)
     : null;

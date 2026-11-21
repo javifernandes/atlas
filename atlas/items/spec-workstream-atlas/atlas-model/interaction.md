@@ -158,8 +158,11 @@ Interaction. Incoming and outgoing topology stays in the Graph lens rather than 
 in the inspector.
 
 The Graph lens is a spatial projection: pan, zoom, reset, and fit-to-content belong to the viewer,
-not to the durable Activity Graph. Merge nodes appear as compact convergence points because they
-establish a control-flow condition without performing actor or system work.
+not to the durable Activity Graph. Directional keyboard traversal is likewise a viewer behavior:
+it selects the nearest node in the requested spatial direction through a reusable navigation
+primitive that the Workspace graph may also adopt. It does not add ordering or coordinates to the
+semantic model. Merge nodes appear as compact convergence points because they establish a
+control-flow condition without performing actor or system work.
 
 The spatial projection owns the Interaction detail subsection while it is active. It does not sit
 inside a second editorial card, and wheel or pinch gestures over that surface are consumed by the

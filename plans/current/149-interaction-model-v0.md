@@ -520,6 +520,12 @@ later compact language, visual editor, or Mermaid importer must compile to the s
   preserving readable editorial widths for non-spatial lenses and a clear return to the Workspace.
 - [x] Flatten Workspace and viewer chrome into the focus-surface header so global navigation stays
   available without reading as floating cards above the Item.
+- [x] Add reusable spatial keyboard navigation and prove it with arrow-key traversal in the
+  Activity Graph before adopting the same primitive in the Workspace graph.
+- [x] Replace low-frequency Workspace switching and creation chrome with one quiet menu that
+  returns home, opens settings, and recalls recently inspected Items in the current Workspace.
+- [ ] Explore a per-user spatial-navigation sensitivity preference with an inline preview before
+  making Activity Graph zoom behavior configurable.
 - [x] Keep the selected-node inspector focused on semantic payload; do not repeat incoming and
       outgoing topology already visible in the graph.
 - [x] Render merge nodes as compact control-flow convergence rather than activity cards, and name

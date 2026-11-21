@@ -185,7 +185,7 @@ const WorkspacePage = async ({ params, searchParams }: WorkspacePageProps) => {
       />
       <AuthControl
         authAvailable={access.authAvailable}
-        className='fixed right-4 top-3 z-[140]'
+        className='fixed right-4 z-[140]'
         variant='chrome'
         viewer={access.viewer}
       />
