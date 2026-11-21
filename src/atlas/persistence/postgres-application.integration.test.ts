@@ -24,6 +24,10 @@ import {
 } from '../sources/source-changeset';
 import { buildPlanWorkstreamSnapshotFromFiles } from '../markdown/build-snapshot';
 import {
+  ATLAS_PARSED_RECORD_MATERIALIZER_ID,
+  ATLAS_PARSED_RECORD_MATERIALIZER_VERSION,
+} from '../markdown/parsed-record-artifact';
+import {
   createAtlasWorkspaceAccessStore,
   DEFAULT_ATLAS_WORKSPACE_ID,
 } from '../workspace/workspace-access';
@@ -31,6 +35,10 @@ import { backfillCanonicalAtlasWorkspaceOwner } from '../workspace/backfill-sour
 import { readAtlasAuthConfiguration } from '../../auth/config';
 import { createAtlasAuth, createAtlasAuthOptions } from '../../auth/server';
 import { runAtlasMigrations } from './migrations';
+import {
+  createAtlasParsedRecordMaterializationStore,
+  type AtlasParsedRecordMaterializationCheckpoint,
+} from './parsed-record-materialization-store';
 import { createAtlasPostgresApplication } from './postgres-application';
 import { atlasPostgresMappingOverrides } from './postgres-mapping';
 import type { AtlasPostgresQueryObservation } from './postgres-observability';
@@ -186,6 +194,9 @@ Durable Atlas projection.
         '020-atlas-item-type-bindings.sql',
         '021-source-change-sets.sql',
         '021-workspace-model-connections.sql',
+        '022-workspace-model-connection-deepseek.sql',
+        '023-workspace-model-connection-selection.sql',
+        '024-materialization-checkpoints.sql',
       ],
       skipped: [],
     });
@@ -217,6 +228,49 @@ Durable Atlas projection.
       toBeCreated: [],
       unsafeChanges: [],
     });
+  }, postgresTestTimeout);
+
+  it('atomically persists and hydrates a parsed-record materialization checkpoint', async () => {
+    const store = createAtlasParsedRecordMaterializationStore(pool);
+    const scopeId = `projection:${randomUUID()}`;
+    const checkpoint: AtlasParsedRecordMaterializationCheckpoint = {
+      artifacts: [
+        {
+          artifactId: 'atlas://atlas/one@sha256:content#1',
+          contentHash: 'content',
+          materializerId: ATLAS_PARSED_RECORD_MATERIALIZER_ID,
+          materializerVersion: ATLAS_PARSED_RECORD_MATERIALIZER_VERSION,
+          payloadJson: '{"item":null,"plan":null,"relocationTarget":null}',
+          sourcePath: 'atlas/items/one.md',
+          sourceRecordIdentity: 'atlas://atlas/one',
+        },
+      ],
+      dependencies: [
+        { input: 'atlas/items/one.md', outputs: ['atlas://atlas/one'] },
+        { input: 'atlas/items/removed.md', outputs: [] },
+      ],
+      scopeId,
+      snapshot: {
+        acceptance: {
+          acceptedFrontier: 'artifacts:target',
+          derivationId: ATLAS_PARSED_RECORD_MATERIALIZER_ID,
+          materializerVersion: ATLAS_PARSED_RECORD_MATERIALIZER_VERSION,
+          sourceFrontier: 'git:target',
+        },
+        state: { artifactIds: ['atlas://atlas/one@sha256:content#1'] },
+      },
+      updatedAt: '2026-11-21T00:00:00.000Z',
+    };
+
+    await expect(
+      store.replace({ checkpoint, expectedSourceFrontier: null }),
+    ).resolves.toEqual({ status: 'stored' });
+    await expect(
+      store.load({ derivationId: ATLAS_PARSED_RECORD_MATERIALIZER_ID, scopeId }),
+    ).resolves.toEqual(checkpoint);
+    await expect(
+      store.replace({ checkpoint, expectedSourceFrontier: 'git:stale' }),
+    ).resolves.toEqual({ currentSourceFrontier: 'git:target', status: 'conflict' });
   }, postgresTestTimeout);
 
   it('backfills last activity and permits lifecycle-independent archive state', async () => {
