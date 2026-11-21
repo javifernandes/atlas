@@ -50,6 +50,12 @@ record's canonical identity, content hash, and Materializer version. Per-record 
 separate from cross-record alias resolution and semantic assembly, allowing unchanged artifacts to
 be reused without pretending that all dependencies are record-local.
 
+The first Atlas Materializer maps exact Source ChangeSet operations to affected record-artifact
+identities. It emits a complete artifact set while invoking Markdown parsing only for affected or
+incompatible records. Deletes and moves without retained dependency evidence request a full rebuild
+rather than guessing which prior output must be removed. A full rebuild never reuses parsed
+artifacts and remains the equivalence oracle.
+
 A Projection Revision is therefore a specialized derived Source Revision, not merely a cache row.
 Execution attempts and Task runs explain how derivation ran; they are not substitutes for accepted
 revision lineage.

@@ -43,7 +43,7 @@ const getRelocationTarget = (record: NormalizedAtlasSourceRecord) => {
   return canonicalId?.[1]?.trim() ?? canonicalId?.[2]?.trim();
 };
 
-const contentHashFor = (content: string) =>
+export const atlasParsedRecordContentHash = (content: string) =>
   createHash('sha256').update(content).digest('hex');
 
 const isPlanRecord = (record: NormalizedAtlasSourceRecord) =>
@@ -55,7 +55,7 @@ const isPlanRecord = (record: NormalizedAtlasSourceRecord) =>
 export const parseAtlasSourceRecordArtifact = (
   record: NormalizedAtlasSourceRecord,
 ): ParsedAtlasSourceRecordArtifact => {
-  const contentHash = contentHashFor(record.content);
+  const contentHash = atlasParsedRecordContentHash(record.content);
   const relocationTarget = getRelocationTarget(record);
   const sourceRecordIdentity = record.canonicalPath;
   const derivationRecord = {
@@ -78,6 +78,54 @@ export const parseAtlasSourceRecordArtifact = (
     ...(relocationTarget ? { relocationTarget } : {}),
     sourceRecordIdentity,
     sourcePath: record.sourcePath,
+  };
+};
+
+export type PortableParsedAtlasSourceRecordArtifact = {
+  artifactId: string;
+  contentHash: string;
+  materializerId: typeof ATLAS_PARSED_RECORD_MATERIALIZER_ID;
+  materializerVersion: typeof ATLAS_PARSED_RECORD_MATERIALIZER_VERSION;
+  payloadJson: string;
+  sourceRecordIdentity: string;
+  sourcePath: string;
+};
+
+export const serializeParsedAtlasSourceRecordArtifact = (
+  artifact: ParsedAtlasSourceRecordArtifact,
+): PortableParsedAtlasSourceRecordArtifact => ({
+  artifactId: artifact.artifactId,
+  contentHash: artifact.contentHash,
+  materializerId: artifact.materializerId,
+  materializerVersion: artifact.materializerVersion,
+  payloadJson: JSON.stringify({
+    item: artifact.item,
+    plan: artifact.plan,
+    relocationTarget: artifact.relocationTarget ?? null,
+  }),
+  sourceRecordIdentity: artifact.sourceRecordIdentity,
+  sourcePath: artifact.sourcePath,
+});
+
+export const deserializeParsedAtlasSourceRecordArtifact = (
+  artifact: PortableParsedAtlasSourceRecordArtifact,
+): ParsedAtlasSourceRecordArtifact => {
+  const payload = JSON.parse(artifact.payloadJson) as {
+    item: ParsedAtlasItem | null;
+    plan: ParsedPlan | null;
+    relocationTarget: string | null;
+  };
+
+  return {
+    artifactId: artifact.artifactId,
+    contentHash: artifact.contentHash,
+    item: payload.item,
+    materializerId: artifact.materializerId,
+    materializerVersion: artifact.materializerVersion,
+    plan: payload.plan,
+    ...(payload.relocationTarget ? { relocationTarget: payload.relocationTarget } : {}),
+    sourceRecordIdentity: artifact.sourceRecordIdentity,
+    sourcePath: artifact.sourcePath,
   };
 };
 

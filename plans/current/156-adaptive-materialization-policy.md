@@ -125,7 +125,10 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
          to the existing global parser.
    - [ ] Persist compatible artifacts by Source Record identity, content hash, and Materializer
          version.
-   - [ ] Connect exact ChangeSets to affected artifact reuse through the Ontahí SPI.
+   - [x] Connect exact ChangeSets to affected artifact reuse through an in-process Ontahí
+         Materializer proof.
+   - [ ] Hydrate accepted state, dependencies, and artifacts from Atlas persistence, then connect the
+         Materializer to production reconciliation.
 4. Derive only affected Atlas Entities and semantic dependencies while retaining atomic Projection
    Revision publication and full-rebuild fallback.
 5. Run incremental and full derivation in comparison mode until equivalence and invalidation
@@ -183,6 +186,8 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
 Current. Reshaped from adaptive storage policy to incremental Entity derivation. Plans 154 and 155
 provide exact Source revisions and durable ChangeSets; parent Plan 153 coordinates the broader
 line. Ontahí Plans 164 and 169 own the provider-neutral model and executable SPI. The first Atlas
-slice extracts a versioned per-record parsing artifact and comparison path without changing
-production reconciliation or requiring persistence prematurely. Cooling, eviction, and tier policy
-remain possible later plugins but have no execution slice here.
+slice extracts a versioned per-record parsing artifact and comparison path. The next proof binds
+exact Source ChangeSets to the Ontahí Materializer, reparses only affected records, preserves a full
+artifact set, and falls back to rebuild when removal evidence is unknown. Production reconciliation
+still awaits a durable hydration boundary for accepted state, dependencies, and artifacts. Cooling,
+eviction, and tier policy remain possible later plugins but have no execution slice here.
