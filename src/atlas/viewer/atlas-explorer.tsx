@@ -2709,7 +2709,7 @@ const InteractionActivityGraphLens = ({
       ref={canvasRef}
       aria-label='Activity graph'
       className={cn(
-        'relative h-[calc(min(88vh,920px)-10rem)] min-h-[30rem] select-none overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px]',
+        'relative h-full min-h-[30rem] select-none overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px]',
         isPanning ? 'cursor-grabbing' : 'cursor-grab',
       )}
       role='region'
@@ -4550,7 +4550,7 @@ const DetailContentError = ({ node }: { node: PlanWorkstreamNode }) => (
   </div>
 );
 
-const FullMarkdownModal = ({
+const FullDetailSurface = ({
   activeTab,
   edges,
   evidence,
@@ -4787,17 +4787,15 @@ const FullMarkdownModal = ({
 
   return (
     <div
-      aria-modal='true'
-      className='fixed inset-0 z-[80] bg-background/55 backdrop-blur-md'
+      aria-label={`${node.shortTitle} detail`}
+      className='fixed inset-0 z-[120] bg-background'
       role='dialog'
-      onClick={onClose}
     >
       <div
-        className='absolute left-1/2 top-1/2 flex h-[min(88vh,920px)] w-[min(1180px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-border/80 bg-card/95 shadow-2xl'
-        onClick={event => event.stopPropagation()}
+        className='flex h-full w-full flex-col overflow-hidden bg-background'
       >
-        <header className='relative border-b border-border/70 px-5 pb-3 pt-3'>
-          <div className='absolute right-5 top-3 flex items-center gap-2'>
+        <header className='relative border-b border-border/70 px-4 pb-2.5 pt-2.5 sm:px-5'>
+          <div className='absolute right-4 top-2.5 flex items-center gap-2 lg:right-[13.5rem]'>
             {navigationBackNode && navigationBackNode.id !== parentNode?.id ? (
               <IconButton
                 label={`Back to ${navigationBackNode.shortTitle}`}
@@ -4823,7 +4821,7 @@ const FullMarkdownModal = ({
             </IconButton>
           </div>
 
-          <div className='grid min-h-8 grid-cols-[minmax(0,1fr)_auto_minmax(6rem,1fr)] items-center gap-3 pr-24'>
+          <div className='grid min-h-8 grid-cols-[minmax(0,1fr)_auto_minmax(6rem,1fr)] items-center gap-3 pr-24 lg:pl-[17rem] lg:pr-[26rem]'>
             <div className='flex min-w-0 flex-wrap items-center gap-2'>
               <span className={cn('size-2 rounded-full', statusDotClassName(node.statusGroup))} />
               <span className='font-mono text-xs uppercase text-muted-foreground'>{node.kind}</span>
@@ -7324,7 +7322,7 @@ export const PlanWorkstreamExplorer = ({
       ) : null}
 
       {fullNodeWithContent && fullNodeContent ? (
-        <FullMarkdownModal
+        <FullDetailSurface
           activeTab={fullNodeActiveTab}
           edges={fullNodeEdges}
           evidence={snapshot.evidence ?? []}

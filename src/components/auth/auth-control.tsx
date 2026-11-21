@@ -11,7 +11,7 @@ type AuthControlProps = {
   authAvailable: boolean;
   className?: string;
   viewer: AtlasViewer | null;
-  variant?: 'compact' | 'sign-in';
+  variant?: 'chrome' | 'compact' | 'sign-in';
 };
 
 export const AuthControl = ({
@@ -82,7 +82,15 @@ export const AuthControl = ({
   }
 
   return (
-    <div className={cn('flex items-center gap-1 rounded-lg border border-border/75 bg-background/85 p-1.5 shadow-lg backdrop-blur-xl', className)}>
+    <div
+      className={cn(
+        'flex items-center gap-1',
+        variant === 'chrome'
+          ? 'px-1 py-0.5'
+          : 'rounded-lg border border-border/75 bg-background/85 p-1.5 shadow-lg backdrop-blur-xl',
+        className,
+      )}
+    >
       {viewer.image ? (
         // The avatar URL comes from the validated GitHub profile held by Better Auth.
         // eslint-disable-next-line @next/next/no-img-element

@@ -545,6 +545,7 @@ const selection: Selection = Selection.references(Book, refs);
     renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, interactionNode] } });
 
     const details = screen.getByRole('region', { name: 'Interaction details' });
+    const detailSurface = screen.getByRole('dialog', { name: 'Respond To Invitation detail' });
     expect(within(details).getAllByText('Open invitation URL')).not.toHaveLength(0);
     expect(within(details).getAllByText(/Continue/)).not.toHaveLength(0);
     expect(within(details).getAllByText('Invitation accepted')).not.toHaveLength(0);
@@ -552,8 +553,13 @@ const selection: Selection = Selection.references(Book, refs);
     expect(within(details).getByRole('button', { name: 'Fit activity graph' })).toBeInTheDocument();
     const activityGraph = within(details).getByRole('region', { name: 'Activity graph' });
     expect(activityGraph).not.toHaveClass('rounded-2xl', 'border');
+    expect(activityGraph).toHaveClass('h-full');
     expect(fireEvent.wheel(activityGraph, { ctrlKey: true, deltaY: -120 })).toBe(false);
     expect(document.getElementById('full-detail-content-scroll')).not.toHaveClass('px-6');
+    expect(detailSurface).toHaveClass('inset-0', 'z-[120]', 'bg-background');
+    expect(detailSurface).not.toHaveAttribute('aria-modal');
+    expect(detailSurface.firstElementChild).toHaveClass('h-full', 'w-full');
+    expect(detailSurface.firstElementChild).not.toHaveClass('rounded-lg', 'border', 'shadow-2xl');
 
     await user.click(within(details).getAllByRole('button', { name: /Claim invitation/ })[1]!);
 

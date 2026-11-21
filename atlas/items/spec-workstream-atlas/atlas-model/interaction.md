@@ -166,6 +166,16 @@ inside a second editorial card, and wheel or pinch gestures over that surface ar
 canvas for pan and zoom instead of leaking to the surrounding detail scroller. Blueprint and
 Anatomy remain editorial readings and retain their own content padding.
 
+Full Item detail is a Workspace focus surface rather than an inset modal. Opening an Item replaces
+the map's working surface at viewport scale while retaining explicit return navigation and the
+Item's URL state. Spatial Interaction lenses may use every remaining pixel below the compact detail
+header; editorial lenses keep their own readable measure instead of imposing that padding on the
+surface itself.
+
+Workspace switching and viewer identity remain available as quiet inline chrome above a focused
+Item. They do not retain card shadows, glass panels, or modal-like containers that compete with the
+Item header and its lenses.
+
 Actors are named Interaction-local bindings. Activity nodes reference those bindings rather than
 copying display labels, but v0 deliberately leaves their executable resolution as descriptive
 semantics. A role such as `Invitation Recipient` may later be proven through a User identity,

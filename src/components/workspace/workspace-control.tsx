@@ -16,10 +16,10 @@ export const WorkspaceControl = ({
 }) => {
   const router = useRouter();
   return (
-    <div className='fixed left-4 top-4 z-50 inline-flex items-center overflow-hidden rounded-md border border-border/70 bg-card/90 text-xs shadow-sm backdrop-blur'>
+    <div className='fixed left-4 top-3 z-[140] inline-flex items-center text-xs'>
       <Link
         aria-label='All Workspaces'
-        className='grid h-8 w-8 place-items-center border-r border-border/70 text-muted-foreground transition-colors hover:text-foreground'
+        className='grid h-9 w-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
         href='/'
       >
         <LayoutGrid className='size-3.5' />
@@ -44,7 +44,7 @@ export const WorkspaceControl = ({
       </div>
       <Link
         aria-label={`Workspace settings for ${workspace.name}`}
-        className='grid h-8 w-8 place-items-center border-l border-border/70 text-muted-foreground transition-colors hover:text-foreground'
+        className='grid h-9 w-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
         href={`/w/${encodeURIComponent(workspace.slug)}/settings`}
       >
         <Settings2 className='size-3.5' />

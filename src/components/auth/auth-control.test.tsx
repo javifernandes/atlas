@@ -58,4 +58,17 @@ describe('AuthControl', () => {
     expect(screen.getByText('Javi')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
   });
+
+  it('renders viewer chrome without a floating card container', () => {
+    const { container } = render(
+      <AuthControl
+        authAvailable
+        variant='chrome'
+        viewer={{ email: 'javi@example.com', id: '1', image: null, name: 'Javi' }}
+      />,
+    );
+
+    expect(container.firstElementChild).toHaveClass('px-1', 'py-0.5');
+    expect(container.firstElementChild).not.toHaveClass('border', 'shadow-lg', 'backdrop-blur-xl');
+  });
 });
