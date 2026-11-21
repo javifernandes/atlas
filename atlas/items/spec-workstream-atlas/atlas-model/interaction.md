@@ -171,6 +171,13 @@ connection layer; concise guards, triggers, or affordances may label those conne
 node inspector carries semantic detail. SVG paths and all layout coordinates remain disposable
 presentation projections, never durable Activity Graph truth.
 
+Selected-node detail stays adjacent to the spatial context in a dismissible right-hand panel. The
+panel may cover part of the canvas temporarily, but it does not replace, resize, or duplicate the
+graph and it owns its own vertical scrolling. Pointer and directional-key selection open the same
+panel. Spatial reveal treats the covered region as unavailable so pointer- and keyboard-selected
+nodes remain visible beside it. The selected node is the visible keyboard-focus signal, so the
+focusable canvas does not add a competing outline around the entire graph.
+
 The spatial projection owns the Interaction detail subsection while it is active. It does not sit
 inside a second editorial card, and wheel or pinch gestures over that surface are consumed by the
 canvas for pan and zoom instead of leaking to the surrounding detail scroller. Blueprint and

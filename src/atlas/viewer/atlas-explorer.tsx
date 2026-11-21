@@ -76,6 +76,7 @@ import {
 } from '@/atlas/viewer/activity-graph-lens';
 import {
   activityGraphEdgeLabel,
+  activityGraphRevealDelta,
   buildActivityGraphEdgePath,
   buildActivityGraphLayout,
 } from '@/atlas/viewer/activity-graph-layout';
@@ -2477,9 +2478,11 @@ const InteractionStepInspector = ({
 );
 
 const ActivityNodeInspector = ({
+  appearance = 'inline',
   context,
   node,
 }: {
+  appearance?: 'inline' | 'panel';
   context: MarkdownRenderContext;
   node: ActivityGraphLensNode;
 }) => {
@@ -2488,11 +2491,11 @@ const ActivityNodeInspector = ({
   return (
     <section
       aria-label='Activity node details'
-      className='border-t border-border/45 pt-6'
+      className={cn(appearance === 'inline' && 'border-t border-border/45 pt-6')}
     >
-      <div className='max-w-5xl'>
+      <div className={cn(appearance === 'inline' && 'max-w-5xl')}>
         <div className='font-mono text-[10px] uppercase tracking-[0.14em] text-primary'>
-          {node.kind} · activity node
+          {node.kind}
         </div>
         <h3 className='mt-2 text-xl font-medium text-foreground'>{node.label}</h3>
         <div className='mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground'>
@@ -2567,10 +2570,12 @@ const ActivityNodeInspector = ({
 const InteractionActivityGraphLens = ({
   onSelect,
   projection,
+  rightOcclusion = 0,
   selectedNodeId,
 }: {
   onSelect: (nodeId: string) => void;
   projection: ActivityGraphLensProjection;
+  rightOcclusion?: number;
   selectedNodeId: string;
 }) => {
   const backTransitions = new Set(projection.backTransitions);
@@ -2582,6 +2587,8 @@ const InteractionActivityGraphLens = ({
   const canvasRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport>({ x: 32, y: 32, scale: 1 });
+  const rightOcclusionRef = useRef(rightOcclusion);
+  rightOcclusionRef.current = rightOcclusion;
   const dragRef = useRef<{
     moved: boolean;
     pointerId: number;
@@ -2736,19 +2743,9 @@ const InteractionActivityGraphLens = ({
 
       const canvasRect = canvas.getBoundingClientRect();
       const nodeRect = node.getBoundingClientRect();
-      const margin = 48;
-      const deltaX =
-        nodeRect.left < canvasRect.left + margin
-          ? canvasRect.left + margin - nodeRect.left
-          : nodeRect.right > canvasRect.right - margin
-            ? canvasRect.right - margin - nodeRect.right
-            : 0;
-      const deltaY =
-        nodeRect.top < canvasRect.top + margin
-          ? canvasRect.top + margin - nodeRect.top
-          : nodeRect.bottom > canvasRect.bottom - margin
-            ? canvasRect.bottom - margin - nodeRect.bottom
-            : 0;
+      const { x: deltaX, y: deltaY } = activityGraphRevealDelta(canvasRect, nodeRect, {
+        rightOcclusion: rightOcclusionRef.current,
+      });
 
       if (deltaX !== 0 || deltaY !== 0) {
         const current = viewportRef.current;
@@ -2804,7 +2801,7 @@ const InteractionActivityGraphLens = ({
       aria-label='Activity graph'
       aria-keyshortcuts='ArrowUp ArrowDown ArrowLeft ArrowRight'
       className={cn(
-        'relative h-full min-h-[30rem] select-none overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px]',
+        'relative h-full min-h-[30rem] select-none overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px] focus:outline-none',
         isPanning ? 'cursor-grabbing' : 'cursor-grab',
       )}
       role='region'
@@ -2870,6 +2867,7 @@ const InteractionActivityGraphLens = ({
           const selectNode = () => {
             onSelect(node.id);
             canvasRef.current?.focus({ preventScroll: true });
+            globalThis.requestAnimationFrame(() => revealActivityNode(node.id));
           };
 
           if (node.kind === 'merge') {
@@ -3038,6 +3036,7 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
   const hasFlow = hasActivity || hasLegacyFlow;
   const [view, setView] = useState<'anatomy' | 'blueprint' | 'graph'>(hasFlow ? 'graph' : 'anatomy');
   const [selectedActivityNodeId, setSelectedActivityNodeId] = useState(model?.activity?.entry ?? '');
+  const [activityInspectorOpen, setActivityInspectorOpen] = useState(false);
   const [selectedStep, setSelectedStep] = useState(model?.steps[0]?.label ?? '');
 
   if (!model) return null;
@@ -3064,11 +3063,26 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
           </div>
         </div>
       ) : null}
-      {view === 'graph' && activityProjection ? <InteractionActivityGraphLens onSelect={setSelectedActivityNodeId} projection={activityProjection} selectedNodeId={selectedActivityNodeId} /> : null}
+      {view === 'graph' && activityProjection ? <InteractionActivityGraphLens onSelect={nodeId => { setSelectedActivityNodeId(nodeId); setActivityInspectorOpen(true); }} projection={activityProjection} rightOcclusion={activityInspectorOpen ? 448 : 0} selectedNodeId={selectedActivityNodeId} /> : null}
       {view === 'graph' && !model.activity && hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionGraphLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /></div> : null}
       {view === 'blueprint' && hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionBlueprintLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /></div> : null}
       {view === 'anatomy' || !hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionAnatomy context={context} /></div> : null}
-      {view === 'graph' && activityProjection && selectedActivityNode ? <div className='px-6 py-6 sm:px-8 lg:px-10'><ActivityNodeInspector context={context} node={selectedActivityNode} /></div> : null}
+      {view === 'graph' && activityProjection && selectedActivityNode && activityInspectorOpen ? (
+        <aside
+          aria-label='Activity node details panel'
+          className='absolute inset-y-0 right-0 z-30 flex w-full max-w-[28rem] flex-col border-l border-border/65 bg-background/95 shadow-[-18px_0_44px_rgba(0,0,0,0.28)] backdrop-blur-xl'
+        >
+          <div className='flex items-center justify-between border-b border-border/45 px-5 py-3'>
+            <span className='font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground'>Node detail</span>
+            <IconButton label='Close activity node details' onClick={() => setActivityInspectorOpen(false)}>
+              <X className='size-4' />
+            </IconButton>
+          </div>
+          <div className='min-h-0 flex-1 overflow-y-auto px-5 py-5'>
+            <ActivityNodeInspector appearance='panel' context={context} node={selectedActivityNode} />
+          </div>
+        </aside>
+      ) : null}
       {view === 'blueprint' && selected ? <div className='px-6 pb-6 sm:px-8 lg:px-10'><InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /></div> : null}
       {view === 'graph' && !model.activity && selected ? <div className='px-6 pb-6 sm:px-8 lg:px-10'><InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /></div> : null}
     </section>

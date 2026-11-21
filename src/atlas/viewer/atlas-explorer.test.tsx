@@ -558,7 +558,7 @@ const selection: Selection = Selection.references(Book, refs);
     expect(within(details).getByRole('button', { name: 'Fit activity graph' })).toBeInTheDocument();
     const activityGraph = within(details).getByRole('region', { name: 'Activity graph' });
     expect(activityGraph).not.toHaveClass('rounded-2xl', 'border');
-    expect(activityGraph).toHaveClass('h-full');
+    expect(activityGraph).toHaveClass('h-full', 'focus:outline-none');
     expect(activityGraph).toHaveAttribute('tabindex', '0');
     expect(activityGraph).toHaveAttribute(
       'aria-keyshortcuts',
@@ -571,17 +571,24 @@ const selection: Selection = Selection.references(Book, refs);
     expect(detailSurface).not.toHaveAttribute('aria-modal');
     expect(detailSurface.firstElementChild).toHaveClass('h-full', 'w-full');
     expect(detailSurface.firstElementChild).not.toHaveClass('rounded-lg', 'border', 'shadow-2xl');
+    expect(screen.queryByRole('complementary', { name: 'Activity node details panel' })).not.toBeInTheDocument();
 
     fireEvent.keyDown(activityGraph, { key: 'ArrowRight' });
     expect(activityGraph).toHaveAttribute('aria-activedescendant', 'activity-node-claim');
 
-    await user.click(within(details).getAllByRole('button', { name: /Claim invitation/ })[1]!);
-
+    const inspectorPanel = screen.getByRole('complementary', { name: 'Activity node details panel' });
     const inspector = screen.getByRole('region', { name: 'Activity node details' });
+    expect(within(inspector).queryByText(/activity node/i)).not.toBeInTheDocument();
     expect(within(inspector).getByText('Semantic target')).toBeInTheDocument();
     expect(within(inspector).getByRole('button', { name: /Claim Invitation Operation/ })).toBeInTheDocument();
     expect(within(inspector).queryByText('Arrives through')).not.toBeInTheDocument();
     expect(within(inspector).queryByText('Continues through')).not.toBeInTheDocument();
+
+    await user.click(within(inspectorPanel).getByRole('button', { name: 'Close activity node details' }));
+    expect(screen.queryByRole('complementary', { name: 'Activity node details panel' })).not.toBeInTheDocument();
+
+    await user.click(operationNode);
+    expect(screen.getByRole('complementary', { name: 'Activity node details panel' })).toBeInTheDocument();
   });
 
   it('renders a one-column Markdown table as a table', () => {
