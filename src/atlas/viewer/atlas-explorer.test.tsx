@@ -546,12 +546,24 @@ const selection: Selection = Selection.references(Book, refs);
     expect(within(details).getAllByText('Open invitation URL')).not.toHaveLength(0);
     expect(within(details).getAllByText(/Continue/)).not.toHaveLength(0);
     expect(within(details).getAllByText('Invitation accepted')).not.toHaveLength(0);
+    const entryNode = within(details).getByRole('button', {
+      name: /Open invitation URL/,
+    });
+    expect(within(entryNode).queryByText('Claim invitation')).not.toBeInTheDocument();
+    const operationNode = within(details).getByRole('button', {
+      name: 'operation: Claim invitation',
+    });
+    expect(within(operationNode).queryByText('Invitation accepted')).not.toBeInTheDocument();
     expect(within(details).getByRole('button', { name: 'Zoom in activity graph' })).toBeInTheDocument();
     expect(within(details).getByRole('button', { name: 'Fit activity graph' })).toBeInTheDocument();
     const activityGraph = within(details).getByRole('region', { name: 'Activity graph' });
     expect(activityGraph).not.toHaveClass('rounded-2xl', 'border');
     expect(activityGraph).toHaveClass('h-full');
     expect(activityGraph).toHaveAttribute('tabindex', '0');
+    expect(activityGraph).toHaveAttribute(
+      'aria-keyshortcuts',
+      'ArrowUp ArrowDown ArrowLeft ArrowRight',
+    );
     expect(activityGraph).toHaveAttribute('aria-activedescendant', 'activity-node-open');
     expect(fireEvent.wheel(activityGraph, { ctrlKey: true, deltaY: -120 })).toBe(false);
     expect(document.getElementById('full-detail-content-scroll')).not.toHaveClass('px-6');
