@@ -39,7 +39,8 @@ activity:
       kind: interaction
       ref: ./invite.md
   transitions:
-    - from: inspect
+    - id: inspect-to-invite
+      from: inspect
       to: invite
 \`\`\`
 

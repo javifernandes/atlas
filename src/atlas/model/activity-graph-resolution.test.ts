@@ -4,6 +4,13 @@ import type { ActivityGraph } from './activity-graph';
 import { resolveActivityGraphReferences } from './activity-graph-resolution';
 
 const graph: ActivityGraph = {
+  actors: [
+    {
+      id: 'recipient',
+      label: 'Invitation Recipient',
+      context: [{ reference: 'workspace.invitation' }],
+    },
+  ],
   entry: 'inspect',
   nodes: [
     {
@@ -22,7 +29,7 @@ const graph: ActivityGraph = {
       reference: { reference: 'workspace.invitation.claim' },
     },
   ],
-  transitions: [{ from: 'inspect', to: 'claim' }],
+  transitions: [{ id: 'inspect-to-claim', from: 'inspect', to: 'claim' }],
 };
 
 describe('Activity Graph reference resolution', () => {
@@ -32,6 +39,13 @@ describe('Activity Graph reference resolution', () => {
     );
 
     expect(resolved.diagnostics).toEqual([]);
+    expect(resolved.graph.actors[0]?.context).toEqual([
+      {
+        reference: 'workspace.invitation',
+        resolution: 'resolved',
+        targetNodeId: 'atlas:workspace.invitation',
+      },
+    ]);
     expect(resolved.graph.nodes).toMatchObject([
       {
         reads: [

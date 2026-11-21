@@ -153,8 +153,48 @@ absolute semantic IDs and source-relative references with the same rules as the 
 Interaction, preserving unresolved targets as shaping pressure. The Activity Graph lens then adds
 presentation adjacency, back-transition detection, and derived columns without mutating authored
 nodes or introducing layout coordinates into the durable model. Selecting a local node reveals its
-responsibility, reads, presentations, semantic target, and transitions while remaining inside the
-owning Interaction.
+responsibility, reads, presentations, and semantic target while remaining inside the owning
+Interaction. Incoming and outgoing topology stays in the Graph lens rather than being duplicated
+in the inspector.
+
+The Graph lens is a spatial projection: pan, zoom, reset, and fit-to-content belong to the viewer,
+not to the durable Activity Graph. Directional keyboard traversal is likewise a viewer behavior:
+it selects the nearest node in the requested spatial direction through a reusable navigation
+primitive that the Workspace graph may also adopt. It does not add ordering or coordinates to the
+semantic model. Merge nodes appear as compact convergence points because they establish a
+control-flow condition without performing actor or system work.
+
+The spatial projection owns the Interaction detail subsection while it is active. It does not sit
+inside a second editorial card, and wheel or pinch gestures over that surface are consumed by the
+canvas for pan and zoom instead of leaking to the surrounding detail scroller. Blueprint and
+Anatomy remain editorial readings and retain their own content padding.
+
+Full Item detail is a Workspace focus surface rather than an inset modal. Opening an Item replaces
+the map's working surface at viewport scale while retaining explicit return navigation and the
+Item's URL state. Spatial Interaction lenses may use every remaining pixel below the compact detail
+header; editorial lenses keep their own readable measure instead of imposing that padding on the
+surface itself.
+
+Workspace switching and viewer identity remain available as quiet inline chrome above a focused
+Item. They do not retain card shadows, glass panels, or modal-like containers that compete with the
+Item header and its lenses.
+
+Actors are named Interaction-local bindings. Activity nodes reference those bindings rather than
+copying display labels, but v0 deliberately leaves their executable resolution as descriptive
+semantics. A role such as `Invitation Recipient` may later be proven through a User identity,
+provider identity, or invitation secret without prematurely inventing an Atlas expression
+language or Entity type for the role.
+
+Nodes and transitions have stable local identities. They can later anchor comments,
+implementation evidence, runtime traces, branch metrics, and experiment variants while remaining
+owned by the Interaction. A stimulus is the semantic fact that enters the graph; an Ontahí Ingress
+or external Event may realize that entry later, but transport is not part of the stimulus's
+identity.
+
+This preserves a possible execution bridge without equating the current concepts: an Interaction
+describes observable actor-system behavior, Operations remain executable domain capabilities, and
+durable execution may eventually interpret or report against the same Activity Graph. Whether an
+Operation may also own an Activity Graph body remains exemplar-driven follow-up work.
 
 ## Implementation Boundary
 

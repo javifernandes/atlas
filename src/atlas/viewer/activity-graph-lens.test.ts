@@ -4,16 +4,24 @@ import type { ActivityGraph } from '../model/activity-graph';
 import { buildActivityGraphLensProjection } from './activity-graph-lens';
 
 const graph: ActivityGraph = {
+  actors: [
+    {
+      id: 'recipient',
+      label: 'Invitation Recipient',
+      description: 'The person responding to the invitation.',
+      context: [{ reference: 'workspace-invitation' }],
+    },
+  ],
   entry: 'open',
   nodes: [
-    { id: 'open', kind: 'stimulus', label: 'Open', reads: [], presents: [] },
+    { id: 'open', kind: 'stimulus', label: 'Open', actor: 'recipient', reads: [], presents: [] },
     { id: 'eligible', kind: 'decision', label: 'Eligible?', reads: [], presents: [] },
     { id: 'done', kind: 'outcome', label: 'Done', reads: [], presents: [] },
   ],
   transitions: [
-    { from: 'open', to: 'eligible', trigger: 'link opened' },
-    { affordance: 'Continue', from: 'eligible', guard: 'allowed', to: 'done' },
-    { affordance: 'Try again', from: 'eligible', guard: 'not allowed', to: 'open' },
+    { id: 'opened', from: 'open', to: 'eligible', trigger: 'link opened' },
+    { id: 'allowed', affordance: 'Continue', from: 'eligible', guard: 'allowed', to: 'done' },
+    { id: 'retry', affordance: 'Try again', from: 'eligible', guard: 'not allowed', to: 'open' },
   ],
 };
 
@@ -21,12 +29,19 @@ describe('Activity Graph lens projection', () => {
   it('preserves graph semantics while attaching adjacency for presentation', () => {
     const projection = buildActivityGraphLensProjection(graph);
 
-    expect(projection.entry).toMatchObject({ id: 'open', isEntry: true });
+    expect(projection.entry).toMatchObject({
+      id: 'open',
+      isEntry: true,
+      actorBinding: {
+        id: 'recipient',
+        label: 'Invitation Recipient',
+      },
+    });
     expect(projection.nodes.find(node => node.id === 'eligible')).toMatchObject({
-      incoming: [{ from: 'open', to: 'eligible', trigger: 'link opened' }],
+      incoming: [{ id: 'opened', from: 'open', to: 'eligible', trigger: 'link opened' }],
       outgoing: [
-        { affordance: 'Continue', from: 'eligible', guard: 'allowed', to: 'done' },
-        { affordance: 'Try again', from: 'eligible', guard: 'not allowed', to: 'open' },
+        { id: 'allowed', affordance: 'Continue', from: 'eligible', guard: 'allowed', to: 'done' },
+        { id: 'retry', affordance: 'Try again', from: 'eligible', guard: 'not allowed', to: 'open' },
       ],
     });
     expect(projection.transitions).toEqual(graph.transitions);
@@ -36,7 +51,7 @@ describe('Activity Graph lens projection', () => {
       ['done'],
     ]);
     expect(projection.backTransitions).toEqual([
-      { affordance: 'Try again', from: 'eligible', guard: 'not allowed', to: 'open' },
+      { id: 'retry', affordance: 'Try again', from: 'eligible', guard: 'not allowed', to: 'open' },
     ]);
   });
 });

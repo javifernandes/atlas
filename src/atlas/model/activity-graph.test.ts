@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { validateActivityGraph, type ActivityGraph } from './activity-graph';
 
 const graph = (overrides: Partial<ActivityGraph> = {}): ActivityGraph => ({
+  actors: [],
   entry: 'open',
   nodes: [
     {
@@ -21,7 +22,7 @@ const graph = (overrides: Partial<ActivityGraph> = {}): ActivityGraph => ({
       reference: { reference: 'workspace-invitation.claim' },
     },
   ],
-  transitions: [{ from: 'open', to: 'claim' }],
+  transitions: [{ id: 'open-to-claim', from: 'open', to: 'claim' }],
   ...overrides,
 });
 
@@ -51,8 +52,8 @@ describe('Activity Graph semantic model', () => {
           },
         ],
         transitions: [
-          { from: 'open', to: 'claim' },
-          { from: 'missing', to: 'claim' },
+          { id: 'open-to-claim', from: 'open', to: 'claim' },
+          { id: 'missing-to-claim', from: 'missing', to: 'claim' },
         ],
       }),
     );
@@ -70,6 +71,33 @@ describe('Activity Graph semantic model', () => {
       code: 'missing-entry-node',
       message: 'Activity entry missing does not identify an authored node.',
       path: 'entry',
+      severity: 'error',
+    });
+  });
+
+  it('requires stable transition IDs and declared actor bindings', () => {
+    const diagnostics = validateActivityGraph(
+      graph({
+        nodes: graph().nodes.map(node =>
+          node.id === 'open' ? { ...node, actor: 'recipient' } : node,
+        ),
+        transitions: [
+          { id: 'advance', from: 'open', to: 'claim' },
+          { id: 'advance', from: 'open', to: 'claim' },
+        ],
+      }),
+    );
+
+    expect(diagnostics).toContainEqual({
+      code: 'missing-actor-binding',
+      message: 'Activity node open references missing actor binding recipient.',
+      path: 'nodes.open.actor',
+      severity: 'error',
+    });
+    expect(diagnostics).toContainEqual({
+      code: 'duplicate-transition-id',
+      message: 'Activity transition advance is declared more than once.',
+      path: 'transitions.1.id',
       severity: 'error',
     });
   });

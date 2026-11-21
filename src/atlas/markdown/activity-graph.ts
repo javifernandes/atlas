@@ -4,6 +4,7 @@ import {
   isActivityNodeKind,
   validateActivityGraph,
   type ActivityGraph,
+  type ActivityActorBinding,
   type ActivityGraphDiagnostic,
   type ActivityNode,
   type ActivityResponsibility,
@@ -15,6 +16,7 @@ type ActivityGraphParseDiagnosticCode =
   | ActivityGraphDiagnostic['code']
   | 'invalid-yaml'
   | 'invalid-activity-root'
+  | 'invalid-actor'
   | 'invalid-node'
   | 'invalid-node-kind'
   | 'invalid-responsibility'
@@ -61,6 +63,32 @@ const references = (value: unknown) =>
         return parsed ? [parsed] : [];
       })
     : [];
+
+const parseActor = (
+  id: string,
+  value: unknown,
+  diagnostics: ActivityGraphParseDiagnostic[],
+): ActivityActorBinding | undefined => {
+  const source = record(value);
+  if (!source) {
+    diagnostics.push({
+      code: 'invalid-actor',
+      message: `Activity actor ${id} must be a YAML mapping.`,
+      path: `actors.${id}`,
+      severity: 'error',
+    });
+    return undefined;
+  }
+
+  return {
+    id,
+    label: nonEmptyString(source.label) ?? id,
+    ...(nonEmptyString(source.description)
+      ? { description: nonEmptyString(source.description) }
+      : {}),
+    context: references(source.context),
+  };
+};
 
 const parseNode = (
   id: string,
@@ -122,13 +150,14 @@ const parseTransition = (
   diagnostics: ActivityGraphParseDiagnostic[],
 ): ActivityTransition | undefined => {
   const source = record(value);
+  const id = nonEmptyString(source?.id);
   const from = nonEmptyString(source?.from);
   const to = nonEmptyString(source?.to);
 
-  if (!source || !from || !to) {
+  if (!source || !id || !from || !to) {
     diagnostics.push({
       code: 'invalid-transition',
-      message: `Activity transition ${index} must declare non-empty from and to node IDs.`,
+      message: `Activity transition ${index} must declare non-empty id, from, and to fields.`,
       path: `transitions.${index}`,
       severity: 'error',
     });
@@ -136,6 +165,7 @@ const parseTransition = (
   }
 
   return {
+    id,
     from,
     to,
     ...(nonEmptyString(source.guard) ? { guard: nonEmptyString(source.guard) } : {}),
@@ -164,10 +194,11 @@ export const parseActivityGraph = (markdown: string): ActivityGraphParseResult =
 
   const root = record(document.toJS());
   const activity = record(root?.activity);
+  const actorSources = activity?.actors === undefined ? {} : record(activity.actors);
   const nodeSources = record(activity?.nodes);
   const transitionSources = activity?.transitions;
 
-  if (!activity || !nodeSources || !Array.isArray(transitionSources)) {
+  if (!activity || !actorSources || !nodeSources || !Array.isArray(transitionSources)) {
     return {
       diagnostics: [
         {
@@ -181,6 +212,10 @@ export const parseActivityGraph = (markdown: string): ActivityGraphParseResult =
   }
 
   const diagnostics: ActivityGraphParseDiagnostic[] = [];
+  const actors = Object.entries(actorSources).flatMap(([id, value]) => {
+    const actor = parseActor(id, value, diagnostics);
+    return actor ? [actor] : [];
+  });
   const nodes = Object.entries(nodeSources).flatMap(([id, value]) => {
     const node = parseNode(id, value, diagnostics);
     return node ? [node] : [];
@@ -190,6 +225,7 @@ export const parseActivityGraph = (markdown: string): ActivityGraphParseResult =
     return transition ? [transition] : [];
   });
   const graph: ActivityGraph = {
+    actors,
     entry: nonEmptyString(activity.entry) ?? '',
     nodes,
     transitions,
