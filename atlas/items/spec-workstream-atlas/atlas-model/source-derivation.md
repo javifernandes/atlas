@@ -56,6 +56,14 @@ incompatible records. Deletes and moves without retained dependency evidence req
 rather than guessing which prior output must be removed. A full rebuild never reuses parsed
 artifacts and remains the equivalence oracle.
 
+The candidate reusable abstraction is not Markdown parsing itself but a media-neutral record
+derivation envelope: `VersionedRecord -> DerivedArtifact<Payload>`. Stable record identity, content
+fingerprint, transformation identity/version, serialized payload, observation lineage, and
+dependency evidence may apply equally to Markdown, JSON, YAML, or source-code records. The parser
+and cross-record assembler remain pluggable application behavior. Atlas must not promote this
+candidate into a stable Ontahí API until BookOps supplies a second payload/topology and a later
+non-Markdown case demonstrates which properties are truly independent of the medium.
+
 A Projection Revision is therefore a specialized derived Source Revision, not merely a cache row.
 Execution attempts and Task runs explain how derivation ran; they are not substitutes for accepted
 revision lineage.

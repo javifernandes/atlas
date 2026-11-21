@@ -104,6 +104,19 @@ Artifact identity should include at least Source-record identity, content hash, 
 version. Semantic dependency identity must be explicit enough that changing one record invalidates
 cross-record outputs without reparsing unrelated records.
 
+The reusable pressure is media-neutral even though Atlas begins with Markdown. The candidate
+portable shape is `VersionedRecord -> DerivedArtifact<Payload>`: stable record identity, content
+fingerprint, parser/Materializer identity and version, a serializable payload, current observation
+lineage, and dependency evidence. Markdown parsing is one adapter over that shape; JSON, YAML,
+source code, or other record media should be able to supply different parsers without changing the
+acceptance and invalidation model.
+
+Do not extract or stabilize that record-artifact API from Atlas alone. BookOps must first reuse the
+behavior with its own Markdown payloads, hierarchy, ordering, and cross-record dependencies. A
+later non-Markdown proof should then test whether content hashing, serialization, lineage rebinding,
+and affected-record calculation are genuinely independent of Markdown. Application payloads and
+cross-record assembly remain application-owned even if the envelope becomes generic.
+
 ## BookOps Validation
 
 BookOps is the intended second adopter, not another implementation copied into Atlas. Its Markdown
@@ -169,6 +182,8 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
 - Preserve full rebuild as recovery, validation oracle, and repair mechanism.
 - Keep logical Projection Revision identity independent from whether it was produced incrementally
   or by full derivation.
+- Treat Markdown as the first record parser adapter, not as part of the generic replicated-model
+  contract; extract a media-neutral record-artifact envelope only after Atlas and BookOps evidence.
 
 ## Open Questions
 
@@ -178,8 +193,8 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
 3. What comparison window and evidence threshold are sufficient before incremental execution
    becomes primary?
 4. Which BookOps derivation best challenges the one-file/one-Entity assumption?
-5. Which portion of Ontahí Plan 164 becomes an executable provider subplan, and what canonical URI
-   will it receive?
+5. Which envelope fields and invalidation rules remain identical after BookOps and a non-Markdown
+   JSON or YAML adopter exercise the same behavior?
 
 ## Closure / Evolution
 
