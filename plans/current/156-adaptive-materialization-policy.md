@@ -136,8 +136,12 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
        ChangeSet.
    - [x] Extract a per-record parsing boundary and prove that assembling its artifacts is equivalent
          to the existing global parser.
-   - [ ] Persist compatible artifacts by Source Record identity, content hash, and Materializer
+   - [x] Persist compatible artifacts by Source Record identity, content hash, and Materializer
          version.
+     - [x] Store the accepted frontier, Materializer state, dependency evidence, and complete
+           artifact set as one scope-local PostgreSQL checkpoint.
+     - [x] Reject stale checkpoint writers with a Source-frontier compare-and-swap and hydrate
+           readers from one repeatable-read snapshot.
    - [x] Connect exact ChangeSets to affected artifact reuse through an in-process Ontahí
          Materializer proof.
    - [ ] Hydrate accepted state, dependencies, and artifacts from Atlas persistence, then connect the
@@ -203,6 +207,9 @@ provide exact Source revisions and durable ChangeSets; parent Plan 153 coordinat
 line. Ontahí Plans 164 and 169 own the provider-neutral model and executable SPI. The first Atlas
 slice extracts a versioned per-record parsing artifact and comparison path. The next proof binds
 exact Source ChangeSets to the Ontahí Materializer, reparses only affected records, preserves a full
-artifact set, and falls back to rebuild when removal evidence is unknown. Production reconciliation
-still awaits a durable hydration boundary for accepted state, dependencies, and artifacts. Cooling,
-eviction, and tier policy remain possible later plugins but have no execution slice here.
+artifact set, and falls back to rebuild when removal evidence is unknown. Atlas now has a durable,
+atomic PostgreSQL checkpoint for the accepted frontier, Materializer state, dependency evidence,
+and portable artifacts, including optimistic protection against stale writers. The remaining
+production slice must teach the Ontahí runner to begin from that hydrated snapshot and then compose
+checkpoint acceptance with Projection Revision publication. Cooling, eviction, and tier policy
+remain possible later plugins but have no execution slice here.

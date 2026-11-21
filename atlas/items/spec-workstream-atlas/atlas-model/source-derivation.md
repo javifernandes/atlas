@@ -56,6 +56,15 @@ incompatible records. Deletes and moves without retained dependency evidence req
 rather than guessing which prior output must be removed. A full rebuild never reuses parsed
 artifacts and remains the equivalence oracle.
 
+Atlas persists one accepted Materializer checkpoint per derivation scope. The checkpoint contains
+the Source and accepted frontiers, Materializer identity and version, portable state, the complete
+current artifact set, and dependency evidence. PostgreSQL replaces that form atomically, rejects a
+writer whose expected Source frontier is no longer current, and hydrates it through a repeatable-read
+snapshot. Dependency inputs with no outputs remain explicit evidence rather than disappearing from
+storage, because their presence distinguishes a known deletion from an unknown dependency. This
+checkpoint is reconstructible execution state; it does not replace the logical Projection Revision
+or make a partially derived graph visible.
+
 The candidate reusable abstraction is not Markdown parsing itself but a media-neutral record
 derivation envelope: `VersionedRecord -> DerivedArtifact<Payload>`. Stable record identity, content
 fingerprint, transformation identity/version, serialized payload, observation lineage, and
