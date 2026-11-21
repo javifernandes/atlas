@@ -514,6 +514,8 @@ later compact language, visual editor, or Mermaid importer must compile to the s
 
 - [x] Make the Graph lens pannable, zoomable, resettable, and fit-to-content without adding layout
       coordinates to the Activity Graph model.
+- [x] Give the Graph lens a full-bleed spatial surface inside Interaction detail and consume wheel
+      gestures at the canvas boundary so modal scrolling cannot steal pan or pinch zoom.
 - [x] Keep the selected-node inspector focused on semantic payload; do not repeat incoming and
       outgoing topology already visible in the graph.
 - [x] Render merge nodes as compact control-flow convergence rather than activity cards, and name

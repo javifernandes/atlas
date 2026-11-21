@@ -550,6 +550,10 @@ const selection: Selection = Selection.references(Book, refs);
     expect(within(details).getAllByText('Invitation accepted')).not.toHaveLength(0);
     expect(within(details).getByRole('button', { name: 'Zoom in activity graph' })).toBeInTheDocument();
     expect(within(details).getByRole('button', { name: 'Fit activity graph' })).toBeInTheDocument();
+    const activityGraph = within(details).getByRole('region', { name: 'Activity graph' });
+    expect(activityGraph).not.toHaveClass('rounded-2xl', 'border');
+    expect(fireEvent.wheel(activityGraph, { ctrlKey: true, deltaY: -120 })).toBe(false);
+    expect(document.getElementById('full-detail-content-scroll')).not.toHaveClass('px-6');
 
     await user.click(within(details).getAllByRole('button', { name: /Claim invitation/ })[1]!);
 

@@ -161,6 +161,11 @@ The Graph lens is a spatial projection: pan, zoom, reset, and fit-to-content bel
 not to the durable Activity Graph. Merge nodes appear as compact convergence points because they
 establish a control-flow condition without performing actor or system work.
 
+The spatial projection owns the Interaction detail subsection while it is active. It does not sit
+inside a second editorial card, and wheel or pinch gestures over that surface are consumed by the
+canvas for pan and zoom instead of leaking to the surrounding detail scroller. Blueprint and
+Anatomy remain editorial readings and retain their own content padding.
+
 Actors are named Interaction-local bindings. Activity nodes reference those bindings rather than
 copying display labels, but v0 deliberately leaves their executable resolution as descriptive
 semantics. A role such as `Invitation Recipient` may later be proven through a User identity,

@@ -2632,6 +2632,40 @@ const InteractionActivityGraphLens = ({
     fitActivityGraph();
   }, [fitActivityGraph, projection]);
 
+  const handleActivityWheel = useCallback(
+    (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+
+      if (event.ctrlKey || event.metaKey) {
+        zoomActivityGraph(-event.deltaY * 0.0015, {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        });
+        return;
+      }
+
+      const current = viewportRef.current;
+      applyActivityViewport({
+        ...current,
+        x: current.x - event.deltaX,
+        y: current.y - event.deltaY,
+      });
+    },
+    [applyActivityViewport, zoomActivityGraph],
+  );
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.addEventListener('wheel', handleActivityWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleActivityWheel);
+  }, [handleActivityWheel]);
+
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -2675,7 +2709,7 @@ const InteractionActivityGraphLens = ({
       ref={canvasRef}
       aria-label='Activity graph'
       className={cn(
-        'relative h-[min(62vh,44rem)] min-h-[30rem] select-none overflow-hidden rounded-2xl border border-border/45 bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px]',
+        'relative h-[calc(min(88vh,920px)-10rem)] min-h-[30rem] select-none overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px]',
         isPanning ? 'cursor-grabbing' : 'cursor-grab',
       )}
       role='region'
@@ -2690,23 +2724,6 @@ const InteractionActivityGraphLens = ({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
-      onWheel={event => {
-        event.preventDefault();
-        const rect = event.currentTarget.getBoundingClientRect();
-        if (event.ctrlKey || event.metaKey) {
-          zoomActivityGraph(-event.deltaY * 0.0015, {
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top,
-          });
-          return;
-        }
-        const current = viewportRef.current;
-        applyActivityViewport({
-          ...current,
-          x: current.x - event.deltaX,
-          y: current.y - event.deltaY,
-        });
-      }}
     >
       <div
         ref={contentRef}
@@ -2901,10 +2918,10 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
   ];
 
   return (
-    <section aria-label='Interaction details' className='grid gap-6'>
+    <section aria-label='Interaction details' className='relative min-h-full'>
       {hasFlow ? (
-        <div className='flex justify-end'>
-          <div className='inline-flex rounded-xl border border-border/55 bg-muted/10 p-1'>
+        <div className='absolute right-5 top-4 z-20 flex justify-end'>
+          <div className='inline-flex rounded-xl border border-border/55 bg-background/80 p-1 shadow-lg backdrop-blur-xl'>
             {viewOptions.map(option => (
               <button className={cn('rounded-lg px-3 py-1.5 text-xs font-medium transition-colors', view === option ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:text-foreground')} key={option} onClick={() => setView(option)} type='button'>
                 {option === 'graph' ? 'Graph' : option === 'blueprint' ? 'Blueprint' : 'Anatomy'}
@@ -2914,12 +2931,12 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
         </div>
       ) : null}
       {view === 'graph' && activityProjection ? <InteractionActivityGraphLens onSelect={setSelectedActivityNodeId} projection={activityProjection} selectedNodeId={selectedActivityNodeId} /> : null}
-      {view === 'graph' && !model.activity && hasFlow ? <InteractionGraphLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /> : null}
-      {view === 'blueprint' && hasFlow ? <InteractionBlueprintLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /> : null}
-      {view === 'anatomy' || !hasFlow ? <InteractionAnatomy context={context} /> : null}
-      {view === 'graph' && activityProjection && selectedActivityNode ? <ActivityNodeInspector context={context} node={selectedActivityNode} /> : null}
-      {view === 'blueprint' && selected ? <InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /> : null}
-      {view === 'graph' && !model.activity && selected ? <InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /> : null}
+      {view === 'graph' && !model.activity && hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionGraphLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /></div> : null}
+      {view === 'blueprint' && hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionBlueprintLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /></div> : null}
+      {view === 'anatomy' || !hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionAnatomy context={context} /></div> : null}
+      {view === 'graph' && activityProjection && selectedActivityNode ? <div className='px-6 py-6 sm:px-8 lg:px-10'><ActivityNodeInspector context={context} node={selectedActivityNode} /></div> : null}
+      {view === 'blueprint' && selected ? <div className='px-6 pb-6 sm:px-8 lg:px-10'><InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /></div> : null}
+      {view === 'graph' && !model.activity && selected ? <div className='px-6 pb-6 sm:px-8 lg:px-10'><InteractionStepInspector context={context} step={{ ...selected, affordances: model.affordances.filter(item => item.atStep === selected.label), outcomes: model.outcomes.filter(item => item.fromStep === selected.label), presents: model.presents.filter(item => item.atStep === selected.label) }} /></div> : null}
     </section>
   );
 };
@@ -4600,6 +4617,9 @@ const FullMarkdownModal = ({
   const sourceFilePath = node.sourcePath ?? node.sourceFilePath ?? node.path;
   const overviewRendersMarkdown =
     getItemKindPresentation(node.kind).detail?.renderMarkdown !== false;
+  const overviewUsesDedicatedSurface =
+    activeTab === 'overview' &&
+    getItemKindPresentation(node.kind).detail?.overview === 'interaction-details';
   const markdownContext = useMemo<MarkdownRenderContext>(
     () => ({
       nodesById,
@@ -4900,8 +4920,11 @@ const FullMarkdownModal = ({
             ref={contentScrollRef}
             id='full-detail-content-scroll'
             className={cn(
-              'h-full px-6 py-6 [scrollbar-width:none] sm:px-8 lg:px-10 [&::-webkit-scrollbar]:hidden',
-              activeTab === 'evolution' ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto',
+              'h-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+              overviewUsesDedicatedSurface
+                ? 'overflow-y-auto'
+                : 'overflow-y-auto px-6 py-6 sm:px-8 lg:px-10',
+              !overviewUsesDedicatedSurface && activeTab === 'evolution' && 'lg:overflow-hidden',
             )}
           >
           {activeTab === 'overview' ? contentStatus === 'loading' ? (
@@ -4911,14 +4934,18 @@ const FullMarkdownModal = ({
           ) : (
             <div
               className={cn(
-                'grid min-w-0 gap-6 px-1 sm:px-2',
+                overviewUsesDedicatedSurface
+                  ? 'min-h-full min-w-0'
+                  : 'grid min-w-0 gap-6 px-1 sm:px-2',
                 overviewRendersMarkdown &&
                   'xl:grid-cols-[minmax(0,1fr)_12rem]',
               )}
             >
               <article
                 className={cn(
-                  'grid min-w-0 max-w-full gap-5 overflow-hidden break-words [&>*]:min-w-0 [&>*]:max-w-full',
+                  overviewUsesDedicatedSurface
+                    ? 'min-h-full min-w-0 max-w-full overflow-hidden'
+                    : 'grid min-w-0 max-w-full gap-5 overflow-hidden break-words [&>*]:min-w-0 [&>*]:max-w-full',
                   overviewRendersMarkdown && 'xl:pr-2',
                 )}
               >
