@@ -578,6 +578,7 @@ const selection: Selection = Selection.references(Book, refs);
 
     const inspectorPanel = screen.getByRole('complementary', { name: 'Activity node details panel' });
     const inspector = screen.getByRole('region', { name: 'Activity node details' });
+    expect(within(inspector).queryByText(/activity node/i)).not.toBeInTheDocument();
     expect(within(inspector).getByText('Semantic target')).toBeInTheDocument();
     expect(within(inspector).getByRole('button', { name: /Claim Invitation Operation/ })).toBeInTheDocument();
     expect(within(inspector).queryByText('Arrives through')).not.toBeInTheDocument();

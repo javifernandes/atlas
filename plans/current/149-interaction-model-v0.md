@@ -529,7 +529,8 @@ later compact language, visual editor, or Mermaid importer must compile to the s
       inspector reliably while preserving canvas pan and zoom gestures.
 - [x] Keep selected-node detail beside the spatial graph in a dismissible right-hand panel rather
       than below the canvas, and represent keyboard focus through node selection without outlining
-      the entire graph surface.
+      the entire graph surface. Keep keyboard- and pointer-selected nodes inside the canvas area
+      that remains visible beside the panel.
 - [x] Replace low-frequency Workspace switching and creation chrome with one quiet menu that
   returns home, opens settings, and recalls recently inspected Items in the current Workspace.
 - [ ] Explore a per-user spatial-navigation sensitivity preference with an inline preview before

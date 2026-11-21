@@ -26,6 +26,38 @@ export type ActivityGraphLayout = {
   width: number;
 };
 
+type ActivityGraphViewportBounds = {
+  bottom: number;
+  left: number;
+  right: number;
+  top: number;
+};
+
+export const activityGraphRevealDelta = (
+  viewport: ActivityGraphViewportBounds,
+  node: ActivityGraphViewportBounds,
+  { margin = 48, rightOcclusion = 0 }: { margin?: number; rightOcclusion?: number } = {},
+) => {
+  const visibleRight = Math.max(
+    viewport.left + margin,
+    viewport.right - rightOcclusion - margin,
+  );
+  const x =
+    node.left < viewport.left + margin
+      ? viewport.left + margin - node.left
+      : node.right > visibleRight
+        ? visibleRight - node.right
+        : 0;
+  const y =
+    node.top < viewport.top + margin
+      ? viewport.top + margin - node.top
+      : node.bottom > viewport.bottom - margin
+        ? viewport.bottom - margin - node.bottom
+        : 0;
+
+  return { x, y };
+};
+
 export const buildActivityGraphEdgePath = (
   source: ActivityGraphLayoutNode,
   target: ActivityGraphLayoutNode,

@@ -76,6 +76,7 @@ import {
 } from '@/atlas/viewer/activity-graph-lens';
 import {
   activityGraphEdgeLabel,
+  activityGraphRevealDelta,
   buildActivityGraphEdgePath,
   buildActivityGraphLayout,
 } from '@/atlas/viewer/activity-graph-layout';
@@ -2494,7 +2495,7 @@ const ActivityNodeInspector = ({
     >
       <div className={cn(appearance === 'inline' && 'max-w-5xl')}>
         <div className='font-mono text-[10px] uppercase tracking-[0.14em] text-primary'>
-          {node.kind} · activity node
+          {node.kind}
         </div>
         <h3 className='mt-2 text-xl font-medium text-foreground'>{node.label}</h3>
         <div className='mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground'>
@@ -2569,10 +2570,12 @@ const ActivityNodeInspector = ({
 const InteractionActivityGraphLens = ({
   onSelect,
   projection,
+  rightOcclusion = 0,
   selectedNodeId,
 }: {
   onSelect: (nodeId: string) => void;
   projection: ActivityGraphLensProjection;
+  rightOcclusion?: number;
   selectedNodeId: string;
 }) => {
   const backTransitions = new Set(projection.backTransitions);
@@ -2584,6 +2587,8 @@ const InteractionActivityGraphLens = ({
   const canvasRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<Viewport>({ x: 32, y: 32, scale: 1 });
+  const rightOcclusionRef = useRef(rightOcclusion);
+  rightOcclusionRef.current = rightOcclusion;
   const dragRef = useRef<{
     moved: boolean;
     pointerId: number;
@@ -2738,19 +2743,9 @@ const InteractionActivityGraphLens = ({
 
       const canvasRect = canvas.getBoundingClientRect();
       const nodeRect = node.getBoundingClientRect();
-      const margin = 48;
-      const deltaX =
-        nodeRect.left < canvasRect.left + margin
-          ? canvasRect.left + margin - nodeRect.left
-          : nodeRect.right > canvasRect.right - margin
-            ? canvasRect.right - margin - nodeRect.right
-            : 0;
-      const deltaY =
-        nodeRect.top < canvasRect.top + margin
-          ? canvasRect.top + margin - nodeRect.top
-          : nodeRect.bottom > canvasRect.bottom - margin
-            ? canvasRect.bottom - margin - nodeRect.bottom
-            : 0;
+      const { x: deltaX, y: deltaY } = activityGraphRevealDelta(canvasRect, nodeRect, {
+        rightOcclusion: rightOcclusionRef.current,
+      });
 
       if (deltaX !== 0 || deltaY !== 0) {
         const current = viewportRef.current;
@@ -2872,6 +2867,7 @@ const InteractionActivityGraphLens = ({
           const selectNode = () => {
             onSelect(node.id);
             canvasRef.current?.focus({ preventScroll: true });
+            globalThis.requestAnimationFrame(() => revealActivityNode(node.id));
           };
 
           if (node.kind === 'merge') {
@@ -3067,7 +3063,7 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
           </div>
         </div>
       ) : null}
-      {view === 'graph' && activityProjection ? <InteractionActivityGraphLens onSelect={nodeId => { setSelectedActivityNodeId(nodeId); setActivityInspectorOpen(true); }} projection={activityProjection} selectedNodeId={selectedActivityNodeId} /> : null}
+      {view === 'graph' && activityProjection ? <InteractionActivityGraphLens onSelect={nodeId => { setSelectedActivityNodeId(nodeId); setActivityInspectorOpen(true); }} projection={activityProjection} rightOcclusion={activityInspectorOpen ? 448 : 0} selectedNodeId={selectedActivityNodeId} /> : null}
       {view === 'graph' && !model.activity && hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionGraphLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /></div> : null}
       {view === 'blueprint' && hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionBlueprintLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /></div> : null}
       {view === 'anatomy' || !hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionAnatomy context={context} /></div> : null}

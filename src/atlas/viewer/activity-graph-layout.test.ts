@@ -4,6 +4,7 @@ import type { ActivityGraph } from '../model/activity-graph';
 import { buildActivityGraphLensProjection } from './activity-graph-lens';
 import {
   activityGraphEdgeLabel,
+  activityGraphRevealDelta,
   buildActivityGraphEdgePath,
   buildActivityGraphLayout,
 } from './activity-graph-layout';
@@ -40,5 +41,19 @@ describe('Activity Graph layout', () => {
   it('keeps branch intent on edges but omits results repeated by outcome nodes', () => {
     expect(activityGraphEdgeLabel({ id: 'accept', affordance: 'Accept', from: 'a', to: 'b' })).toBe('Accept');
     expect(activityGraphEdgeLabel({ id: 'done', from: 'b', result: 'Invitation accepted', to: 'c' })).toBeUndefined();
+  });
+
+  it('reveals a selected node inside the canvas area left visible by an inspector', () => {
+    expect(activityGraphRevealDelta(
+      { bottom: 800, left: 0, right: 1200, top: 0 },
+      { bottom: 500, left: 900, right: 1120, top: 418 },
+      { rightOcclusion: 448 },
+    )).toEqual({ x: -416, y: 0 });
+
+    expect(activityGraphRevealDelta(
+      { bottom: 800, left: 0, right: 1200, top: 0 },
+      { bottom: 500, left: 400, right: 620, top: 418 },
+      { rightOcclusion: 448 },
+    )).toEqual({ x: 0, y: 0 });
   });
 });
