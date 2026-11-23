@@ -14,7 +14,11 @@ import {
 } from './build-snapshot';
 
 export const ATLAS_PARSED_RECORD_MATERIALIZER_ID = 'atlas.markdown-record';
-export const ATLAS_PARSED_RECORD_MATERIALIZER_VERSION = '1';
+export const ATLAS_PARSED_RECORD_MATERIALIZER_VERSION = '2';
+
+export const atlasSourceRecordIdentity = (
+  record: Pick<NormalizedAtlasSourceRecord, 'sourceId' | 'sourcePath'>,
+) => JSON.stringify([record.sourceId ?? 'atlas', record.sourcePath]);
 
 export type ParsedAtlasSourceRecordArtifact = {
   artifactId: string;
@@ -57,7 +61,7 @@ export const parseAtlasSourceRecordArtifact = (
 ): ParsedAtlasSourceRecordArtifact => {
   const contentHash = atlasParsedRecordContentHash(record.content);
   const relocationTarget = getRelocationTarget(record);
-  const sourceRecordIdentity = record.canonicalPath;
+  const sourceRecordIdentity = atlasSourceRecordIdentity(record);
   const derivationRecord = {
     ...record,
     sourceRevision: undefined,
@@ -152,9 +156,13 @@ export const assembleParsedAtlasSourceRecordArtifacts = (input: {
   records: readonly NormalizedAtlasSourceRecord[];
 }): ParsedAtlasSource => {
   const { artifacts, records } = input;
-  const recordsByIdentity = new Map(records.map(record => [record.canonicalPath, record]));
+  const recordsByIdentity = new Map(
+    records.map(record => [atlasSourceRecordIdentity(record), record]),
+  );
+  const currentRecord = (artifact: ParsedAtlasSourceRecordArtifact) =>
+    recordsByIdentity.get(artifact.sourceRecordIdentity);
   const currentLineage = (artifact: ParsedAtlasSourceRecordArtifact) => {
-    const record = recordsByIdentity.get(artifact.sourceRecordIdentity);
+    const record = currentRecord(artifact);
 
     return {
       sourceRevision: record?.sourceRevision,
@@ -163,8 +171,8 @@ export const assembleParsedAtlasSourceRecordArtifacts = (input: {
   };
   const relocationAliases = new Map(
     artifacts.flatMap(artifact =>
-      artifact.relocationTarget
-        ? ([[artifact.sourceRecordIdentity, artifact.relocationTarget]] as const)
+      artifact.relocationTarget && currentRecord(artifact)
+        ? ([[currentRecord(artifact)!.canonicalPath, artifact.relocationTarget]] as const)
         : [],
     ),
   );

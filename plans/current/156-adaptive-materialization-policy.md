@@ -138,6 +138,9 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
          to the existing global parser.
    - [x] Persist compatible artifacts by Source Record identity, content hash, and Materializer
          version.
+     - [x] Keep physical Source Record identity distinct from semantic entity/reference URIs so
+           multiple files that intentionally normalize to the same semantic path remain separately
+           checkpointable.
      - [x] Store the accepted frontier, Materializer state, dependency evidence, and complete
            artifact set as one scope-local PostgreSQL checkpoint.
      - [x] Reject stale checkpoint writers with a Source-frontier compare-and-swap and hydrate
@@ -214,6 +217,8 @@ reconciliation now hydrates that checkpoint through Ontahí, reparses only Chang
 incompatible records, assembles and publishes the same complete Projection Revision, and advances
 the checkpoint afterward. A missing, stale, version-incompatible, or dependency-incomplete
 checkpoint falls back to full parsing. This completes the intended incremental-parsing cut; the
-next slice is incremental Entity and semantic-dependency derivation, after measuring this smaller
-change and evaluating the record-artifact pattern in BookOps. Cooling, eviction, and tier policy
-remain possible later plugins but have no execution slice here.
+first production observation exposed a physical/semantic identity collision among BookOps README
+records; Materializer v2 now keys artifacts by source plus physical path and invalidates v1
+checkpoints safely. The next slice is incremental Entity and semantic-dependency derivation, after
+measuring this smaller change and evaluating the record-artifact pattern in BookOps. Cooling,
+eviction, and tier policy remain possible later plugins but have no execution slice here.

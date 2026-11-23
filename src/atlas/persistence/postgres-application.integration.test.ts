@@ -274,6 +274,57 @@ Durable Atlas projection.
     ).resolves.toEqual({ currentSourceFrontier: 'git:target', status: 'conflict' });
   }, postgresTestTimeout);
 
+  it('persists distinct physical records that share one semantic source URI', async () => {
+    const store = createAtlasParsedRecordMaterializationStore(pool);
+    const scopeId = `projection:${randomUUID()}`;
+    const records = ['plans/README.md', 'plans/done/README.md', 'plans/research/README.md'].map(
+      sourcePath =>
+        normalizeAtlasSourceRecord({
+          content: `# ${sourcePath}`,
+          path: sourcePath,
+          source: 'bookops',
+        }),
+    );
+    const artifacts = records.map(record => {
+      const artifact = parseAtlasSourceRecordArtifact(record);
+
+      return {
+        artifactId: artifact.artifactId,
+        contentHash: artifact.contentHash,
+        materializerId: artifact.materializerId,
+        materializerVersion: artifact.materializerVersion,
+        payloadJson: JSON.stringify({ item: null, plan: null, relocationTarget: null }),
+        sourcePath: artifact.sourcePath,
+        sourceRecordIdentity: artifact.sourceRecordIdentity,
+      };
+    });
+    const checkpoint: AtlasParsedRecordMaterializationCheckpoint = {
+      artifacts,
+      dependencies: artifacts.map(artifact => ({
+        input: artifact.sourceRecordIdentity,
+        outputs: [artifact.sourceRecordIdentity],
+      })),
+      scopeId,
+      snapshot: {
+        acceptance: {
+          acceptedFrontier: 'artifacts:readmes',
+          derivationId: ATLAS_PARSED_RECORD_MATERIALIZER_ID,
+          materializerVersion: ATLAS_PARSED_RECORD_MATERIALIZER_VERSION,
+          sourceFrontier: 'git:readmes',
+        },
+        state: { artifactIds: artifacts.map(artifact => artifact.artifactId) },
+      },
+      updatedAt: '2026-11-23T22:00:00.000Z',
+    };
+
+    await expect(
+      store.replace({ checkpoint, expectedSourceFrontier: null }),
+    ).resolves.toEqual({ status: 'stored' });
+    await expect(
+      store.load({ derivationId: ATLAS_PARSED_RECORD_MATERIALIZER_ID, scopeId }),
+    ).resolves.toEqual(checkpoint);
+  }, postgresTestTimeout);
+
   it('backfills last activity and permits lifecycle-independent archive state', async () => {
     const legacySchema = `atlas_legacy_${randomUUID().replaceAll('-', '')}`;
     const legacyPool = new Pool({
