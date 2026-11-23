@@ -213,6 +213,11 @@ organization line without duplicating Plans inside delivery chronology or markin
 The Source section carries the readable release link, tag, publication date, release note, exact
 package versions, and Pull Request provenance without competing with timeline interaction. npm
 Component Versions link directly to their exact registry version page.
+
+An Item timeline also includes merged evidence attached to the Plans already present in that
+Item's evolution map. Direct Item evidence wins when the same Pull Request has both bindings;
+Plan-scoped evidence is deduplicated and labeled `via <Plan>` so the chronology remains useful
+without claiming that every Plan Pull Request changed the Item directly.
 3. Keep semantic, implementation, and availability evolution distinct but navigable together.
 4. Group around explainable evolutionary moments rather than raw commits.
 5. Preserve evidence and provenance beneath every generated narrative.

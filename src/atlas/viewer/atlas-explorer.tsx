@@ -1840,9 +1840,11 @@ const EvolutionEntryList = ({
 const PullRequestEvidenceSection = ({
   evidence,
   releases,
+  viaPlanLabelByEvidenceId,
 }: {
   evidence: PlanWorkstreamEvidence[];
   releases: PlanWorkstreamRelease[];
+  viaPlanLabelByEvidenceId: Map<string, string>;
 }) => {
   const [focusedDayKey, setFocusedDayKey] = useState<string | null>(null);
 
@@ -2006,8 +2008,13 @@ const PullRequestEvidenceSection = ({
                         <span className='shrink-0 rounded-md border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none tracking-tight text-sky-300'>
                           #{binding.pullRequest.number}
                         </span>
-                        <span className='min-w-0 text-xs font-medium leading-4 text-popover-foreground'>
-                          {binding.pullRequest.title}
+                        <span className='grid min-w-0 gap-0.5 text-xs font-medium leading-4 text-popover-foreground'>
+                          <span>{binding.pullRequest.title}</span>
+                          {viaPlanLabelByEvidenceId.has(binding.id) ? (
+                            <span className='font-mono text-[9px] font-normal uppercase text-violet-300/80'>
+                              via {viaPlanLabelByEvidenceId.get(binding.id)}
+                            </span>
+                          ) : null}
                         </span>
                       </a>
                     );
@@ -5326,10 +5333,40 @@ const FullDetailSurface = ({
       return componentVersions.length > 0 ? [{ ...release, componentVersions }] : [];
     });
   }, [evolutionEntries, node.id, releases]);
-  const nodeEvidence = useMemo(
-    () => evidence.filter(binding => binding.targetNodeId === node.id),
-    [evidence, node.id],
-  );
+  const nodeEvidenceProjection = useMemo(() => {
+    const planById = new Map(
+      evolutionEntries
+        .filter(entry => entry.node.kind === 'plan')
+        .map(entry => [entry.node.id, entry.node] as const),
+    );
+    const pullRequestKey = (binding: PlanWorkstreamEvidence) =>
+      `${binding.pullRequest.repositoryFullName.toLowerCase()}#${binding.pullRequest.number}`;
+    const evidenceByPullRequest = new Map<string, PlanWorkstreamEvidence>();
+    const viaPlanLabelByEvidenceId = new Map<string, string>();
+
+    for (const binding of evidence.filter(binding => binding.targetNodeId === node.id)) {
+      evidenceByPullRequest.set(pullRequestKey(binding), binding);
+    }
+
+    for (const binding of evidence) {
+      const plan = planById.get(binding.targetNodeId);
+      const key = pullRequestKey(binding);
+
+      if (!plan || evidenceByPullRequest.has(key)) continue;
+
+      evidenceByPullRequest.set(key, binding);
+      viaPlanLabelByEvidenceId.set(
+        binding.id,
+        getPlanDisplayId(plan) ?? plan.shortTitle,
+      );
+    }
+
+    return {
+      evidence: [...evidenceByPullRequest.values()],
+      viaPlanLabelByEvidenceId,
+    };
+  }, [evidence, evolutionEntries, node.id]);
+  const nodeEvidence = nodeEvidenceProjection.evidence;
   const incoming = useMemo(() => edges.filter(edge => edge.to === node.id), [edges, node.id]);
   const outgoing = useMemo(() => edges.filter(edge => edge.from === node.id), [edges, node.id]);
   const { hierarchy, relations } = useMemo(
@@ -5732,7 +5769,11 @@ const FullDetailSurface = ({
                     </EvolutionBoardColumn>
                   </div>
 
-                  <PullRequestEvidenceSection evidence={nodeEvidence} releases={nodeReleases} />
+                  <PullRequestEvidenceSection
+                    evidence={nodeEvidence}
+                    releases={nodeReleases}
+                    viaPlanLabelByEvidenceId={nodeEvidenceProjection.viaPlanLabelByEvidenceId}
+                  />
                 </div>
               ) : (
                 <p className='text-sm leading-6 text-muted-foreground'>

@@ -1795,6 +1795,66 @@ const selection: Selection = Selection.references(Book, refs);
     expect(within(tooltip as HTMLElement).getByText('#42')).toHaveClass('text-sky-300');
   });
 
+  it('projects Plan evidence into an Item timeline with explicit attribution', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const user = userEvent.setup();
+    const interactionPlan = {
+      ...createNode('interaction-plan', {
+        kind: 'plan',
+        semanticId: 'atlas://plans/149-interaction-model-v0',
+        shortTitle: 'Interaction Model v0',
+        markdown: 'Interaction model plan.',
+      }),
+      path: 'atlas://plans/149-interaction-model-v0',
+    };
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: [...snapshot.nodes, interactionPlan],
+      edges: [
+        ...snapshot.edges,
+        {
+          id: 'item-a-shaped-by-interaction-plan',
+          from: 'item-a',
+          to: interactionPlan.id,
+          kind: 'shaped-by',
+        },
+      ],
+      evidence: [
+        {
+          id: 'github:acme/product#149->interaction-plan:implements',
+          kind: 'implements',
+          provenance: 'explicit',
+          targetNodeId: interactionPlan.id,
+          pullRequest: {
+            authorAvatarUrl: null,
+            authorLogin: 'javi',
+            mergeCommitSha: 'abc149',
+            mergedByAvatarUrl: null,
+            mergedByLogin: 'javi',
+            mergedAt: '2026-11-23T03:52:21Z',
+            number: 149,
+            repositoryFullName: 'acme/product',
+            title: 'Shape interaction behavior',
+            url: 'https://github.com/acme/product/pull/149',
+          },
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('link', { name: 'evolution' }));
+
+    const timeline = within(dialog).getByRole('region', {
+      name: 'Observed delivery timeline',
+    });
+    const pullRequest = within(timeline).getByRole('link', {
+      name: /Shape interaction behavior/,
+    });
+
+    expect(pullRequest).toHaveTextContent('via ATL-149');
+  });
+
   it('projects a published Component Version through the Plan that shaped an Item', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();
