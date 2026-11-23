@@ -9,7 +9,7 @@ import { withInvocationContext } from '@ontahi/core/runtime/server';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { getMigrations } from 'better-auth/db/migration';
 import { Pool } from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   atlasEntities,
@@ -26,6 +26,7 @@ import { buildPlanWorkstreamSnapshotFromFiles } from '../markdown/build-snapshot
 import {
   ATLAS_PARSED_RECORD_MATERIALIZER_ID,
   ATLAS_PARSED_RECORD_MATERIALIZER_VERSION,
+  parseAtlasSourceRecordArtifact,
 } from '../markdown/parsed-record-artifact';
 import {
   createAtlasWorkspaceAccessStore,
@@ -1803,8 +1804,10 @@ Atlas-Session: ${explicitStreamId}`,
       targetRevision: { revisionKey: targetRevisionKey, revisionScheme: 'git', source },
     });
     let loads = 0;
+    const parseRecordArtifact = vi.fn(parseAtlasSourceRecordArtifact);
     const changeSetAtlas = createAtlasPostgresApplication({
       pool,
+      parseRecordArtifact,
       loadProjection: async () => {
         loads += 1;
         return {
@@ -1842,6 +1845,10 @@ Atlas-Session: ${explicitStreamId}`,
     await expect(invoke()).resolves.toMatchObject({ ok: true, value: { duplicate: false } });
     await expect(invoke()).resolves.toMatchObject({ ok: true, value: { duplicate: true } });
     expect(loads).toBe(1);
+    expect(parseRecordArtifact).toHaveBeenCalledOnce();
+    expect(parseRecordArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({ sourcePath: 'plans/current/116-persistence.md' }),
+    );
     await expect(
       pool.query(
         `SELECT source_id, operation_count, provider_delivery_id
@@ -1866,5 +1873,14 @@ Atlas-Session: ${explicitStreamId}`,
         [sourceChangeSet.id],
       ),
     ).resolves.toMatchObject({ rows: [{ status: 'applied' }] });
+    await expect(
+      pool.query(
+        `SELECT source_frontier
+         FROM atlas_materialization_checkpoints
+         WHERE scope_id = 'atlas:canonical-projection'
+           AND derivation_id = $1`,
+        [ATLAS_PARSED_RECORD_MATERIALIZER_ID],
+      ),
+    ).resolves.toMatchObject({ rows: [{ source_frontier: expect.stringContaining('sha256:') }] });
   }, postgresTestTimeout);
 });

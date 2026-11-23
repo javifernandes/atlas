@@ -132,7 +132,7 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
        `ontahi://plans/169-replicated-versioned-models-kernel-and-materializer-spi`.
 2. [x] Define the minimal runtime kernel and behavioral Materializer SPI in Ontahí, including
        identity, dependency, affected-set, provenance, and safe rebuild contracts.
-3. [ ] Add versioned parsed-record artifacts in Atlas and reuse unchanged artifacts for an exact
+3. [x] Add versioned parsed-record artifacts in Atlas and reuse unchanged artifacts for an exact
        ChangeSet.
    - [x] Extract a per-record parsing boundary and prove that assembling its artifacts is equivalent
          to the existing global parser.
@@ -144,7 +144,7 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
            readers from one repeatable-read snapshot.
    - [x] Connect exact ChangeSets to affected artifact reuse through an in-process Ontahí
          Materializer proof.
-   - [ ] Hydrate accepted state, dependencies, and artifacts from Atlas persistence, then connect the
+   - [x] Hydrate accepted state, dependencies, and artifacts from Atlas persistence, then connect the
          Materializer to production reconciliation.
 4. Derive only affected Atlas Entities and semantic dependencies while retaining atomic Projection
    Revision publication and full-rebuild fallback.
@@ -209,7 +209,11 @@ slice extracts a versioned per-record parsing artifact and comparison path. The 
 exact Source ChangeSets to the Ontahí Materializer, reparses only affected records, preserves a full
 artifact set, and falls back to rebuild when removal evidence is unknown. Atlas now has a durable,
 atomic PostgreSQL checkpoint for the accepted frontier, Materializer state, dependency evidence,
-and portable artifacts, including optimistic protection against stale writers. The remaining
-production slice must teach the Ontahí runner to begin from that hydrated snapshot and then compose
-checkpoint acceptance with Projection Revision publication. Cooling, eviction, and tier policy
+and portable artifacts, including optimistic protection against stale writers. Production
+reconciliation now hydrates that checkpoint through Ontahí, reparses only ChangeSet-affected or
+incompatible records, assembles and publishes the same complete Projection Revision, and advances
+the checkpoint afterward. A missing, stale, version-incompatible, or dependency-incomplete
+checkpoint falls back to full parsing. This completes the intended incremental-parsing cut; the
+next slice is incremental Entity and semantic-dependency derivation, after measuring this smaller
+change and evaluating the record-artifact pattern in BookOps. Cooling, eviction, and tier policy
 remain possible later plugins but have no execution slice here.

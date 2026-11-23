@@ -970,14 +970,10 @@ const hasDescendantRelatedPlan = (
 
 const getPlanReferences = (plan: ParsedPlan) => [plan.path];
 
-const buildSemanticSnapshotFromFiles = (
-  planFiles: PlanMarkdownFile[],
-  atlasFiles: PlanMarkdownFile[],
-): PlanWorkstreamSnapshot => {
-  const { plans, items: rawAtlasItems } = parseAtlasSourceRecords([
-    ...planFiles,
-    ...atlasFiles,
-  ]);
+export const buildPlanWorkstreamSnapshotFromParsedSource = ({
+  plans,
+  items: rawAtlasItems,
+}: ParsedAtlasSource): PlanWorkstreamSnapshot => {
   const planByPath = new Map(
     plans.flatMap(plan => getPlanReferences(plan).map(reference => [reference, plan] as const)),
   );
@@ -1316,7 +1312,9 @@ export const buildPlanWorkstreamSnapshotFromFiles = (
   const normalizedAtlasFiles = atlasFiles.map(normalizeAtlasSourceRecord);
 
   if (atlasFiles.length > 0) {
-    return buildSemanticSnapshotFromFiles(normalizedFiles, normalizedAtlasFiles);
+    return buildPlanWorkstreamSnapshotFromParsedSource(
+      parseAtlasSourceRecords([...normalizedFiles, ...normalizedAtlasFiles]),
+    );
   }
 
   const { plans } = parseAtlasSourceRecords(normalizedFiles);

@@ -9,6 +9,7 @@ import type { Pool } from 'pg';
 
 import {
   buildAtlasOntahiDataset,
+  buildAtlasOntahiDatasetFromSource,
   createAtlasOntahiApplicationWithStorage,
   type AtlasMergedPullRequestInput,
   type AtlasCapabilities,
@@ -20,6 +21,14 @@ import {
   type AtlasObservedPullRequest,
 } from '../github/pull-request-evidence';
 import { parseAtlasSourceRecords } from '../markdown/build-snapshot';
+import {
+  ATLAS_PARSED_RECORD_MATERIALIZER_ID,
+  parseAtlasSourceRecordArtifact,
+} from '../markdown/parsed-record-artifact';
+import {
+  ATLAS_PARSED_RECORD_MATERIALIZATION_SCOPE,
+  materializeAtlasParsedRecords,
+} from '../markdown/parsed-record-materialization';
 import { proposePlanLink } from '../domain/plan-link-proposal';
 import {
   parseAtlasSessionDirective,
@@ -42,6 +51,7 @@ import {
   type AtlasPostgresQueryObservation,
 } from './postgres-observability';
 import { createVersionedProjectionSnapshotCache } from './projection-snapshot-cache';
+import { createAtlasParsedRecordMaterializationStore } from './parsed-record-materialization-store';
 
 export type AtlasMergeCatchUpCandidate = {
   action: 'append-to-session' | 'create-implicit-session';
@@ -268,6 +278,7 @@ export const createAtlasPostgresApplication = (input: {
   ) => Promise<AtlasProjectionInput>;
   observePostgresQueries?: boolean;
   onPostgresQuery?: (observation: AtlasPostgresQueryObservation) => void;
+  parseRecordArtifact?: typeof parseAtlasSourceRecordArtifact;
   pool: Pick<Pool, 'connect' | 'query'>;
   reconcileWorkspaceSources?: AtlasWorkspaceSourceReconciler['reconcile'];
 }) => {
@@ -361,6 +372,7 @@ export const createAtlasPostgresApplication = (input: {
     }),
   );
   const taskStorage = createPostgresTaskStorage({ pool: input.pool });
+  const parsedRecordMaterializationStore = createAtlasParsedRecordMaterializationStore(pool);
   const atlas = createAtlasOntahiApplicationWithStorage({
     storage: createPostgresDataGraphStorage({
       pool,
@@ -1361,7 +1373,33 @@ export const createAtlasPostgresApplication = (input: {
                     request.webhook ? await loadSourceBaseline() : undefined,
                   ),
                 ).pipe(
-              Effect.flatMap(projection => {
+              Effect.flatMap(projection =>
+                Effect.promise(async () => {
+                  const checkpoint = await parsedRecordMaterializationStore.load({
+                    derivationId: ATLAS_PARSED_RECORD_MATERIALIZER_ID,
+                    scopeId: ATLAS_PARSED_RECORD_MATERIALIZATION_SCOPE,
+                  });
+                  const materialization = await materializeAtlasParsedRecords({
+                    changeSet: projection.sourceChangeSet,
+                    initial: checkpoint,
+                    parseRecord: input.parseRecordArtifact,
+                    records: projection.records,
+                    sourceRevisions: projection.sourceRevisions,
+                  });
+
+                  return {
+                    expectedMaterializationSourceFrontier:
+                      checkpoint?.snapshot.acceptance.sourceFrontier ?? null,
+                    materialization,
+                    projection,
+                  };
+                }),
+              ),
+              Effect.flatMap(({
+                expectedMaterializationSourceFrontier,
+                materialization,
+                projection,
+              }) => {
         const catchUpSince =
           request.trigger === 'catch-up'
             ? requireCatchUpSince(request.catchUpSince)
@@ -1376,7 +1414,8 @@ export const createAtlasPostgresApplication = (input: {
         }
 
         const observedPullRequests = mergeWebhookPullRequestObservation(projection, request);
-        const dataset = buildAtlasOntahiDataset(
+        const dataset = buildAtlasOntahiDatasetFromSource(
+          materialization.source,
           projection.records,
           observedPullRequests,
           projection.sourceRevisions,
@@ -1395,6 +1434,11 @@ export const createAtlasPostgresApplication = (input: {
         const diagnosticsJson = JSON.stringify({
           catchUpSince: catchUpSince?.iso ?? null,
           evidenceFailures: projection.evidenceFailures,
+          parsedRecordMaterialization: {
+            artifactCount: materialization.artifacts.length,
+            fallbackReason: materialization.fallbackReason,
+            mode: materialization.mode,
+          },
           sourceChangeSetId: projection.sourceChangeSet?.id ?? null,
         });
         const reconciliationToken = randomUUID();
@@ -1755,6 +1799,37 @@ export const createAtlasPostgresApplication = (input: {
               sourceCount: dataset.AtlasSourceRevision.length,
             } satisfies AtlasReconciliationResult;
           }),
+        ).pipe(
+          Effect.tap(result =>
+            result.projectionRevisionId === projectionRevisionId
+              ? Effect.promise(async () => {
+                  try {
+                    const write = await parsedRecordMaterializationStore.replace({
+                      checkpoint: {
+                        artifacts: materialization.artifacts,
+                        dependencies: materialization.dependencies,
+                        scopeId: ATLAS_PARSED_RECORD_MATERIALIZATION_SCOPE,
+                        snapshot: materialization.snapshot,
+                        updatedAt: new Date().toISOString(),
+                      },
+                      expectedSourceFrontier: expectedMaterializationSourceFrontier,
+                    });
+
+                    if (write.status === 'conflict') {
+                      console.error('Atlas parsed-record checkpoint advanced concurrently.', {
+                        currentSourceFrontier: write.currentSourceFrontier,
+                        expectedSourceFrontier: expectedMaterializationSourceFrontier,
+                      });
+                    }
+                  } catch (error) {
+                    console.error(
+                      'Atlas projection published without advancing its parsed-record checkpoint.',
+                      error,
+                    );
+                  }
+                })
+              : Effect.void,
+          ),
         );
               }),
               Effect.map(result => ({

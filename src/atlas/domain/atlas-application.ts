@@ -23,7 +23,7 @@ import {
 import { Effect } from 'effect';
 
 import {
-  buildPlanWorkstreamSnapshotFromFiles,
+  buildPlanWorkstreamSnapshotFromParsedSource,
   parseAtlasSourceRecords,
   type ParsedAtlasItem,
   type ParsedPlan,
@@ -1174,7 +1174,7 @@ const sourceRecordKind = (record: NormalizedAtlasSourceRecord) =>
       ? ('plan' as const)
       : ('other' as const);
 
-const buildAtlasOntahiDatasetFromSource = (
+export const buildAtlasOntahiDatasetFromSource = (
   { items, plans }: ParsedAtlasSource,
   records: NormalizedAtlasSourceRecord[],
   observedPullRequests: AtlasObservedPullRequest[] = [],
@@ -1237,25 +1237,7 @@ const buildAtlasOntahiDatasetFromSource = (
       sourceRecordId: sourceRecord.id,
     };
   };
-  const sourceFiles = records.map(record => {
-    const sourceId = sourceIdForRecord(record);
-    const sourceRevision = sourceRevisionBySourceId.get(sourceId);
-
-    return {
-      path: record.sourcePath,
-      content: record.content,
-      source: sourceId,
-      sourceRepository: sourceRevision?.repository ?? undefined,
-      sourceRevision: sourceRevision?.revision,
-      sourceRevisionKind: sourceRevision?.revisionKind,
-    };
-  });
-  const snapshot = buildPlanWorkstreamSnapshotFromFiles(
-    sourceFiles.filter(file => file.path.startsWith('plans/')),
-    sourceFiles.filter(
-      file => isAtlasItemMarkdownPath(file.path) || isAtlasPackageManifestPath(file.path),
-    ),
-  );
+  const snapshot = buildPlanWorkstreamSnapshotFromParsedSource({ items, plans });
   const sourceRevisionSetHash = sha256(
     sourceRevisions
       .map(revision => revision.id)

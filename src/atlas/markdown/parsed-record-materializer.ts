@@ -41,8 +41,13 @@ type AtlasParsedRecordMaterializer = Materializer<
   AtlasParsedRecordArtifactChange
 >;
 
-const operationInputPaths = (operation: AtlasSourceOperation) =>
-  operation.kind === 'move' ? [operation.from, operation.to] : [operation.path];
+const sourceInputIdentity = (sourceId: string, sourcePath: string) =>
+  JSON.stringify([sourceId, sourcePath]);
+
+const operationInputPaths = (sourceId: string, operation: AtlasSourceOperation) =>
+  (operation.kind === 'move' ? [operation.from, operation.to] : [operation.path]).map(path =>
+    sourceInputIdentity(sourceId, path),
+  );
 
 const directOperationOutputs = (operation: AtlasSourceOperation) => {
   if (operation.kind === 'delete') return [];
@@ -58,9 +63,10 @@ const affectedOutputsFor = (
     dependencies.map(dependency => [dependency.input, dependency.outputs] as const),
   );
   const outputs = new Set<string>();
+  const sourceId = String(changeSet.source.locator.id);
 
   for (const operation of changeSet.operations) {
-    for (const inputPath of operationInputPaths(operation)) {
+    for (const inputPath of operationInputPaths(sourceId, operation)) {
       for (const output of dependenciesByInput.get(inputPath) ?? []) {
         outputs.add(output);
       }
@@ -69,7 +75,10 @@ const affectedOutputsFor = (
       outputs.add(output);
     }
 
-    const removedPath = operation.kind === 'move' ? operation.from : operation.path;
+    const removedPath = sourceInputIdentity(
+      sourceId,
+      operation.kind === 'move' ? operation.from : operation.path,
+    );
     if (
       (operation.kind === 'delete' || operation.kind === 'move') &&
       !dependenciesByInput.has(removedPath)
@@ -158,7 +167,7 @@ export const createAtlasParsedRecordMaterializer = (options: {
         artifacts,
         changes,
         dependencies: input.records.map(record => ({
-          input: record.sourcePath,
+          input: sourceInputIdentity(record.sourceId ?? 'atlas', record.sourcePath),
           outputs: [record.canonicalPath],
         })),
         diagnostics: [],
