@@ -1237,11 +1237,11 @@ const BranchSproutToggle = ({
   return (
     <button
       type='button'
-      aria-label={`Expand branch: ${directChildCount} direct children, ${totalDescendantCount} total descendants`}
+      aria-label={`Expand branch: ${directChildCount} direct ${directChildCount === 1 ? 'child' : 'children'}, ${totalDescendantCount} total ${totalDescendantCount === 1 ? 'descendant' : 'descendants'}`}
       aria-expanded={expanded}
       data-collapse-toggle
       data-collapse-node-id={nodeId}
-      title={`${directChildCount} direct children / ${totalDescendantCount} total descendants`}
+      title={`${directChildCount} direct ${directChildCount === 1 ? 'child' : 'children'} / ${totalDescendantCount} total ${totalDescendantCount === 1 ? 'descendant' : 'descendants'}`}
       className={cn(
         'absolute left-[220px] top-1/2 z-30 flex w-max -translate-y-1/2 items-center gap-1 rounded-full px-0.5 py-0.5 text-muted-foreground transition-[opacity,transform,color] hover:scale-110 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/35',
         focusLevel === 'context' && 'opacity-70',
@@ -5242,6 +5242,7 @@ const FullDetailSurface = ({
   onActiveTabChange,
   onClose,
   onNavigateBack,
+  onReturnToMap,
   onOpenFull,
   semanticSignals,
   contentStatus,
@@ -5261,6 +5262,7 @@ const FullDetailSurface = ({
   onActiveTabChange: (tab: FullMarkdownModalTab) => void;
   onClose: () => void;
   onNavigateBack: () => void;
+  onReturnToMap: () => void;
   onOpenFull: (nodeId: string) => void;
   semanticSignals: SemanticSignal[];
   contentStatus: NodeContentState['status'];
@@ -5594,6 +5596,15 @@ const FullDetailSurface = ({
                 onClick={navigationBackNode ? onNavigateBack : onClose}
               >
                 <ArrowLeft className='size-4' />
+              </button>
+              <button
+                type='button'
+                aria-label='Return to ontology map'
+                className='grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
+                title='Return to ontology map'
+                onClick={onReturnToMap}
+              >
+                <Network className='size-4' />
               </button>
               <h2 className='min-w-0 text-2xl font-semibold leading-tight tracking-tight'>
                 <PlanTitle node={node} titleClassName='truncate' />
@@ -6300,9 +6311,15 @@ export const PlanWorkstreamExplorer = ({
     () => new Map(referenceNodes.map(node => [node.id, node])),
     [referenceNodes],
   );
-  const canvasNodeIds = useMemo(
-    () => new Set(snapshot.nodes.map(node => node.id)),
+  const mapNodes = useMemo(
+    () => snapshot.nodes.filter(node => node.kind !== 'plan'),
     [snapshot.nodes],
+  );
+  const canvasNodeIds = useMemo(() => new Set(mapNodes.map(node => node.id)), [mapNodes]);
+  const mapEdges = useMemo(
+    () =>
+      snapshot.edges.filter(edge => canvasNodeIds.has(edge.from) && canvasNodeIds.has(edge.to)),
+    [canvasNodeIds, snapshot.edges],
   );
   const nodesByPath = useMemo(() => {
     const nodes = new Map<string, PlanWorkstreamNode>();
@@ -6346,22 +6363,22 @@ export const PlanWorkstreamExplorer = ({
     [query, snapshot.nodes],
   );
   const hierarchyIndex = useMemo(
-    () => getHierarchyIndex(snapshot.nodes, snapshot.edges),
-    [snapshot.edges, snapshot.nodes],
+    () => getHierarchyIndex(mapNodes, mapEdges),
+    [mapEdges, mapNodes],
   );
   const statusVisibleNodeIds = useMemo(
-    () => getStatusVisibleNodeIds(snapshot.nodes, snapshot.edges, allStatuses),
-    [snapshot.edges, snapshot.nodes],
+    () => getStatusVisibleNodeIds(mapNodes, mapEdges, allStatuses),
+    [mapEdges, mapNodes],
   );
   const visibleNodeIds = useMemo(
     () =>
       getExpandedVisibleNodeIds(
-        snapshot.nodes,
+        mapNodes,
         statusVisibleNodeIds,
         hierarchyIndex.parentByChild,
         expandedNodeIds,
       ),
-    [expandedNodeIds, hierarchyIndex.parentByChild, snapshot.nodes, statusVisibleNodeIds],
+    [expandedNodeIds, hierarchyIndex.parentByChild, mapNodes, statusVisibleNodeIds],
   );
   const expandableBranchStatsByParent = useMemo(() => {
     const branchStatsByParent = new Map<
@@ -6385,12 +6402,12 @@ export const PlanWorkstreamExplorer = ({
     return branchStatsByParent;
   }, [hierarchyIndex.primaryChildrenByParent, statusVisibleNodeIds]);
   const initialExpandedNodeIds = useMemo(
-    () => getInitialExpandedNodeIds(snapshot.nodes, snapshot.edges),
-    [snapshot.edges, snapshot.nodes],
+    () => getInitialExpandedNodeIds(mapNodes, mapEdges),
+    [mapEdges, mapNodes],
   );
   const visibleNodes = useMemo(
-    () => snapshot.nodes.filter(node => visibleNodeIds.has(node.id)),
-    [snapshot.nodes, visibleNodeIds],
+    () => mapNodes.filter(node => visibleNodeIds.has(node.id)),
+    [mapNodes, visibleNodeIds],
   );
   const boardProjects = useMemo(
     () =>
@@ -6435,8 +6452,8 @@ export const PlanWorkstreamExplorer = ({
   }, [globalBoardNodes]);
   const visibleEdges = useMemo(
     () =>
-      snapshot.edges.filter(edge => visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to)),
-    [snapshot.edges, visibleNodeIds],
+      mapEdges.filter(edge => visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to)),
+    [mapEdges, visibleNodeIds],
   );
   const renderedEdges = useMemo(() => getRenderedEdges(visibleEdges), [visibleEdges]);
   const selectedNode = selectedNodeId ? nodesById.get(selectedNodeId) : null;
@@ -7160,6 +7177,38 @@ export const PlanWorkstreamExplorer = ({
       selectedNodeId,
     });
   };
+
+  const returnToOntologyMap = useCallback(() => {
+    const targetNodeId =
+      fullNodeId && canvasNodeIds.has(fullNodeId)
+        ? fullNodeId
+        : selectedNodeId && canvasNodeIds.has(selectedNodeId)
+          ? selectedNodeId
+          : null;
+
+    setAtlasView('map');
+    setFullNodeId(null);
+    setFullNodeHistoryIds([]);
+    setHoveredNodeId(null);
+    setSelectedNodeId(targetNodeId);
+    setDetailOpen(Boolean(targetNodeId));
+
+    if (targetNodeId) {
+      revealNodePath(targetNodeId);
+      focusNode(targetNodeId);
+    }
+
+    if (typeof globalThis.window !== 'undefined') {
+      const nextUrl = getAtlasRouteUrl({
+        fullNodeId: null,
+        fullNodeTab: defaultFullMarkdownModalTab,
+        selectedNodeId: targetNodeId,
+      });
+      nextUrl.searchParams.delete('view');
+      nextUrl.searchParams.delete('session');
+      globalThis.history.pushState({ atlas: true }, '', nextUrl);
+    }
+  }, [canvasNodeIds, focusNode, fullNodeId, revealNodePath, selectedNodeId]);
 
   const navigateFullNodeBack = useCallback(() => {
     const previousNodeId = fullNodeHistoryIds[fullNodeHistoryIds.length - 1];
@@ -8100,6 +8149,7 @@ export const PlanWorkstreamExplorer = ({
           onActiveTabChange={tab => setFullNodeActiveTab(fullNodeWithContent.id, tab)}
           onClose={closeFullNode}
           onNavigateBack={navigateFullNodeBack}
+          onReturnToMap={returnToOntologyMap}
           onOpenFull={openFullNode}
           semanticSignals={
             fullNodeWithContent.semanticId

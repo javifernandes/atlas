@@ -368,8 +368,7 @@ const selection: Selection = Selection.references(Book, refs);
   });
 
   it('offers full detail for a source-backed node with an Atlas loading state', async () => {
-    globalThis.history.replaceState({}, '', '/internal/plans?node=item-b');
-    const user = userEvent.setup();
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-b');
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
     const value: PlanWorkstreamSnapshot = {
       ...snapshot,
@@ -379,8 +378,6 @@ const selection: Selection = Selection.references(Book, refs);
     };
 
     renderExplorer({ value });
-
-    await user.click(screen.getByRole('button', { name: 'See full' }));
 
     const loading = screen.getByRole('status', { name: 'Loading Item B' });
     expect(within(loading).getByText('Loading source')).toBeInTheDocument();
@@ -1449,8 +1446,9 @@ const selection: Selection = Selection.references(Book, refs);
     ).toBeInTheDocument();
   });
 
-  it('renders Plans as visually distinct temporal nodes in the Map', () => {
+  it('keeps Plans out of the ontology Map while preserving them in Board and search', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
     const plan = createNode('map-plan', {
       kind: 'plan',
       semanticId: 'map-plan',
@@ -1478,7 +1476,50 @@ const selection: Selection = Selection.references(Book, refs);
 
     renderExplorer({ value });
 
-    expect(screen.getByRole('button', { name: 'Map Plan' })).toHaveClass('border-dashed');
+    expect(screen.queryByRole('button', { name: 'Map Plan' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Board' }));
+    expect(screen.getByRole('button', { name: 'Map Plan' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
+    await user.type(within(searchDialog).getByRole('combobox', { name: 'Search atlas' }), 'Map Plan');
+    expect(within(searchDialog).getByRole('option', { name: /Map Plan/ })).toBeInTheDocument();
+  });
+
+  it('returns directly from nested detail navigation to the durable ontology Map', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?view=board&full=item-a');
+    const user = userEvent.setup();
+
+    renderExplorer({
+      value: {
+        ...snapshot,
+        edges: [
+          ...snapshot.edges,
+          {
+            id: 'item-a-contains-item-c',
+            from: 'item-a',
+            to: 'item-c',
+            kind: 'contains',
+          },
+        ],
+      },
+    });
+
+    let dialog = screen.getByRole('dialog');
+    await user.click(
+      within(dialog).getByRole('link', { name: 'Child node: Item C' }),
+    );
+    dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Item C' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Back to Item A' })).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Return to ontology map' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Map' })).toHaveClass('bg-primary/12');
+    expect(new URLSearchParams(globalThis.location.search).get('view')).toBeNull();
+    expect(new URLSearchParams(globalThis.location.search).get('node')).toBe('item-c');
   });
 
   it('opens full detail when a Map tree node is double-clicked', () => {
@@ -1527,11 +1568,11 @@ const selection: Selection = Selection.references(Book, refs);
     renderExplorer({ value });
 
     const toggle = screen.getByRole('button', {
-      name: 'Expand branch: 2 direct children, 3 total descendants',
+      name: 'Expand branch: 1 direct child, 1 total descendant',
     });
 
-    expect(toggle).toHaveTextContent('2 / 3');
-    expect(toggle).toHaveAttribute('title', '2 direct children / 3 total descendants');
+    expect(toggle).toHaveTextContent('1 / 1');
+    expect(toggle).toHaveAttribute('title', '1 direct child / 1 total descendant');
   });
 
   it('opens the search palette with Command-K and renders URI schemes as source badges', async () => {
