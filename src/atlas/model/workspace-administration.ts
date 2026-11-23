@@ -4,7 +4,7 @@ import {
   field,
   graphSchema,
   type GraphSchemaValue,
-} from '@ontahi/core/data-graph';
+} from '@ontahi/core';
 
 export const AtlasWorkspaceReferenceSchema = defineEntitySchema('AtlasWorkspace', {
   id: field.id(),

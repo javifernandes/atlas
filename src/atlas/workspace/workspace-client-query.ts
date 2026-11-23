@@ -4,7 +4,7 @@ import {
   defineClientEntity,
   entity as defineEntitySchema,
   field,
-} from '@ontahi/core/data-graph';
+} from '@ontahi/core';
 
 const AtlasUserSchema = defineEntitySchema('AtlasUser', {
   id: field.id(),

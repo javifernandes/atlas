@@ -3,7 +3,7 @@ import {
   graphSchema,
   type EntityRef,
   type GraphSchemaValue,
-} from '@ontahi/core/data-graph';
+} from '@ontahi/core';
 
 import { AtlasWorkspaceReferenceSchema } from './workspace-administration';
 

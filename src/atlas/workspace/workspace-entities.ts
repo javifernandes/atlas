@@ -1,4 +1,4 @@
-import { field } from '@ontahi/core/data-graph';
+import { field } from '@ontahi/core';
 import {
   entity,
   failOperation,

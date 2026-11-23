@@ -1,4 +1,4 @@
-import { Selection, type GraphReadPolicy } from '@ontahi/core/data-graph';
+import { Selection, type GraphReadPolicy } from '@ontahi/core';
 import type { Principal } from '@ontahi/core/runtime/server';
 
 import type { AtlasWorkspaceAuthority } from './workspace-access';

@@ -1,4 +1,4 @@
-import { field, graphSchema, type GraphSchemaValue } from '@ontahi/core/data-graph';
+import { field, graphSchema, type GraphSchemaValue } from '@ontahi/core';
 
 import { AtlasWorkspaceReferenceSchema } from './workspace-administration';
 

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { selectionNot } from '@ontahi/core/data-graph';
+import { selectionNot } from '@ontahi/core';
 import { createInProcessTaskRuntime } from '@ontahi/core/runtime/server';
 import { createPostgresDataGraphStorage } from '@ontahi/postgres/data-graph';
 import { createPostgresTaskStorage } from '@ontahi/postgres/tasks';

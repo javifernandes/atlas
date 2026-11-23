@@ -310,4 +310,4 @@ export const AtlasExecutionStreamSetArchivedOutputSchema = graphSchema.value(
     archivedAt: graphSchema.nullable(field.string()),
   },
 );
-import { field, graphSchema } from '@ontahi/core/data-graph';
+import { field, graphSchema } from '@ontahi/core';

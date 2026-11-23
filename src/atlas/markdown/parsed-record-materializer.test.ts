@@ -162,9 +162,21 @@ describe('Atlas parsed record Materializer', () => {
   });
 
   it('requests a rebuild when a removal has no dependency evidence', async () => {
-    const runner = createReplicatedVersionedMaterializerRunner(
-      createAtlasParsedRecordMaterializer(),
-    );
+    const materializer = createAtlasParsedRecordMaterializer();
+    const runner = createReplicatedVersionedMaterializerRunner(materializer, {
+      initial: {
+        snapshot: {
+          acceptance: {
+            acceptedFrontier: 'atlas-parsed-records:empty',
+            derivationId: materializer.id,
+            materializerVersion: materializer.version,
+            sourceFrontier: 'git:base',
+          },
+          state: { artifactIds: [] },
+        },
+        dependencies: [],
+      },
+    });
     const baseRecords = [record('atlas/items/delete.md', 'Delete', 'base')];
     const delta = changeSet(baseRecords, [], 'base', 'target');
 
@@ -177,7 +189,11 @@ describe('Atlas parsed record Materializer', () => {
         sourceFrontier: 'git:target',
       }),
     ).resolves.toEqual({
-      result: { accepted: null, reason: 'unknown-dependency', status: 'rebuild-required' },
+      result: {
+        accepted: runner.current()?.acceptance,
+        reason: 'unknown-dependency',
+        status: 'rebuild-required',
+      },
       output: null,
     });
   });
