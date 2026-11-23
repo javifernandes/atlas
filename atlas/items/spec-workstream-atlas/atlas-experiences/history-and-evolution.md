@@ -38,3 +38,4 @@ Using an experience can produce feedback, and feedback can become a tension, que
 
 1. [`Local Evolution Projection`](./history-and-evolution/local-evolution-projection.md)
 2. [`Context Projection`](./history-and-evolution/context-projection.md)
+3. [`Release Story Projection`](./history-and-evolution/release-story-projection.md)

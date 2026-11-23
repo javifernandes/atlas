@@ -292,55 +292,11 @@ const wheelZoomSpeed = 0.0042;
 const zoomButtonStep = 0.18;
 const focusScale = 0.86;
 const searchMatchLimit = 12;
-const evidenceDateFormatter = new Intl.DateTimeFormat('en', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
+const evidenceDayFormatter = new Intl.DateTimeFormat('en', {
+  day: 'numeric',
+  month: 'short',
   timeZone: 'UTC',
 });
-const formatEvidenceRelativeTime = (value: string, now = Date.now()) => {
-  const timestamp = new Date(value).getTime();
-
-  if (!Number.isFinite(timestamp)) {
-    return value;
-  }
-
-  const elapsedMilliseconds = Math.max(0, now - timestamp);
-  const elapsedMinutes = Math.floor(elapsedMilliseconds / 60_000);
-
-  if (elapsedMinutes < 1) {
-    return 'just now';
-  }
-
-  if (elapsedMinutes < 60) {
-    return `${elapsedMinutes}m ago`;
-  }
-
-  const elapsedHours = Math.floor(elapsedMinutes / 60);
-
-  if (elapsedHours < 24) {
-    return `${elapsedHours}h ago`;
-  }
-
-  const elapsedDays = Math.floor(elapsedHours / 24);
-
-  if (elapsedDays < 7) {
-    return `${elapsedDays}d ago`;
-  }
-
-  const elapsedWeeks = Math.floor(elapsedDays / 7);
-
-  if (elapsedWeeks < 5) {
-    return `${elapsedWeeks}w ago`;
-  }
-
-  const elapsedMonths = Math.floor(elapsedDays / 30);
-
-  if (elapsedMonths < 12) {
-    return `${elapsedMonths}mo ago`;
-  }
-
-  return `${Math.floor(elapsedDays / 365)}y ago`;
-};
 const allStatuses: PlanStatusGroup[] = [
   'current',
   'next',
@@ -1481,7 +1437,7 @@ const SemanticSignalList = ({
   signals: SemanticSignal[];
 }) =>
   signals.length === 0 ? null : (
-    <div className='grid gap-2'>
+    <div className='divide-y divide-border/70'>
       {signals.slice(0, 6).map(signal => {
         const sourceNode = nodesById.get(signal.sourceNodeId);
         const sourceContext: MarkdownRenderContext = {
@@ -1492,7 +1448,8 @@ const SemanticSignalList = ({
         return (
           <div
             key={signal.id}
-            className='rounded-md border border-border/70 bg-background/55 px-3 py-2.5'
+            data-evolution-row
+            className='px-4 py-3 transition-colors hover:bg-muted/35'
           >
             <div className='mb-1.5 flex flex-wrap items-center gap-2'>
               {showKind ? (
@@ -1625,25 +1582,6 @@ const getProjectMembershipsByNodeId = (
   }
 
   return membershipsByNodeId;
-};
-
-const evolutionRoleLabel = (role: EvolutionRole) => {
-  switch (role) {
-    case 'child':
-      return 'contained plan';
-    case 'follow-up':
-      return 'follow-up';
-    case 'related':
-      return 'related';
-    case 'shaped-by':
-      return 'shaped by';
-    case 'shapes':
-      return 'shapes';
-    case 'supported-by':
-      return 'supported by';
-    case 'supports':
-      return 'supports';
-  }
 };
 
 const isTemporalEvolutionItem = (node: PlanWorkstreamNode) => node.kind === 'plan';
@@ -1830,7 +1768,7 @@ const EvolutionEntryList = ({
   onOpenFull: (nodeId: string) => void;
 }) =>
   entries.length === 0 ? null : (
-    <div className='grid gap-2'>
+    <div className='divide-y divide-border/70'>
       {entries.map(entry => {
         const entryMarkdownContext = {
           ...markdownContext,
@@ -1840,27 +1778,9 @@ const EvolutionEntryList = ({
         return (
           <div
             key={entry.node.id}
-            className='grid gap-2 rounded-md border border-border/70 bg-background/45 px-3 py-2.5 text-left transition-colors hover:border-primary/45 hover:bg-muted/35'
+            data-evolution-row
+            className='grid gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/35'
           >
-            <span className='flex min-w-0 flex-wrap items-center gap-2'>
-              <span
-                className={cn('size-1.5 rounded-full', statusDotClassName(entry.node.statusGroup))}
-              />
-              <span className='font-mono text-[10px] uppercase text-muted-foreground'>
-                {entry.node.kind}
-              </span>
-              {entry.roles.map(role => (
-                <span
-                  key={role}
-                  className='inline-flex items-center gap-1.5 rounded border border-border/70 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground'
-                >
-                  <span
-                    className={cn('size-1 rounded-full', relationDotClassName(entry.relationKind))}
-                  />
-                  {evolutionRoleLabel(role)}
-                </span>
-              ))}
-            </span>
             <button
               type='button'
               className='line-clamp-2 text-left text-sm font-medium text-foreground transition-colors hover:text-sky-300'
@@ -1881,123 +1801,171 @@ const EvolutionEntryList = ({
     </div>
   );
 
-const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvidence[] }) =>
-  evidence.length === 0 ? null : (
+const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvidence[] }) => {
+  const [focusedDayKey, setFocusedDayKey] = useState<string | null>(null);
+
+  if (evidence.length === 0) return null;
+
+  const ordered = [...evidence].sort(
+    (left, right) =>
+      new Date(left.pullRequest.mergedAt).getTime() -
+      new Date(right.pullRequest.mergedAt).getTime(),
+  );
+  const repositories = new Set(ordered.map(binding => binding.pullRequest.repositoryFullName));
+  const days = ordered.reduce<Array<{ evidence: PlanWorkstreamEvidence[]; key: string }>>(
+    (groups, binding) => {
+      const merged = new Date(binding.pullRequest.mergedAt);
+      const key = merged.toISOString().slice(0, 10);
+      const existing = groups.find(group => group.key === key);
+
+      if (existing) existing.evidence.push(binding);
+      else groups.push({ evidence: [binding], key });
+
+      return groups;
+    },
+    [],
+  );
+  return (
     <section
-      aria-label='Implementation evidence'
-      className='flex shrink-0 flex-col gap-2 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:gap-4'
+      aria-label='Observed delivery timeline'
+      className='relative z-10 flex shrink-0 items-center gap-5 py-5'
     >
-      <header className='flex shrink-0 items-center justify-between gap-3 sm:block sm:w-32'>
-        <h3 className='font-mono text-[11px] uppercase text-foreground'>Implementation</h3>
-        <span className='mt-1 block font-mono text-[10px] uppercase text-emerald-700 dark:text-emerald-300'>
-          {evidence.length} merged {evidence.length === 1 ? 'PR' : 'PRs'}
+      <div className='relative h-10 min-w-0 flex-1 overflow-visible'>
+        <div className='absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-emerald-500/35 via-emerald-500/70 to-foreground/45' />
+        <span className='absolute right-0 top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-background bg-foreground ring-1 ring-foreground/35' />
+        <span className='absolute right-0 top-full mt-2 font-mono text-[9px] uppercase text-foreground'>
+          Now
         </span>
-      </header>
-      <div className='flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1'>
-        {evidence.map(binding => {
-          const actors = [
-            {
-              avatarUrl: binding.pullRequest.authorAvatarUrl,
-              login: binding.pullRequest.authorLogin,
-              role: 'PR author',
-            },
-            {
-              avatarUrl: binding.pullRequest.mergedByAvatarUrl,
-              login: binding.pullRequest.mergedByLogin,
-              role: 'Merged PR',
-            },
-          ].reduce<Array<{ avatarUrl: string | null; login: string; roles: string[] }>>(
-            (entries, actor) => {
-              if (!actor.login) {
-                return entries;
-              }
+        <ol className='absolute inset-0'>
+          {days.map((day, dayIndex) => {
+            const position = days.length === 1 ? 50 : (dayIndex / (days.length - 1)) * 92;
+            const size = Math.min(26, 10 + (day.evidence.length - 1) * 4);
 
-              const existing = entries.find(
-                entry => entry.login.toLowerCase() === actor.login?.toLowerCase(),
-              );
+            return (
+              <li
+                key={day.key}
+                className='group absolute top-1/2 -translate-y-1/2'
+                onBlurCapture={event => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setFocusedDayKey(null);
+                  }
+                }}
+                onFocusCapture={() => setFocusedDayKey(day.key)}
+                style={{ left: `${Math.max(0, Math.min(98, position))}%` }}
+              >
+                <button
+                  type='button'
+                  aria-label={`${day.evidence.length} ${day.evidence.length === 1 ? 'pull request' : 'pull requests'} on ${day.key}`}
+                  className='block -translate-x-1/2 rounded-full border border-emerald-400 bg-emerald-100 outline-none ring-2 ring-background transition-transform hover:scale-110 focus:scale-110 dark:bg-emerald-950'
+                  onKeyDown={event => {
+                    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
 
-              if (existing) {
-                existing.avatarUrl ??= actor.avatarUrl;
-                existing.roles.push(actor.role);
-              } else {
-                entries.push({
-                  avatarUrl: actor.avatarUrl,
-                  login: actor.login,
-                  roles: [actor.role],
-                });
-              }
+                    const buttons = Array.from(
+                      event.currentTarget
+                        .closest('ol')
+                        ?.querySelectorAll<HTMLButtonElement>('li > button') ?? [],
+                    );
+                    const currentIndex = buttons.indexOf(event.currentTarget);
+                    const targetIndex =
+                      event.key === 'Home'
+                        ? 0
+                        : event.key === 'End'
+                          ? buttons.length - 1
+                          : event.key === 'ArrowLeft'
+                            ? Math.max(0, currentIndex - 1)
+                            : Math.min(buttons.length - 1, currentIndex + 1);
 
-              return entries;
-            },
-            [],
-          );
-
-          return (
-            <a
-              key={binding.id}
-              className='flex min-w-[min(18rem,78vw)] max-w-sm flex-1 items-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/[0.04] px-2.5 py-2 text-left transition-colors hover:border-emerald-400/55 hover:bg-emerald-500/[0.08]'
-              href={binding.pullRequest.url}
-              rel='noreferrer'
-              target='_blank'
-            >
-              <span className='grid size-7 shrink-0 place-items-center rounded-full border border-emerald-500/25 bg-emerald-500/10'>
-                <GitPullRequest className='size-3.5 text-emerald-500 dark:text-emerald-300' />
-              </span>
-              <span className='min-w-0 flex-1'>
-                <span className='flex min-w-0 items-baseline gap-1.5'>
-                  <span className='truncate text-xs font-medium text-foreground'>
-                    {binding.pullRequest.title}
-                  </span>
-                  <span className='shrink-0 font-mono text-[10px] text-muted-foreground'>
-                    #{binding.pullRequest.number}
-                  </span>
-                </span>
-                <span
-                  className='mt-0.5 block truncate text-[10px] text-muted-foreground'
-                  title={evidenceDateFormatter.format(new Date(binding.pullRequest.mergedAt))}
+                    event.preventDefault();
+                    buttons[targetIndex]?.focus();
+                  }}
+                  style={{ height: size, width: size }}
+                />
+                <time
+                  className={cn(
+                    'pointer-events-none absolute top-full mt-2 whitespace-nowrap font-mono text-[9px] uppercase text-muted-foreground transition-opacity',
+                    dayIndex === 0 && !focusedDayKey
+                      ? 'opacity-100'
+                      : focusedDayKey === day.key
+                        ? 'opacity-100'
+                        : focusedDayKey
+                          ? 'opacity-0'
+                          : 'opacity-0 group-hover:opacity-100',
+                    position < 15
+                      ? 'left-0'
+                      : position > 80
+                        ? 'right-0'
+                        : 'left-1/2 -translate-x-1/2',
+                  )}
+                  dateTime={day.key}
                 >
-                  {formatEvidenceRelativeTime(binding.pullRequest.mergedAt)}
-                </span>
-              </span>
-              {actors.length > 0 ? (
-                <span aria-label='Pull request actors' className='flex shrink-0 -space-x-2'>
-                  {actors.map(actor => {
-                    const details = `@${actor.login} · ${actor.roles.join(' · ')}`;
+                  {evidenceDayFormatter.format(new Date(`${day.key}T00:00:00Z`))}
+                </time>
+                <span
+                  role='tooltip'
+                  className={cn(
+                    'pointer-events-auto absolute bottom-full z-50 mb-3 grid w-72 gap-1 rounded-md border border-border/80 bg-popover p-2.5 text-left shadow-xl transition-[opacity,transform]',
+                    focusedDayKey === day.key
+                      ? 'translate-y-0 opacity-100'
+                      : focusedDayKey
+                        ? 'translate-y-1 opacity-0'
+                        : 'translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100',
+                    position < 15
+                      ? 'left-0'
+                      : position > 80
+                        ? 'right-0'
+                        : 'left-1/2 -translate-x-1/2',
+                  )}
+                >
+                  {day.evidence.map(binding => {
+                    const actor = binding.pullRequest.authorLogin;
                     const avatarUrl =
-                      actor.avatarUrl ?? `https://github.com/${actor.login}.png?size=64`;
+                      binding.pullRequest.authorAvatarUrl ??
+                      (actor ? `https://github.com/${actor}.png?size=64` : null);
 
                     return (
-                      <span
-                        key={actor.login}
-                        className='group/actor relative block rounded-full ring-2 ring-background'
-                        title={details}
+                      <a
+                        key={binding.id}
+                        className='grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2 rounded px-1.5 py-1.5 hover:bg-muted/70 focus:bg-muted/70 focus:outline-none'
+                        href={binding.pullRequest.url}
+                        rel='noreferrer'
+                        target='_blank'
                       >
-                        <img
-                          alt={`${details} avatar`}
-                          className='size-5 rounded-full bg-muted object-cover'
-                          height={20}
-                          loading='lazy'
-                          src={avatarUrl}
-                          width={20}
-                        />
-                        <span
-                          role='tooltip'
-                          className='pointer-events-none absolute bottom-full right-0 z-20 mb-2 w-max max-w-52 translate-y-1 rounded-md border border-border/80 bg-popover px-2 py-1 text-[10px] font-medium text-popover-foreground opacity-0 shadow-lg transition-[opacity,transform] group-hover/actor:translate-y-0 group-hover/actor:opacity-100'
-                        >
-                          {details}
+                        {avatarUrl ? (
+                          <img
+                            alt={actor ? `@${actor} avatar` : 'Pull request author avatar'}
+                            className='size-5 rounded-full bg-muted object-cover'
+                            height={20}
+                            loading='lazy'
+                            src={avatarUrl}
+                            width={20}
+                          />
+                        ) : (
+                          <span className='size-5 rounded-full bg-muted' />
+                        )}
+                        <span className='shrink-0 rounded-md border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none tracking-tight text-sky-300'>
+                          #{binding.pullRequest.number}
                         </span>
-                      </span>
+                        <span className='min-w-0 text-xs font-medium leading-4 text-popover-foreground'>
+                          {binding.pullRequest.title}
+                        </span>
+                      </a>
                     );
                   })}
                 </span>
-              ) : null}
-              <ExternalLink className='size-3.5 shrink-0 text-muted-foreground' />
-            </a>
-          );
-        })}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      <div className='flex shrink-0 items-baseline gap-3 font-mono text-[10px] text-muted-foreground'>
+        <span className='text-xs font-medium text-foreground'>
+          {evidence.length} {evidence.length === 1 ? 'PR' : 'PRs'}
+        </span>
+        {repositories.size > 1 ? <span>{repositories.size} repositories</span> : null}
       </div>
     </section>
   );
+};
 
 const EvolutionBoardColumn = ({
   children,
@@ -2015,13 +1983,19 @@ const EvolutionBoardColumn = ({
   const countLabel = `${count} ${count === 1 ? countNoun : `${countNoun}s`}`;
 
   return (
-    <section className='flex min-h-[220px] flex-col border-border/70 lg:min-h-0 lg:border-l lg:pl-4 lg:first:border-l-0 lg:first:pl-0'>
-      <header className='shrink-0 pb-3 text-center' title={`${subtitle} ${countLabel}.`}>
+    <section className='flex min-h-[220px] flex-col border-border/70 lg:min-h-0 lg:border-l lg:first:border-l-0'>
+      <header className='shrink-0 px-4 pb-3 text-center' title={`${subtitle} ${countLabel}.`}>
         <h3 className='font-mono text-xs uppercase text-foreground'>{title}</h3>
       </header>
-      <div className='min-h-0 flex-1 lg:overflow-y-auto lg:pr-2'>
-        {count > 0 ? <div className='grid gap-2'>{children}</div> : null}
-      </div>
+      <ScrollableOverflow
+        axis='vertical'
+        className='min-h-0 flex-1'
+        contentClassName='[&>div+div]:border-t [&>div+div]:border-border/70'
+        itemSelector='[data-evolution-row]'
+        viewportClassName='h-full lg:overflow-y-auto'
+      >
+        {count > 0 ? children : null}
+      </ScrollableOverflow>
     </section>
   );
 };
@@ -5289,6 +5263,29 @@ const FullDetailSurface = ({
               <span className={cn('size-2 rounded-full', statusDotClassName(node.statusGroup))} />
               <span className='font-mono text-xs uppercase text-muted-foreground'>{node.kind}</span>
               <span className='font-mono text-xs text-muted-foreground'>{node.status}</span>
+              {node.workClassification ? (
+                <span
+                  aria-label='Work classification'
+                  className='inline-flex flex-wrap items-center gap-1.5'
+                >
+                  <span className='rounded-full border border-violet-400/30 bg-violet-400/10 px-2 py-0.5 font-mono text-[10px] text-violet-200'>
+                    {node.workClassification.nature}
+                  </span>
+                  {node.workClassification.impactScopes.map(scope => (
+                    <span
+                      key={scope}
+                      className='rounded-full border border-border/70 bg-muted/35 px-2 py-0.5 font-mono text-[10px] text-muted-foreground'
+                    >
+                      {scope}
+                    </span>
+                  ))}
+                  {node.workClassification.compatibility ? (
+                    <span className='rounded-full border border-emerald-400/25 bg-emerald-400/8 px-2 py-0.5 font-mono text-[10px] text-emerald-200'>
+                      {node.workClassification.compatibility}
+                    </span>
+                  ) : null}
+                </span>
+              ) : null}
               {projectMemberships.map(project => (
                 <span
                   key={project.id}
@@ -5416,7 +5413,6 @@ const FullDetailSurface = ({
               overviewUsesDedicatedSurface
                 ? 'overflow-y-auto'
                 : 'overflow-y-auto px-6 py-6 sm:px-8 lg:px-10',
-              !overviewUsesDedicatedSurface && activeTab === 'evolution' && 'lg:overflow-hidden',
             )}
           >
           {activeTab === 'overview' ? contentStatus === 'loading' ? (
@@ -5456,8 +5452,6 @@ const FullDetailSurface = ({
             <div className='min-h-0 px-1 sm:px-2 lg:h-full'>
               {hasEvolutionContent ? (
                 <div className='flex min-h-0 flex-col gap-6 lg:h-full'>
-                  <PullRequestEvidenceSection evidence={nodeEvidence} />
-
                   <div className='grid min-h-0 flex-1 gap-4 lg:grid-cols-4 lg:gap-0'>
                     <EvolutionBoardColumn
                       count={pastEntries.length + evolutionSignals.length}
@@ -5529,6 +5523,8 @@ const FullDetailSurface = ({
                       />
                     </EvolutionBoardColumn>
                   </div>
+
+                  <PullRequestEvidenceSection evidence={nodeEvidence} />
                 </div>
               ) : (
                 <p className='text-sm leading-6 text-muted-foreground'>
@@ -7599,7 +7595,7 @@ export const PlanWorkstreamExplorer = ({
 
       {searchOpen ? (
         <div
-          className='pointer-events-auto absolute inset-0 z-[200] flex items-start justify-center bg-background/80 px-4 pt-[min(14vh,120px)] backdrop-blur-md'
+          className='pointer-events-auto fixed inset-0 z-[200] flex items-start justify-center bg-background/80 px-4 pt-[min(14vh,120px)] backdrop-blur-md'
           onMouseDown={event => {
             if (event.target !== event.currentTarget) {
               return;

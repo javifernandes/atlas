@@ -19,6 +19,7 @@ const createNode = (
     shortTitle: string;
     statusGroup?: PlanWorkstreamNode['statusGroup'];
     summary?: string;
+    workClassification?: PlanWorkstreamNode['workClassification'];
   },
 ): PlanWorkstreamNode => ({
   id,
@@ -32,6 +33,7 @@ const createNode = (
   semanticId: input.semanticId,
   markdown: input.markdown,
   summary: input.summary,
+  workClassification: input.workClassification,
   sections: [],
   relatedCount: 0,
   candidateCount: 0,
@@ -62,6 +64,11 @@ const snapshot: PlanWorkstreamSnapshot = {
       statusGroup: 'next',
       markdown: 'Item B overview text. [[atlas:item-a|Back to item A]]',
       summary: 'Item B summary.',
+      workClassification: {
+        nature: 'refactor',
+        impactScopes: ['internal', 'public-surface'],
+        compatibility: 'migration-required',
+      },
     }),
     createNode('item-c', {
       semanticId: 'item-c',
@@ -202,10 +209,20 @@ describe('PlanWorkstreamExplorer', () => {
     expect(within(dialog).getByRole('button', { name: /type of\s*Item D/ })).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('link', { name: 'evolution' }));
+
+    expect(document.querySelector('#full-detail-content-scroll')).toHaveClass('overflow-y-auto');
+    expect(document.querySelector('#full-detail-content-scroll')).not.toHaveClass(
+      'lg:overflow-hidden',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Item B' }));
 
     dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText(/Item B overview text/)).toBeInTheDocument();
+    const classification = within(dialog).getByLabelText('Work classification');
+    expect(within(classification).getByText('refactor')).toBeInTheDocument();
+    expect(within(classification).getByText('internal')).toBeInTheDocument();
+    expect(within(classification).getByText('public-surface')).toBeInTheDocument();
+    expect(within(classification).getByText('migration-required')).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('button', { name: 'Back to item A' }));
 
@@ -1538,7 +1555,8 @@ const selection: Selection = Selection.references(Book, refs);
 
     const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
     const searchInput = within(searchDialog).getByRole('combobox', { name: 'Search atlas' });
-    expect(searchDialog.parentElement).toHaveClass('z-[200]');
+    expect(screen.getByRole('dialog', { name: 'Item A detail' })).toHaveClass('z-[120]');
+    expect(searchDialog.parentElement).toHaveClass('fixed', 'z-[200]');
     expect(searchInput).toHaveFocus();
 
     await user.type(searchInput, '68');
@@ -1635,6 +1653,7 @@ const selection: Selection = Selection.references(Book, refs);
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();
     const mergedAt = new Date(Date.now() - 3 * 60 * 60 * 1_000).toISOString();
+    const groupedAt = new Date(Date.now() - 27 * 60 * 60 * 1_000).toISOString();
     const value: PlanWorkstreamSnapshot = {
       ...snapshot,
       evidence: [
@@ -1649,11 +1668,47 @@ const selection: Selection = Selection.references(Book, refs);
             mergeCommitSha: 'abc123',
             mergedByAvatarUrl: 'https://avatars.example/maintainer',
             mergedByLogin: 'maintainer',
-            mergedAt,
+            mergedAt: groupedAt,
             number: 42,
             repositoryFullName: 'acme/product',
             title: 'Connect implementation evidence',
             url: 'https://github.com/acme/product/pull/42',
+          },
+        },
+        {
+          id: 'github:acme/product#43->item-a:shapes',
+          kind: 'shapes',
+          provenance: 'explicit',
+          targetNodeId: 'item-a',
+          pullRequest: {
+            authorAvatarUrl: 'https://avatars.example/javi',
+            authorLogin: 'javi',
+            mergeCommitSha: 'def456',
+            mergedByAvatarUrl: 'https://avatars.example/maintainer',
+            mergedByLogin: 'maintainer',
+            mergedAt: groupedAt,
+            number: 43,
+            repositoryFullName: 'acme/product',
+            title: 'Complete implementation evidence',
+            url: 'https://github.com/acme/product/pull/43',
+          },
+        },
+        {
+          id: 'github:acme/product#44->item-a:shapes',
+          kind: 'shapes',
+          provenance: 'explicit',
+          targetNodeId: 'item-a',
+          pullRequest: {
+            authorAvatarUrl: 'https://avatars.example/javi',
+            authorLogin: 'javi',
+            mergeCommitSha: 'ghi789',
+            mergedByAvatarUrl: 'https://avatars.example/maintainer',
+            mergedByLogin: 'maintainer',
+            mergedAt,
+            number: 44,
+            repositoryFullName: 'acme/product',
+            title: 'Verify implementation evidence',
+            url: 'https://github.com/acme/product/pull/44',
           },
         },
       ],
@@ -1665,14 +1720,38 @@ const selection: Selection = Selection.references(Book, refs);
     await user.click(within(dialog).getByRole('link', { name: 'evolution' }));
 
     const implementationEvidence = within(dialog).getByRole('region', {
-      name: 'Implementation evidence',
+      name: 'Observed delivery timeline',
     });
     const pullRequest = within(implementationEvidence).getByRole('link', {
       name: /Connect implementation evidence/,
     });
     const pastColumn = within(dialog).getByRole('heading', { name: 'Past' }).closest('section');
 
-    expect(within(implementationEvidence).getByText('1 merged PR')).toBeInTheDocument();
+    expect(within(implementationEvidence).getByText('3 PRs')).toBeInTheDocument();
+    const groupedDay = within(implementationEvidence).getByRole('button', {
+      name: /2 pull requests on/,
+    });
+    const latestDay = within(implementationEvidence).getByRole('button', {
+      name: /1 pull request on/,
+    });
+    expect(groupedDay).toHaveStyle({ height: '14px', width: '14px' });
+    const groupedTooltip = groupedDay.closest('li')?.querySelector('[role="tooltip"]');
+    const latestTooltip = latestDay.closest('li')?.querySelector('[role="tooltip"]');
+    groupedDay.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(latestDay).toHaveFocus();
+    expect(groupedTooltip).toHaveClass('opacity-0');
+    expect(groupedTooltip).not.toHaveClass('group-hover:opacity-100');
+    expect(latestTooltip).toHaveClass('opacity-100');
+    await user.keyboard('{ArrowLeft}');
+    expect(groupedDay).toHaveFocus();
+    await user.keyboard('{End}');
+    expect(latestDay).toHaveFocus();
+    await user.keyboard('{Home}');
+    expect(groupedDay).toHaveFocus();
+    expect(within(implementationEvidence).queryByText(/repository/)).not.toBeInTheDocument();
+    expect(within(implementationEvidence).getByText('Now')).toBeInTheDocument();
+    expect(implementationEvidence.querySelector('time')).toHaveClass('opacity-100');
     expect(pastColumn).not.toBeNull();
     expect(
       within(pastColumn as HTMLElement).queryByRole('link', {
@@ -1680,19 +1759,14 @@ const selection: Selection = Selection.references(Book, refs);
       }),
     ).not.toBeInTheDocument();
     expect(pullRequest).toHaveAttribute('href', 'https://github.com/acme/product/pull/42');
-    expect(within(pullRequest).getByText('#42')).toBeInTheDocument();
-    expect(within(pullRequest).getByText('3h ago')).toHaveAttribute('title');
-    expect(within(pullRequest).queryByText('acme/product')).not.toBeInTheDocument();
-    expect(within(pullRequest).queryByText('shapes')).not.toBeInTheDocument();
-    expect(within(pullRequest).queryByText(/explicit PR assertion/)).not.toBeInTheDocument();
-    expect(within(pullRequest).queryByText(/by javi/)).not.toBeInTheDocument();
-    expect(
-      within(pullRequest).getByRole('img', { name: '@javi · PR author avatar' }),
-    ).toHaveAttribute('src', 'https://avatars.example/javi');
-    expect(
-      within(pullRequest).getByRole('img', { name: '@maintainer · Merged PR avatar' }),
-    ).toHaveAttribute('src', 'https://avatars.example/maintainer');
-    expect(within(pullRequest).getByLabelText('Pull request actors')).toHaveClass('-space-x-2');
+    const tooltip = pullRequest.closest('li')?.querySelector('[role="tooltip"]');
+    expect(tooltip).toHaveTextContent('#42');
+    expect(tooltip).toHaveTextContent('#43');
+    expect(tooltip?.querySelector('time')).not.toBeInTheDocument();
+    expect(within(tooltip as HTMLElement).getAllByRole('img', { name: '@javi avatar' })).toHaveLength(
+      2,
+    );
+    expect(within(tooltip as HTMLElement).getByText('#42')).toHaveClass('text-sky-300');
   });
 
 });

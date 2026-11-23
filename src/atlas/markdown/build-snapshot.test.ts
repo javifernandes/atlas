@@ -184,6 +184,9 @@ status: shaping
 
 Status: current
 Advances: atlas.goal.legible-change, atlas.capability.viewer, missing.goal
+Work Nature: refactor
+Impact Scopes: internal, public-surface
+Compatibility: migration-required
 
 ## Summary
 
@@ -223,6 +226,11 @@ relatedPlans: []
         expect.objectContaining({
           id: 'plan:plans/current/147-goal-model-v0.md',
           kind: 'plan',
+          workClassification: {
+            compatibility: 'migration-required',
+            impactScopes: ['internal', 'public-surface'],
+            nature: 'refactor',
+          },
         }),
       ]),
     );

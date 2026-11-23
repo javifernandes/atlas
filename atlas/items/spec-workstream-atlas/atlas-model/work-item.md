@@ -23,3 +23,4 @@ Work items shape the system model, but they should not be treated as the system 
 1. [`Goal`](./goal.md)
 2. [`Plan`](./plan.md)
 3. [`Work Item Impact Surface`](./work-item/impact-surface.md)
+4. [`Work Classification`](./work-item/work-classification.md)

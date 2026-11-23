@@ -25,6 +25,34 @@ export type PlanRelationKind =
   | 'advances'
   | 'follow-up';
 
+export type WorkNature =
+  | 'feature'
+  | 'fix'
+  | 'refactor'
+  | 'migration'
+  | 'maintenance'
+  | 'research'
+  | 'documentation';
+
+export type WorkImpactScope =
+  | 'internal'
+  | 'public-surface'
+  | 'consumer-behavior'
+  | 'data-shape'
+  | 'operational';
+
+export type WorkCompatibility =
+  | 'compatible'
+  | 'migration-required'
+  | 'breaking'
+  | 'unknown';
+
+export type WorkClassification = {
+  nature: WorkNature;
+  impactScopes: WorkImpactScope[];
+  compatibility?: WorkCompatibility;
+};
+
 export type EntityModelField = {
   name: string;
   type: string;
@@ -87,6 +115,7 @@ export type PlanWorkstreamNode = {
   horizon?: string;
   area?: string;
   codename?: string;
+  workClassification?: WorkClassification;
   itemModel?: AtlasItemModel;
   /** @deprecated Read compatibility for snapshots produced before Item model payloads. */
   packageName?: string;
