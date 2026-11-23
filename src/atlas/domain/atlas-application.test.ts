@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Effect } from 'effect';
-import { createInMemoryDataGraphStorage, toGraphReadRequest } from '@ontahi/core/data-graph';
+import { createInMemoryDataGraphStorage, toGraphReadRequest } from '@ontahi/core';
 import {
   createRuntimeProtocolDispatcher,
   createRuntimeProtocolRequest,

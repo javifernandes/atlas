@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { createEntityRef, type EntityRef } from '@ontahi/core/data-graph';
+import { createEntityRef, type EntityRef } from '@ontahi/core';
 
 import type { NormalizedAtlasSourceRecord } from './normalized-source';
 

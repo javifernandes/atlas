@@ -8,7 +8,7 @@ import {
   graphSchema,
   query,
   selectionNot,
-} from '@ontahi/core/data-graph';
+} from '@ontahi/core';
 import {
   createInMemoryTaskStorage,
   createInProcessTaskRuntime,

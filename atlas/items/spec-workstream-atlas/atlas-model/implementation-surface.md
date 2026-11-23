@@ -14,7 +14,7 @@ relatedPlans:
   - plans/current/102-workstream-atlas-implementation-evidence.md
 exemplars:
   - "@bookops/model/content"
-  - "@ontahi/core/data-graph"
+  - "@ontahi/core"
 ---
 
 An [[spec-workstream-atlas.atlas-model.implementation-surface|Implementation Surface]] is a stable or

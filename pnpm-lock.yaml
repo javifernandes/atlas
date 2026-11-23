@@ -15,20 +15,20 @@ importers:
         specifier: ^1.2.0
         version: 1.2.0
       '@ontahi/core':
-        specifier: 1.0.0-alpha.21
-        version: 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
+        specifier: 1.0.0-alpha.22
+        version: 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
       '@ontahi/devtools':
-        specifier: 1.0.0-alpha.21
-        version: 1.0.0-alpha.21(@tanstack/react-query@5.102.8(react@18.3.1))(@types/node@20.19.43)(@types/react@18.3.31)(react@18.3.1)(typescript@5.9.3)
+        specifier: 1.0.0-alpha.22
+        version: 1.0.0-alpha.22(@tanstack/react-query@5.102.8(react@18.3.1))(@types/node@20.19.43)(@types/react@18.3.31)(react@18.3.1)(typescript@5.9.3)
       '@ontahi/postgres':
-        specifier: 1.0.0-alpha.21
-        version: 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
+        specifier: 1.0.0-alpha.22
+        version: 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
       '@ontahi/react':
-        specifier: 1.0.0-alpha.21
-        version: 1.0.0-alpha.21(@tanstack/react-query@5.102.8(react@18.3.1))(@types/node@20.19.43)(@types/react@18.3.31)(react@18.3.1)(typescript@5.9.3)
+        specifier: 1.0.0-alpha.22
+        version: 1.0.0-alpha.22(@tanstack/react-query@5.102.8(react@18.3.1))(@types/node@20.19.43)(@types/react@18.3.31)(react@18.3.1)(typescript@5.9.3)
       '@ontahi/runtime-nextjs':
-        specifier: 1.0.0-alpha.21
-        version: 1.0.0-alpha.21(@types/node@20.19.43)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(next@14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+        specifier: 1.0.0-alpha.22
+        version: 1.0.0-alpha.22(@types/node@20.19.43)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(next@14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       '@tanstack/react-query':
         specifier: ^5.102.8
         version: 5.102.8(react@18.3.1)
@@ -885,12 +885,12 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@ontahi/core@1.0.0-alpha.21':
-    resolution: {integrity: sha512-/xUnI4ZaLhES/aiAEH5xGyEWpYqaDwMjMO4f4nySIrGK6dsQkHi78hwPFzQEC3/fufaON6oK0kFT2/PiRH5OFQ==}
+  '@ontahi/core@1.0.0-alpha.22':
+    resolution: {integrity: sha512-EAOjTuH6hBKTLI27HK42NXaRXKH8KK0vd0hZecurLfuIb8aGRlSL0CQtk//RF/r9gQCqiMLif/GBwDCYmNr28w==}
     engines: {node: '>=20.19.0'}
 
-  '@ontahi/devtools@1.0.0-alpha.21':
-    resolution: {integrity: sha512-gUcAq1h/0U/CzmUew9imSJ+obHThOFTCEhBnfIP8Zg2ZgRSTZwRWHVllusnJo8RVgOUJ6ty3ZkvFHs7Q0zFrbA==}
+  '@ontahi/devtools@1.0.0-alpha.22':
+    resolution: {integrity: sha512-umvHRJ+MKaLeJ+FVVw80/mjbcqIy6B8iA+Xwds1M0ziMZ8FBsvHFEr4O0xYERxyxdDjZXIqBiKTRHVSg9/5gog==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       '@types/react': ^18.3.0 || ^19.0.0
@@ -899,20 +899,20 @@ packages:
       '@types/react':
         optional: true
 
-  '@ontahi/language-codemirror@1.0.0-alpha.21':
-    resolution: {integrity: sha512-mI3dqzjcOdd3ugkwM+uS012ZtWLa8bfTT0AhXSRDczt2vlauBKzT1+o076uQ53yjqrf6DRKuaZYsFKiSk50bog==}
+  '@ontahi/language-codemirror@1.0.0-alpha.22':
+    resolution: {integrity: sha512-g5D+8VtZC3JBeAmvp+L33WeHgkM6pxuAvJPnJTJx27npBiCJItzdhKcIm12XqqXdUiIDAhX/UA6DOcp+ziERrw==}
     engines: {node: '>=20.19.0'}
 
-  '@ontahi/language@1.0.0-alpha.21':
-    resolution: {integrity: sha512-yeOKHoloBknHISsPrLps2rpbbnoimL12MLkjZZXSZt8LhPd4YhboTOZOsZw7CQftHPtchVZJCFbOi693R71pBg==}
+  '@ontahi/language@1.0.0-alpha.22':
+    resolution: {integrity: sha512-DgEbn4zZS0NdrztzbBipuC81a7LZUGoCzpWWq6qR2M9I5RN/53ZlrsNwZDW7Z7BStqKqzzZO/n/OUhwIidthbw==}
     engines: {node: '>=20.19.0'}
 
-  '@ontahi/postgres@1.0.0-alpha.21':
-    resolution: {integrity: sha512-liCNYVgYubCyGZD3tRNtt+Xw8CHEDWSH2lfgvcLCm5xeeBenb+WJpnkNTbL09MPp+pcj6iglJoJWqwfvEfq08w==}
+  '@ontahi/postgres@1.0.0-alpha.22':
+    resolution: {integrity: sha512-sUKZkP79T3m3vs4+AVfm/BGHJwLooR0WM2p8aN5cp+lQCdGJ8UYUput57rrq92Qk2m0OYxoZX/L1jC4SclSz5A==}
     engines: {node: '>=20.19.0'}
 
-  '@ontahi/react@1.0.0-alpha.21':
-    resolution: {integrity: sha512-CagTTNGyNTbJCg8Ovx4B7E9zY01haRQ04TTUgsg4zjllx53nZwVTPiGqpqSoa/uIvttGWVIstLLnzR/4+4gBAQ==}
+  '@ontahi/react@1.0.0-alpha.22':
+    resolution: {integrity: sha512-vLG3R4/ZSZpeAXQ4lFy/7IeBL0fG5xx7z1zGDzfLiuu9k+6ZPDj2TyNoiAdcobvT29w1RBPCskDalhqEOCrc0A==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       '@tanstack/react-query': ^5.101.4
@@ -922,12 +922,12 @@ packages:
       '@types/react':
         optional: true
 
-  '@ontahi/runtime-http@1.0.0-alpha.21':
-    resolution: {integrity: sha512-8iZYvQpFXv+CWaJA0RSGu6tIuwv4oQUBFi4YqjlnQjFn/myYLzxp0gjcq+eezQLFuUswwiU07k4svH8pOmlLdg==}
+  '@ontahi/runtime-http@1.0.0-alpha.22':
+    resolution: {integrity: sha512-HzV7ydUsapABZEUS5EKjcsxQc37H+P0ZvVp2HjJceivLQInzX+8F26QBpv/HBgzgcbavf8RTL3hRykiQcjbpQw==}
     engines: {node: '>=20.19.0'}
 
-  '@ontahi/runtime-nextjs@1.0.0-alpha.21':
-    resolution: {integrity: sha512-3pQ+KHZzGLORZZt75eqj8CottSRxuvef+8iwuDHxamjLV4MnzGd4v1IwoPGbznOsUpHOyOHbaA0Lu2LuegCFMg==}
+  '@ontahi/runtime-nextjs@1.0.0-alpha.22':
+    resolution: {integrity: sha512-i/3r3+YeuIFE7jkvAdCZE09Gtjj0JBBxq8WyxSUwxMgcpyvJ7Ma0fhbzhKcXgoeQ3+io5OskkvnQ+nliPZ/cWw==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       '@types/react': ^18.3.0 || ^19.0.0
@@ -941,8 +941,8 @@ packages:
       '@types/react-dom':
         optional: true
 
-  '@ontahi/sql@1.0.0-alpha.21':
-    resolution: {integrity: sha512-hAhjMhZxJfTrcZFxtDCumeyvSEUIC0MmcrMe5914hcy22/9/atWyYdJ5hXN2b/gvkJYcU6fZvFV/XtNKIoBx5A==}
+  '@ontahi/sql@1.0.0-alpha.22':
+    resolution: {integrity: sha512-6o+1h2gmJpH5L3Pm5fi3NzCc/bZxzgI1FaDq6QgqmPnjFeTOlp9dSCr6ughWkMkdGbKdk8d95H2bSBpee8+54w==}
     engines: {node: '>=20.19.0'}
 
   '@opentelemetry/semantic-conventions@1.43.0':
@@ -3932,7 +3932,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@ontahi/core@1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)':
+  '@ontahi/core@1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)':
     dependencies:
       effect: 3.21.0
       typia: 12.2.1(@types/node@20.19.43)(typescript@5.9.3)
@@ -3941,15 +3941,15 @@ snapshots:
       - '@types/node'
       - typescript
 
-  '@ontahi/devtools@1.0.0-alpha.21(@tanstack/react-query@5.102.8(react@18.3.1))(@types/node@20.19.43)(@types/react@18.3.31)(react@18.3.1)(typescript@5.9.3)':
+  '@ontahi/devtools@1.0.0-alpha.22(@tanstack/react-query@5.102.8(react@18.3.1))(@types/node@20.19.43)(@types/react@18.3.31)(react@18.3.1)(typescript@5.9.3)':
     dependencies:
       '@codemirror/commands': 6.11.1
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.15
-      '@ontahi/core': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
-      '@ontahi/language': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
-      '@ontahi/language-codemirror': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
-      '@ontahi/react': 1.0.0-alpha.21(@tanstack/react-query@5.102.8(react@18.3.1))(@types/node@20.19.43)(@types/react@18.3.31)(react@18.3.1)(typescript@5.9.3)
+      '@ontahi/core': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/language': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/language-codemirror': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/react': 1.0.0-alpha.22(@tanstack/react-query@5.102.8(react@18.3.1))(@types/node@20.19.43)(@types/react@18.3.31)(react@18.3.1)(typescript@5.9.3)
       react: 18.3.1
       react-json-view-lite: 2.5.0(react@18.3.1)
     optionalDependencies:
@@ -3959,7 +3959,7 @@ snapshots:
       - '@types/node'
       - typescript
 
-  '@ontahi/language-codemirror@1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)':
+  '@ontahi/language-codemirror@1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)':
     dependencies:
       '@codemirror/autocomplete': 6.20.4
       '@codemirror/commands': 6.11.1
@@ -3968,24 +3968,24 @@ snapshots:
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.15
       '@lezer/highlight': 1.2.5
-      '@ontahi/language': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/language': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
     transitivePeerDependencies:
       - '@types/node'
       - typescript
 
-  '@ontahi/language@1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)':
+  '@ontahi/language@1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)':
     dependencies:
       '@lezer/common': 1.5.5
       '@lezer/lr': 1.4.12
-      '@ontahi/core': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/core': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
     transitivePeerDependencies:
       - '@types/node'
       - typescript
 
-  '@ontahi/postgres@1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)':
+  '@ontahi/postgres@1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)':
     dependencies:
-      '@ontahi/core': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
-      '@ontahi/sql': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/core': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/sql': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
       '@types/pg': 8.15.5
       effect: 3.21.0
       pg: 8.16.3
@@ -3994,9 +3994,9 @@ snapshots:
       - pg-native
       - typescript
 
-  '@ontahi/react@1.0.0-alpha.21(@tanstack/react-query@5.102.8(react@18.3.1))(@types/node@20.19.43)(@types/react@18.3.31)(react@18.3.1)(typescript@5.9.3)':
+  '@ontahi/react@1.0.0-alpha.22(@tanstack/react-query@5.102.8(react@18.3.1))(@types/node@20.19.43)(@types/react@18.3.31)(react@18.3.1)(typescript@5.9.3)':
     dependencies:
-      '@ontahi/core': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/core': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
       '@tanstack/react-query': 5.102.8(react@18.3.1)
       react: 18.3.1
     optionalDependencies:
@@ -4005,17 +4005,17 @@ snapshots:
       - '@types/node'
       - typescript
 
-  '@ontahi/runtime-http@1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)':
+  '@ontahi/runtime-http@1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)':
     dependencies:
-      '@ontahi/core': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/core': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
     transitivePeerDependencies:
       - '@types/node'
       - typescript
 
-  '@ontahi/runtime-nextjs@1.0.0-alpha.21(@types/node@20.19.43)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(next@14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)':
+  '@ontahi/runtime-nextjs@1.0.0-alpha.22(@types/node@20.19.43)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(next@14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)':
     dependencies:
-      '@ontahi/core': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
-      '@ontahi/runtime-http': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/core': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/runtime-http': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
       effect: 3.21.0
       next: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       next-safe-action: 8.7.3(next@14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -4030,9 +4030,9 @@ snapshots:
       - '@types/node'
       - typescript
 
-  '@ontahi/sql@1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)':
+  '@ontahi/sql@1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)':
     dependencies:
-      '@ontahi/core': 1.0.0-alpha.21(@types/node@20.19.43)(typescript@5.9.3)
+      '@ontahi/core': 1.0.0-alpha.22(@types/node@20.19.43)(typescript@5.9.3)
       effect: 3.21.0
     transitivePeerDependencies:
       - '@types/node'

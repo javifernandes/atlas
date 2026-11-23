@@ -1,4 +1,4 @@
-import { query } from '@ontahi/core/data-graph';
+import { query } from '@ontahi/core';
 import {
   compilePostgresQuery,
   inferPostgresMappings,
