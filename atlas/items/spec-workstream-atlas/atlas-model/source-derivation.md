@@ -65,6 +65,13 @@ storage, because their presence distinguishes a known deletion from an unknown d
 checkpoint is reconstructible execution state; it does not replace the logical Projection Revision
 or make a partially derived graph visible.
 
+Artifact identity follows the physical Source Record (`source id + source-relative path`), not its
+normalized semantic URI. Several physical records may intentionally converge on one semantic URI
+without becoming the same parser input—for example repository workflow README files. Semantic URIs
+remain projection references and derived payload identity; they are not checkpoint primary keys.
+Changing this identity contract increments the Materializer version so older checkpoints rebuild
+rather than being interpreted under new key semantics.
+
 Production reconciliation hydrates the accepted checkpoint before applying an exact Source
 ChangeSet. Compatible, unaffected record artifacts cross the serverless process boundary without
 being parsed again; affected records are reparsed, then Atlas assembles and publishes one complete

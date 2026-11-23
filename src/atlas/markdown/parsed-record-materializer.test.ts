@@ -13,6 +13,7 @@ import {
 import { parseAtlasSourceRecords } from './build-snapshot';
 import {
   assembleParsedAtlasSourceRecordArtifacts,
+  atlasSourceRecordIdentity,
   deserializeParsedAtlasSourceRecordArtifact,
   parseAtlasSourceRecordArtifact,
 } from './parsed-record-artifact';
@@ -88,7 +89,7 @@ describe('Atlas parsed record Materializer', () => {
     expect(incremental.output?.changes).toEqual([
       expect.objectContaining({
         operation: 'set',
-        sourceRecordIdentity: 'atlas://atlas/one',
+        sourceRecordIdentity: atlasSourceRecordIdentity(targetRecords[0]),
       }),
     ]);
     expect(
@@ -139,15 +140,21 @@ describe('Atlas parsed record Materializer', () => {
     expect(incremental.result).toMatchObject({ status: 'accepted' });
     expect(incremental.output?.changes).toEqual(
       expect.arrayContaining([
-        { operation: 'delete', sourceRecordIdentity: 'atlas://atlas/delete' },
-        { operation: 'delete', sourceRecordIdentity: 'atlas://atlas/move-from' },
+        {
+          operation: 'delete',
+          sourceRecordIdentity: atlasSourceRecordIdentity(baseRecords[0]),
+        },
+        {
+          operation: 'delete',
+          sourceRecordIdentity: atlasSourceRecordIdentity(baseRecords[1]),
+        },
         expect.objectContaining({
           operation: 'set',
-          sourceRecordIdentity: 'atlas://atlas/create',
+          sourceRecordIdentity: atlasSourceRecordIdentity(targetRecords[0]),
         }),
         expect.objectContaining({
           operation: 'set',
-          sourceRecordIdentity: 'atlas://atlas/move-to',
+          sourceRecordIdentity: atlasSourceRecordIdentity(targetRecords[1]),
         }),
       ]),
     );

@@ -4,6 +4,7 @@ import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
 import { parseAtlasSourceRecords } from './build-snapshot';
 import {
   assembleParsedAtlasSourceRecordArtifacts,
+  atlasSourceRecordIdentity,
   ATLAS_PARSED_RECORD_MATERIALIZER_VERSION,
   parseAtlasSourceRecordArtifact,
 } from './parsed-record-artifact';
@@ -81,7 +82,7 @@ describe('parsed Source Record artifacts', () => {
     expect(artifact).toMatchObject({
       materializerId: 'atlas.markdown-record',
       materializerVersion: ATLAS_PARSED_RECORD_MATERIALIZER_VERSION,
-      sourceRecordIdentity: 'atlas://atlas/runtime',
+      sourceRecordIdentity: atlasSourceRecordIdentity(record),
       sourcePath: 'atlas/items/runtime.md',
     });
     expect(artifact.artifactId).not.toBe(changed.artifactId);
@@ -93,5 +94,23 @@ describe('parsed Source Record artifacts', () => {
         records: [observedAtNextRevision],
       }).items[0]?.sourceRevision,
     ).toBe('git:atlas-2');
+  });
+
+  it('keeps physically distinct records separate when their semantic paths collide', () => {
+    const records = ['plans/README.md', 'plans/done/README.md', 'plans/research/README.md'].map(
+      path =>
+        normalizeAtlasSourceRecord({
+          content: `# ${path}`,
+          path,
+          source: 'bookops',
+        }),
+    );
+    const artifacts = records.map(parseAtlasSourceRecordArtifact);
+
+    expect(new Set(records.map(record => record.canonicalPath))).toEqual(
+      new Set(['bookops://plans/README']),
+    );
+    expect(new Set(artifacts.map(artifact => artifact.sourceRecordIdentity)).size).toBe(3);
+    expect(new Set(artifacts.map(artifact => artifact.artifactId)).size).toBe(3);
   });
 });

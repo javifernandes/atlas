@@ -6,6 +6,7 @@ import type { NormalizedAtlasSourceRecord } from '../sources/normalized-source';
 import type { AtlasSourceChangeSet, AtlasSourceOperation } from '../sources/source-changeset';
 import {
   atlasParsedRecordContentHash,
+  atlasSourceRecordIdentity,
   ATLAS_PARSED_RECORD_MATERIALIZER_ID,
   ATLAS_PARSED_RECORD_MATERIALIZER_VERSION,
   parseAtlasSourceRecordArtifact,
@@ -42,17 +43,17 @@ type AtlasParsedRecordMaterializer = Materializer<
 >;
 
 const sourceInputIdentity = (sourceId: string, sourcePath: string) =>
-  JSON.stringify([sourceId, sourcePath]);
+  atlasSourceRecordIdentity({ sourceId, sourcePath });
 
 const operationInputPaths = (sourceId: string, operation: AtlasSourceOperation) =>
   (operation.kind === 'move' ? [operation.from, operation.to] : [operation.path]).map(path =>
     sourceInputIdentity(sourceId, path),
   );
 
-const directOperationOutputs = (operation: AtlasSourceOperation) => {
+const directOperationOutputs = (sourceId: string, operation: AtlasSourceOperation) => {
   if (operation.kind === 'delete') return [];
 
-  return [operation.record.canonicalPath];
+  return [atlasSourceRecordIdentity({ sourceId, sourcePath: operation.record.sourcePath })];
 };
 
 const affectedOutputsFor = (
@@ -71,7 +72,7 @@ const affectedOutputsFor = (
         outputs.add(output);
       }
     }
-    for (const output of directOperationOutputs(operation)) {
+    for (const output of directOperationOutputs(sourceId, operation)) {
       outputs.add(output);
     }
 
@@ -94,7 +95,7 @@ const isCompatibleArtifact = (
   artifact: PortableParsedAtlasSourceRecordArtifact,
   record: NormalizedAtlasSourceRecord,
 ) =>
-  artifact.sourceRecordIdentity === record.canonicalPath &&
+  artifact.sourceRecordIdentity === atlasSourceRecordIdentity(record) &&
   artifact.contentHash === atlasParsedRecordContentHash(record.content) &&
   artifact.materializerId === ATLAS_PARSED_RECORD_MATERIALIZER_ID &&
   artifact.materializerVersion === ATLAS_PARSED_RECORD_MATERIALIZER_VERSION;
@@ -120,12 +121,13 @@ export const createAtlasParsedRecordMaterializer = (options: {
       const affected = context.affectedOutputs ? new Set(context.affectedOutputs) : null;
       const artifacts = input.records
         .map(record => {
-          const previous = previousArtifacts.get(record.canonicalPath);
+          const sourceRecordIdentity = atlasSourceRecordIdentity(record);
+          const previous = previousArtifacts.get(sourceRecordIdentity);
 
           if (
             context.mode === 'incremental' &&
             previous &&
-            !affected?.has(record.canonicalPath) &&
+            !affected?.has(sourceRecordIdentity) &&
             isCompatibleArtifact(previous, record)
           ) {
             return previous;
@@ -168,7 +170,7 @@ export const createAtlasParsedRecordMaterializer = (options: {
         changes,
         dependencies: input.records.map(record => ({
           input: sourceInputIdentity(record.sourceId ?? 'atlas', record.sourcePath),
-          outputs: [record.canonicalPath],
+          outputs: [atlasSourceRecordIdentity(record)],
         })),
         diagnostics: [],
         state: { artifactIds: artifacts.map(artifact => artifact.artifactId) },
