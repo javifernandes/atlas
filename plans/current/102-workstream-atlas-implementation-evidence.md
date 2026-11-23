@@ -8,6 +8,11 @@ Depends on: [111. Atlas As An Ontahi Application](../done/111-atlas-as-ontahi-ap
 Persistence foundation:
 [116. Atlas Ontahi PostgreSQL Persistence](../done/116-atlas-ontahi-postgres-persistence.md)
 
+Product consumers:
+
+- [159. Work Classification And Evolution Facets](./159-work-classification-and-evolution-facets.md)
+- [160. Release Stories And Item Evolution](./160-release-stories-and-item-evolution.md)
+
 ## Summary
 
 Connect curated Atlas Items and Plans to the implementation components, public surfaces,
@@ -84,7 +89,8 @@ without pretending they have the same authority or storage lifecycle.
 6. Model package versions, releases, and their included Changesets without treating them as curated
    Markdown Items.
 7. Support provenance-bearing inferred bindings after explicit and deterministic evidence works.
-8. Render Plan/Item-to-version and version-to-change projections.
+8. Provide the provenance-bearing Plan/Item-to-version and version-to-change projections consumed
+   by Plan 160's Release Story and Item Evolution experience.
 9. Establish data ownership, refresh, idempotency, and historical retention rules.
 
 ## Non-Goals
@@ -282,9 +288,11 @@ Changeset and release history:
 
 1. Observe published package versions and releases.
 2. Resolve which Changesets and PRs were included in each version.
-3. Render `Plan/Item -> first version / later versions` and
-   `Version/Release -> Changesets / PRs / Plans / Items / Surfaces`.
+3. Expose `Plan/Item -> first version / later versions` and
+   `Version/Release -> Changesets / PRs / Plans / Items / Surfaces` as provenance-bearing product
+   projections.
 4. Show uncertainty when a historical relationship cannot be reconstructed exactly.
+5. Leave evolutionary-moment grouping and Release Story narrative to Plan 160.
 
 ### Slice 3: Semantic inference and wider evidence
 
@@ -331,6 +339,8 @@ Changeset and release history:
 15. Fixed, linked, and independent package groups are versioning policies over Components, not
     Components themselves.
 16. Complete Plan 116's Ontahi/PostgreSQL persistence boundary before Changeset ingestion.
+17. Keep evidence ingestion and relationship derivation in this Plan; Plan 160 owns the narrative
+    Release Story and Item Evolution experience built from those projections.
 
 ## Open Questions
 

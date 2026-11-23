@@ -8,6 +8,8 @@ horizon: now
 supports: []
 relatedPlans:
   - plans/current/102-workstream-atlas-implementation-evidence.md
+  - plans/current/159-work-classification-and-evolution-facets.md
+  - plans/current/160-release-stories-and-item-evolution.md
   - plans/done/147-goal-model-v0.md
 ---
 

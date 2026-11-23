@@ -36,4 +36,30 @@ describe('ScrollableOverflow', () => {
     expect(screen.getByLabelText('1 more above')).toHaveTextContent('1 more');
     expect(screen.getByLabelText('1 more below')).toHaveTextContent('1 more');
   });
+
+  it('counts nested rows selected by the consumer', () => {
+    render(
+      <ScrollableOverflow
+        axis='vertical'
+        itemSelector='[data-row]'
+        viewportProps={{ 'aria-label': 'Nested results' }}
+      >
+        <div>
+          <div data-row>One</div>
+          <div data-row>Two</div>
+          <div data-row>Three</div>
+        </div>
+      </ScrollableOverflow>,
+    );
+    const viewport = screen.getByLabelText('Nested results');
+    const items = [...viewport.querySelectorAll<HTMLElement>('[data-row]')];
+
+    viewport.getBoundingClientRect = () => rect(0, 100) as DOMRect;
+    items[0]!.getBoundingClientRect = () => rect(0, 40) as DOMRect;
+    items[1]!.getBoundingClientRect = () => rect(40, 90) as DOMRect;
+    items[2]!.getBoundingClientRect = () => rect(90, 140) as DOMRect;
+    fireEvent.scroll(viewport);
+
+    expect(screen.getByLabelText('1 more below')).toHaveTextContent('1 more');
+  });
 });

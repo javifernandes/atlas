@@ -20,6 +20,7 @@ type ScrollableOverflowProps = {
   children: ReactNode;
   className?: string;
   contentClassName?: string;
+  itemSelector?: string;
   viewportClassName?: string;
   viewportRef?: MutableRefObject<HTMLDivElement | null>;
   viewportProps?: HTMLAttributes<HTMLDivElement>;
@@ -91,6 +92,7 @@ export const ScrollableOverflow = ({
   children,
   className,
   contentClassName,
+  itemSelector,
   viewportClassName,
   viewportProps,
   viewportRef: externalViewportRef,
@@ -105,7 +107,9 @@ export const ScrollableOverflow = ({
     if (!viewport || !content) return;
 
     const viewportRect = viewport.getBoundingClientRect();
-    const items = [...content.children] as HTMLElement[];
+    const items = itemSelector
+      ? [...content.querySelectorAll<HTMLElement>(itemSelector)]
+      : ([...content.children] as HTMLElement[]);
     let start = 0;
     let end = 0;
 
@@ -123,7 +127,7 @@ export const ScrollableOverflow = ({
     setHidden(current =>
       current.start === start && current.end === end ? current : { end, start },
     );
-  }, [axis]);
+  }, [axis, itemSelector]);
 
   useEffect(() => {
     measure();

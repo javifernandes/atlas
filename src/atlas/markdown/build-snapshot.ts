@@ -21,6 +21,9 @@ import type {
   PlanWorkstreamNode,
   PlanWorkstreamSnapshot,
   PlanWorkstreamTerritory,
+  WorkCompatibility,
+  WorkImpactScope,
+  WorkNature,
 } from '../model/snapshot';
 import { isAtlasItemKind, type AtlasItemKind } from '../model/item-kind';
 import type {
@@ -45,6 +48,9 @@ export type ParsedPlan = {
   horizon?: string;
   area?: string;
   codename?: string;
+  workNature?: WorkNature;
+  impactScopes: WorkImpactScope[];
+  compatibility?: WorkCompatibility;
   territory: string;
   workstream: string;
   path: string;
@@ -191,6 +197,43 @@ const parseMetadata = (content: string) => {
 
   return metadata;
 };
+
+const workNatures = new Set<WorkNature>([
+  'feature',
+  'fix',
+  'refactor',
+  'migration',
+  'maintenance',
+  'research',
+  'documentation',
+]);
+const workImpactScopes = new Set<WorkImpactScope>([
+  'internal',
+  'public-surface',
+  'consumer-behavior',
+  'data-shape',
+  'operational',
+]);
+const workCompatibilities = new Set<WorkCompatibility>([
+  'compatible',
+  'migration-required',
+  'breaking',
+  'unknown',
+]);
+
+const parseBoundedMetadataValue = <T extends string>(
+  value: string | undefined,
+  allowed: ReadonlySet<T>,
+) => (value && allowed.has(value as T) ? (value as T) : undefined);
+
+const parseBoundedMetadataList = <T extends string>(
+  value: string | undefined,
+  allowed: ReadonlySet<T>,
+) =>
+  (value ?? '')
+    .split(/[;,]/)
+    .map(item => item.trim())
+    .filter((item): item is T => allowed.has(item as T));
 
 const parseFrontmatter = (content: string) => {
   const match = content.match(/^---\n([\s\S]*?)\n---\n?/);
@@ -361,6 +404,12 @@ export const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
   const planKind = metadata['plan-kind'];
   const area = metadata.area;
   const codename = metadata.codename;
+  const workNature = parseBoundedMetadataValue(metadata['work-nature'], workNatures);
+  const impactScopes = parseBoundedMetadataList(metadata['impact-scopes'], workImpactScopes);
+  const compatibility = parseBoundedMetadataValue(
+    metadata.compatibility,
+    workCompatibilities,
+  );
   const territory =
     metadata.territory ?? (file.sourceId ? humanizeIdentifier(file.sourceId) : 'Plans');
   const workstream = metadata.workstream ?? codename ?? humanizeIdentifier(statusGroup);
@@ -381,6 +430,9 @@ export const parsePlan = (file: PlanMarkdownFile): ParsedPlan => {
     horizon: metadata.horizon,
     area,
     codename,
+    workNature,
+    impactScopes,
+    compatibility,
     territory,
     workstream,
     path: file.canonicalPath,
@@ -602,6 +654,13 @@ const toPlanNode = (plan: ParsedPlan): PlanWorkstreamNode => ({
   horizon: plan.horizon,
   area: plan.area,
   codename: plan.codename,
+  workClassification: plan.workNature
+    ? {
+        nature: plan.workNature,
+        impactScopes: plan.impactScopes,
+        ...(plan.compatibility ? { compatibility: plan.compatibility } : {}),
+      }
+    : undefined,
   territory: plan.territory,
   workstream: plan.workstream,
   path: plan.path,
