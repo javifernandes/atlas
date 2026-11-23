@@ -8,12 +8,14 @@ horizon: now
 relatedPlans:
   - plans/current/146-package-manifest-and-classroom-model.md
   - plans/current/153-replication-and-adaptive-materialization.md
+  - plans/current/156-entity-behavior-lenses-spike.md
   - plans/done/154-unified-source-and-derivation-model.md
 exemplars:
   - ontahi.examples.classroom.user
   - ontahi.examples.classroom.classroom
   - ontahi.examples.classroom.enrollment
   - ontahi.examples.classroom.enrollment-invitation
+  - spec-workstream-atlas.access-identity.workspace.invitation
 ---
 
 An Entity is a durable Atlas Item whose identity, data, relations, state, operations, and invariants
@@ -83,7 +85,8 @@ Actor label or treat presentation grouping as executable policy.
 Atlas parses the five tables at reconciliation time. Entity detail may then render the first two
 behavior projections as switchable views inside the States section:
 
-1. a statechart from States and Operation transitions;
+1. an Atlas state graph from States and Operation transitions, with linked Operations remaining
+   navigable from transition labels;
 2. an availability matrix from Operation actor and applicability declarations;
 3. later interaction or authorization views from the same typed facts.
 
@@ -91,6 +94,11 @@ behavior projections as switchable views inside the States section:
 Actor. Keeping both behind one local view selector makes their shared source explicit and avoids
 presenting the availability projection as another authored Operations table. The Operations table
 remains the compact definition index below the behavior views.
+
+The state graph is an Atlas projection over `EntityModel`; ELK may arrange its nodes and edges but
+does not own semantics. An edge represents the successful transition effect of invoking an
+Operation, not the entire Operation contract. Selecting a linked edge navigates to that standalone
+contract, where availability, failures, invariants, and other effects remain authoritative.
 
 When full Entity Markdown is loaded lazily from projection storage, Atlas derives this typed model
 from the loaded source before rendering either view. A lightweight graph snapshot therefore does
@@ -106,6 +114,10 @@ shaping.
 | --- | --- |
 | `Rule` | Stable identifier suitable for discussion and later validation |
 | `Constraint` | Condition that every valid state transition must preserve |
+
+An invariant is a stable addressable part of its Entity, not an independent global Item. Its
+scoped identity is `<entity-id>#invariant:<rule>`. It should become a standalone Item only if it
+later earns independent ownership, evidence, navigation, or evolution beyond the Entity contract.
 
 ## Progressive Reification
 

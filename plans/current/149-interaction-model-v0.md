@@ -484,6 +484,10 @@ later compact language, visual editor, or Mermaid importer must compile to the s
 - [ ] Show branches and multiple outcomes without inventing Event Items.
 - [x] Validate the first local slice against `Respond To Workspace Invitation`, including the three
       contextual identity-proof branches and the accept/decline decision.
+- [x] Validate the Activity Graph against the read-only `Review Discovered Contributors`
+      realization, including candidate selection, repeated review, and a child-Interaction handoff.
+- [x] Validate the Activity Graph against `Invite Person To Workspace`, including three recipient
+      addressing paths, convergence before access selection, and one authoritative Operation.
 - [ ] Compare Graph and Blueprint readings in the running application; retain both only while each
       exposes distinct useful information.
 - [x] Record `Play` as a follow-up lens without implementing generated screens in this slice.
@@ -551,11 +555,28 @@ later compact language, visual editor, or Mermaid importer must compile to the s
 
 ### Slice 6 — implementation contrast
 
-- [ ] Map the existing Workspace Settings contributor section to the exemplar by hand.
-- [ ] Record which React components, Graph Queries, selections, and Operations currently realize
+- [x] Map the existing Workspace Settings contributor section to the exemplar by hand.
+- [x] Record which React components, Graph Queries, selections, and Operations currently realize
       each part.
-- [ ] Identify missing product behavior separately from missing implementation bindings.
+- [x] Identify missing product behavior separately from missing implementation bindings.
 - [ ] Decide whether `realizedBy` belongs in Interaction v1 or in implementation evidence.
+
+The second Activity Graph exemplar is deliberately accountable to the existing Settings surface.
+`WorkspaceSettings` and `workspaceContributorsQuery` load a derived
+`AtlasWorkspaceContributor` projection, group participation across Sources, and filter out linked
+Users with active Membership. The realization presents evidence and GitHub profile navigation but
+invokes no Operation. `Invite contributor` is therefore a child-Interaction handoff in the product
+model and an explicit implementation gap, not a fictional Settings mutation. `Open member` and the
+corresponding outcome were removed from this Interaction because the current review collection
+already excludes active members; membership inspection belongs to a separate Interaction.
+
+The invitation-creation exemplar distinguishes recipient addressing from recipient proof. A known
+User ID, observed stable provider identity, or owner-provided email delivery address can select the
+claim policy recorded by the invitation, but none proves the future claimant or grants access.
+Those paths converge before role and expiry selection; `Invite` remains the single authoritative
+domain Operation. Creating a Workspace Invitation record is its effect rather than its name. The
+email path is intentionally not called “verified email” because
+verification belongs to the recipient's later claim Interaction.
 
 `Configure Workspace Model Connection` in Plan 158 is the second exemplar and first
 design-before-realization experiment. Its Service Blueprint aligns actor action and visible
@@ -570,6 +591,10 @@ details into the Interaction.
 - [x] Model invitation paths for a known Atlas User, observed GitHub identity, and verified email.
 - [x] Keep identity proof, invitation claim, and invitation acceptance as separate Operation
       responsibilities.
+- [x] Reify Workspace Invitation as an Entity with a state diagram and standalone Invite, Claim,
+      Accept, and Decline Operation contracts.
+- [x] Keep Activity nodes linked to Atlas Operations and place typed runtime realization references
+      on the Operation instead of embedding free-form Ontahí symbols in the Interaction.
 - [ ] Model Workspace Source import far enough to pressure asynchronous progress, webhook stimuli,
       cancellation, retry, and completion without adding unsupported primitives in advance.
 - [ ] Model Workspace model-connection configuration far enough to pressure secret ingress,

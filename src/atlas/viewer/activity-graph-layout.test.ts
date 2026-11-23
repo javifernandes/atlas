@@ -39,8 +39,57 @@ describe('Activity Graph layout', () => {
   });
 
   it('keeps branch intent on edges but omits results repeated by outcome nodes', () => {
-    expect(activityGraphEdgeLabel({ id: 'accept', affordance: 'Accept', from: 'a', to: 'b' })).toBe('Accept');
+    expect(activityGraphEdgeLabel({ id: 'accept', affordance: 'Accept', branch: 'Yes', from: 'a', to: 'b' })).toBe('Yes');
     expect(activityGraphEdgeLabel({ id: 'done', from: 'b', result: 'Invitation accepted', to: 'c' })).toBeUndefined();
+  });
+
+  it('places retry activities below the primary path and returns through a lower corridor', () => {
+    const graph: ActivityGraph = {
+      actors: [],
+      entry: 'authenticated',
+      nodes: [
+        { id: 'authenticated', kind: 'decision', label: 'Authenticated?', reads: [], presents: [] },
+        { id: 'authenticate', kind: 'activity', label: 'Sign in', reads: [], presents: [] },
+        { id: 'continue', kind: 'decision', label: 'Continue', reads: [], presents: [] },
+      ],
+      transitions: [
+        { id: 'sign-in', from: 'authenticated', to: 'authenticate' },
+        { id: 'retry', from: 'authenticate', to: 'authenticated' },
+        { id: 'continue', from: 'authenticated', to: 'continue' },
+      ],
+    };
+
+    const projection = buildActivityGraphLensProjection(graph);
+    const layout = buildActivityGraphLayout(projection);
+    const authenticated = layout.nodes.find(node => node.id === 'authenticated')!;
+    const authenticate = layout.nodes.find(node => node.id === 'authenticate')!;
+    const continuation = layout.nodes.find(node => node.id === 'continue')!;
+    const path = buildActivityGraphEdgePath(authenticate, authenticated, true, layout.height);
+
+    expect(authenticate.y).toBeGreaterThan(continuation.y);
+    expect(path).toContain(' L ');
+    expect(path).toContain(String(authenticate.y + authenticate.height + 48));
+  });
+
+  it('routes long forward transitions through an outer corridor', () => {
+    const source = {
+      actorBinding: undefined,
+      height: 82,
+      id: 'source',
+      incoming: [],
+      isEntry: true,
+      kind: 'decision' as const,
+      label: 'Source',
+      outgoing: [],
+      presents: [],
+      reads: [],
+      width: 220,
+      x: 100,
+      y: 100,
+    };
+    const target = { ...source, id: 'target', isEntry: false, x: 900 };
+
+    expect(buildActivityGraphEdgePath(source, target, false, 600)).toContain(' L ');
   });
 
   it('reveals a selected node inside the canvas area left visible by an inspector', () => {

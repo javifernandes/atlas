@@ -26,7 +26,7 @@ describe('Entity Model Markdown', () => {
 
 | Operation | Actor | Applies when | Transition | Effects |
 | --- | --- | --- | --- | --- |
-| [\`Accept\`](./accept.md) | \`Recipient\` | status is Pending | \`Pending -> Accepted\` | create Enrollment |
+| [[invitation.accept\\|Accept]] | \`Recipient\` | status is Pending | \`Pending -> Accepted\` | create Enrollment |
 
 ## Invariants
 
@@ -45,7 +45,7 @@ describe('Entity Model Markdown', () => {
         appliesWhen: 'status is Pending',
         effects: 'create Enrollment',
         name: 'Accept',
-        reference: './accept.md',
+        reference: 'invitation.accept',
         transition: 'Pending -> Accepted',
       },
     ]);
@@ -76,5 +76,20 @@ describe('Entity Model Markdown', () => {
         ],
       })[0],
     ).toMatchObject({ state: 'Before creation', actor: 'Owner' });
+
+    const creationStatechart = buildEntityStatechart({
+      ...model,
+      operations: [
+        {
+          name: 'Invite',
+          actor: 'Owner',
+          appliesWhen: 'no equivalent invitation exists',
+          transition: 'none -> Pending',
+          effects: 'persist invitation',
+        },
+      ],
+    });
+    expect(creationStatechart?.match(/\[\*\] --> Pending/g)).toHaveLength(1);
+    expect(creationStatechart).toContain('[*] --> Pending : Invite · Owner');
   });
 });

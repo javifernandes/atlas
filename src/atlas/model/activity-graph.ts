@@ -46,6 +46,7 @@ export type ActivityTransition = {
   id: string;
   from: string;
   to: string;
+  branch?: string;
   guard?: string;
   trigger?: string;
   affordance?: string;

@@ -13,13 +13,15 @@ export const sectionText = (markdown: string, title: string) => {
   return match?.[1]?.trim() ?? '';
 };
 
-const cleanCell = (value: string) =>
-  value
-    .trim()
+const cleanCell = (value: string) => {
+  const normalized = value.trim().replaceAll(/\\\|/g, '|');
+  const wikiLink = normalized.match(/^\[\[[^\]|]+\|([^\]]+)\]\]$/);
+
+  return (wikiLink?.[1]?.trim() ?? normalized)
     .replace(/^`([^`]*)`$/, '$1')
     .replace(/^\[`([^`]*)`\]\([^)]+\)$/, '$1')
-    .replace(/^\[([^\]]+)\]\([^)]+\)$/, '$1')
-    .replaceAll(/\\\|/g, '|');
+    .replace(/^\[([^\]]+)\]\([^)]+\)$/, '$1');
+};
 
 export const markdownReference = (value: string) => {
   const markdownLink = value.trim().match(/^\[(?:`)?[^\]]+(?:`)?\]\(([^)]+)\)$/);
@@ -181,12 +183,23 @@ export const buildEntityStatechart = (model: EntityModel) => {
 
   const lines = ['stateDiagram-v2'];
   const stateIds = new Map(model.states.map(state => [state.name, mermaidIdentifier(state.name)]));
+  const explicitEntryStates = new Set(
+    model.operations.flatMap(operation => {
+      const transition = operation.transition.match(/^(.+?)\s*->\s*(.+)$/);
+
+      return transition && /^none$/i.test(transition[1]?.trim() ?? '')
+        ? [transition[2]?.trim() ?? '']
+        : [];
+    }),
+  );
 
   for (const state of model.states) {
     lines.push(`  state "${mermaidLabel(state.name)}" as ${stateIds.get(state.name)}`);
   }
 
-  for (const state of model.states.filter(state => state.kind === 'initial')) {
+  for (const state of model.states.filter(
+    state => state.kind === 'initial' && !explicitEntryStates.has(state.name),
+  )) {
     lines.push(`  [*] --> ${stateIds.get(state.name)}`);
   }
 

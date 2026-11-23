@@ -43,6 +43,34 @@ export type EntityItemModel = {
   entity: EntityModel;
 };
 
+export type OperationRealizationReference = {
+  namespace: string;
+  kind: string;
+  target: string;
+  status?: string;
+};
+
+export type OperationInvariantReference = {
+  rule: string;
+  ownerReference?: string;
+  reference?: string;
+  resolution?: 'resolved' | 'unresolved';
+  targetNodeId?: string;
+  constraint?: string;
+};
+
+export type OperationItemModel = {
+  kind: 'operation';
+  receiver?: string;
+  actor?: string;
+  inputsAndOutput?: string;
+  availability?: string;
+  transitionAndEffects?: string;
+  failures?: string[];
+  invariantsPreserved?: OperationInvariantReference[];
+  realizationRefs: OperationRealizationReference[];
+};
+
 export type InteractionReference = {
   label: string;
   reference?: string;
@@ -87,7 +115,11 @@ export type InteractionItemModel = {
   }>;
 };
 
-export type AtlasItemModel = PackageItemModel | EntityItemModel | InteractionItemModel;
+export type AtlasItemModel =
+  | PackageItemModel
+  | EntityItemModel
+  | OperationItemModel
+  | InteractionItemModel;
 
 type ItemModelCarrier = {
   entityModel?: EntityModel;
@@ -118,6 +150,9 @@ export const getEntityItemModel = (node: ItemModelCarrier): EntityItemModel | un
     ? { entity: node.entityModel, kind: 'entity' }
     : undefined;
 };
+
+export const getOperationItemModel = (node: ItemModelCarrier): OperationItemModel | undefined =>
+  node.itemModel?.kind === 'operation' ? node.itemModel : undefined;
 
 export const getInteractionItemModel = (node: ItemModelCarrier) =>
   node.itemModel?.kind === 'interaction' ? node.itemModel : undefined;

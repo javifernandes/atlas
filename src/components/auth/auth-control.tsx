@@ -1,11 +1,11 @@
 'use client';
 
-import { Github, LogOut } from 'lucide-react';
+import { Github, LogOut, Moon, Sun } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import type { AtlasViewer } from '@/auth/access';
 import { atlasAuthClient } from '@/auth/client';
-import { atlasDetailSurfaceChangedEvent } from '@/atlas/viewer/detail-surface-events';
+import { useTheme } from '@/components/theme-provider';
 import { cn } from '@/lib/classes';
 
 type AuthControlProps = {
@@ -13,6 +13,26 @@ type AuthControlProps = {
   className?: string;
   viewer: AtlasViewer | null;
   variant?: 'chrome' | 'compact' | 'sign-in';
+};
+
+const ThemeMenuItem = ({ onSelect }: { onSelect: () => void }) => {
+  const { theme, toggleTheme } = useTheme();
+  const nextTheme = theme === 'light' ? 'dark' : 'light';
+
+  return (
+    <button
+      type='button'
+      role='menuitem'
+      className='flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+      onClick={() => {
+        toggleTheme();
+        onSelect();
+      }}
+    >
+      {nextTheme === 'dark' ? <Moon className='size-4' /> : <Sun className='size-4' />}
+      Switch to {nextTheme} mode
+    </button>
+  );
 };
 
 export const AuthControl = ({
@@ -24,7 +44,6 @@ export const AuthControl = ({
   const [pendingAction, setPendingAction] = useState<'sign-in' | 'sign-out' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [detailSurfaceOpen, setDetailSurfaceOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,25 +61,6 @@ export const AuthControl = ({
       document.removeEventListener('keydown', escape);
     };
   }, [menuOpen]);
-
-  useEffect(() => {
-    if (variant !== 'chrome') return;
-    const update = (event?: Event) => {
-      setDetailSurfaceOpen(
-        event instanceof CustomEvent
-          ? Boolean(event.detail)
-          : new URLSearchParams(globalThis.location.search).has('full'),
-      );
-    };
-
-    update();
-    globalThis.addEventListener(atlasDetailSurfaceChangedEvent, update);
-    globalThis.addEventListener('popstate', update);
-    return () => {
-      globalThis.removeEventListener(atlasDetailSurfaceChangedEvent, update);
-      globalThis.removeEventListener('popstate', update);
-    };
-  }, [variant]);
 
   if (!authAvailable) {
     return null;
@@ -134,8 +134,7 @@ export const AuthControl = ({
     return (
       <div
         className={cn(
-          'flex items-center transition-[top]',
-          detailSurfaceOpen ? 'top-[2.875rem]' : 'top-3',
+          'top-3 flex items-center',
           className,
         )}
         ref={menuRef}
@@ -159,6 +158,7 @@ export const AuthControl = ({
               <p className='truncate text-sm font-medium'>{viewer.name}</p>
               <p className='truncate text-xs text-muted-foreground'>{viewer.email}</p>
             </div>
+            <ThemeMenuItem onSelect={() => setMenuOpen(false)} />
             <button
               type='button'
               role='menuitem'

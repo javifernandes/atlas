@@ -115,6 +115,66 @@ status: shaping
     );
   });
 
+  it('resolves Operation invariant references inside the receiver Entity scope', () => {
+    const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
+      {
+        path: 'atlas/items/invitation.md',
+        content: `---
+id: atlas.workspace.invitation
+kind: entity
+title: Workspace Invitation
+status: shaping
+---
+
+## Invariants
+
+| Rule | Constraint |
+| --- | --- |
+| \`address-is-not-proof\` | Selecting an address never grants access. |
+`,
+      },
+      {
+        path: 'atlas/items/invitation/invite.md',
+        content: `---
+id: atlas.workspace.invitation.invite
+kind: operation
+title: Invite
+parent: atlas.workspace.invitation
+status: shaping
+---
+
+## Invariants Preserved
+
+- \`address-is-not-proof\`
+- \`missing-rule\`
+`,
+      },
+    ]);
+
+    const operation = snapshot.nodes.find(node => node.id === 'atlas:atlas.workspace.invitation.invite');
+    expect(operation?.itemModel).toEqual(expect.objectContaining({
+      kind: 'operation',
+      invariantsPreserved: [
+        {
+          constraint: 'Selecting an address never grants access.',
+          ownerReference: 'atlas.workspace.invitation',
+          reference: 'atlas.workspace.invitation#invariant:address-is-not-proof',
+          resolution: 'resolved',
+          rule: 'address-is-not-proof',
+          targetNodeId: 'atlas:atlas.workspace.invitation',
+        },
+        {
+          constraint: undefined,
+          ownerReference: 'atlas.workspace.invitation',
+          reference: 'atlas.workspace.invitation#invariant:missing-rule',
+          resolution: 'unresolved',
+          rule: 'missing-rule',
+          targetNodeId: undefined,
+        },
+      ],
+    }));
+  });
+
   it('projects explicit Plan advances Goal relations without accepting non-Goal targets', () => {
     const snapshot = buildPlanWorkstreamSnapshotFromFiles(
       [

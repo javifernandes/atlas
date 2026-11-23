@@ -74,6 +74,20 @@ export const buildActivityGraphLensProjection = (
     }
   }
 
+  // Retry activities are often reused from a later validation branch. Keeping
+  // the longest-path rank would push them past that branch and turn the first
+  // retry into a graph-wide loop. Anchor them beside their earliest caller;
+  // later callers then return through the same explicit retry lane.
+  const retryNodeIds = new Set([...backTransitions].map(transition => transition.from));
+  for (const nodeId of retryNodeIds) {
+    const earliestIncomingRank = Math.min(
+      ...forwardTransitions
+        .filter(transition => transition.to === nodeId)
+        .map(transition => (rank.get(transition.from) ?? 0) + 1),
+    );
+    if (Number.isFinite(earliestIncomingRank)) rank.set(nodeId, earliestIncomingRank);
+  }
+
   const maximumRank = Math.max(0, ...rank.values());
   const columns = Array.from({ length: maximumRank + 1 }, (_, index) => ({
     id: `activity-column-${index}`,

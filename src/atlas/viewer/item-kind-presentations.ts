@@ -5,7 +5,7 @@ export type ItemKindEvolution = 'descendant-plans' | 'self';
 
 export type ItemKindPresentation = {
   detail?: {
-    overview?: 'interaction-details' | 'package-details';
+    overview?: 'interaction-details' | 'operation-details' | 'package-details';
     renderMarkdown?: boolean;
     sections?: Record<string, 'entity-behavior'>;
   };
@@ -18,6 +18,7 @@ const presentationOverrides: Partial<Record<PlanNodeKind, Partial<ItemKindPresen
   entity: { detail: { sections: { states: 'entity-behavior' } } },
   interaction: { detail: { overview: 'interaction-details', renderMarkdown: false } },
   model: { visualRole: 'container' },
+  operation: { detail: { overview: 'operation-details' } },
   package: {
     detail: { overview: 'package-details' },
     evolution: 'descendant-plans',

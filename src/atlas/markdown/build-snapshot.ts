@@ -23,7 +23,11 @@ import type {
   PlanWorkstreamTerritory,
 } from '../model/snapshot';
 import { isAtlasItemKind, type AtlasItemKind } from '../model/item-kind';
-import type { InteractionItemModel, InteractionReference } from '../model/item-kind';
+import type {
+  InteractionItemModel,
+  InteractionReference,
+  OperationItemModel,
+} from '../model/item-kind';
 import { resolveActivityGraphReferences } from '../model/activity-graph-resolution';
 import { parseItemKindModel } from './item-kind-definitions';
 
@@ -950,6 +954,27 @@ const buildSemanticSnapshotFromFiles = (
     };
   };
   const resolvedAtlasItems = atlasItems.map(item => {
+    if (item.itemModel?.kind === 'operation') {
+      const model: OperationItemModel = {
+        ...item.itemModel,
+        invariantsPreserved: item.itemModel.invariantsPreserved?.map(reference => {
+          const owner = reference.ownerReference
+            ? initialItemById.get(reference.ownerReference)
+            : undefined;
+          const invariant = owner?.itemModel?.kind === 'entity'
+            ? owner.itemModel.entity.invariants.find(candidate => candidate.rule === reference.rule)
+            : undefined;
+
+          return {
+            ...reference,
+            constraint: invariant?.constraint,
+            resolution: invariant ? ('resolved' as const) : ('unresolved' as const),
+            targetNodeId: invariant ? owner?.nodeId : undefined,
+          };
+        }),
+      };
+      return { ...item, itemModel: model };
+    }
     if (item.itemModel?.kind !== 'interaction') return item;
     const activity = item.itemModel.activity
       ? resolveActivityGraphReferences(item.itemModel.activity, reference => {

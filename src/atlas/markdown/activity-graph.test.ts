@@ -43,6 +43,7 @@ activity:
     - id: invitation-claimable
       from: can-respond
       to: claim
+      branch: "Yes"
       guard: invitation is pending
       affordance: Continue
 \`\`\`
@@ -82,6 +83,7 @@ activity:
         {
           id: 'invitation-claimable',
           affordance: 'Continue',
+          branch: 'Yes',
           from: 'can-respond',
           guard: 'invitation is pending',
           to: 'claim',
@@ -168,6 +170,48 @@ activity:
         expect.objectContaining({ id: 'resolve-context', kind: 'activity' }),
         expect.objectContaining({ id: 'addressing-policy', kind: 'decision' }),
         expect.objectContaining({ id: 'claim-invitation', kind: 'operation' }),
+      ]),
+    });
+  });
+
+  it('parses the authored contributor-review exemplar without diagnostics', () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        'atlas/items/spec-workstream-atlas/access-and-identity/review-discovered-contributors.md',
+      ),
+      'utf8',
+    );
+    const result = parseActivityGraph(source);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.graph).toMatchObject({
+      entry: 'review-opened',
+      nodes: expect.arrayContaining([
+        expect.objectContaining({ id: 'load-candidates', kind: 'activity' }),
+        expect.objectContaining({ id: 'candidates-available', kind: 'decision' }),
+        expect.objectContaining({ id: 'invite-contributor', kind: 'interaction' }),
+      ]),
+    });
+  });
+
+  it('parses the authored Invite Person To Workspace exemplar without diagnostics', () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        'atlas/items/spec-workstream-atlas/access-and-identity/invite-person-to-workspace.md',
+      ),
+      'utf8',
+    );
+    const result = parseActivityGraph(source);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.graph).toMatchObject({
+      entry: 'invitation-begun',
+      nodes: expect.arrayContaining([
+        expect.objectContaining({ id: 'addressing-path', kind: 'decision' }),
+        expect.objectContaining({ id: 'recipient-addressed', kind: 'merge' }),
+        expect.objectContaining({ id: 'invite', kind: 'operation' }),
       ]),
     });
   });
