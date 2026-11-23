@@ -1,4 +1,5 @@
 import { loadAtlasPullRequestEvidenceObservation } from '../github/pull-request-evidence';
+import { loadAtlasReleaseEvidenceObservation } from '../github/release-evidence';
 import {
   loadAtlasSourceObservation,
   loadAtlasSourceRegistrations,
@@ -18,9 +19,14 @@ import {
 type LoadedAtlasProjectionInput = Awaited<ReturnType<typeof loadAtlasProjectionInput>>;
 export type AtlasProjectionInput = Omit<
   LoadedAtlasProjectionInput,
-  'incrementalBaselineProjectionRevisionId' | 'sourceChangeSet'
+  | 'incrementalBaselineProjectionRevisionId'
+  | 'observedReleases'
+  | 'releaseFailures'
+  | 'sourceChangeSet'
 > & {
   incrementalBaselineProjectionRevisionId?: string | null;
+  observedReleases?: LoadedAtlasProjectionInput['observedReleases'];
+  releaseFailures?: LoadedAtlasProjectionInput['releaseFailures'];
   sourceChangeSet?: AtlasSourceChangeSet | null;
 };
 export type AtlasProjectionSourceBaseline = {
@@ -149,7 +155,7 @@ export const loadAtlasProjectionInput = async (input: {
         registrations.map(registration => registration.sourceId),
       ),
   );
-  const [sourceObservation, evidenceObservation] = await Promise.all([
+  const [sourceObservation, evidenceObservation, releaseObservation] = await Promise.all([
     loadAtlasSourceObservation({
       fetcher: input.fetcher,
       preferRemoteAtlas: input.preferRemoteAtlas,
@@ -159,6 +165,10 @@ export const loadAtlasProjectionInput = async (input: {
       repoRoot: input.repoRoot,
     }),
     loadAtlasPullRequestEvidenceObservation({
+      fetcher: input.fetcher,
+      repoRoot: input.repoRoot,
+    }),
+    loadAtlasReleaseEvidenceObservation({
       fetcher: input.fetcher,
       repoRoot: input.repoRoot,
     }),
@@ -187,6 +197,8 @@ export const loadAtlasProjectionInput = async (input: {
       : null,
     observedAt: sourceObservation.observedAt,
     observedPullRequests: evidenceObservation.pullRequests,
+    observedReleases: releaseObservation.releases,
+    releaseFailures: releaseObservation.failures,
     records: sourceProjection.records,
     sourceChangeSet: sourceProjection.sourceChangeSet,
     sourceRevisions: sourceProjection.sourceRevisions,

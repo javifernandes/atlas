@@ -482,6 +482,23 @@ public Surfaces, package manifests, a fixed Changesets group, and published vers
 the model can be verified. BookOps can adopt the same declarations later without blocking the
 first release-evidence slice.
 
+### 2026-11-23 — first published Release and Component Version projection
+
+The first release-evidence slice observes non-draft GitHub Releases and extracts Component Versions
+from the package headings produced by Changesets. GitHub remains authoritative for the publication
+boundary; an open release PR is candidate evidence and cannot establish a published version.
+
+Release-note `Implements` and `Shapes` assertions are resolved through the same canonical Plan and
+Item identities used by merged-PR evidence. Atlas stores the resulting release projection in the
+reconciled snapshot and exposes it bidirectionally through Plan 160's release markers and Source
+detail.
+Changeset commit identifiers in the generated notes also join a Component Version to the exact
+merged PR and therefore inherit that PR's explicit Plan and Item assertions with
+`included-pull-request` provenance.
+This slice deliberately does not infer bindings from release titles, mutate Plan status, or claim
+that all Changeset source history has been retained. Durable pre-publication Changeset ingestion
+and complete Release Story navigation remain later evidence slices.
+
 ### 2026-09-03 — persistence gate completed
 
 Plan 116 completed the Neon-backed Ontahi composition for page reads, Runtime Protocol operations,

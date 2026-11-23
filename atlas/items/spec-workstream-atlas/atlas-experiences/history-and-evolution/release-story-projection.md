@@ -36,6 +36,16 @@ size to encode daily volume. Hover or keyboard focus exposes the date and indivi
 This keeps delivery evidence connected to—but ontologically separate from—Plans and durable shapes,
 while leaving room to distinguish complete Item history from a selected evolutionary line.
 
+Published availability now appears on that same surface as a compact diamond on delivery time.
+Atlas observes non-draft GitHub Releases, extracts their Changesets-generated Component Version
+headings, and resolves only explicit release-note assertions. An Item inherits the signal when the
+published version binds either to the Item itself or to a Plan already present in its evolution
+map. Readable package/version and provenance detail lives in Source rather than in a competing
+timeline hover, with exact npm version links when the Component uses npm package identity. The
+release and version stay separate from raw PR chronology: publication is a
+semantic checkpoint over delivery evidence, not another Pull Request bubble and not proof that a
+Plan is complete.
+
 > [!DECISION]
 > Target: [[spec-workstream-atlas.atlas-experiences.history-and-evolution|History And Evolution]]
 >

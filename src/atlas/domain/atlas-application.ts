@@ -30,6 +30,7 @@ import {
   type ParsedAtlasSource,
 } from '../markdown/build-snapshot';
 import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
+import type { AtlasObservedRelease } from '../github/release-evidence';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import { retrieveRelevantPlanDocuments } from '../model/plan-assistant';
 import type {
@@ -1037,6 +1038,102 @@ const resolvePullRequestEvidence = (
   };
 };
 
+const resolveReleaseEvidence = (
+  source: ParsedAtlasSource,
+  observedReleases: AtlasObservedRelease[],
+  observedPullRequests: AtlasObservedPullRequest[],
+  resolvedPullRequestEvidence: ReturnType<typeof resolvePullRequestEvidence>,
+) => {
+  const planByPath = new Map(source.plans.map(plan => [plan.path, plan]));
+  const itemByReference = new Map(
+    source.items.flatMap(item => [
+      [item.id, item] as const,
+      [item.path, item] as const,
+    ]),
+  );
+
+  return observedReleases.flatMap(release => {
+    const componentVersions = release.componentVersions.map(componentVersion => {
+      const explicitBindings = componentVersion.directives.flatMap(directive => {
+        const plan = resolvePlanTarget(directive.target, release.sourceId, planByPath);
+        const item = resolveItemTarget(directive.target, itemByReference);
+        const targetNodeId = plan?.id ?? item?.nodeId;
+
+        return targetNodeId
+          ? [
+              {
+                kind: directive.kind,
+                provenance: 'explicit-release-note' as const,
+                targetNodeId,
+              },
+            ]
+          : [];
+      });
+      const includedPullRequests = observedPullRequests.filter(
+        pullRequest =>
+          pullRequest.mergeCommitSha &&
+          componentVersion.commitShas.some(commitSha =>
+            pullRequest.mergeCommitSha?.toLowerCase().startsWith(commitSha),
+          ),
+      );
+      const includedPullRequestIds = new Set(
+        includedPullRequests.map(pullRequest => pullRequest.id),
+      );
+      const pullRequestById = new Map(
+        includedPullRequests.map(pullRequest => [pullRequest.id, pullRequest] as const),
+      );
+      const includedBindings = resolvedPullRequestEvidence.bindings.flatMap(binding => {
+        const pullRequest = pullRequestById.get(binding.pullRequestId);
+
+        return includedPullRequestIds.has(binding.pullRequestId) && pullRequest
+          ? [
+              {
+                kind: binding.kind,
+                provenance: 'included-pull-request' as const,
+                pullRequest: {
+                  number: pullRequest.number,
+                  url: pullRequest.url,
+                },
+                targetNodeId: binding.targetNodeId,
+              },
+            ]
+          : [];
+      });
+      const bindings = [
+        ...new Map(
+          [...explicitBindings, ...includedBindings].map(binding => [
+            `${binding.provenance}:${binding.kind}:${binding.targetNodeId}`,
+            binding,
+          ]),
+        ).values(),
+      ];
+
+      return {
+        id: componentVersion.id,
+        packageName: componentVersion.packageName,
+        version: componentVersion.version,
+        notes: componentVersion.notes,
+        bindings,
+      };
+    });
+
+    return componentVersions.some(componentVersion => componentVersion.bindings.length > 0)
+      ? [
+          {
+            componentVersions,
+            id: release.id,
+            name: release.name,
+            prerelease: release.prerelease,
+            publishedAt: release.publishedAt,
+            repositoryFullName: release.repositoryFullName,
+            tagName: release.tagName,
+            url: release.url,
+          },
+        ]
+      : [];
+  });
+};
+
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
 const sourceIdForRecord = (record: NormalizedAtlasSourceRecord) =>
@@ -1082,12 +1179,19 @@ const buildAtlasOntahiDatasetFromSource = (
   records: NormalizedAtlasSourceRecord[],
   observedPullRequests: AtlasObservedPullRequest[] = [],
   loadedSourceRevisions?: AtlasLoadedSourceRevision[],
+  observedReleases: AtlasObservedRelease[] = [],
 ) => {
   const planByPath = new Map(plans.map(plan => [plan.path, plan]));
   const itemBySemanticId = new Map(items.map(item => [item.id, item]));
   const resolvedEvidence = resolvePullRequestEvidence(
     { items, plans },
     observedPullRequests,
+  );
+  const releases = resolveReleaseEvidence(
+    { items, plans },
+    observedReleases,
+    observedPullRequests,
+    resolvedEvidence,
   );
   const sourceRevisions = loadedSourceRevisions ?? buildInMemorySourceRevisions(records);
   const sourceRevisionBySourceId = new Map(
@@ -1368,6 +1472,7 @@ const buildAtlasOntahiDatasetFromSource = (
       planRelationBindings: dataset.AtlasPlanRelationBinding,
     }),
     evidence,
+    releases,
   });
 
   return dataset;
@@ -1377,12 +1482,14 @@ export const buildAtlasOntahiDataset = (
   records: NormalizedAtlasSourceRecord[],
   observedPullRequests: AtlasObservedPullRequest[] = [],
   loadedSourceRevisions?: AtlasLoadedSourceRevision[],
+  observedReleases: AtlasObservedRelease[] = [],
 ) =>
   buildAtlasOntahiDatasetFromSource(
     parseAtlasSourceRecords(records),
     records,
     observedPullRequests,
     loadedSourceRevisions,
+    observedReleases,
   );
 
 const atlasItemContextQuery = (semanticId: string) =>
@@ -2155,6 +2262,7 @@ export const createAtlasOntahiApplication = (
     invalidateRepository?: (repositoryFullName: string) => void;
     loadedSourceRevisions?: AtlasLoadedSourceRevision[];
     observedPullRequests?: AtlasObservedPullRequest[];
+    observedReleases?: AtlasObservedRelease[];
   } = {},
 ) => {
   const source = parseAtlasSourceRecords(records);
@@ -2163,6 +2271,7 @@ export const createAtlasOntahiApplication = (
     records,
     options.observedPullRequests,
     options.loadedSourceRevisions,
+    options.observedReleases,
   );
   const storage = createInMemoryDataGraphStorage({
     dataset,

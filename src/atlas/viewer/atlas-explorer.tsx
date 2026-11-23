@@ -64,6 +64,7 @@ import type {
   PlanWorkstreamEdge,
   PlanWorkstreamEvidence,
   PlanWorkstreamNode,
+  PlanWorkstreamRelease,
   PlanWorkstreamSnapshot,
 } from '@/atlas/model/snapshot';
 import { ExecutionStreamView } from '@/atlas/viewer/execution-stream-view';
@@ -764,6 +765,39 @@ const getPlanSearchTokens = (node: PlanWorkstreamNode) => {
     : localAliases;
 };
 
+const searchAcronymStopWords = new Set([
+  'a',
+  'an',
+  'and',
+  'by',
+  'for',
+  'in',
+  'of',
+  'on',
+  'or',
+  'the',
+  'to',
+  'with',
+]);
+
+const getTitleAcronymAliases = (node: PlanWorkstreamNode) => {
+  const words = normalizeSearchValue(node.shortTitle || node.title)
+    .split(/[^a-z0-9]+/)
+    .filter(word => word && !searchAcronymStopWords.has(word));
+  const aliases = new Set<string>();
+
+  for (let start = 0; start < words.length; start += 1) {
+    const acronym = words
+      .slice(start)
+      .map(word => word[0])
+      .join('');
+
+    if (acronym.length >= 3) aliases.add(acronym);
+  }
+
+  return [...aliases];
+};
+
 const getSearchText = (node: PlanWorkstreamNode) =>
   normalizeSearchValue(
     [
@@ -780,6 +814,7 @@ const getSearchText = (node: PlanWorkstreamNode) =>
       ...node.sections,
       ...(node.exemplars ?? []),
       ...getPlanSearchTokens(node),
+      ...getTitleAcronymAliases(node),
     ]
       .filter(Boolean)
       .join(' '),
@@ -797,6 +832,7 @@ const getSearchMatchRank = (node: PlanWorkstreamNode, query: string) => {
     return 0;
   }
 
+  if (getTitleAcronymAliases(node).includes(query)) return 1;
   if (title.startsWith(query) || fullTitle.startsWith(query)) return 1;
   if (title.includes(query) || fullTitle.includes(query)) return 2;
   if (terms.every(term => titleTerms.has(term))) return 3;
@@ -1801,10 +1837,16 @@ const EvolutionEntryList = ({
     </div>
   );
 
-const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvidence[] }) => {
+const PullRequestEvidenceSection = ({
+  evidence,
+  releases,
+}: {
+  evidence: PlanWorkstreamEvidence[];
+  releases: PlanWorkstreamRelease[];
+}) => {
   const [focusedDayKey, setFocusedDayKey] = useState<string | null>(null);
 
-  if (evidence.length === 0) return null;
+  if (evidence.length === 0 && releases.length === 0) return null;
 
   const ordered = [...evidence].sort(
     (left, right) =>
@@ -1825,12 +1867,31 @@ const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvid
     },
     [],
   );
+  const positionForDay = (dayKey: string) => {
+    if (days.length <= 1) return 50;
+
+    const exactIndex = days.findIndex(day => day.key === dayKey);
+    if (exactIndex >= 0) return (exactIndex / (days.length - 1)) * 92;
+
+    const timestamp = new Date(`${dayKey}T00:00:00Z`).getTime();
+    const nextIndex = days.findIndex(
+      day => new Date(`${day.key}T00:00:00Z`).getTime() > timestamp,
+    );
+    if (nextIndex < 0) return 92;
+    if (nextIndex === 0) return 0;
+
+    const previousTime = new Date(`${days[nextIndex - 1]!.key}T00:00:00Z`).getTime();
+    const nextTime = new Date(`${days[nextIndex]!.key}T00:00:00Z`).getTime();
+    const fraction = (timestamp - previousTime) / Math.max(1, nextTime - previousTime);
+
+    return ((nextIndex - 1 + fraction) / (days.length - 1)) * 92;
+  };
   return (
     <section
       aria-label='Observed delivery timeline'
       className='relative z-10 flex shrink-0 items-center gap-5 py-5'
     >
-      <div className='relative h-10 min-w-0 flex-1 overflow-visible'>
+      <div className='relative h-14 min-w-0 flex-1 overflow-visible'>
         <div className='absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-emerald-500/35 via-emerald-500/70 to-foreground/45' />
         <span className='absolute right-0 top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-background bg-foreground ring-1 ring-foreground/35' />
         <span className='absolute right-0 top-full mt-2 font-mono text-[9px] uppercase text-foreground'>
@@ -1956,13 +2017,146 @@ const PullRequestEvidenceSection = ({ evidence }: { evidence: PlanWorkstreamEvid
             );
           })}
         </ol>
+        {releases.map(release => {
+          const dayKey = new Date(release.publishedAt).toISOString().slice(0, 10);
+          const position = positionForDay(dayKey);
+          const shortTag = release.tagName.replace(/^v?\d+\.\d+\.\d+-?/, '');
+
+          return (
+            <a
+              key={release.id}
+              aria-label={`Published release ${release.tagName}`}
+              className='group/release-marker absolute top-1/2 z-20 flex -translate-x-1/2 flex-col items-center outline-none'
+              href={release.url}
+              rel='noreferrer'
+              style={{ left: `${Math.max(0, Math.min(98, position))}%` }}
+              target='_blank'
+              title={`${release.name} · ${evidenceDayFormatter.format(new Date(release.publishedAt))}`}
+            >
+              <span className='h-3 w-px bg-sky-400/60' />
+              <span className='size-2.5 rotate-45 border border-sky-300 bg-background transition-transform group-hover/release-marker:scale-125 group-focus/release-marker:scale-125' />
+              <span className='mt-1.5 whitespace-nowrap font-mono text-[8px] text-sky-300/80'>
+                {shortTag || release.tagName}
+              </span>
+            </a>
+          );
+        })}
       </div>
-      <div className='flex shrink-0 items-baseline gap-3 font-mono text-[10px] text-muted-foreground'>
-        <span className='text-xs font-medium text-foreground'>
-          {evidence.length} {evidence.length === 1 ? 'PR' : 'PRs'}
-        </span>
-        {repositories.size > 1 ? <span>{repositories.size} repositories</span> : null}
-      </div>
+      {evidence.length > 0 ? (
+        <div className='flex shrink-0 items-baseline gap-3 font-mono text-[10px] text-muted-foreground'>
+          <span className='text-xs font-medium text-foreground'>
+            {evidence.length} {evidence.length === 1 ? 'PR' : 'PRs'}
+          </span>
+          {repositories.size > 1 ? <span>{repositories.size} repositories</span> : null}
+        </div>
+      ) : null}
+    </section>
+  );
+};
+
+const releaseNotesSummary = (notes: string) =>
+  notes
+    .split('\n')
+    .map(line => line.trim())
+    .filter(
+      line =>
+        line &&
+        !line.startsWith('#') &&
+        !/^(Implements|Shapes)\s+`/i.test(line) &&
+        !line.startsWith('- Updated dependencies'),
+    )
+    .map(line => line.replace(/^[-*]\s+/, '').replace(/^\[[^\]]+\]:\s*/, ''))
+    .join(' ');
+
+const npmPackageVersionUrl = (packageName: string, version: string) =>
+  `https://www.npmjs.com/package/${packageName}/v/${version}`;
+
+const ReleaseSourceSection = ({ releases }: { releases: PlanWorkstreamRelease[] }) => {
+  if (releases.length === 0) return null;
+
+  return (
+    <section
+      aria-label='Published component versions'
+      className='grid gap-3 border-b border-border/55 pb-6'
+    >
+      <span className='font-mono text-[10px] uppercase text-muted-foreground/65'>
+        Published versions
+      </span>
+      {releases.map(release => (
+        <div
+          key={release.id}
+          className='grid gap-3 border-t border-border/40 pt-3 first:border-t-0 first:pt-0'
+        >
+          <div className='flex flex-wrap items-baseline justify-between gap-2'>
+            <a
+              className='inline-flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-sky-300'
+              href={release.url}
+              rel='noreferrer'
+              target='_blank'
+            >
+              <span className='size-2 rotate-45 border border-sky-300 bg-background' />
+              {release.name}
+              <ExternalLink className='size-3.5 text-muted-foreground' />
+            </a>
+            <span className='flex items-center gap-3 font-mono text-[10px] text-muted-foreground'>
+              <span>{release.tagName}</span>
+              <time dateTime={release.publishedAt}>
+                {evidenceDayFormatter.format(new Date(release.publishedAt))}
+              </time>
+            </span>
+          </div>
+          <div className='grid divide-y divide-border/35'>
+            {release.componentVersions.map(componentVersion => {
+              const summary = releaseNotesSummary(componentVersion.notes);
+              const pullRequestNumbers = [
+                ...new Set(
+                  componentVersion.bindings.flatMap(binding =>
+                    binding.pullRequest ? [binding.pullRequest.number] : [],
+                  ),
+                ),
+              ];
+
+              return (
+                <div
+                  key={componentVersion.id}
+                  className='grid gap-1 py-2 first:pt-0 last:pb-0 sm:grid-cols-[minmax(13rem,auto)_minmax(0,1fr)] sm:gap-4'
+                >
+                  <span className='flex flex-wrap items-baseline gap-x-2 text-xs'>
+                    <span className='font-mono text-muted-foreground'>
+                      {componentVersion.packageName}
+                    </span>
+                    <span className='font-mono font-semibold text-sky-300'>
+                      {componentVersion.version}
+                    </span>
+                    <a
+                      aria-label={`View ${componentVersion.packageName}@${componentVersion.version} on npm`}
+                      className='rounded border border-red-400/25 bg-red-400/8 px-1 py-0.5 font-mono text-[8px] font-semibold leading-none text-red-300 transition-colors hover:border-red-300/50 hover:text-red-200'
+                      href={npmPackageVersionUrl(
+                        componentVersion.packageName,
+                        componentVersion.version,
+                      )}
+                      rel='noreferrer'
+                      target='_blank'
+                    >
+                      npm
+                    </a>
+                    {pullRequestNumbers.length > 0 ? (
+                      <span className='font-mono text-[9px] text-muted-foreground/70'>
+                        via {pullRequestNumbers.map(number => `#${number}`).join(', ')}
+                      </span>
+                    ) : null}
+                  </span>
+                  {summary ? (
+                    <span className='line-clamp-2 text-xs leading-5 text-muted-foreground'>
+                      {summary}
+                    </span>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </section>
   );
 };
@@ -5029,6 +5223,7 @@ const FullDetailSurface = ({
   activeTab,
   edges,
   evidence,
+  releases,
   nodesById,
   nodesByPath,
   nodesBySemanticId,
@@ -5047,6 +5242,7 @@ const FullDetailSurface = ({
   activeTab: FullMarkdownModalTab;
   edges: PlanWorkstreamEdge[];
   evidence: PlanWorkstreamEvidence[];
+  releases: PlanWorkstreamRelease[];
   nodesById: Map<string, PlanWorkstreamNode>;
   nodesByPath: Map<string, PlanWorkstreamNode>;
   nodesBySemanticId: Map<string, PlanWorkstreamNode>;
@@ -5119,6 +5315,17 @@ const FullDetailSurface = ({
         : getEvolutionEntries(node.id, edges, nodesById),
     [edges, node.id, node.kind, nodesById],
   );
+  const nodeReleases = useMemo(() => {
+    const targetNodeIds = new Set([node.id, ...evolutionEntries.map(entry => entry.node.id)]);
+
+    return releases.flatMap(release => {
+      const componentVersions = release.componentVersions.filter(componentVersion =>
+        componentVersion.bindings.some(binding => targetNodeIds.has(binding.targetNodeId)),
+      );
+
+      return componentVersions.length > 0 ? [{ ...release, componentVersions }] : [];
+    });
+  }, [evolutionEntries, node.id, releases]);
   const nodeEvidence = useMemo(
     () => evidence.filter(binding => binding.targetNodeId === node.id),
     [evidence, node.id],
@@ -5176,6 +5383,7 @@ const FullDetailSurface = ({
   const hasEvolutionContent =
     evolutionEntries.length > 0 ||
     nodeEvidence.length > 0 ||
+    nodeReleases.length > 0 ||
     futureSignals.length > 0 ||
     tensionSignals.length > 0 ||
     evolutionSignals.length > 0;
@@ -5524,7 +5732,7 @@ const FullDetailSurface = ({
                     </EvolutionBoardColumn>
                   </div>
 
-                  <PullRequestEvidenceSection evidence={nodeEvidence} />
+                  <PullRequestEvidenceSection evidence={nodeEvidence} releases={nodeReleases} />
                 </div>
               ) : (
                 <p className='text-sm leading-6 text-muted-foreground'>
@@ -5762,6 +5970,8 @@ const FullDetailSurface = ({
                   ))}
                 </dl>
               ) : null}
+
+              <ReleaseSourceSection releases={nodeReleases} />
 
               {parsedDocument.metadata.length === 0 && !node.sourcePath ? (
                 <p className='text-sm text-muted-foreground'>No source metadata.</p>
@@ -7820,6 +8030,7 @@ export const PlanWorkstreamExplorer = ({
           activeTab={fullNodeActiveTab}
           edges={fullNodeEdges}
           evidence={snapshot.evidence ?? []}
+          releases={snapshot.releases ?? []}
           getNodeHref={nodeId =>
             getAtlasRouteHref({
               fullNodeId: nodeId,
