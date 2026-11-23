@@ -2426,7 +2426,7 @@ const OperationOverview = ({ context }: { context: MarkdownRenderContext }) => {
   const pseudocode = buildOperationPseudocodeLines(node.title, model);
 
   return (
-    <section aria-label='Operation contract lens' className='grid gap-5 border-y border-border/45 py-5'>
+    <section aria-label='Operation contract lens' className='grid gap-5 pb-5'>
       <div>
         <div className='mb-3 font-mono text-[10px] uppercase tracking-[0.16em] text-primary'>
           Semantic pseudocode
@@ -4933,10 +4933,10 @@ const MarkdownSectionIndex = ({ groups }: { groups: MarkdownSectionGroup[] }) =>
   };
 
   return (
-    <aside className='relative hidden min-w-0 self-stretch border-l border-border/65 bg-card/85 xl:block'>
+    <aside className='relative hidden min-w-0 self-stretch border-l border-border/65 xl:block'>
       <nav
         aria-label='Document sections'
-        className='sticky top-0 max-h-[calc(100dvh-11rem)] overflow-y-auto pb-4 pl-4 pr-2 pt-3 text-xs backdrop-blur-sm'
+        className='sticky top-0 max-h-[calc(100dvh-11rem)] overflow-y-auto pb-4 pl-4 pr-2 pt-3 text-xs'
       >
         <div className='font-mono text-[10px] uppercase tracking-wide text-muted-foreground/70'>
           Sections
