@@ -53,6 +53,7 @@ const createMemoryComposition = async () => {
     assistantProvider: createAtlasModelProvider() ?? undefined,
     loadedSourceRevisions: projection.sourceRevisions,
     observedPullRequests: projection.observedPullRequests,
+    observedReleases: projection.observedReleases,
     workspaceCreated: ({ userId, workspace }) =>
       Effect.sync(() => registerLocalWorkspace(userId, { ...workspace, role: 'owner' })),
     workspaceDeleted: ({ userId, workspaceId }) =>

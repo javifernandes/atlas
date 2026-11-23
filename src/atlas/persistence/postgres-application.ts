@@ -1036,6 +1036,7 @@ export const createAtlasPostgresApplication = (input: {
       projection.records,
       projection.observedPullRequests,
       projection.sourceRevisions,
+      projection.observedReleases ?? [],
     );
     const [activityRows, accountRows, streamRows] = await Promise.all([
       pool.query<{ pull_request_id: string }>(
@@ -1379,6 +1380,7 @@ export const createAtlasPostgresApplication = (input: {
           projection.records,
           observedPullRequests,
           projection.sourceRevisions,
+          projection.observedReleases ?? [],
         );
         assertAtlasProjectionIdentities(dataset);
         const projectionRevisionId = `projection:${randomUUID()}`;

@@ -189,6 +189,35 @@ export type PlanWorkstreamEvidence = {
   };
 };
 
+export type PlanWorkstreamReleaseBinding = {
+  kind: 'implements' | 'shapes';
+  provenance: 'explicit-release-note' | 'included-pull-request';
+  pullRequest?: {
+    number: number;
+    url: string;
+  };
+  targetNodeId: string;
+};
+
+export type PlanWorkstreamComponentVersion = {
+  bindings: PlanWorkstreamReleaseBinding[];
+  id: string;
+  notes: string;
+  packageName: string;
+  version: string;
+};
+
+export type PlanWorkstreamRelease = {
+  componentVersions: PlanWorkstreamComponentVersion[];
+  id: string;
+  name: string;
+  prerelease: boolean;
+  publishedAt: string;
+  repositoryFullName: string;
+  tagName: string;
+  url: string;
+};
+
 export type PlanWorkstreamSnapshot = {
   generatedAt: string;
   metrics: PlanWorkstreamMetric[];
@@ -197,4 +226,5 @@ export type PlanWorkstreamSnapshot = {
   documents?: PlanWorkstreamNode[];
   edges: PlanWorkstreamEdge[];
   evidence?: PlanWorkstreamEvidence[];
+  releases?: PlanWorkstreamRelease[];
 };

@@ -927,6 +927,104 @@ relatedPlans:
     ]);
   });
 
+  it('projects published Component Versions from explicit Release notes', async () => {
+    const files: AtlasMarkdownFile[] = [
+      {
+        path: 'plans/current/160-release-story.md',
+        source: 'atlas',
+        content: '# Release Story\nStatus: current\n',
+      },
+      {
+        path: 'atlas/items/release-story.md',
+        source: 'atlas',
+        content: `---
+id: atlas.release-story
+kind: capability
+title: Release Story
+status: shaping
+relatedPlans:
+  - plans/current/160-release-story.md
+---
+`,
+      },
+    ];
+    const atlas = createAtlasOntahiApplication(files.map(normalizeAtlasSourceRecord), {
+      observedPullRequests: [
+        {
+          id: 'github:javifernandes/atlas#20',
+          sourceId: 'atlas',
+          repositoryFullName: 'javifernandes/atlas',
+          number: 20,
+          title: 'Materialize release story',
+          url: 'https://github.com/javifernandes/atlas/pull/20',
+          authorAvatarUrl: null,
+          authorProviderAccountId: null,
+          authorLogin: 'javi',
+          mergedByAvatarUrl: null,
+          mergedByLogin: 'javi',
+          mergedAt: '2026-11-20T20:00:00Z',
+          mergeCommitSha: 'abc1234567890',
+          directives: [{ kind: 'shapes', target: 'atlas.release-story' }],
+        },
+      ],
+      observedReleases: [
+        {
+          id: 'github-release:javifernandes/atlas#21',
+          sourceId: 'atlas',
+          repositoryFullName: 'javifernandes/atlas',
+          tagName: 'v1.0.0-alpha.21',
+          name: 'Atlas 1.0.0-alpha.21',
+          url: 'https://github.com/javifernandes/atlas/releases/tag/v1.0.0-alpha.21',
+          publishedAt: '2026-11-21T01:34:37Z',
+          prerelease: true,
+          componentVersions: [
+            {
+              id: 'github-release:javifernandes/atlas#21:@atlas/core@1.0.0-alpha.21',
+              commitShas: ['abc1234'],
+              packageName: '@atlas/core',
+              version: '1.0.0-alpha.21',
+              notes: 'Implements the release story.',
+              directives: [
+                { kind: 'implements', target: 'plans/current/160-release-story.md' },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    await expect(atlas.getProjectionSnapshot()).resolves.toMatchObject({
+      releases: [
+        {
+          tagName: 'v1.0.0-alpha.21',
+          publishedAt: '2026-11-21T01:34:37Z',
+          componentVersions: [
+            {
+              packageName: '@atlas/core',
+              version: '1.0.0-alpha.21',
+              bindings: [
+                {
+                  kind: 'implements',
+                  provenance: 'explicit-release-note',
+                  targetNodeId: 'plan:atlas://plans/160-release-story',
+                },
+                {
+                  kind: 'shapes',
+                  provenance: 'included-pull-request',
+                  pullRequest: {
+                    number: 20,
+                    url: 'https://github.com/javifernandes/atlas/pull/20',
+                  },
+                  targetNodeId: 'atlas:atlas.release-story',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
   it('returns no context when the semantic item is missing', async () => {
     const atlas = createAtlasOntahiApplication([]);
 

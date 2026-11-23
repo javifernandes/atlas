@@ -1649,6 +1649,32 @@ const selection: Selection = Selection.references(Book, refs);
     expect(results[0]).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('finds an Item by a meaningful title acronym', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
+    const sourceCodeOrganization = createNode('source-code-organization', {
+      kind: 'system-primitive',
+      markdown: '# Ontahi Source Code Organization',
+      semanticId: 'ontahi.source-code-organization',
+      shortTitle: 'Ontahi Source Code Organization',
+    });
+
+    renderExplorer({
+      value: { ...snapshot, nodes: [...snapshot.nodes, sourceCodeOrganization] },
+    });
+    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
+    await user.type(
+      within(searchDialog).getByRole('combobox', { name: 'Search atlas' }),
+      'sco',
+    );
+
+    const results = within(searchDialog).getAllByRole('option');
+    expect(results[0]).toHaveAttribute('data-node-id', sourceCodeOrganization.id);
+    expect(results[0]).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('renders explicit merged PR evidence as an attachment outside evolution stages', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();
@@ -1767,6 +1793,100 @@ const selection: Selection = Selection.references(Book, refs);
       2,
     );
     expect(within(tooltip as HTMLElement).getByText('#42')).toHaveClass('text-sky-300');
+  });
+
+  it('projects a published Component Version through the Plan that shaped an Item', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const user = userEvent.setup();
+    const releasePlan = createNode('release-plan', {
+      kind: 'plan',
+      semanticId: 'ontahi://plans/171-core-boundaries',
+      shortTitle: 'Core Boundaries',
+      statusGroup: 'done',
+      markdown: 'Core boundary plan.',
+    });
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: [...snapshot.nodes, releasePlan],
+      edges: [
+        ...snapshot.edges,
+        {
+          id: 'item-a-shaped-by-release-plan',
+          from: 'item-a',
+          to: releasePlan.id,
+          kind: 'shaped-by',
+        },
+      ],
+      releases: [
+        {
+          id: 'github-release:acme/product#21',
+          name: 'Product 1.0.0-alpha.21',
+          prerelease: true,
+          publishedAt: '2026-11-21T01:34:37Z',
+          repositoryFullName: 'acme/product',
+          tagName: 'v1.0.0-alpha.21',
+          url: 'https://github.com/acme/product/releases/tag/v1.0.0-alpha.21',
+          componentVersions: [
+            {
+              id: 'github-release:acme/product#21:@acme/core@1.0.0-alpha.21',
+              packageName: '@acme/core',
+              version: '1.0.0-alpha.21',
+              notes:
+                '### Patch Changes\n\n- Extract the portable model boundary.\n\nImplements `ontahi://plans/171-core-boundaries`.',
+              bindings: [
+                {
+                  kind: 'implements',
+                  provenance: 'explicit-release-note',
+                  targetNodeId: releasePlan.id,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    renderExplorer({ value });
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('link', { name: 'evolution' }));
+
+    const timeline = within(dialog).getByRole('region', {
+      name: 'Observed delivery timeline',
+    });
+    const releaseMarker = within(timeline).getByRole('link', {
+      name: 'Published release v1.0.0-alpha.21',
+    });
+    expect(releaseMarker).toHaveTextContent('alpha.21');
+    expect(releaseMarker).toHaveAttribute(
+      'href',
+      'https://github.com/acme/product/releases/tag/v1.0.0-alpha.21',
+    );
+    expect(within(dialog).queryByText('Available in')).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('link', { name: 'source' }));
+    const versions = within(dialog).getByRole('region', {
+      name: 'Published component versions',
+    });
+    const releaseLink = within(versions).getByRole('link', {
+      name: /Product 1.0.0-alpha.21/,
+    });
+
+    expect(within(versions).getByText('Published versions')).toBeInTheDocument();
+    expect(within(versions).getByText('@acme/core')).toBeInTheDocument();
+    expect(within(versions).getByText('1.0.0-alpha.21')).toBeInTheDocument();
+    expect(
+      within(versions).getByRole('link', {
+        name: 'View @acme/core@1.0.0-alpha.21 on npm',
+      }),
+    ).toHaveAttribute(
+      'href',
+      'https://www.npmjs.com/package/@acme/core/v/1.0.0-alpha.21',
+    );
+    expect(releaseLink).toHaveAttribute(
+      'href',
+      'https://github.com/acme/product/releases/tag/v1.0.0-alpha.21',
+    );
+    expect(within(versions).getByText('Extract the portable model boundary.')).toBeInTheDocument();
   });
 
 });

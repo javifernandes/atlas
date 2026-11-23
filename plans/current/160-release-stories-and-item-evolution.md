@@ -172,6 +172,14 @@ stored relation only when it carries authored meaning or cannot be reproduced re
 4. [x] Add a proportional delivery timeline beneath the semantic evolution map in Item Evolution.
 5. Extend Item Evolution with explicit semantic, implementation, and availability lenses.
 
+### Slice 3: First observed availability projection
+
+1. [x] Observe published GitHub Releases without treating open release Pull Requests as published.
+2. [x] Extract coordinated Component Versions from Changesets-generated release headings.
+3. [x] Resolve explicit `Implements` and `Shapes` release-note assertions to Plans and Items.
+4. [x] Project published release markers from an Item through the Plans in its evolution map.
+5. [x] Keep the published version attached to, but visually distinct from, merged-PR chronology.
+
 ## Verification
 
 - [ ] A reader can explain what one Ontahí version contains without opening GitHub or npm.
@@ -188,6 +196,23 @@ stored relation only when it carries authored meaning or cannot be reproduced re
 
 1. Treat a version as a chapter of system evolution, not only a package identifier.
 2. Use both ambient micro-signals and a dedicated history lens.
+
+### 2026-11-23 — published availability checkpoint
+
+Atlas now observes GitHub Releases as publication facts and parses their Changesets-generated
+package headings into Component Version projections. Only explicit `Implements` or `Shapes`
+assertions in release notes bind a version to a registered Plan or Item; titles and commit subjects
+remain insufficient evidence. Open release PRs therefore remain candidates and do not appear as
+published versions.
+
+Item Evolution projects the inverse relationship as a compact release marker on delivery time. A version may
+reach an Item directly or through a Plan already present in that Item's semantic evolution map,
+or through a merged PR whose commit identifier is included in the generated release notes,
+which lets `@ontahi/core@1.0.0-alpha.21` explain the first published checkpoint of the Ontahí source
+organization line without duplicating Plans inside delivery chronology or marking Plan 171 done.
+The Source section carries the readable release link, tag, publication date, release note, exact
+package versions, and Pull Request provenance without competing with timeline interaction. npm
+Component Versions link directly to their exact registry version page.
 3. Keep semantic, implementation, and availability evolution distinct but navigable together.
 4. Group around explainable evolutionary moments rather than raw commits.
 5. Preserve evidence and provenance beneath every generated narrative.
