@@ -65,6 +65,14 @@ storage, because their presence distinguishes a known deletion from an unknown d
 checkpoint is reconstructible execution state; it does not replace the logical Projection Revision
 or make a partially derived graph visible.
 
+Production reconciliation hydrates the accepted checkpoint before applying an exact Source
+ChangeSet. Compatible, unaffected record artifacts cross the serverless process boundary without
+being parsed again; affected records are reparsed, then Atlas assembles and publishes one complete
+Projection Revision. The durable checkpoint advances only after that publication succeeds. If the
+checkpoint is absent or behind the projection baseline, its Materializer version changed, or its
+dependency evidence cannot prove a removal, Atlas performs a full parse and records the fallback
+reason rather than publishing a guessed partial result.
+
 The candidate reusable abstraction is not Markdown parsing itself but a media-neutral record
 derivation envelope: `VersionedRecord -> DerivedArtifact<Payload>`. Stable record identity, content
 fingerprint, transformation identity/version, serialized payload, observation lineage, and
