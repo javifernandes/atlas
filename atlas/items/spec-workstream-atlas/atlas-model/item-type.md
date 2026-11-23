@@ -14,6 +14,7 @@ relatedPlans:
   - plans/done/107-plan-model-research-and-v0.md
   - plans/current/146-package-manifest-and-classroom-model.md
   - plans/current/149-interaction-model-v0.md
+  - plans/current/162-item-kind-vocabulary-audit.md
 exemplars:
   - spec-workstream-atlas.atlas-model.plan
   - spec-workstream-atlas.atlas-model.package
@@ -36,6 +37,17 @@ An item type should earn first-class status by having at least one of these:
 2. distinct operations,
 3. distinct evidence,
 4. distinct lifecycle or evolution behavior.
+
+`kind` names one semantic form; it must not also carry hierarchy, namespace, maturity, or visual
+grouping. Atlas currently treats `concept` and `system-primitive` as legacy authoring labels rather
+than proven Item Types. Both project to the neutral `item` kind: a durable named thing whose more
+specific form has not been established. This preserves old Sources without continuing to advertise
+false semantic precision.
+
+`territory`, `model`, `experience`, and `capability` remain under explicit audit. Territory and
+model may prove to be structural roles orthogonal to semantic kind; Experience and Capability must
+demonstrate anatomy or behavior distinct from Interaction, Goal, and Operation before Atlas treats
+them as stable authoring contracts. `surface` is not a supported Item kind.
 
 `Plan` is the first worked example because it already exposes operations such as review state, close, reconcile, extract follow-ups, and reshape. The next passes should contrast it with a product/model item such as Book and an experience item such as Reader Experience or Sharing And Collaboration.
 

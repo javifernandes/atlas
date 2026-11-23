@@ -2,12 +2,12 @@ import type { EntityModel } from './snapshot';
 import type { ActivityGraph } from './activity-graph';
 
 export const atlasItemKinds = [
+  'item',
   'project',
   'package',
   'goal',
   'territory',
   'model',
-  'concept',
   'experience',
   'capability',
   'entity',
@@ -17,7 +17,6 @@ export const atlasItemKinds = [
   'policy',
   'state',
   'relation',
-  'system-primitive',
   'tooling',
   'evidence',
   'practice',
@@ -26,10 +25,22 @@ export const atlasItemKinds = [
 
 export type AtlasItemKind = (typeof atlasItemKinds)[number];
 
+export const legacyAtlasItemKindAliases = {
+  concept: 'item',
+  'system-primitive': 'item',
+} as const satisfies Record<string, AtlasItemKind>;
+
+export type LegacyAtlasItemKind = keyof typeof legacyAtlasItemKindAliases;
+
 const atlasItemKindSet = new Set<string>(atlasItemKinds);
 
 export const isAtlasItemKind = (value: string): value is AtlasItemKind =>
   atlasItemKindSet.has(value);
+
+export const normalizeAtlasItemKind = (value: string): AtlasItemKind | undefined =>
+  isAtlasItemKind(value)
+    ? value
+    : legacyAtlasItemKindAliases[value as LegacyAtlasItemKind];
 
 export type PackageItemModel = {
   kind: 'package';

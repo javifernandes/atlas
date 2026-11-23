@@ -25,7 +25,7 @@ import type {
   WorkImpactScope,
   WorkNature,
 } from '../model/snapshot';
-import { isAtlasItemKind, type AtlasItemKind } from '../model/item-kind';
+import { normalizeAtlasItemKind, type AtlasItemKind } from '../model/item-kind';
 import type {
   InteractionItemModel,
   InteractionReference,
@@ -506,8 +506,8 @@ export const parseAtlasItem = (file: PlanMarkdownFile): ParsedAtlasItem | null =
     return null;
   }
 
-  const kindSource = getFrontmatterString(metadata, 'kind', 'capability');
-  const kind = isAtlasItemKind(kindSource) ? kindSource : 'capability';
+  const kindSource = getFrontmatterString(metadata, 'kind', 'item');
+  const kind = normalizeAtlasItemKind(kindSource) ?? 'item';
   const title = getFrontmatterString(metadata, 'title', titleFromHeading(body, id));
   const status = getFrontmatterString(metadata, 'status', 'shaping');
   const horizon = getFrontmatterString(metadata, 'horizon') || undefined;

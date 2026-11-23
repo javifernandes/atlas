@@ -6,11 +6,12 @@ export type PlanStatusGroup =
   | 'done'
   | 'unmaterialized';
 
-import type { AtlasItemKind, AtlasItemModel } from './item-kind';
+import type { AtlasItemKind, AtlasItemModel, LegacyAtlasItemKind } from './item-kind';
 
 export type PlanNodeKind =
   | 'root'
   | AtlasItemKind
+  | LegacyAtlasItemKind
   | 'workstream'
   | 'plan'
   | 'candidate';
