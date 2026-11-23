@@ -17,12 +17,10 @@ import {
   Info,
   Link2,
   Minus,
-  Moon,
   Network,
   Plus,
   RotateCcw,
   Search,
-  Sun,
   Undo2,
   X,
 } from 'lucide-react';
@@ -42,20 +40,24 @@ import {
 import { AtlasMark } from '@/components/atlas-mark';
 import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { ScrollableOverflow } from '@/components/scrollable-overflow';
-import { useTheme } from '@/components/theme-provider';
 import type { AtlasExecutionStreamProjection } from '@/atlas/model/execution-stream';
 import {
   getEntityItemModel,
   getInteractionItemModel,
+  getOperationItemModel,
   getPackageItemModel,
   type InteractionItemModel,
 } from '@/atlas/model/item-kind';
 import {
   buildEntityOperationAvailability,
-  buildEntityStatechart,
   hasEntityBehavior,
   parseEntityModel,
 } from '@/atlas/markdown/entity-model';
+import {
+  buildOperationPseudocodeLines,
+  parseOperationModel,
+  type OperationPseudocodeLine,
+} from '@/atlas/markdown/operation-model';
 import type {
   PlanRelationKind,
   PlanStatusGroup,
@@ -80,6 +82,16 @@ import {
   buildActivityGraphEdgePath,
   buildActivityGraphLayout,
 } from '@/atlas/viewer/activity-graph-layout';
+import {
+  buildActivityGraphElkLayout,
+  type ActivityGraphElkLayout,
+  type ActivityGraphLayoutDirection,
+} from '@/atlas/viewer/activity-graph-elk-layout';
+import {
+  buildEntityStateGraph,
+  buildEntityStateGraphLayout,
+  type EntityStateGraphLayout,
+} from '@/atlas/viewer/entity-state-graph';
 import { atlasDetailSurfaceChangedEvent } from '@/atlas/viewer/detail-surface-events';
 import {
   getItemKindPresentation,
@@ -1156,11 +1168,13 @@ const getEdgeHintPosition = (hint: EdgeHoverHint) => {
 
 const IconButton = ({
   active,
+  bare,
   children,
   label,
   onClick,
 }: {
   active?: boolean;
+  bare?: boolean;
   children: ReactNode;
   label: string;
   onClick: () => void;
@@ -1172,6 +1186,7 @@ const IconButton = ({
     title={label}
     className={cn(
       'inline-flex size-9 items-center justify-center rounded-md border border-border/70 bg-background/75 text-muted-foreground shadow-sm backdrop-blur-xl transition-colors hover:text-foreground',
+      bare && 'border-transparent bg-transparent shadow-none backdrop-blur-none hover:bg-muted/50',
       active && 'border-primary/55 bg-primary/10 text-foreground',
     )}
     onClick={onClick}
@@ -2332,6 +2347,142 @@ const PackageOverview = ({ node }: { node: PlanWorkstreamNode }) => {
   );
 };
 
+const OperationPseudocodeValue = ({
+  context,
+  line,
+}: {
+  context: MarkdownRenderContext;
+  line: OperationPseudocodeLine;
+}) => {
+  if (!line.value) return null;
+  if (line.valueKind === 'transition') {
+    const [from, to] = line.value.split(/\s*->\s*/, 2);
+    return (
+      <>
+        <span className='text-violet-700 dark:text-violet-300'>{from}</span>
+        {to ? (
+          <>
+            {' '}<span className='text-primary'>-&gt;</span>{' '}
+            <span className='text-violet-700 dark:text-violet-300'>{to}</span>
+          </>
+        ) : null}
+      </>
+    );
+  }
+
+  if (line.valueKind === 'invariant' && line.invariantReference) {
+    const reference = line.invariantReference;
+    const owner = reference.targetNodeId
+      ? context.nodesById.get(reference.targetNodeId)
+      : reference.ownerReference
+        ? context.nodesBySemanticId.get(reference.ownerReference)
+        : undefined;
+    const invariant = owner && getEntityItemModel(owner)?.entity.invariants
+      .find(candidate => candidate.rule === reference.rule);
+
+    return invariant && owner ? (
+      <button
+        className='border-b border-dashed border-amber-500/45 text-left text-amber-700 transition-colors hover:border-amber-500 hover:text-amber-600 dark:text-amber-300 dark:hover:text-amber-200'
+        onClick={() => context.onOpenFull(owner.id)}
+        title={`${owner.title}: ${invariant.constraint}`}
+        type='button'
+      >
+        {line.value}
+      </button>
+    ) : (
+      <span
+        className='inline-flex items-center gap-2 text-amber-700 dark:text-amber-300'
+        title={reference.reference ? `Not defined yet: ${reference.reference}` : undefined}
+      >
+        <span className='border-b border-dashed border-amber-500/45'>{line.value}</span>
+        <span className='inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/[0.06] px-2 py-0.5 text-[9px] uppercase tracking-[0.08em] opacity-75'>
+          <CircleDashed className='size-2.5' />
+          not defined
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        line.valueKind === 'declaration' && 'font-semibold text-foreground',
+        line.valueKind === 'failure' && 'text-rose-700 dark:text-rose-300',
+        line.valueKind === 'invariant' && 'text-amber-700 dark:text-amber-300',
+        line.valueKind === 'string' && 'text-emerald-700 dark:text-emerald-300',
+      )}
+    >
+      {line.value}
+    </span>
+  );
+};
+
+const OperationOverview = ({ context }: { context: MarkdownRenderContext }) => {
+  const { sourceNode: node } = context;
+  const model = getOperationItemModel(node);
+
+  if (!model) return null;
+
+  const pseudocode = buildOperationPseudocodeLines(node.title, model);
+
+  return (
+    <section aria-label='Operation contract lens' className='grid gap-5 pb-5'>
+      <div>
+        <div className='mb-3 font-mono text-[10px] uppercase tracking-[0.16em] text-primary'>
+          Semantic pseudocode
+        </div>
+        <pre
+          aria-label='Semantic pseudocode'
+          className='overflow-x-auto rounded-xl border border-border/45 bg-muted/[0.12] px-4 py-4 font-mono text-[13px] leading-6 text-muted-foreground'
+        >
+          <code className='block'>
+            {pseudocode.map((line, index) => (
+              <span className='block min-h-6' key={`${index}:${line.keyword ?? ''}:${line.value ?? ''}`}>
+                {'  '.repeat(line.indent)}
+                {line.keyword ? (
+                  <span className='font-medium text-primary'>{line.keyword}</span>
+                ) : null}
+                {line.keyword && line.value ? ' ' : null}
+                <OperationPseudocodeValue context={context} line={line} />
+                {!line.keyword && !line.value ? '\u00a0' : null}
+              </span>
+            ))}
+          </code>
+        </pre>
+      </div>
+      {model.realizationRefs.length > 0 ? (
+        <div aria-label='Operation realizations' role='region'>
+          <div className='mb-3 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground'>
+            Realization
+          </div>
+          <div className='grid gap-2'>
+            {model.realizationRefs.map(reference => (
+              <div
+                className='grid min-w-0 gap-1 rounded-lg bg-muted/20 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4'
+                key={`${reference.namespace}:${reference.kind}:${reference.target}`}
+              >
+                <div className='min-w-0'>
+                  <div className='font-mono text-[9px] uppercase tracking-[0.14em] text-primary'>
+                    {reference.namespace} · {reference.kind}
+                  </div>
+                  <div className='mt-1 truncate font-mono text-sm text-foreground' title={reference.target}>
+                    {reference.target}
+                  </div>
+                </div>
+                {reference.status ? (
+                  <span className='font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground'>
+                    {reference.status}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+};
+
 const InteractionReferenceButton = ({
   label,
   plainClassName,
@@ -2481,10 +2632,12 @@ const ActivityNodeInspector = ({
   appearance = 'inline',
   context,
   node,
+  onClose,
 }: {
   appearance?: 'inline' | 'panel';
   context: MarkdownRenderContext;
   node: ActivityGraphLensNode;
+  onClose?: () => void;
 }) => {
   const references = [...node.reads, ...node.presents];
 
@@ -2494,10 +2647,19 @@ const ActivityNodeInspector = ({
       className={cn(appearance === 'inline' && 'border-t border-border/45 pt-6')}
     >
       <div className={cn(appearance === 'inline' && 'max-w-5xl')}>
-        <div className='font-mono text-[10px] uppercase tracking-[0.14em] text-primary'>
-          {node.kind}
+        <div className='flex items-start justify-between gap-4'>
+          <div className='min-w-0'>
+            <div className='font-mono text-[10px] uppercase tracking-[0.14em] text-primary'>
+              {node.kind}
+            </div>
+            <h3 className='mt-2 text-xl font-medium text-foreground'>{node.label}</h3>
+          </div>
+          {onClose ? (
+            <IconButton label='Close activity node details' onClick={onClose}>
+              <X className='size-4' />
+            </IconButton>
+          ) : null}
         </div>
-        <h3 className='mt-2 text-xl font-medium text-foreground'>{node.label}</h3>
         <div className='mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground'>
           {node.actor ? <span className='rounded-full border border-border/60 px-2.5 py-1'>Actor · {node.actorBinding?.label ?? node.actor}</span> : null}
           {node.responsibility ? <span className='rounded-full border border-border/60 px-2.5 py-1'>Responsibility · {node.responsibility}</span> : null}
@@ -2579,7 +2741,28 @@ const InteractionActivityGraphLens = ({
   selectedNodeId: string;
 }) => {
   const backTransitions = new Set(projection.backTransitions);
-  const layout = useMemo(() => buildActivityGraphLayout(projection), [projection]);
+  const fallbackLayout = useMemo(() => buildActivityGraphLayout(projection), [projection]);
+  const [layoutDirection, setLayoutDirection] = useState<ActivityGraphLayoutDirection>('vertical');
+  const [layout, setLayout] = useState<ActivityGraphElkLayout>({
+    ...fallbackLayout,
+    edges: [],
+  });
+  useEffect(() => {
+    setLayout({ ...fallbackLayout, edges: [] });
+  }, [fallbackLayout]);
+  useEffect(() => {
+    let active = true;
+    void buildActivityGraphElkLayout(projection, layoutDirection)
+      .then(nextLayout => {
+        if (active) setLayout(nextLayout);
+      })
+      .catch(() => {
+        // Keep the deterministic synchronous layout as a resilient fallback.
+      });
+    return () => {
+      active = false;
+    };
+  }, [layoutDirection, projection]);
   const layoutNodesById = useMemo(
     () => new Map(layout.nodes.map(node => [node.id, node])),
     [layout.nodes],
@@ -2620,24 +2803,32 @@ const InteractionActivityGraphLens = ({
     if (!canvas || !content) return;
 
     const canvasRect = canvas.getBoundingClientRect();
+    const availableWidth = Math.max(0, canvasRect.width - rightOcclusionRef.current);
     const padding = 40;
     const scale = Math.min(
       1,
       Math.max(
         0.42,
         Math.min(
-          (canvasRect.width - padding * 2) / content.offsetWidth,
+          (availableWidth - padding * 2) / content.offsetWidth,
           (canvasRect.height - padding * 2) / content.offsetHeight,
         ),
       ),
     );
+    const entryNode = projection.entry
+      ? layoutNodesById.get(projection.entry.id)
+      : undefined;
+    const centeredX = (availableWidth - content.offsetWidth * scale) / 2;
+    const entryAnchoredX = entryNode
+      ? availableWidth / 2 - (entryNode.x + entryNode.width / 2) * scale
+      : centeredX;
 
     applyActivityViewport({
       scale,
-      x: (canvasRect.width - content.offsetWidth * scale) / 2,
+      x: layoutDirection === 'vertical' ? entryAnchoredX : centeredX,
       y: (canvasRect.height - content.offsetHeight * scale) / 2,
     });
-  }, [applyActivityViewport]);
+  }, [applyActivityViewport, layoutDirection, layoutNodesById, projection.entry]);
 
   const zoomActivityGraph = useCallback(
     (delta: number, anchor?: { x: number; y: number }) => {
@@ -2658,7 +2849,7 @@ const InteractionActivityGraphLens = ({
 
   useLayoutEffect(() => {
     fitActivityGraph();
-  }, [fitActivityGraph, projection]);
+  }, [fitActivityGraph, layout, projection, rightOcclusion]);
 
   const handleActivityWheel = useCallback(
     (event: WheelEvent) => {
@@ -2782,12 +2973,25 @@ const InteractionActivityGraphLens = ({
     const source = layoutNodesById.get(transition.from);
     const target = layoutNodesById.get(transition.to);
     if (!source || !target) return [];
+    const isReturning = backTransitions.has(transition) || (
+      layoutDirection === 'horizontal'
+        ? target.x <= source.x
+        : target.y <= source.y
+    );
+    const elkEdge = layout.edges.find(edge => edge.id === transition.id);
     return [{
-      isBack: backTransitions.has(transition),
+      isBack: isReturning,
       label: activityGraphEdgeLabel(transition),
-      labelX: (source.x + source.width + target.x) / 2,
-      labelY: (source.y + source.height / 2 + target.y + target.height / 2) / 2,
-      path: buildActivityGraphEdgePath(source, target, backTransitions.has(transition)),
+      labelX: elkEdge?.labelX ?? (source.x + source.width + target.x) / 2,
+      labelY: elkEdge?.labelY ?? (
+        source.y + source.height / 2 + target.y + target.height / 2
+      ) / 2,
+      path: elkEdge?.path || buildActivityGraphEdgePath(
+        source,
+        target,
+        isReturning,
+        layout.height,
+      ),
       transition,
     }];
   });
@@ -2928,15 +3132,28 @@ const InteractionActivityGraphLens = ({
       </div>
       <div
         data-activity-controls
-        className='absolute bottom-3 right-3 flex items-center gap-1 rounded-lg border border-border/70 bg-background/80 p-1.5 shadow-lg backdrop-blur-xl'
+        className='absolute right-3 top-3 flex items-center gap-0.5'
       >
-        <IconButton label='Zoom out activity graph' onClick={() => zoomActivityGraph(-0.2)}>
+        <IconButton
+          bare
+          label={`Activity graph layout: ${layoutDirection}. Switch to ${
+            layoutDirection === 'vertical' ? 'horizontal' : 'vertical'
+          }`}
+          onClick={() => setLayoutDirection(current => (
+            current === 'vertical' ? 'horizontal' : 'vertical'
+          ))}
+        >
+          {layoutDirection === 'vertical'
+            ? <ArrowDown className='size-4' />
+            : <ArrowRight className='size-4' />}
+        </IconButton>
+        <IconButton bare label='Zoom out activity graph' onClick={() => zoomActivityGraph(-0.2)}>
           <Minus className='size-4' />
         </IconButton>
-        <IconButton label='Fit activity graph' onClick={fitActivityGraph}>
+        <IconButton bare label='Fit activity graph' onClick={fitActivityGraph}>
           <RotateCcw className='size-4' />
         </IconButton>
-        <IconButton label='Zoom in activity graph' onClick={() => zoomActivityGraph(0.2)}>
+        <IconButton bare label='Zoom in activity graph' onClick={() => zoomActivityGraph(0.2)}>
           <Plus className='size-4' />
         </IconButton>
       </div>
@@ -3050,8 +3267,28 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
     'anatomy' as const,
   ];
 
+  useEffect(() => {
+    if (!activityInspectorOpen) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setActivityInspectorOpen(false);
+    };
+
+    globalThis.addEventListener('keydown', handleEscape);
+    return () => globalThis.removeEventListener('keydown', handleEscape);
+  }, [activityInspectorOpen]);
+
   return (
-    <section aria-label='Interaction details' className='relative min-h-full'>
+    <section
+      aria-label='Interaction details'
+      className={cn(
+        'relative h-full min-h-[30rem]',
+        view === 'graph' ? 'overflow-hidden' : 'overflow-y-auto',
+      )}
+    >
       {hasFlow ? (
         <div className='absolute left-1/2 top-0 z-20 -translate-x-1/2'>
           <div className='inline-flex rounded-b-xl border border-t-0 border-border/55 bg-background/80 p-1 shadow-lg backdrop-blur-xl'>
@@ -3072,14 +3309,8 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
           aria-label='Activity node details panel'
           className='absolute inset-y-0 right-0 z-30 flex w-full max-w-[28rem] flex-col border-l border-border/65 bg-background/95 shadow-[-18px_0_44px_rgba(0,0,0,0.28)] backdrop-blur-xl'
         >
-          <div className='flex items-center justify-between border-b border-border/45 px-5 py-3'>
-            <span className='font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground'>Node detail</span>
-            <IconButton label='Close activity node details' onClick={() => setActivityInspectorOpen(false)}>
-              <X className='size-4' />
-            </IconButton>
-          </div>
           <div className='min-h-0 flex-1 overflow-y-auto px-5 py-5'>
-            <ActivityNodeInspector appearance='panel' context={context} node={selectedActivityNode} />
+            <ActivityNodeInspector appearance='panel' context={context} node={selectedActivityNode} onClose={() => setActivityInspectorOpen(false)} />
           </div>
         </aside>
       ) : null}
@@ -3094,22 +3325,139 @@ const ItemKindOverview = ({ context }: { context: MarkdownRenderContext }) => {
   const overview = getItemKindPresentation(node.kind).detail?.overview;
 
   if (overview === 'package-details') return <PackageOverview node={node} />;
+  if (overview === 'operation-details') return <OperationOverview context={context} />;
   if (overview === 'interaction-details') return <InteractionOverview context={context} />;
   return null;
 };
 
-const EntityStatechart = ({ node }: { node: PlanWorkstreamNode }) => {
+const EntityStatechart = ({ context }: { context: MarkdownRenderContext }) => {
+  const { sourceNode: node } = context;
   const model = getEntityItemModel(node)?.entity;
+  const graph = useMemo(() => (model ? buildEntityStateGraph(model) : null), [model]);
+  const [layout, setLayout] = useState<EntityStateGraphLayout | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!graph) return;
+    void buildEntityStateGraphLayout(graph).then(next => {
+      if (active) setLayout(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, [graph]);
 
   if (node.kind !== 'entity' || !model || !hasEntityBehavior(model)) return null;
 
-  const statechart = buildEntityStatechart(model);
+  return layout ? (
+    <div className='overflow-x-auto rounded-2xl border border-border/45 bg-gradient-to-br from-primary/[0.025] via-background/25 to-background/10 p-3'>
+      <svg
+        aria-label='Entity state graph'
+        className='mx-auto block min-w-[36rem]'
+        height={layout.height}
+        role='img'
+        viewBox={`0 0 ${layout.width} ${layout.height}`}
+        width={layout.width}
+      >
+        <defs>
+          <marker id='entity-state-arrow' markerHeight='8' markerWidth='8' orient='auto' refX='7' refY='4'>
+            <path className='fill-primary/70' d='M 0 0 L 8 4 L 0 8 z' />
+          </marker>
+        </defs>
+        {layout.edges.map(edge => {
+          const wikiReference = edge.operationReference?.match(/^\[\[([^\]|]+?)(?:\\?\|[^\]]+)?\]\]$/)?.[1];
+          const target = edge.operationReference
+            ? (resolveAtlasReferenceNode(
+                wikiReference ?? edge.operationReference,
+                context.nodesBySemanticId,
+              ) ??
+              resolveMarkdownLinkNode(
+                node,
+                edge.operationReference,
+                context.nodesByPath,
+                context.nodesBySemanticId,
+              ))
+            : null;
+          const labelWidth = edge.label ? Math.max(72, edge.label.length * 6.5 + 12) : 0;
 
-  return statechart ? (
-    <div className='overflow-hidden rounded-2xl border border-border/45 bg-gradient-to-br from-primary/[0.035] via-background/25 to-background/10 px-3 py-5 shadow-[inset_0_1px_0_rgb(255_255_255/0.025)] [&_figure]:my-0'>
-      <MermaidDiagram code={statechart} variant='atlas-state' />
+          return (
+            <g key={edge.id}>
+              <path
+                className='fill-none stroke-primary/55'
+                d={edge.path}
+                markerEnd={edge.kind === 'fork-trunk' ? undefined : 'url(#entity-state-arrow)'}
+                strokeWidth='1.5'
+              />
+              {edge.label && edge.labelX !== undefined && edge.labelY !== undefined ? (
+                <foreignObject height='30' width={labelWidth} x={edge.labelX} y={edge.labelY}>
+                  <button
+                    className={cn(
+                      'h-7 w-full truncate bg-transparent px-1 font-mono text-[10px] text-muted-foreground',
+                      target
+                        ? 'underline decoration-primary/35 decoration-dashed underline-offset-4 hover:text-primary hover:decoration-primary'
+                        : 'cursor-default',
+                    )}
+                    title={edge.actor ? `${edge.label} · ${edge.actor}` : edge.label}
+                    type='button'
+                    onClick={() => {
+                      if (target) context.onOpenFull(target.id);
+                    }}
+                  >
+                    {edge.label}
+                  </button>
+                </foreignObject>
+              ) : null}
+            </g>
+          );
+        })}
+        {layout.nodes.map(state =>
+          state.kind === 'start' ? (
+            <circle
+              key={state.id}
+              className='fill-primary/20 stroke-primary/75'
+              cx={state.x + state.width / 2}
+              cy={state.y + state.height / 2}
+              r={state.width / 2 - 2}
+              strokeWidth='2'
+            />
+          ) : (
+            <g key={state.id}>
+              <rect
+                className={cn(
+                  'fill-background/95 stroke-border',
+                  state.stateKind === 'terminal' &&
+                    'fill-emerald-500/[0.06] stroke-emerald-500/55',
+                )}
+                height={state.height}
+                rx='14'
+                width={state.width}
+                x={state.x}
+                y={state.y}
+              />
+              <text
+                className='fill-muted-foreground font-mono text-[9px] uppercase tracking-[0.14em]'
+                textAnchor='middle'
+                x={state.x + state.width / 2}
+                y={state.y + 20}
+              >
+                {state.stateKind}
+              </text>
+              <text
+                className='fill-foreground text-sm font-semibold'
+                textAnchor='middle'
+                x={state.x + state.width / 2}
+                y={state.y + 44}
+              >
+                {state.label}
+              </text>
+            </g>
+          ),
+        )}
+      </svg>
     </div>
-  ) : null;
+  ) : (
+    <div className='h-64 animate-pulse rounded-2xl border border-border/35 bg-muted/10' />
+  );
 };
 
 const EntityOperationAvailabilityView = ({ context }: { context: MarkdownRenderContext }) => {
@@ -3198,7 +3546,7 @@ const EntityBehaviorViews = ({ context }: { context: MarkdownRenderContext }) =>
 
   if (node.kind !== 'entity' || !model || !hasEntityBehavior(model)) return null;
 
-  const hasFlow = Boolean(buildEntityStatechart(model));
+  const hasFlow = model.states.length > 0;
   const hasAvailability = model.operations.length > 0;
   const visibleView = activeView === 'flow' && !hasFlow ? 'availability' : activeView;
 
@@ -3237,7 +3585,7 @@ const EntityBehaviorViews = ({ context }: { context: MarkdownRenderContext }) =>
         role='tabpanel'
       >
         {visibleView === 'flow' ? (
-          <EntityStatechart node={node} />
+          <EntityStatechart context={context} />
         ) : (
           <EntityOperationAvailabilityView context={context} />
         )}
@@ -4152,7 +4500,10 @@ const splitMarkdownTableRow = (line: string) => {
 
   for (const character of trimmed) {
     if (escaped) {
-      current += character;
+      current =
+        character === '|'
+          ? `${current.slice(0, -1)}|`
+          : `${current}${character}`;
       escaped = false;
       continue;
     }
@@ -4582,14 +4933,15 @@ const MarkdownSectionIndex = ({ groups }: { groups: MarkdownSectionGroup[] }) =>
   };
 
   return (
-    <nav
-      aria-label='Document sections'
-      className='sticky top-0 hidden max-h-[calc(88vh-13rem)] min-w-0 self-start overflow-y-auto border-l border-border/65 bg-card/85 pl-4 text-xs backdrop-blur-sm xl:block'
-    >
-      <div className='font-mono text-[10px] uppercase tracking-wide text-muted-foreground/70'>
-        Sections
-      </div>
-      <ol className='mt-3 grid gap-1.5'>
+    <aside className='relative hidden min-w-0 self-stretch border-l border-border/65 xl:block'>
+      <nav
+        aria-label='Document sections'
+        className='sticky top-0 max-h-[calc(100dvh-11rem)] overflow-y-auto pb-4 pl-4 pr-2 pt-3 text-xs'
+      >
+        <div className='font-mono text-[10px] uppercase tracking-wide text-muted-foreground/70'>
+          Sections
+        </div>
+        <ol className='mt-3 grid gap-1.5'>
         {groups.map(group => {
           const expanded = expandedGroupIds.has(group.root.id);
           const hasChildren = group.children.length > 0;
@@ -4639,8 +4991,9 @@ const MarkdownSectionIndex = ({ groups }: { groups: MarkdownSectionGroup[] }) =>
             </li>
           );
         })}
-      </ol>
-    </nav>
+        </ol>
+      </nav>
+    </aside>
   );
 };
 
@@ -4921,18 +5274,6 @@ const FullDetailSurface = ({
     };
   }, [activeTab, contentStatus, node.id]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    globalThis.addEventListener('keydown', handleKeyDown);
-
-    return () => globalThis.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
   return (
     <div
       aria-label={`${node.shortTitle} detail`}
@@ -5086,8 +5427,8 @@ const FullDetailSurface = ({
             <div
               className={cn(
                 overviewUsesDedicatedSurface
-                  ? 'min-h-full min-w-0'
-                  : 'grid min-w-0 gap-6 px-1 sm:px-2',
+                  ? 'h-full min-h-0 min-w-0'
+                  : 'grid min-h-full min-w-0 items-stretch gap-6 px-1 sm:px-2',
                 overviewRendersMarkdown &&
                   'xl:grid-cols-[minmax(0,1fr)_12rem]',
               )}
@@ -5095,7 +5436,7 @@ const FullDetailSurface = ({
               <article
                 className={cn(
                   overviewUsesDedicatedSurface
-                    ? 'min-h-full min-w-0 max-w-full overflow-hidden'
+                    ? 'h-full min-h-0 min-w-0 max-w-full overflow-hidden'
                     : 'grid min-w-0 max-w-full gap-5 overflow-hidden break-words [&>*]:min-w-0 [&>*]:max-w-full',
                   overviewRendersMarkdown && 'xl:pr-2',
                 )}
@@ -5654,7 +5995,6 @@ export const PlanWorkstreamExplorer = ({
   snapshot,
   workspaceSlug,
 }: PlanWorkstreamExplorerProps) => {
-  const { theme, toggleTheme } = useTheme();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [atlasView, setAtlasView] = useState<AtlasView>('map');
   const [query, setQuery] = useState('');
@@ -5681,7 +6021,6 @@ export const PlanWorkstreamExplorer = ({
   const [autoFocusEnabled, setAutoFocusEnabled] = useState(true);
   const [selectedBoardProjectId, setSelectedBoardProjectId] = useState('');
   const [showBoardHistory, setShowBoardHistory] = useState(false);
-  const [themeToggleMounted, setThemeToggleMounted] = useState(false);
   const [nodeContentById, setNodeContentById] = useState<Map<string, NodeContentState>>(
     () => new Map(),
   );
@@ -5802,11 +6141,6 @@ export const PlanWorkstreamExplorer = ({
     () => getInitialExpandedNodeIds(snapshot.nodes, snapshot.edges),
     [snapshot.edges, snapshot.nodes],
   );
-  const themeToggleLabel = themeToggleMounted
-    ? theme === 'light'
-      ? 'Switch to dark mode'
-      : 'Switch to light mode'
-    : 'Toggle theme';
   const visibleNodes = useMemo(
     () => snapshot.nodes.filter(node => visibleNodeIds.has(node.id)),
     [snapshot.nodes, visibleNodeIds],
@@ -5873,6 +6207,12 @@ export const PlanWorkstreamExplorer = ({
           itemModel:
             fullNode.kind === 'entity'
               ? { kind: 'entity' as const, entity: parseEntityModel(fullNodeContent.markdown) }
+              : fullNode.kind === 'operation'
+                ? parseOperationModel(
+                    fullNodeContent.markdown,
+                    getOperationItemModel(fullNode)?.realizationRefs,
+                    getOperationItemModel(fullNode)?.invariantsPreserved?.[0]?.ownerReference,
+                  )
               : fullNode.itemModel,
         }
       : fullNode;
@@ -6148,10 +6488,6 @@ export const PlanWorkstreamExplorer = ({
     viewportRef.current = next;
     setViewport(next);
   }, [getFitViewport, graph.height, graph.width]);
-
-  useEffect(() => {
-    setThemeToggleMounted(true);
-  }, []);
 
   useEffect(() => {
     if (
@@ -7263,7 +7599,7 @@ export const PlanWorkstreamExplorer = ({
 
       {searchOpen ? (
         <div
-          className='pointer-events-auto absolute inset-0 z-[100] flex items-start justify-center bg-background/80 px-4 pt-[min(14vh,120px)] backdrop-blur-md'
+          className='pointer-events-auto absolute inset-0 z-[200] flex items-start justify-center bg-background/80 px-4 pt-[min(14vh,120px)] backdrop-blur-md'
           onMouseDown={event => {
             if (event.target !== event.currentTarget) {
               return;
@@ -7442,32 +7778,19 @@ export const PlanWorkstreamExplorer = ({
         </div>
       ) : null}
 
-      <div className='pointer-events-auto absolute bottom-4 left-4 z-40 flex items-center gap-2 rounded-lg border border-border/70 bg-background/78 p-2 shadow-lg backdrop-blur-xl'>
-        <IconButton label={themeToggleLabel} onClick={toggleTheme}>
-          {themeToggleMounted ? (
-            theme === 'light' ? (
-              <Moon className='size-4' />
-            ) : (
-              <Sun className='size-4' />
-            )
-          ) : (
-            <span className='size-4' aria-hidden='true' />
-          )}
-        </IconButton>
-        {atlasView === 'map' ? (
-          <>
-            <IconButton label='Zoom out' onClick={() => zoomBy(-zoomButtonStep)}>
-              <Minus className='size-4' />
-            </IconButton>
-            <IconButton label='Reset view' onClick={resetViewport}>
-              <RotateCcw className='size-4' />
-            </IconButton>
-            <IconButton label='Zoom in' onClick={() => zoomBy(zoomButtonStep)}>
-              <Plus className='size-4' />
-            </IconButton>
-          </>
-        ) : null}
-      </div>
+      {atlasView === 'map' ? (
+        <div className='pointer-events-auto absolute bottom-4 left-4 z-40 flex items-center gap-2 rounded-lg border border-border/70 bg-background/78 p-2 shadow-lg backdrop-blur-xl'>
+          <IconButton label='Zoom out' onClick={() => zoomBy(-zoomButtonStep)}>
+            <Minus className='size-4' />
+          </IconButton>
+          <IconButton label='Reset view' onClick={resetViewport}>
+            <RotateCcw className='size-4' />
+          </IconButton>
+          <IconButton label='Zoom in' onClick={() => zoomBy(zoomButtonStep)}>
+            <Plus className='size-4' />
+          </IconButton>
+        </div>
+      ) : null}
 
       {atlasView === 'map' && selectedNode && !detailOpen ? (
         <div className='pointer-events-auto absolute bottom-4 right-4 z-40 rounded-lg border border-border/70 bg-background/78 p-2 shadow-lg backdrop-blur-xl'>

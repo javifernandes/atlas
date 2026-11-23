@@ -54,4 +54,32 @@ describe('Activity Graph lens projection', () => {
       { id: 'retry', affordance: 'Try again', from: 'eligible', guard: 'not allowed', to: 'open' },
     ]);
   });
+
+  it('anchors a reused retry activity beside its earliest caller', () => {
+    const retryGraph: ActivityGraph = {
+      actors: [],
+      entry: 'checkpoint',
+      nodes: [
+        { id: 'checkpoint', kind: 'decision', label: 'Authenticated?', reads: [], presents: [] },
+        { id: 'authenticate', kind: 'activity', label: 'Sign in', reads: [], presents: [] },
+        { id: 'continue', kind: 'decision', label: 'Continue', reads: [], presents: [] },
+        { id: 'mismatch', kind: 'decision', label: 'Matches?', reads: [], presents: [] },
+      ],
+      transitions: [
+        { id: 'initial-auth', from: 'checkpoint', to: 'authenticate' },
+        { id: 'authenticated', from: 'checkpoint', to: 'continue' },
+        { id: 'validate', from: 'continue', to: 'mismatch' },
+        { id: 'switch-account', from: 'mismatch', to: 'authenticate' },
+        { id: 'retry', from: 'authenticate', to: 'checkpoint' },
+      ],
+    };
+
+    const projection = buildActivityGraphLensProjection(retryGraph);
+
+    expect(projection.columns.map(column => column.nodes.map(node => node.id))).toEqual([
+      ['checkpoint'],
+      ['authenticate', 'continue'],
+      ['mismatch'],
+    ]);
+  });
 });

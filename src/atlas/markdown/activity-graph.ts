@@ -168,6 +168,7 @@ const parseTransition = (
     id,
     from,
     to,
+    ...(nonEmptyString(source.branch) ? { branch: nonEmptyString(source.branch) } : {}),
     ...(nonEmptyString(source.guard) ? { guard: nonEmptyString(source.guard) } : {}),
     ...(nonEmptyString(source.trigger) ? { trigger: nonEmptyString(source.trigger) } : {}),
     ...(nonEmptyString(source.affordance)

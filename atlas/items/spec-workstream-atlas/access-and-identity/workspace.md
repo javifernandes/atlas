@@ -32,10 +32,11 @@ User -> Membership(role, status) -> Workspace
 Workspace -> Project / Source / Session / ClientApplication
 ```
 
-Invitations are lifecycle records that may propose a role and delivery hint, but acceptance must
-bind to the authenticated User that proves control of the invitation. Email is not Workspace
-identity. Dynamic source configuration will belong to a Workspace separately from observed source
-revisions and projection records.
+[[spec-workstream-atlas.access-identity.workspace.invitation|Workspace Invitations]] are lifecycle
+Entities that may propose a role and delivery hint, but acceptance must bind to the authenticated
+User that proves control of the invitation. Email is not Workspace identity. Dynamic source
+configuration will belong to a Workspace separately from observed source revisions and projection
+records.
 
 A Workspace Source may also yield observed contributor candidates. Those candidates are a scoped
 [[spec-workstream-atlas.atlas-model.participation|Participation]] projection, not Memberships.

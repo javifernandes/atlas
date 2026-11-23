@@ -41,6 +41,9 @@ importers:
       effect:
         specifier: 3.21.0
         version: 3.21.0
+      elkjs:
+        specifier: ^0.12.1
+        version: 0.12.1
       lucide-react:
         specifier: ^0.576.0
         version: 0.576.0(react@18.3.1)
@@ -2025,6 +2028,9 @@ packages:
 
   electron-to-chromium@1.5.407:
     resolution: {integrity: sha512-4R8XgQOdfxexCd/u63lRm6wCHjECwI45MV9wxAs2ggtfWe2hwlo1ql97jKsju2IcJ+jFSTwBssyYoiWhh7mauQ==}
+
+  elkjs@0.12.1:
+    resolution: {integrity: sha512-IhMYKHE4S2vtx0QrhBP3lYOIKDeIiJXBrdq9MGYkuB8ZHqhrBnHNfSUndjXFewrX1CPK8chwq+2NA0K0hliYuw==}
 
   emoji-regex-xs@1.0.0:
     resolution: {integrity: sha512-LRlerrMYoIDrT6jgpeZ2YYl/L8EulRTt5hQcYjy5AInh7HWXKimpqx68aknBFpGL2+/IcogTcaydJEgaTmOpDg==}
@@ -5095,6 +5101,8 @@ snapshots:
       fast-check: 3.23.2
 
   electron-to-chromium@1.5.407: {}
+
+  elkjs@0.12.1: {}
 
   emoji-regex-xs@1.0.0: {}
 

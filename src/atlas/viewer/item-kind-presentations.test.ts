@@ -16,11 +16,17 @@ describe('Item Kind presentation contract', () => {
   });
 
   it('gives simple Markdown kinds a useful default without registration', () => {
-    expect(getItemKindPresentation('operation')).toEqual({
+    expect(getItemKindPresentation('capability')).toEqual({
       detail: undefined,
       evolution: 'self',
       visualRole: 'shape',
     });
     expect(getItemKindSectionPresentation('operation', 'States')).toBeUndefined();
+  });
+
+  it('registers the typed Operation realization overview', () => {
+    expect(getItemKindPresentation('operation')).toMatchObject({
+      detail: { overview: 'operation-details' },
+    });
   });
 });

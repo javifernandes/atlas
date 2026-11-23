@@ -162,14 +162,17 @@ activity:
     - id: invitation-unavailable
       from: lifecycle-allows-response
       to: invitation-unavailable
+      branch: "No"
       guard: invitation is missing, expired, revoked, or no longer pending
     - id: invitation-claimable
       from: lifecycle-allows-response
       to: actor-authenticated
+      branch: "Yes"
       guard: invitation is pending and claimable
     - id: authentication-required
       from: actor-authenticated
       to: authenticate
+      branch: "No"
       guard: no authenticated Atlas User
       affordance: Sign in
     - id: authentication-changed
@@ -179,6 +182,7 @@ activity:
     - id: actor-authenticated
       from: actor-authenticated
       to: addressing-policy
+      branch: "Yes"
       guard: an Atlas User is authenticated
     - id: known-user-policy
       from: addressing-policy
@@ -187,10 +191,12 @@ activity:
     - id: known-user-proven
       from: user-id-matches
       to: eligible-recipient
+      branch: "Yes"
       guard: authenticated User ID equals target User ID
     - id: known-user-mismatch
       from: user-id-matches
       to: authenticate
+      branch: "No"
       guard: authenticated User ID differs from target User ID
       affordance: Switch account
     - id: github-identity-policy
@@ -205,10 +211,12 @@ activity:
     - id: github-identity-proven
       from: provider-id-matches
       to: eligible-recipient
+      branch: "Yes"
       guard: provider and stable account ID equal the invitation target
     - id: github-identity-refused
       from: provider-id-matches
       to: identity-proof-refused
+      branch: "No"
       guard: provider identity does not equal the invitation target
     - id: verified-email-policy
       from: addressing-policy
@@ -222,10 +230,12 @@ activity:
     - id: invitation-secret-proven
       from: invitation-secret-valid
       to: eligible-recipient
+      branch: "Yes"
       guard: secret is valid for this pending invitation
     - id: invitation-secret-refused
       from: invitation-secret-valid
       to: identity-proof-refused
+      branch: "No"
       guard: secret is missing, invalid, or belongs to another invitation
     - id: recipient-eligible-to-claim
       from: eligible-recipient

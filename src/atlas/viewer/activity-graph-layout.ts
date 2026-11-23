@@ -4,10 +4,11 @@ import type {
 } from './activity-graph-lens';
 
 const horizontalGap = 116;
-const verticalGap = 28;
-const canvasPadding = 48;
+const verticalGap = 56;
+const canvasPadding = 92;
+const edgeCorridorGap = 48;
 
-const nodeDimensions = (node: ActivityGraphLensNode) => {
+export const activityGraphNodeDimensions = (node: ActivityGraphLensNode) => {
   if (node.kind === 'merge') return { height: 48, width: 168 };
   if (node.kind === 'outcome') return { height: 68, width: 208 };
   return { height: 82, width: 220 };
@@ -62,6 +63,7 @@ export const buildActivityGraphEdgePath = (
   source: ActivityGraphLayoutNode,
   target: ActivityGraphLayoutNode,
   isBackTransition: boolean,
+  canvasHeight?: number,
 ) => {
   const sourceX = source.x + source.width;
   const sourceY = source.y + source.height / 2;
@@ -69,8 +71,26 @@ export const buildActivityGraphEdgePath = (
   const targetY = target.y + target.height / 2;
 
   if (isBackTransition || targetX <= sourceX) {
-    const lift = Math.min(source.y, target.y) - 38;
-    return `M ${sourceX} ${sourceY} C ${sourceX + 42} ${lift}, ${targetX - 42} ${lift}, ${targetX} ${targetY}`;
+    const returnSourceX = source.x;
+    const returnTargetX = target.x + target.width;
+    const corridorY = Math.max(
+      source.y + source.height,
+      target.y + target.height,
+    ) + edgeCorridorGap;
+    return `M ${returnSourceX} ${sourceY} C ${returnSourceX - 32} ${sourceY}, ${returnSourceX - 32} ${corridorY}, ${returnSourceX - 64} ${corridorY} L ${returnTargetX + 64} ${corridorY} C ${returnTargetX + 32} ${corridorY}, ${returnTargetX + 32} ${targetY}, ${returnTargetX} ${targetY}`;
+  }
+
+  const span = targetX - sourceX;
+  if (span > horizontalGap * 1.5) {
+    const graphMiddle = (canvasHeight ?? Math.max(
+      source.y + source.height,
+      target.y + target.height,
+    )) / 2;
+    const routeAbove = sourceY <= graphMiddle;
+    const corridorY = routeAbove
+      ? Math.min(source.y, target.y) - edgeCorridorGap
+      : Math.max(source.y + source.height, target.y + target.height) + edgeCorridorGap;
+    return `M ${sourceX} ${sourceY} C ${sourceX + 32} ${sourceY}, ${sourceX + 32} ${corridorY}, ${sourceX + 64} ${corridorY} L ${targetX - 64} ${corridorY} C ${targetX - 32} ${corridorY}, ${targetX - 32} ${targetY}, ${targetX} ${targetY}`;
   }
 
   const bend = Math.max(44, (targetX - sourceX) * 0.46);
@@ -80,8 +100,21 @@ export const buildActivityGraphEdgePath = (
 export const buildActivityGraphLayout = (
   projection: ActivityGraphLensProjection,
 ): ActivityGraphLayout => {
+  const backTransitionSources = new Set(
+    projection.backTransitions.map(transition => transition.from),
+  );
   const columnMetrics = projection.columns.map(column => {
-    const dimensions = column.nodes.map(node => ({ node, ...nodeDimensions(node) }));
+    const dimensions = column.nodes
+      .map((node, authoredIndex) => ({
+        authoredIndex,
+        node,
+        ...activityGraphNodeDimensions(node),
+      }))
+      .sort((left, right) => {
+        const leftReturns = backTransitionSources.has(left.node.id) ? 1 : 0;
+        const rightReturns = backTransitionSources.has(right.node.id) ? 1 : 0;
+        return leftReturns - rightReturns || left.authoredIndex - right.authoredIndex;
+      });
     return {
       dimensions,
       height:
@@ -118,4 +151,4 @@ export const buildActivityGraphLayout = (
 
 export const activityGraphEdgeLabel = (
   transition: ActivityGraphLensProjection['transitions'][number],
-) => transition.affordance ?? transition.guard ?? transition.trigger;
+) => transition.branch ?? transition.affordance ?? transition.guard ?? transition.trigger;

@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { ThemeProvider } from '@/components/theme-provider';
 
 const signInMock = vi.hoisted(() => vi.fn());
 const signOutMock = vi.hoisted(() => vi.fn());
@@ -12,12 +14,32 @@ vi.mock('@/auth/client', () => ({
 }));
 
 import { AuthControl } from './auth-control';
-import { atlasDetailSurfaceChangedEvent } from '@/atlas/viewer/detail-surface-events';
 
 describe('AuthControl', () => {
   beforeEach(() => {
+    const values = new Map<string, string>();
+
+    vi.stubGlobal('localStorage', {
+      clear: () => values.clear(),
+      getItem: (key: string) => values.get(key) ?? null,
+      key: (index: number) => [...values.keys()][index] ?? null,
+      get length() {
+        return values.size;
+      },
+      removeItem: (key: string) => values.delete(key),
+      setItem: (key: string, value: string) => values.set(key, value),
+    } satisfies Storage);
     signInMock.mockReset().mockResolvedValue({ data: {}, error: null });
     signOutMock.mockReset().mockResolvedValue({ data: {}, error: null });
+    globalThis.localStorage.clear();
+    document.documentElement.classList.remove('dark');
+    document.documentElement.style.colorScheme = '';
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.documentElement.classList.remove('dark');
+    document.documentElement.style.colorScheme = '';
   });
 
   it('stays absent when GitHub auth is not configured', () => {
@@ -62,11 +84,13 @@ describe('AuthControl', () => {
 
   it('keeps viewer chrome avatar-only until its menu opens', () => {
     const { container } = render(
-      <AuthControl
-        authAvailable
-        variant='chrome'
-        viewer={{ email: 'javi@example.com', id: '1', image: null, name: 'Javi' }}
-      />,
+      <ThemeProvider>
+        <AuthControl
+          authAvailable
+          variant='chrome'
+          viewer={{ email: 'javi@example.com', id: '1', image: null, name: 'Javi' }}
+        />
+      </ThemeProvider>,
     );
 
     expect(screen.getByRole('button', { name: 'Open account menu' })).toBeInTheDocument();
@@ -78,24 +102,43 @@ describe('AuthControl', () => {
 
     expect(screen.getByText('Javi')).toBeInTheDocument();
     expect(screen.getByText('javi@example.com')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Switch to dark mode' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeInTheDocument();
   });
 
-  it('aligns viewer chrome with detail sections while a focus surface is open', () => {
+  it('switches and persists the theme from the account menu', async () => {
+    render(
+      <ThemeProvider>
+        <AuthControl
+          authAvailable
+          variant='chrome'
+          viewer={{ email: 'javi@example.com', id: '1', image: null, name: 'Javi' }}
+        />
+      </ThemeProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open account menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Switch to dark mode' }));
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveClass('dark');
+      expect(globalThis.localStorage.getItem('atlas-theme')).toBe('dark');
+    });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('keeps viewer chrome aligned with the top detail row', () => {
     const { container } = render(
-      <AuthControl
-        authAvailable
-        className='fixed right-4'
-        variant='chrome'
-        viewer={{ email: 'javi@example.com', id: '1', image: null, name: 'Javi' }}
-      />,
+      <ThemeProvider>
+        <AuthControl
+          authAvailable
+          className='fixed right-4'
+          variant='chrome'
+          viewer={{ email: 'javi@example.com', id: '1', image: null, name: 'Javi' }}
+        />
+      </ThemeProvider>,
     );
 
-    fireEvent(
-      globalThis.window,
-      new CustomEvent(atlasDetailSurfaceChangedEvent, { detail: true }),
-    );
-
-    expect(container.firstElementChild).toHaveClass('top-[2.875rem]');
+    expect(container.firstElementChild).toHaveClass('top-3');
   });
 });

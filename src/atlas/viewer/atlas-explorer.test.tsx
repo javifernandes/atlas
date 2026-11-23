@@ -428,6 +428,98 @@ const selection: Selection = Selection.references(Book, refs);
     );
   });
 
+  it('shows typed realization targets for an Operation', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=invite-operation');
+    const operationNode = {
+      ...createNode('invite-operation', {
+        kind: 'operation',
+        markdown: '## Contract\n\nInvite a person to the Workspace.',
+        semanticId: 'atlas.workspace.invitation.invite',
+        shortTitle: 'Invite',
+      }),
+      itemModel: {
+        kind: 'operation' as const,
+        realizationRefs: [
+          {
+            kind: 'operation',
+            namespace: 'ontahi',
+            status: 'planned',
+            target: 'AtlasWorkspace.invite',
+          },
+        ],
+      },
+    };
+
+    renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, operationNode] } });
+
+    const pseudocode = screen.getByLabelText('Semantic pseudocode');
+    expect(within(pseudocode).getByText('operation')).toHaveClass('text-primary');
+    expect(within(pseudocode).getByText('Invite')).toHaveClass('font-semibold');
+    const details = screen.getByRole('region', { name: 'Operation realizations' });
+    expect(within(details).getByText('ontahi · operation')).toBeInTheDocument();
+    expect(within(details).getByText('AtlasWorkspace.invite')).toBeInTheDocument();
+    expect(within(details).getByText('planned')).toBeInTheDocument();
+  });
+
+  it('navigates from a preserved invariant to its owning Entity', async () => {
+    const user = userEvent.setup();
+    globalThis.history.replaceState({}, '', '/internal/plans?full=invite-operation');
+    const entityNode = {
+      ...createNode('workspace-invitation', {
+        kind: 'entity',
+        markdown: `## Invariants
+
+| Rule | Constraint |
+| --- | --- |
+| \`address-is-not-proof\` | Selecting an address never grants access. |`,
+        semanticId: 'atlas.workspace.invitation',
+        shortTitle: 'Workspace Invitation',
+      }),
+      itemModel: {
+        kind: 'entity' as const,
+        entity: {
+          fields: [],
+          invariants: [{
+            constraint: 'Selecting an address never grants access.',
+            rule: 'address-is-not-proof',
+          }],
+          operations: [],
+          relations: [],
+          states: [],
+        },
+      },
+    };
+    const operationNode = {
+      ...createNode('invite-operation', {
+        kind: 'operation',
+        markdown: '## Invariants Preserved\n\n- `address-is-not-proof`',
+        semanticId: 'atlas.workspace.invitation.invite',
+        shortTitle: 'Invite',
+      }),
+      itemModel: {
+        invariantsPreserved: [{
+          ownerReference: 'atlas.workspace.invitation',
+          reference: 'atlas.workspace.invitation#invariant:address-is-not-proof',
+          resolution: 'resolved' as const,
+          rule: 'address-is-not-proof',
+          targetNodeId: 'workspace-invitation',
+        }],
+        kind: 'operation' as const,
+        realizationRefs: [],
+      },
+    };
+
+    renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, entityNode, operationNode] } });
+
+    const invariant = screen.getByRole('button', { name: 'address-is-not-proof' });
+    expect(invariant).toHaveAttribute(
+      'title',
+      'Workspace Invitation: Selecting an address never grants access.',
+    );
+    await user.click(invariant);
+    expect(screen.getByRole('heading', { name: 'Workspace Invitation' })).toBeInTheDocument();
+  });
+
   it('renders Interaction anatomy without duplicating the raw Markdown tables', () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=review-contributors');
     const interactionNode = {
@@ -461,6 +553,8 @@ const selection: Selection = Selection.references(Book, refs);
     renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, interactionNode] } });
 
     const details = screen.getByRole('region', { name: 'Interaction details' });
+    expect(details).toHaveClass('h-full');
+    expect(details).toHaveClass('overflow-y-auto');
     expect(within(details).getByText('Decide which observed contributors should receive access.')).toBeInTheDocument();
     expect(within(details).getByText('Workspace Owner')).toBeInTheDocument();
     expect(within(details).getByText('not defined')).toBeInTheDocument();
@@ -556,7 +650,15 @@ const selection: Selection = Selection.references(Book, refs);
     expect(within(operationNode).queryByText('Invitation accepted')).not.toBeInTheDocument();
     expect(within(details).getByRole('button', { name: 'Zoom in activity graph' })).toBeInTheDocument();
     expect(within(details).getByRole('button', { name: 'Fit activity graph' })).toBeInTheDocument();
+    const layoutToggle = within(details).getByRole('button', {
+      name: 'Activity graph layout: vertical. Switch to horizontal',
+    });
+    await user.click(layoutToggle);
+    expect(layoutToggle).toHaveAccessibleName(
+      'Activity graph layout: horizontal. Switch to vertical',
+    );
     const activityGraph = within(details).getByRole('region', { name: 'Activity graph' });
+    expect(details).toHaveClass('overflow-hidden');
     expect(activityGraph).not.toHaveClass('rounded-2xl', 'border');
     expect(activityGraph).toHaveClass('h-full', 'focus:outline-none');
     expect(activityGraph).toHaveAttribute('tabindex', '0');
@@ -573,10 +675,19 @@ const selection: Selection = Selection.references(Book, refs);
     expect(detailSurface.firstElementChild).not.toHaveClass('rounded-lg', 'border', 'shadow-2xl');
     expect(screen.queryByRole('complementary', { name: 'Activity node details panel' })).not.toBeInTheDocument();
 
+    fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
+    const searchInput = within(searchDialog).getByRole('combobox', { name: 'Search atlas' });
+    expect(searchDialog.parentElement).toHaveClass('z-[200]');
+    expect(searchInput).toHaveFocus();
+    fireEvent.keyDown(searchInput, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Search Atlas' })).not.toBeInTheDocument();
+
     fireEvent.keyDown(activityGraph, { key: 'ArrowRight' });
     expect(activityGraph).toHaveAttribute('aria-activedescendant', 'activity-node-claim');
 
     const inspectorPanel = screen.getByRole('complementary', { name: 'Activity node details panel' });
+    expect(within(inspectorPanel).queryByText('Node detail')).not.toBeInTheDocument();
     const inspector = screen.getByRole('region', { name: 'Activity node details' });
     expect(within(inspector).queryByText(/activity node/i)).not.toBeInTheDocument();
     expect(within(inspector).getByText('Semantic target')).toBeInTheDocument();
@@ -584,8 +695,19 @@ const selection: Selection = Selection.references(Book, refs);
     expect(within(inspector).queryByText('Arrives through')).not.toBeInTheDocument();
     expect(within(inspector).queryByText('Continues through')).not.toBeInTheDocument();
 
-    await user.click(within(inspectorPanel).getByRole('button', { name: 'Close activity node details' }));
+    fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('complementary', { name: 'Activity node details panel' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Respond To Invitation detail' })).toBeInTheDocument();
+
+    await user.click(operationNode);
+
+    await user.click(within(
+      screen.getByRole('complementary', { name: 'Activity node details panel' }),
+    ).getByRole('button', { name: 'Close activity node details' }));
+    expect(screen.queryByRole('complementary', { name: 'Activity node details panel' })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.getByRole('dialog', { name: 'Respond To Invitation detail' })).toBeInTheDocument();
 
     await user.click(operationNode);
     expect(screen.getByRole('complementary', { name: 'Activity node details panel' })).toBeInTheDocument();
@@ -675,9 +797,20 @@ const selection: Selection = Selection.references(Book, refs);
       'true',
     );
 
-    await user.click(within(behavior).getByRole('tab', { name: 'Availability' }));
+    await user.click(await within(behavior).findByRole('button', { name: 'Accept' }));
 
-    const availability = within(behavior).getByRole('tabpanel', {
+    expect(
+      within(screen.getByRole('dialog')).getByRole('heading', { name: 'Accept' }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Back to Invitation' }),
+    );
+
+    const restoredBehavior = screen.getByRole('region', { name: 'Entity behavior' });
+    await user.click(within(restoredBehavior).getByRole('tab', { name: 'Availability' }));
+
+    const availability = within(restoredBehavior).getByRole('tabpanel', {
       name: 'Operation availability',
     });
     expect(within(availability).getAllByText('Pending').length).toBeGreaterThan(0);
@@ -920,6 +1053,31 @@ const selection: Selection = Selection.references(Book, refs);
     expect(
       within(screen.getByRole('dialog')).getByRole('heading', { name: 'Item C' }),
     ).toBeInTheDocument();
+  });
+
+  it('renders escaped union separators as pipes inside Markdown table code', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-a'
+          ? {
+              ...node,
+              markdown: `| Field | Type |
+| --- | --- |
+| \`recipientAddress\` | \`UserId \\| ProviderIdentityRef \\| EmailAddress\` |`,
+            }
+          : node,
+      ),
+    };
+
+    renderExplorer({ value });
+
+    const unionCell = within(screen.getByRole('dialog')).getByRole('cell', {
+      name: 'UserId | ProviderIdentityRef | EmailAddress',
+    });
+    expect(within(unionCell).getByText('UserId | ProviderIdentityRef | EmailAddress')).toBeInTheDocument();
+    expect(unionCell).not.toHaveTextContent('\\|');
   });
 
   it('shows every project membership in full detail when Atlas has multiple projects', () => {
@@ -1380,7 +1538,7 @@ const selection: Selection = Selection.references(Book, refs);
 
     const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
     const searchInput = within(searchDialog).getByRole('combobox', { name: 'Search atlas' });
-    expect(searchDialog.parentElement).toHaveClass('z-[100]');
+    expect(searchDialog.parentElement).toHaveClass('z-[200]');
     expect(searchInput).toHaveFocus();
 
     await user.type(searchInput, '68');
