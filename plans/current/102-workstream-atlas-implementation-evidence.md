@@ -315,6 +315,8 @@ Changeset and release history:
 - [ ] Explicit, deterministic, and inferred relationships remain distinguishable by provenance.
 - [x] Duplicate rebuilds or webhook deliveries do not duplicate evidence.
 - [x] A merge does not implicitly mutate curated Plan or Item status.
+- [x] CI rejects implementation PRs that edit durable Atlas Plans or Items without covering every
+      changed target in the PR body's explicit evidence directives.
 
 ## Decisions
 

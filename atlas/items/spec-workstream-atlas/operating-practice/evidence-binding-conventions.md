@@ -31,3 +31,9 @@ implicit-Session path.
 Repository copies are projections of this Atlas-owned practice, not independent variants. Evolve
 the canonical guideline first, then synchronize both the copies and repository agent instructions.
 A binding records evidence and provenance; it does not mutate curated Plan or Item status.
+
+Atlas CI audits the deterministic omission case: implementation changes committed beside durable
+Atlas Plan or Item edits must cover every changed target in the PR body's evidence directives. The
+changed-file set is only a review trigger, not an inferred binding. CI never chooses `implements`
+versus `shapes`; the author or agent remains responsible for that semantic assertion, and
+documentation-only maintenance does not manufacture implementation history.
