@@ -5151,7 +5151,56 @@ const scrollToMarkdownSection = (sectionId: string) => {
   });
 };
 
-const MarkdownSectionIndex = ({ groups }: { groups: MarkdownSectionGroup[] }) => {
+const PlanPullRequestTimeline = ({ evidence }: { evidence: PlanWorkstreamEvidence[] }) => {
+  const [expanded, setExpanded] = useState(false);
+  const ordered = [...evidence].sort((left, right) =>
+    Date.parse(right.pullRequest.mergedAt) - Date.parse(left.pullRequest.mergedAt),
+  );
+
+  return (
+    <section aria-label='Merged PRs' className='mt-5 border-t border-border/65 pt-4'>
+      <h3 className='font-mono text-[10px] uppercase tracking-wide text-muted-foreground'>
+        Merged PRs
+      </h3>
+      <ol className='ml-1 mt-3 border-l border-border/65 pl-3'>
+        {(expanded ? ordered : ordered.slice(0, 5)).map(({ id, pullRequest }, index) => {
+          const day = pullRequest.mergedAt.slice(0, 10);
+          const previousDay = ordered[index - 1]?.pullRequest.mergedAt.slice(0, 10);
+          return (
+            <li key={id} className='relative pb-3 before:absolute before:-left-4 before:top-1.5 before:size-1.5 before:rounded-full before:bg-emerald-400'>
+              {day !== previousDay && (
+                <time dateTime={day} className='mb-1 block font-mono text-[10px] text-muted-foreground'>
+                  {new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(day))}
+                </time>
+              )}
+              <a href={pullRequest.url} target='_blank' rel='noreferrer' className='block rounded px-1 py-1 leading-4 hover:bg-muted/70 focus-visible:outline focus-visible:outline-sky-400'>
+                <span className='mb-1 flex items-center gap-1.5'>
+                  {pullRequest.authorAvatarUrl && (
+                    <img src={pullRequest.authorAvatarUrl} alt={pullRequest.authorLogin ?? ''} width={16} height={16} loading='lazy' className='size-4 rounded-full' />
+                  )}
+                  <span className='rounded-md border border-sky-400/30 bg-sky-400/10 px-1.5 font-mono text-[10px] font-semibold text-sky-300'>
+                    #{pullRequest.number}
+                  </span>
+                </span>
+                <span className='break-words'>{pullRequest.title}</span>
+              </a>
+            </li>
+          );
+        })}
+      </ol>
+      {ordered.length > 5 && (
+        <button type='button' aria-expanded={expanded} onClick={() => setExpanded(!expanded)} className='rounded px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground'>
+          {expanded ? 'Show less' : `${ordered.length - 5} more`}
+        </button>
+      )}
+    </section>
+  );
+};
+
+const MarkdownSectionIndex = ({ groups, children }: {
+  groups: MarkdownSectionGroup[];
+  children?: React.ReactNode;
+}) => {
   const groupKey = groups.map(group => group.root.id).join('|');
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() => new Set());
 
@@ -5159,7 +5208,7 @@ const MarkdownSectionIndex = ({ groups }: { groups: MarkdownSectionGroup[] }) =>
     setExpandedGroupIds(new Set());
   }, [groupKey]);
 
-  if (groups.length === 0) {
+  if (groups.length === 0 && !children) {
     return null;
   }
 
@@ -5178,11 +5227,9 @@ const MarkdownSectionIndex = ({ groups }: { groups: MarkdownSectionGroup[] }) =>
   };
 
   return (
-    <aside className='relative hidden min-w-0 self-stretch border-l border-border/65 xl:block'>
-      <nav
-        aria-label='Document sections'
-        className='sticky top-0 max-h-[calc(100dvh-11rem)] overflow-y-auto pb-4 pl-4 pr-2 pt-3 text-xs'
-      >
+    <aside className={cn('relative min-w-0 self-stretch border-l border-border/65', !children && 'hidden xl:block')}>
+      <div className='pb-4 pl-4 pr-2 pt-3 text-xs xl:sticky xl:top-0 xl:max-h-[calc(100dvh-11rem)] xl:overflow-y-auto'>
+      {groups.length > 0 && <nav aria-label='Document sections' className='hidden xl:block'>
         <div className='font-mono text-[10px] uppercase tracking-wide text-muted-foreground/70'>
           Sections
         </div>
@@ -5237,7 +5284,9 @@ const MarkdownSectionIndex = ({ groups }: { groups: MarkdownSectionGroup[] }) =>
           );
         })}
         </ol>
-      </nav>
+      </nav>}
+      {children}
+      </div>
     </aside>
   );
 };
@@ -5439,6 +5488,9 @@ const FullDetailSurface = ({
     };
   }, [evidence, evolutionEntries, node.id]);
   const nodeEvidence = nodeEvidenceProjection.evidence;
+  const planPullRequests = node.kind === 'plan'
+    ? nodeEvidence.filter(binding => binding.targetNodeId === node.id)
+    : [];
   const incoming = useMemo(() => edges.filter(edge => edge.to === node.id), [edges, node.id]);
   const outgoing = useMemo(() => edges.filter(edge => edge.from === node.id), [edges, node.id]);
   const { hierarchy, relations } = useMemo(
@@ -5483,6 +5535,7 @@ const FullDetailSurface = ({
     () => getMarkdownSectionGroups(markdownSections, node),
     [markdownSections, node],
   );
+  const hasOverviewSidebar = markdownSectionGroups.length > 0 || planPullRequests.length > 0;
   const pastEntries = evolutionEntries.filter(entry => entry.stage === 'past');
   const currentEntries = evolutionEntries.filter(entry => entry.stage === 'now');
   const nextEntries = evolutionEntries.filter(entry => entry.node.statusGroup === 'next');
@@ -5751,7 +5804,7 @@ const FullDetailSurface = ({
                 overviewUsesDedicatedSurface
                   ? 'h-full min-h-0 min-w-0'
                   : 'grid min-h-full min-w-0 content-start items-start gap-6',
-                overviewRendersMarkdown && markdownSectionGroups.length > 0 &&
+                overviewRendersMarkdown && hasOverviewSidebar &&
                   'xl:grid-cols-[minmax(0,1fr)_12rem]',
               )}
             >
@@ -5760,7 +5813,7 @@ const FullDetailSurface = ({
                   overviewUsesDedicatedSurface
                     ? 'h-full min-h-0 min-w-0 max-w-full overflow-hidden'
                     : 'grid min-w-0 max-w-full content-start gap-5 overflow-hidden break-words [&>*]:min-w-0 [&>*]:max-w-full',
-                  overviewRendersMarkdown && markdownSectionGroups.length > 0 && 'xl:pr-2',
+                  overviewRendersMarkdown && hasOverviewSidebar && 'xl:pr-2',
                 )}
               >
                 <ItemKindOverview context={markdownContext} />
@@ -5769,7 +5822,11 @@ const FullDetailSurface = ({
                   : null}
               </article>
               {contentStatus === 'loaded' && overviewRendersMarkdown ? (
-                <MarkdownSectionIndex groups={markdownSectionGroups} />
+                <MarkdownSectionIndex groups={markdownSectionGroups}>
+                  {planPullRequests.length > 0 && (
+                    <PlanPullRequestTimeline key={node.id} evidence={planPullRequests} />
+                  )}
+                </MarkdownSectionIndex>
               ) : null}
             </div>
           ) : null}

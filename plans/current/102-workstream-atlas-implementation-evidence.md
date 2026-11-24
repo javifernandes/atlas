@@ -515,3 +515,9 @@ JavaScript shape. Reconciliation uses that contract to read only the latest revi
 timestamp during normal operation, fetching the previous snapshot JSON solely when degraded source
 evidence must be retained. The narrower wire contract completes the reusable adapter follow-up from
 Plan 129 without changing the durable evidence model or its source authorities.
+
+### Plan Overview checkpoint
+
+Plan Overview now shows directly bound merged PRs beneath the document sections. The timeline
+groups them by merge date, shows the five newest first, and lets readers expand the remaining
+history. ATL-149 served as the local review example.
