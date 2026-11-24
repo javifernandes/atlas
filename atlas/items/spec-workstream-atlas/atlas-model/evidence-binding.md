@@ -58,3 +58,6 @@ Workspace-scoped Projection Revisions compose that accepted evidence replica wit
 registered Markdown Sources before publication. A Workspace snapshot therefore preserves the same
 PR-to-Plan and PR-to-Item bindings as the global compatibility projection; evidence observation is
 part of the atomic reconciliation boundary rather than a later presentation lookup.
+
+Plan Overview exposes merged PR evidence bound directly to the Plan in a compact timeline beneath
+its section index. Readers can expand the history beyond the five most recent PRs.
