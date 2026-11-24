@@ -66,6 +66,8 @@ is discovered from an ordered updated window rather than supplied as file operat
 4. [x] Add stage metrics for fetched, reused, changed, and resulting evidence records.
 5. [x] Prove edits adding or removing directives and timestamp ties converge correctly.
 6. [x] Evaluate the behavior as a candidate replicated-collection adapter in Ontahi.
+7. [x] Compose the accepted evidence replica into Workspace-scoped Projection Revisions, not only
+   the global compatibility projection.
 
 ## Ontahi extraction brief
 
@@ -146,3 +148,10 @@ The implementation is deliberately application-local. Evaluation exposed a reusa
 `ReplicatedCollectionObserver`/runner capability that belongs in an Ontahi provider plan, with the
 active Entity storage as its default persistence and a custom storage adapter only as an escape
 hatch. Incremental semantic assembly remains the following Atlas optimization.
+
+Production validation exposed a projection-boundary gap: `/w/:slug` reads an
+`AtlasWorkspaceProjectionRevision`, while the Workspace reconciler previously assembled only its
+Git-backed Markdown Sources. The replica and global projection correctly resolved PR #116, but the
+Atlas Workspace published `PAST · 0`. The Workspace reconciler now composes the same accepted PR
+records before snapshot publication and rejects an evidence-observation failure instead of
+silently publishing an empty history.
