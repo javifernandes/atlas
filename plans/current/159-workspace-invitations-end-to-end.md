@@ -303,6 +303,14 @@ of one surface does not expose a dead affordance.
 
 ## Closure / Evolution
 
+### 2026-11-24 — Evidence lens integration correction
+
+The first production pass exposed two integration gaps around the Storybook evidence lens. The
+global Workspace menu had been enlarged into branded chrome that obscured the Item header, so it
+returns to its compact trigger while retaining search. `Respond To Workspace Invitation` now also
+names this Plan explicitly, allowing the merged PR evidence attached to Plan 159 to appear in the
+Interaction's Evolution timeline through the existing Plan-to-Item attribution.
+
 The closing slice includes persisted Workspace Invitations, the owner invite path and contributor
 fixture, claim across authentication return and account switching, Interaction and state diagrams,
 and the optional Storybook evidence lens. Storybook is inspectable implementation evidence, not a

@@ -85,6 +85,10 @@ The registry is not semantic authority and does not duplicate Storybook URLs. It
 testable bridge until Atlas can read Storybook's generated index, resolve the stable anchors, and
 project the same Evidence lens without a hand-maintained registry.
 
+The Evidence lens owns only the content rendered beneath the Item detail header. It must not add or
+enlarge global Workspace chrome over that header; Atlas navigation remains the compact Workspace
+menu trigger whether or not an embedded preview is available.
+
 Storybook availability is optional. In development, Atlas may use `http://localhost:6006` when no
 explicit URL is configured. Production derives previews and deep links only from
 `NEXT_PUBLIC_ATLAS_STORYBOOK_URL`. When that variable is absent, the Evidence lens still presents

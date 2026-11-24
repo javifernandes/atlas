@@ -12,7 +12,6 @@ import {
   readRecentAtlasNodes,
   type RecentAtlasNode,
 } from '@/atlas/viewer/recent-nodes';
-import { AtlasMark } from '@/components/atlas-mark';
 
 export const WorkspaceControl = ({
   workspace,
@@ -62,17 +61,16 @@ export const WorkspaceControl = ({
   }, [open]);
 
   return (
-    <div className='fixed left-4 top-4 z-[140] text-xs' ref={root}>
+    <div className='fixed left-4 top-3 z-[140] text-xs' ref={root}>
       <button
         type='button'
         aria-expanded={open}
         aria-haspopup='menu'
         aria-label='Open Workspace menu'
-        className='inline-flex items-center gap-2 rounded-lg border border-border/70 bg-background/78 px-3 py-2 text-sm font-semibold tracking-tight shadow-lg backdrop-blur-xl transition-colors hover:border-primary/45 hover:bg-background/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+        className='grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
         onClick={() => setOpen(current => !current)}
       >
-        <AtlasMark className='size-7' priority />
-        <span>Atlas</span>
+        <LayoutGrid className='size-3.5' />
       </button>
       {open ? (
         <div
