@@ -52,6 +52,10 @@ import {
 } from './postgres-observability';
 import { createVersionedProjectionSnapshotCache } from './projection-snapshot-cache';
 import { createAtlasParsedRecordMaterializationStore } from './parsed-record-materialization-store';
+import {
+  createAtlasReconciliationStageObserver,
+  type AtlasReconciliationStageObserver,
+} from './reconciliation-observability';
 
 export type AtlasMergeCatchUpCandidate = {
   action: 'append-to-session' | 'create-implicit-session';
@@ -275,6 +279,7 @@ export const createAtlasPostgresApplication = (input: {
   loadProjection: (
     request: AtlasReconciliationRequest,
     baseline?: AtlasProjectionSourceBaseline,
+    reconciliationObserver?: AtlasReconciliationStageObserver,
   ) => Promise<AtlasProjectionInput>;
   observePostgresQueries?: boolean;
   onPostgresQuery?: (observation: AtlasPostgresQueryObservation) => void;
@@ -1359,33 +1364,73 @@ export const createAtlasPostgresApplication = (input: {
     };
   };
 
-  reconcileProjection = request =>
-    Effect.promise(() => readDuplicateWebhookResult(request)).pipe(
+  reconcileProjection = request => {
+    const reconciliationObserver = createAtlasReconciliationStageObserver({
+      repositoryFullName: request.webhook?.repositoryFullName,
+      trigger: request.trigger,
+    });
+
+    return Effect.promise(() => readDuplicateWebhookResult(request)).pipe(
       Effect.flatMap(duplicateResult =>
         duplicateResult
           ? Effect.succeed(duplicateResult)
           : tryCoalesceWebhook(request).pipe(Effect.flatMap(coalescedResult =>
             coalescedResult
               ? Effect.succeed(coalescedResult)
-              : Effect.promise(async () =>
-                  input.loadProjection(
-                    request,
-                    request.webhook ? await loadSourceBaseline() : undefined,
-                  ),
-                ).pipe(
+              : Effect.promise(async () => {
+                  const baseline = request.webhook
+                    ? await reconciliationObserver.measure(
+                        'load-source-baseline',
+                        loadSourceBaseline,
+                        value => ({
+                          recordCount: value.records.length,
+                          sourceCount: value.sourceRevisions.length,
+                        }),
+                      )
+                    : undefined;
+
+                  return reconciliationObserver.measure(
+                    'load-projection-input',
+                    () => input.loadProjection(request, baseline, reconciliationObserver),
+                    value => ({
+                      evidenceFailureCount: value.evidenceFailures.length,
+                      incremental: Boolean(value.sourceChangeSet),
+                      recordCount: value.records.length,
+                      sourceCount: value.sourceRevisions.length,
+                    }),
+                  );
+                }).pipe(
               Effect.flatMap(projection =>
                 Effect.promise(async () => {
-                  const checkpoint = await parsedRecordMaterializationStore.load({
-                    derivationId: ATLAS_PARSED_RECORD_MATERIALIZER_ID,
-                    scopeId: ATLAS_PARSED_RECORD_MATERIALIZATION_SCOPE,
-                  });
-                  const materialization = await materializeAtlasParsedRecords({
-                    changeSet: projection.sourceChangeSet,
-                    initial: checkpoint,
-                    parseRecord: input.parseRecordArtifact,
-                    records: projection.records,
-                    sourceRevisions: projection.sourceRevisions,
-                  });
+                  const checkpoint = await reconciliationObserver.measure(
+                    'hydrate-materialization-checkpoint',
+                    () => parsedRecordMaterializationStore.load({
+                      derivationId: ATLAS_PARSED_RECORD_MATERIALIZER_ID,
+                      scopeId: ATLAS_PARSED_RECORD_MATERIALIZATION_SCOPE,
+                    }),
+                    value => ({
+                      artifactCount: value?.artifacts.length ?? 0,
+                      checkpointFound: Boolean(value),
+                      dependencyCount: value?.dependencies.length ?? 0,
+                    }),
+                  );
+                  const materialization = await reconciliationObserver.measure(
+                    'materialize-parsed-records',
+                    () => materializeAtlasParsedRecords({
+                      changeSet: projection.sourceChangeSet,
+                      initial: checkpoint,
+                      parseRecord: input.parseRecordArtifact,
+                      records: projection.records,
+                      sourceRevisions: projection.sourceRevisions,
+                    }),
+                    value => ({
+                      artifactCount: value.artifacts.length,
+                      fallbackReason: value.fallbackReason,
+                      mode: value.mode,
+                      parsedRecordCount: value.parsedRecordCount,
+                      reusedRecordCount: value.reusedRecordCount,
+                    }),
+                  );
 
                   return {
                     expectedMaterializationSourceFrontier:
@@ -1414,14 +1459,25 @@ export const createAtlasPostgresApplication = (input: {
         }
 
         const observedPullRequests = mergeWebhookPullRequestObservation(projection, request);
-        const dataset = buildAtlasOntahiDatasetFromSource(
-          materialization.source,
-          projection.records,
-          observedPullRequests,
-          projection.sourceRevisions,
-          projection.observedReleases ?? [],
+        const dataset = reconciliationObserver.measureSync(
+          'assemble-projection-dataset',
+          () => {
+            const assembled = buildAtlasOntahiDatasetFromSource(
+              materialization.source,
+              projection.records,
+              observedPullRequests,
+              projection.sourceRevisions,
+              projection.observedReleases ?? [],
+            );
+            assertAtlasProjectionIdentities(assembled);
+            return assembled;
+          },
+          value => ({
+            itemCount: value.AtlasItem.length,
+            planCount: value.AtlasPlan.length,
+            sourceRecordCount: value.AtlasSourceRecord.length,
+          }),
         );
-        assertAtlasProjectionIdentities(dataset);
         const projectionRevisionId = `projection:${randomUUID()}`;
         const startedAt = projection.observedAt;
         const sourceRevisionSetHash = hashRevisionSet(
@@ -1438,6 +1494,8 @@ export const createAtlasPostgresApplication = (input: {
             artifactCount: materialization.artifacts.length,
             fallbackReason: materialization.fallbackReason,
             mode: materialization.mode,
+            parsedRecordCount: materialization.parsedRecordCount,
+            reusedRecordCount: materialization.reusedRecordCount,
           },
           sourceChangeSetId: projection.sourceChangeSet?.id ?? null,
         });
@@ -1457,6 +1515,9 @@ export const createAtlasPostgresApplication = (input: {
             : (webhook.mergeCommitSha ?? webhook.mergedAt)
           : null;
 
+        const finishPublicationObservation = reconciliationObserver.start(
+          'publish-projection-revision',
+        );
         return atlas.application.app.graph.transaction(
           Effect.gen(function* () {
             yield* entities.ProjectionReconciliationLock.upsert(
@@ -1801,19 +1862,38 @@ export const createAtlasPostgresApplication = (input: {
           }),
         ).pipe(
           Effect.tap(result =>
+            Effect.sync(() => finishPublicationObservation('completed', {
+              evidenceBindingCount: result.evidenceBindingCount,
+              itemCount: result.itemCount,
+              planCount: result.planCount,
+              sourceCount: result.sourceCount,
+            })),
+          ),
+          Effect.tapError(() =>
+            Effect.sync(() => finishPublicationObservation('failed')),
+          ),
+          Effect.tap(result =>
             result.projectionRevisionId === projectionRevisionId
               ? Effect.promise(async () => {
                   try {
-                    const write = await parsedRecordMaterializationStore.replace({
-                      checkpoint: {
-                        artifacts: materialization.artifacts,
-                        dependencies: materialization.dependencies,
-                        scopeId: ATLAS_PARSED_RECORD_MATERIALIZATION_SCOPE,
-                        snapshot: materialization.snapshot,
-                        updatedAt: new Date().toISOString(),
-                      },
-                      expectedSourceFrontier: expectedMaterializationSourceFrontier,
-                    });
+                    const write = await reconciliationObserver.measure(
+                      'persist-materialization-checkpoint',
+                      () => parsedRecordMaterializationStore.replace({
+                        checkpoint: {
+                          artifacts: materialization.artifacts,
+                          dependencies: materialization.dependencies,
+                          scopeId: ATLAS_PARSED_RECORD_MATERIALIZATION_SCOPE,
+                          snapshot: materialization.snapshot,
+                          updatedAt: new Date().toISOString(),
+                        },
+                        expectedSourceFrontier: expectedMaterializationSourceFrontier,
+                      }),
+                      value => ({
+                        artifactCount: materialization.artifacts.length,
+                        dependencyCount: materialization.dependencies.length,
+                        writeStatus: value.status,
+                      }),
+                    );
 
                     if (write.status === 'conflict') {
                       console.error('Atlas parsed-record checkpoint advanced concurrently.', {
@@ -1857,6 +1937,7 @@ export const createAtlasPostgresApplication = (input: {
       Effect.map(execution => execution.result),
       Effect.orDie,
     );
+  };
 
   const invokeReconciliationOperation = async (request: AtlasReconciliationRequest) => {
     if (request.trigger === 'webhook' || request.webhook) {

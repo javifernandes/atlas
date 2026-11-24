@@ -80,6 +80,12 @@ checkpoint is absent or behind the projection baseline, its Materializer version
 dependency evidence cannot prove a removal, Atlas performs a full parse and records the fallback
 reason rather than publishing a guessed partial result.
 
+Reconciliation observations keep optimization boundaries explicit. They record elapsed time for
+Source-baseline loading, external Source and evidence observation, checkpoint hydration, record
+materialization, semantic assembly, Projection publication, and checkpoint persistence. Parsed and
+reused record counts belong to the materialization observation; they must not be presented as an
+end-to-end reconciliation improvement when another stage remains dominant.
+
 The candidate reusable abstraction is not Markdown parsing itself but a media-neutral record
 derivation envelope: `VersionedRecord -> DerivedArtifact<Payload>`. Stable record identity, content
 fingerprint, transformation identity/version, serialized payload, observation lineage, and

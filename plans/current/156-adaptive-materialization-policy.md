@@ -149,6 +149,9 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
          Materializer proof.
    - [x] Hydrate accepted state, dependencies, and artifacts from Atlas persistence, then connect the
          Materializer to production reconciliation.
+   - [x] Observe the production reconciliation boundary with stage durations and parsed/reused
+         record counts so incremental parsing savings remain distinguishable from Source loading,
+         semantic assembly, Projection publication, and checkpoint persistence costs.
 4. Derive only affected Atlas Entities and semantic dependencies while retaining atomic Projection
    Revision publication and full-rebuild fallback.
 5. Run incremental and full derivation in comparison mode until equivalence and invalidation
@@ -219,6 +222,10 @@ the checkpoint afterward. A missing, stale, version-incompatible, or dependency-
 checkpoint falls back to full parsing. This completes the intended incremental-parsing cut; the
 first production observation exposed a physical/semantic identity collision among BookOps README
 records; Materializer v2 now keys artifacts by source plus physical path and invalidates v1
-checkpoints safely. The next slice is incremental Entity and semantic-dependency derivation, after
+checkpoints safely. A subsequent production run proved that the checkpoint can hydrate and persist
+569 artifacts without collision, while also exposing that end-to-end reconciliation remains much
+larger than record parsing and can stall during external loading. Stage-level timings and
+parsed/reused counters are therefore the next measurement checkpoint before incremental Entity and
+semantic-dependency derivation, after
 measuring this smaller change and evaluating the record-artifact pattern in BookOps. Cooling,
 eviction, and tier policy remain possible later plugins but have no execution slice here.

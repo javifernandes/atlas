@@ -32,6 +32,8 @@ export type AtlasParsedRecordMaterializationSeed = {
 type AtlasParsedRecordMaterializationResult = AtlasParsedRecordMaterializationSeed & {
   fallbackReason: ReplicatedVersionedModelRebuildRequired['reason'] | null;
   mode: 'incremental' | 'rebuild';
+  parsedRecordCount: number;
+  reusedRecordCount: number;
   source: ReturnType<typeof assembleParsedAtlasSourceRecordArtifacts>;
 };
 
@@ -57,8 +59,13 @@ export const materializeAtlasParsedRecords = async (input: {
   records: readonly NormalizedAtlasSourceRecord[];
   sourceRevisions: readonly AtlasLoadedSourceRevision[];
 }): Promise<AtlasParsedRecordMaterializationResult> => {
+  let parsedRecordCount = 0;
+  const parseRecord = (...args: Parameters<typeof parseAtlasSourceRecordArtifact>) => {
+    parsedRecordCount += 1;
+    return (input.parseRecord ?? parseAtlasSourceRecordArtifact)(...args);
+  };
   const runner = createReplicatedVersionedMaterializerRunner(
-    createAtlasParsedRecordMaterializer({ parseRecord: input.parseRecord }),
+    createAtlasParsedRecordMaterializer({ parseRecord }),
     input.initial
       ? {
           initial: {
@@ -100,6 +107,7 @@ export const materializeAtlasParsedRecords = async (input: {
 
   if (execution.result.status === 'rebuild-required') {
     mode = 'rebuild';
+    parsedRecordCount = 0;
     execution = await runner.run({
       input: { artifacts: [], records: input.records },
       mode: 'rebuild',
@@ -122,6 +130,8 @@ export const materializeAtlasParsedRecords = async (input: {
     dependencies: runner.dependencies(),
     fallbackReason,
     mode,
+    parsedRecordCount,
+    reusedRecordCount: mode === 'incremental' ? artifacts.length - parsedRecordCount : 0,
     snapshot: execution.result.snapshot,
     source: assembleParsedAtlasSourceRecordArtifacts({
       artifacts: artifacts.map(deserializeParsedAtlasSourceRecordArtifact),

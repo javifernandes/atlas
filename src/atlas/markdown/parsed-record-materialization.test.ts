@@ -70,7 +70,12 @@ describe('Atlas parsed-record materialization', () => {
       sourceRevisions: [loadedRevision('target')],
     });
 
-    expect(incremental).toMatchObject({ fallbackReason: null, mode: 'incremental' });
+    expect(incremental).toMatchObject({
+      fallbackReason: null,
+      mode: 'incremental',
+      parsedRecordCount: 1,
+      reusedRecordCount: 1,
+    });
     expect(parseRecord).toHaveBeenCalledOnce();
     expect(parseRecord).toHaveBeenCalledWith(targetRecords[0]);
     expect(incremental.source).toEqual(parseAtlasSourceRecords(targetRecords));
@@ -99,7 +104,12 @@ describe('Atlas parsed-record materialization', () => {
       sourceRevisions: [loadedRevision('target')],
     });
 
-    expect(result).toMatchObject({ fallbackReason: 'source-frontier-gap', mode: 'rebuild' });
+    expect(result).toMatchObject({
+      fallbackReason: 'source-frontier-gap',
+      mode: 'rebuild',
+      parsedRecordCount: 1,
+      reusedRecordCount: 0,
+    });
     expect(parseRecord).toHaveBeenCalledOnce();
     expect(result.source).toEqual(parseAtlasSourceRecords(targetRecords));
   });
