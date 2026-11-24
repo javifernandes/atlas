@@ -651,10 +651,10 @@ const selection: Selection = Selection.references(Book, refs);
 
     const details = screen.getByRole('region', { name: 'Interaction details' });
     const detailSurface = screen.getByRole('dialog', { name: 'Respond To Invitation detail' });
-    expect(within(details).getAllByText('Open invitation URL')).not.toHaveLength(0);
+    expect(await within(details).findAllByText('Open invitation URL')).not.toHaveLength(0);
     expect(within(details).getAllByText(/Continue/)).not.toHaveLength(0);
     expect(within(details).getAllByText('Invitation accepted')).not.toHaveLength(0);
-    const entryNode = within(details).getByRole('button', {
+    const entryNode = await within(details).findByRole('button', {
       name: /Open invitation URL/,
     });
     expect(within(entryNode).queryByText('Claim invitation')).not.toBeInTheDocument();
@@ -672,6 +672,7 @@ const selection: Selection = Selection.references(Book, refs);
       'Activity graph layout: horizontal. Switch to vertical',
     );
     const activityGraph = within(details).getByRole('region', { name: 'Activity graph' });
+    await waitFor(() => expect(activityGraph).toHaveAttribute('aria-busy', 'false'));
     expect(details).toHaveClass('overflow-hidden');
     expect(activityGraph).not.toHaveClass('rounded-2xl', 'border');
     expect(activityGraph).toHaveClass('h-full', 'focus:outline-none');
@@ -713,7 +714,7 @@ const selection: Selection = Selection.references(Book, refs);
     expect(screen.queryByRole('complementary', { name: 'Activity node details panel' })).not.toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Respond To Invitation detail' })).toBeInTheDocument();
 
-    await user.click(operationNode);
+    await user.click(within(details).getByRole('button', { name: 'operation: Claim invitation' }));
 
     await user.click(within(
       screen.getByRole('complementary', { name: 'Activity node details panel' }),
@@ -723,7 +724,7 @@ const selection: Selection = Selection.references(Book, refs);
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.getByRole('dialog', { name: 'Respond To Invitation detail' })).toBeInTheDocument();
 
-    await user.click(operationNode);
+    await user.click(within(details).getByRole('button', { name: 'operation: Claim invitation' }));
     expect(screen.getByRole('complementary', { name: 'Activity node details panel' })).toBeInTheDocument();
   });
 

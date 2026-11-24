@@ -741,6 +741,11 @@ of treating actor prose as an implicit runtime predicate. The invitation exempla
 result end to end while preserving stimulus, ingress, Interaction, Operation, and durable execution
 as related but distinct concepts.
 
+The production Graph lens now keeps its spatial surface stable while ELK computes the requested
+layout. It no longer paints the older horizontal fallback before replacing it with the default
+vertical projection; the deterministic fallback remains available only when layout computation
+actually fails.
+
 `Invite Person To Workspace` now defines the owner's side of invitation creation across three
 recipient paths: a stable Atlas User, an observed GitHub identity, or verified-email delivery. The
 paths converge only on pending invitation intent. Recipient response remains a separate unresolved

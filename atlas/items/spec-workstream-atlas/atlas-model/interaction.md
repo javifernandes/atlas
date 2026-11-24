@@ -164,6 +164,10 @@ primitive that the Workspace graph may also adopt. It does not add ordering or c
 semantic model. Merge nodes appear as compact convergence points because they establish a
 control-flow condition without performing actor or system work.
 
+When spatial layout is asynchronous, the viewer holds a stable loading surface until the requested
+direction is ready. It must not expose a differently oriented fallback as an intermediate frame;
+fallback layout is reserved for a real layout failure rather than ordinary computation latency.
+
 Graph topology belongs to connections rather than node copy. A decision node does not repeat its
 successor nodes as a list, and an Operation does not repeat the Outcome already reached by its
 outgoing transition. The spatial lens renders compact selectable nodes above a derived SVG

@@ -38,6 +38,7 @@ import {
 } from 'react';
 
 import { AtlasMark } from '@/components/atlas-mark';
+import { AtlasLoadingMark } from '@/components/atlas-loading-mark';
 import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { ScrollableOverflow } from '@/components/scrollable-overflow';
 import type { AtlasExecutionStreamProjection } from '@/atlas/model/execution-stream';
@@ -2929,6 +2930,13 @@ const ActivityNodeInspector = ({
   );
 };
 
+const emptyActivityGraphLayout: ActivityGraphElkLayout = {
+  edges: [],
+  height: 0,
+  nodes: [],
+  width: 0,
+};
+
 const InteractionActivityGraphLens = ({
   onSelect,
   projection,
@@ -2943,26 +2951,38 @@ const InteractionActivityGraphLens = ({
   const backTransitions = new Set(projection.backTransitions);
   const fallbackLayout = useMemo(() => buildActivityGraphLayout(projection), [projection]);
   const [layoutDirection, setLayoutDirection] = useState<ActivityGraphLayoutDirection>('vertical');
-  const [layout, setLayout] = useState<ActivityGraphElkLayout>({
-    ...fallbackLayout,
-    edges: [],
-  });
-  useEffect(() => {
-    setLayout({ ...fallbackLayout, edges: [] });
-  }, [fallbackLayout]);
+  const [layoutState, setLayoutState] = useState<{
+    direction: ActivityGraphLayoutDirection;
+    layout: ActivityGraphElkLayout;
+    projection: ActivityGraphLensProjection;
+  } | null>(null);
+  const matchingLayout = layoutState?.direction === layoutDirection &&
+    layoutState.projection === projection
+    ? layoutState.layout
+    : null;
+  const layoutReady = matchingLayout !== null;
+  const layout = matchingLayout
+    ? matchingLayout
+    : emptyActivityGraphLayout;
   useEffect(() => {
     let active = true;
     void buildActivityGraphElkLayout(projection, layoutDirection)
       .then(nextLayout => {
-        if (active) setLayout(nextLayout);
+        if (active) setLayoutState({ direction: layoutDirection, layout: nextLayout, projection });
       })
       .catch(() => {
-        // Keep the deterministic synchronous layout as a resilient fallback.
+        if (active) {
+          setLayoutState({
+            direction: layoutDirection,
+            layout: { ...fallbackLayout, edges: [] },
+            projection,
+          });
+        }
       });
     return () => {
       active = false;
     };
-  }, [layoutDirection, projection]);
+  }, [fallbackLayout, layoutDirection, projection]);
   const layoutNodesById = useMemo(
     () => new Map(layout.nodes.map(node => [node.id, node])),
     [layout.nodes],
@@ -3203,6 +3223,7 @@ const InteractionActivityGraphLens = ({
         selectedNodeId ? `activity-node-${selectedNodeId}` : undefined
       }
       aria-label='Activity graph'
+      aria-busy={!layoutReady}
       aria-keyshortcuts='ArrowUp ArrowDown ArrowLeft ArrowRight'
       className={cn(
         'relative h-full min-h-[30rem] select-none overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(113,113,122,0.18)_1px,transparent_0)] [background-size:22px_22px] focus:outline-none',
@@ -3223,6 +3244,15 @@ const InteractionActivityGraphLens = ({
       onPointerUp={handlePointerEnd}
       onKeyDown={handleActivityKeyDown}
     >
+      {!layoutReady ? (
+        <div
+          aria-label='Laying out activity graph'
+          className='absolute inset-0 grid place-items-center'
+          role='status'
+        >
+          <AtlasLoadingMark className='size-12 opacity-55' />
+        </div>
+      ) : null}
       <div
         ref={contentRef}
         className='absolute left-0 top-0 origin-top-left will-change-transform'
