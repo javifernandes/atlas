@@ -12,6 +12,7 @@ relatedPlans:
   - plans/done/104-atlas-source-shape-v0.md
   - plans/current/102-workstream-atlas-implementation-evidence.md
   - plans/done/116-atlas-ontahi-postgres-persistence.md
+  - plans/current/163-incremental-github-evidence-replication.md
 ---
 
 Evidence Binding links a model item to concrete proof: code, tests, migrations, stories, deployments, metrics, docs, or PRs.
@@ -46,3 +47,14 @@ turn Atlas into the owner of the referenced Pull Request. Durable delivery ident
 webhooks converge across server instances. Reconciliation is serialized, preserves bindings for a
 temporarily unavailable evidence source, and refreshes the authoritative GitHub record when that
 source recovers.
+
+The GitHub evidence input is itself replicated incrementally. Atlas persists a per-repository
+provider frontier and the normalized merged PR records that currently carry supported directives,
+then derives `PullRequest` and `EvidenceBinding` projection rows from that accepted replica. A
+closed PR's metadata remains mutable: a later GitHub `updated_at` can add, change, or remove its
+directives, while full observation remains the repair path.
+
+Workspace-scoped Projection Revisions compose that accepted evidence replica with the Workspace's
+registered Markdown Sources before publication. A Workspace snapshot therefore preserves the same
+PR-to-Plan and PR-to-Item bindings as the global compatibility projection; evidence observation is
+part of the atomic reconciliation boundary rather than a later presentation lookup.
