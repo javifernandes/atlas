@@ -41,7 +41,7 @@ export const createAtlasPostgresComposition = (input: {
     pool: input.pool,
     reconcileWorkspaceSources: ({ sources }) =>
       reconcileAtlasWorkspaceSources({ repoRoot, sources }),
-    loadProjection: async (request: AtlasReconciliationRequest, baseline) => {
+    loadProjection: async (request: AtlasReconciliationRequest, baseline, reconciliationObserver) => {
       if (request.webhook) {
         input.invalidateRepository?.(request.webhook.repositoryFullName);
       }
@@ -54,6 +54,7 @@ export const createAtlasPostgresComposition = (input: {
             : undefined,
         preferRemoteAtlas: process.env.NODE_ENV === 'production',
         providerDeliveryId: request.webhook?.deliveryId,
+        reconciliationObserver,
         repositoryFullName: request.webhook?.repositoryFullName,
         repoRoot,
       });

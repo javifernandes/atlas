@@ -15,6 +15,7 @@ import {
   deriveAtlasSourceChangeSet,
   type AtlasSourceChangeSet,
 } from '../sources/source-changeset';
+import type { AtlasReconciliationStageObserver } from '../persistence/reconciliation-observability';
 
 type LoadedAtlasProjectionInput = Awaited<ReturnType<typeof loadAtlasProjectionInput>>;
 export type AtlasProjectionInput = Omit<
@@ -132,6 +133,7 @@ export const loadAtlasProjectionInput = async (input: {
   fetcher?: typeof fetch;
   preferRemoteAtlas?: boolean;
   providerDeliveryId?: string | null;
+  reconciliationObserver?: AtlasReconciliationStageObserver;
   repositoryFullName?: string;
   repoRoot: string;
 }) => {
@@ -155,23 +157,54 @@ export const loadAtlasProjectionInput = async (input: {
         registrations.map(registration => registration.sourceId),
       ),
   );
+  const measure = <TValue>(
+    stage: string,
+    run: () => Promise<TValue>,
+    metrics: (value: TValue) => Record<string, boolean | number | string | null>,
+  ) => input.reconciliationObserver?.measure(stage, run, metrics) ?? run();
   const [sourceObservation, evidenceObservation, releaseObservation] = await Promise.all([
-    loadAtlasSourceObservation({
-      fetcher: input.fetcher,
-      preferRemoteAtlas: input.preferRemoteAtlas,
-      repositoryFullName: useIncrementalSourceObservation
-        ? input.repositoryFullName
-        : undefined,
-      repoRoot: input.repoRoot,
-    }),
-    loadAtlasPullRequestEvidenceObservation({
-      fetcher: input.fetcher,
-      repoRoot: input.repoRoot,
-    }),
-    loadAtlasReleaseEvidenceObservation({
-      fetcher: input.fetcher,
-      repoRoot: input.repoRoot,
-    }),
+    measure(
+      'load-markdown-sources',
+      () =>
+        loadAtlasSourceObservation({
+          fetcher: input.fetcher,
+          preferRemoteAtlas: input.preferRemoteAtlas,
+          repositoryFullName: useIncrementalSourceObservation
+            ? input.repositoryFullName
+            : undefined,
+          repoRoot: input.repoRoot,
+        }),
+      value => ({
+        fileCount: value.files.length,
+        sourceCount: value.sourceRevisions.length,
+        targeted: useIncrementalSourceObservation,
+      }),
+    ),
+    measure(
+      'load-pull-request-evidence',
+      () =>
+        loadAtlasPullRequestEvidenceObservation({
+          fetcher: input.fetcher,
+          repoRoot: input.repoRoot,
+        }),
+      value => ({
+        failureCount: value.failures.length,
+        pullRequestCount: value.pullRequests.length,
+        sourceCount: value.successfulSources.length,
+      }),
+    ),
+    measure(
+      'load-release-evidence',
+      () =>
+        loadAtlasReleaseEvidenceObservation({
+          fetcher: input.fetcher,
+          repoRoot: input.repoRoot,
+        }),
+      value => ({
+        failureCount: value.failures.length,
+        releaseCount: value.releases.length,
+      }),
+    ),
   ]);
 
   const observedRecords = sourceObservation.files.map(normalizeAtlasSourceRecord);
