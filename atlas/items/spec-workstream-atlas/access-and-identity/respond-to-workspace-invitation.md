@@ -12,6 +12,7 @@ typeOf:
   - spec-workstream-atlas.atlas-model.interaction
 relatedPlans:
   - plans/current/149-interaction-model-v0.md
+  - plans/current/159-workspace-invitations-end-to-end.md
   - plans/current/140-workspace-sources-and-contributor-discovery.md
   - plans/current/142-workspace-administration-settings.md
 ---

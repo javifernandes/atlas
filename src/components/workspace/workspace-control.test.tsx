@@ -36,7 +36,8 @@ describe('WorkspaceControl', () => {
     });
     render(<WorkspaceControl workspace={workspace} />);
 
-    expect(screen.getByRole('button', { name: 'Open Workspace menu' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Workspace menu' })).toHaveClass('size-9');
+    expect(screen.queryByText('Atlas')).not.toBeInTheDocument();
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace menu' }));
