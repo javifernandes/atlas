@@ -198,6 +198,7 @@ Durable Atlas projection.
         '022-workspace-model-connection-deepseek.sql',
         '023-workspace-model-connection-selection.sql',
         '024-materialization-checkpoints.sql',
+        '025-workspace-invitations.sql',
       ],
       skipped: [],
     });

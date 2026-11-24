@@ -328,6 +328,11 @@ activity:
 Provider login, mutable email, and profile similarity are presentation evidence only. None may
 silently link Atlas Users, claim an invitation, or create Membership.
 
+The Atlas realization preserves the invitation deep link through authentication. When the current
+Atlas User cannot prove the invitation's exact known-User or provider identity, Atlas withholds the
+Workspace, inviter, role, and expiry context and offers an explicit switch-account path back to the
+same invitation. Switching accounts never merges Users or weakens the recipient proof boundary.
+
 ## Operation Responsibilities
 
 | Responsibility             | Operation                                                                                                          |

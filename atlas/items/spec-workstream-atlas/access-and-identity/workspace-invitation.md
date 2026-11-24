@@ -11,6 +11,7 @@ supports:
   - spec-workstream-atlas.access-identity.workspace.respond-to-invitation
 relatedPlans:
   - plans/current/149-interaction-model-v0.md
+  - plans/current/159-workspace-invitations-end-to-end.md
   - plans/current/142-workspace-administration-settings.md
 ---
 
@@ -77,3 +78,16 @@ the invitation itself into Membership.
 | `membership-once` | Acceptance creates or activates at most one Membership for the User and Workspace |
 | `terminal-is-final` | Accepted, Declined, Revoked, and Expired invitations cannot transition again |
 | `address-is-not-proof` | Matching email or provider data never silently links Users or grants Workspace access |
+
+## Implementation checkpoint
+
+The first executable slice realizes the owner side of the lifecycle through
+`AtlasWorkspace.invite`. Atlas persists a Pending invitation addressed either to an exact linked
+User or to a stable GitHub provider account ID, exposes owner-scoped administration reads, and
+shows Pending or Claimed feedback beside the discovered contributor. Creating the invitation does
+not create Membership.
+
+Recipient discovery, identity proof, Claim, Accept, Decline, Revoke, and expiry enforcement remain
+shaped durable behavior rather than implemented runtime behavior. They continue in
+`plans/current/159-workspace-invitations-end-to-end.md` instead of being approximated by UI-only
+state.

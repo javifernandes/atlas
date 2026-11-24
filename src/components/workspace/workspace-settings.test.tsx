@@ -99,6 +99,26 @@ describe('WorkspaceSettings', () => {
     expect(screen.getByRole('heading', { name: 'No active membership' })).toBeInTheDocument();
   });
 
+  it('explains why no contributors are available to invite', () => {
+    useGraphQueryMock
+      .mockReturnValueOnce(queryResult({
+        data: [{ id: 'workspace-1', name: 'Acme', slug: 'acme', visibility: 'private' }],
+      }))
+      .mockReturnValueOnce(queryResult({ data: [{
+        id: 'membership-1', role: 'owner', status: 'active', user: viewer, userId: viewer.id,
+      }] }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
+      .mockReturnValueOnce(queryResult({ data: [] }));
+
+    render(<WorkspaceSettings activeSection='people' viewer={viewer} />);
+
+    expect(screen.getByText('No contributors available to invite')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Connect a repository with other contributors to discover more people/),
+    ).toBeInTheDocument();
+  });
+
   it('uses server-resolved owner authority for Source administration', async () => {
     useGraphQueryMock
       .mockReturnValueOnce(queryResult({
@@ -159,6 +179,7 @@ describe('WorkspaceSettings', () => {
         }],
         refetch: sourcesRefetch,
       }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
       .mockReturnValueOnce(queryResult({ data: [] }))
       .mockReturnValueOnce(queryResult({ data: [], refetch: importsRefetch }));
 
@@ -384,9 +405,9 @@ describe('WorkspaceSettings', () => {
       'https://github.com/javi',
     );
     expect(screen.getByText(/3 merged PRs across atlas/)).toBeInTheDocument();
-    expect(screen.getByText('no Atlas account')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Invite' })).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Role for @javi' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '@atlas-friend' })).toBeInTheDocument();
-    expect(screen.getByText('Atlas account linked')).toBeInTheDocument();
 
   });
 
@@ -398,6 +419,7 @@ describe('WorkspaceSettings', () => {
       .mockReturnValueOnce(queryResult({ data: [{
         id: 'membership-1', role: 'owner', status: 'active', user: viewer, userId: viewer.id,
       }] }))
+      .mockReturnValueOnce(queryResult({ data: [] }))
       .mockReturnValueOnce(queryResult({ data: [] }))
       .mockReturnValueOnce(queryResult({ data: [] }))
       .mockReturnValueOnce(queryResult({ data: [{

@@ -56,6 +56,7 @@ import {
   AtlasUser,
   AtlasWorkspace,
   AtlasWorkspaceMembership,
+  AtlasWorkspaceInvitation,
   AtlasWorkspaceSource,
   AtlasWorkspaceContributor,
   AtlasWorkspaceSourceImport,
@@ -1913,6 +1914,7 @@ export const atlasEntities = [
   AtlasAuthAccount,
   AtlasWorkspace,
   AtlasWorkspaceMembership,
+  AtlasWorkspaceInvitation,
   AtlasWorkspaceSource,
   AtlasWorkspaceContributor,
   AtlasWorkspaceSourceImport,
@@ -1954,6 +1956,9 @@ const composeAtlasOntahiApplication = <TStorage extends DataGraphDefaultStorage>
   const runtimeProtocol = createApplicationRuntimeProtocol<AtlasRuntimeAuthority>({
     application,
     policies: atlasWorkspaceReadPolicies,
+    reportError: error => {
+      console.error('Atlas runtime protocol execution failed.', error);
+    },
   });
 
   return {

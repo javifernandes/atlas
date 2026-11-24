@@ -21,13 +21,19 @@
     "db:reconcile": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-reconcile.ts",
     "db:reconcile:workspace": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-workspace-reconcile.ts",
     "db:rebuild": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-reconcile.ts rebuild",
+    "dev:seed:invitation-candidate": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-dev-invitation-fixture.ts seed",
+    "dev:cleanup:invitation-candidate": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-dev-invitation-fixture.ts cleanup",
+    "dev:seed:invitation-recipient": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-dev-invitation-fixture.ts seed-recipient",
+    "dev:cleanup:invitation-recipient": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-dev-invitation-fixture.ts cleanup-recipient",
     "start": "next start",
     "test": "vitest run",
     "test:postgres": "ATLAS_POSTGRES_TEST_ENABLED=1 vitest run src/atlas/persistence/postgres-application.integration.test.ts",
     "test:postgres:neon": "node scripts/test-postgres-neon.mjs",
     "typecheck": "tsc --noEmit",
     "check:text-format": "node scripts/check-text-format.mjs",
-    "verify": "pnpm check:text-format && pnpm test && pnpm typecheck && pnpm build"
+    "verify": "pnpm check:text-format && pnpm test && pnpm typecheck && pnpm build",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@neon/config": "^1.2.0",
@@ -68,7 +74,10 @@
     "testcontainers": "11.7.2",
     "tsx": "4.20.6",
     "typescript": "^5.4.0",
-    "vitest": "4.0.18"
+    "vitest": "4.0.18",
+    "storybook": "^10.6.8",
+    "@storybook/nextjs-vite": "^10.6.8",
+    "vite": "latest"
   },
   "packageManager": "pnpm@10.28.2"
 }

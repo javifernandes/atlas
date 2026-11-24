@@ -24,6 +24,7 @@ import {
   workspaceSettingsQuery,
   workspaceSourcesQuery,
   workspaceContributorsQuery,
+  workspaceInvitationsQuery,
 } from '../workspace/workspace-client-query';
 import {
   buildAtlasOntahiDataset,
@@ -460,6 +461,42 @@ relatedPlans:
           linkedUserId: 'user-2',
         },
       ],
+      AtlasWorkspaceInvitation: [
+        {
+          id: 'invitation-1',
+          workspaceId: 'workspace-1',
+          invitedByUserId: 'user-1',
+          recipientKind: 'github',
+          recipientUserId: null,
+          recipientProvider: 'github',
+          recipientProviderAccountId: '99',
+          claimPolicy: 'provider-identity',
+          proposedRole: 'collaborator',
+          status: 'pending',
+          claimedByUserId: null,
+          membershipId: null,
+          expiresAt: '2026-11-20T00:00:00.000Z',
+          createdAt: '2026-11-01T00:00:00.000Z',
+          updatedAt: '2026-11-01T00:00:00.000Z',
+        },
+        {
+          id: 'invitation-2',
+          workspaceId: 'workspace-2',
+          invitedByUserId: 'user-2',
+          recipientKind: 'github',
+          recipientUserId: null,
+          recipientProvider: 'github',
+          recipientProviderAccountId: '100',
+          claimPolicy: 'provider-identity',
+          proposedRole: 'viewer',
+          status: 'pending',
+          claimedByUserId: null,
+          membershipId: null,
+          expiresAt: '2026-11-20T00:00:00.000Z',
+          createdAt: '2026-11-01T00:00:00.000Z',
+          updatedAt: '2026-11-01T00:00:00.000Z',
+        },
+      ],
     };
     const atlas = createAtlasOntahiApplicationWithStorage({
       storage: createInMemoryDataGraphStorage({ dataset }),
@@ -553,6 +590,30 @@ relatedPlans:
       },
     });
     expect(JSON.stringify(contributorsResponse)).not.toContain('other-owner');
+
+    const invitationsRequest = createRuntimeProtocolRequest({
+      id: 'workspace-invitations',
+      family: 'graph.read',
+      body: toGraphReadRequest(workspaceInvitationsQuery, 'run'),
+    });
+    const invitationsResponse = await atlas.runtimeProtocol.dispatcher(invitationsRequest, {
+      principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+      workspace: { id: 'workspace-1', role: 'owner' },
+    });
+    expect(invitationsResponse).toMatchObject({
+      body: {
+        kind: 'graph-read-result',
+        value: [expect.objectContaining({ id: 'invitation-1' })],
+      },
+    });
+    expect(JSON.stringify(invitationsResponse)).not.toContain('invitation-2');
+
+    await expect(
+      atlas.runtimeProtocol.dispatcher(invitationsRequest, {
+        principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
+        workspace: { id: 'workspace-1', role: 'viewer' },
+      }),
+    ).resolves.toMatchObject({ body: { kind: 'graph-read-result', value: [] } });
 
     await expect(
       atlas.runtimeProtocol.dispatcher(request, { principal: null, workspace: null }),

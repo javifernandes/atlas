@@ -41,6 +41,7 @@ import { AtlasMark } from '@/components/atlas-mark';
 import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { ScrollableOverflow } from '@/components/scrollable-overflow';
 import type { AtlasExecutionStreamProjection } from '@/atlas/model/execution-stream';
+import { getStorybookEvidenceForItem } from '@/atlas/evidence/storybook-evidence';
 import {
   getEntityItemModel,
   getInteractionItemModel,
@@ -68,6 +69,8 @@ import type {
   PlanWorkstreamSnapshot,
 } from '@/atlas/model/snapshot';
 import { ExecutionStreamView } from '@/atlas/viewer/execution-stream-view';
+import { InteractionEvidence } from '@/atlas/viewer/interaction-evidence';
+import { atlasSearchRequestedEvent } from '@/atlas/viewer/recent-nodes';
 import {
   buildInteractionLensProjection,
   type InteractionLensStep,
@@ -724,6 +727,16 @@ const normalizeSearchValue = (value: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 
+const getSearchWords = (value: string) =>
+  normalizeSearchValue(value)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+const getSearchAcronym = (value: string) =>
+  getSearchWords(value)
+    .map(word => word[0])
+    .join('');
+
 const getPlanNumber = (node: PlanWorkstreamNode) => {
   return getPlanDisplayKey(node)?.toLowerCase() ?? null;
 };
@@ -820,11 +833,12 @@ const getSearchText = (node: PlanWorkstreamNode) =>
       .join(' '),
   );
 
-const getSearchMatchRank = (node: PlanWorkstreamNode, query: string) => {
+const getSearchMatchRank = (node: PlanWorkstreamNode, query: string): number | null => {
   const title = normalizeSearchValue(node.shortTitle || node.title).trim();
   const fullTitle = normalizeSearchValue(node.title).trim();
   const terms = query.split(/\s+/).filter(Boolean);
   const titleTerms = new Set(title.split(/\s+/).filter(Boolean));
+  const isShortQuery = terms.length === 1 && query.length <= 2;
 
   if (title === query || fullTitle === query) return 0;
 
@@ -832,13 +846,25 @@ const getSearchMatchRank = (node: PlanWorkstreamNode, query: string) => {
     return 0;
   }
 
-  if (getTitleAcronymAliases(node).includes(query)) return 1;
+  if (
+    getTitleAcronymAliases(node).includes(query) ||
+    getSearchAcronym(title) === query ||
+    getSearchAcronym(fullTitle) === query
+  )
+    return 1;
   if (title.startsWith(query) || fullTitle.startsWith(query)) return 1;
+
+  // One- and two-character searches are too weak for fuzzy matching against paths,
+  // summaries, and arbitrary title substrings. At that length we only accept an
+  // exact title, a title prefix, an exact acronym, or a plan-number alias.
+  if (isShortQuery) return null;
+
   if (title.includes(query) || fullTitle.includes(query)) return 2;
   if (terms.every(term => titleTerms.has(term))) return 3;
   if (terms.every(term => title.includes(term) || fullTitle.includes(term))) return 4;
+  if (terms.every(term => getSearchText(node).includes(term))) return 5;
 
-  return 5;
+  return null;
 };
 
 type HierarchyIndex = {
@@ -981,13 +1007,12 @@ const getSearchMatches = (nodes: PlanWorkstreamNode[], query: string) => {
   }
 
   return nodes
-    .map((node, index) => ({
-      index,
-      node,
-      rank: getSearchMatchRank(node, normalizedQuery),
-      text: getSearchText(node),
-    }))
-    .filter(match => match.node.kind !== 'root' && terms.every(term => match.text.includes(term)))
+    .flatMap((node, index) => {
+      const rank = getSearchMatchRank(node, normalizedQuery);
+
+      return rank === null ? [] : [{ index, node, rank }];
+    })
+    .filter(match => match.node.kind !== 'root')
     .sort(
       (left, right) =>
         left.rank - right.rank ||
@@ -3419,6 +3444,8 @@ const InteractionBlueprintLens = ({
 
 const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) => {
   const model = getInteractionItemModel(context.sourceNode);
+  const itemId = context.sourceNode.semanticId ?? '';
+  const hasEvidence = getStorybookEvidenceForItem(itemId).length > 0;
   const activityProjection = useMemo(
     () => (model?.activity ? buildActivityGraphLensProjection(model.activity) : undefined),
     [model?.activity],
@@ -3426,7 +3453,9 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
   const hasActivity = Boolean(model?.activity);
   const hasLegacyFlow = Boolean(model?.steps.some(step => step.next.length > 0));
   const hasFlow = hasActivity || hasLegacyFlow;
-  const [view, setView] = useState<'anatomy' | 'blueprint' | 'graph'>(hasFlow ? 'graph' : 'anatomy');
+  const [view, setView] = useState<'anatomy' | 'blueprint' | 'evidence' | 'graph'>(
+    hasFlow ? 'graph' : hasEvidence ? 'evidence' : 'anatomy',
+  );
   const [selectedActivityNodeId, setSelectedActivityNodeId] = useState(model?.activity?.entry ?? '');
   const [activityInspectorOpen, setActivityInspectorOpen] = useState(false);
   const [selectedStep, setSelectedStep] = useState(model?.steps[0]?.label ?? '');
@@ -3438,6 +3467,7 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
     activityProjection?.nodes[0];
   const viewOptions = [
     ...(hasFlow ? (['graph'] as const) : []),
+    ...(hasEvidence ? (['evidence'] as const) : []),
     ...(hasLegacyFlow ? (['blueprint'] as const) : []),
     'anatomy' as const,
   ];
@@ -3461,15 +3491,21 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
       aria-label='Interaction details'
       className={cn(
         'relative h-full min-h-[30rem]',
-        view === 'graph' ? 'overflow-hidden' : 'overflow-y-auto',
+        view === 'graph' || view === 'evidence' ? 'overflow-hidden' : 'overflow-y-auto',
       )}
     >
-      {hasFlow ? (
+      {hasFlow || hasEvidence ? (
         <div className='absolute left-1/2 top-0 z-20 -translate-x-1/2'>
           <div className='inline-flex rounded-b-xl border border-t-0 border-border/55 bg-background/80 p-1 shadow-lg backdrop-blur-xl'>
             {viewOptions.map(option => (
               <button className={cn('rounded-lg px-3 py-1.5 text-xs font-medium transition-colors', view === option ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:text-foreground')} key={option} onClick={() => setView(option)} type='button'>
-                {option === 'graph' ? 'Graph' : option === 'blueprint' ? 'Blueprint' : 'Anatomy'}
+                {option === 'graph'
+                  ? 'Graph'
+                  : option === 'evidence'
+                    ? 'Evidence'
+                    : option === 'blueprint'
+                      ? 'Blueprint'
+                      : 'Anatomy'}
               </button>
             ))}
           </div>
@@ -3477,8 +3513,9 @@ const InteractionOverview = ({ context }: { context: MarkdownRenderContext }) =>
       ) : null}
       {view === 'graph' && activityProjection ? <InteractionActivityGraphLens onSelect={nodeId => { setSelectedActivityNodeId(nodeId); setActivityInspectorOpen(true); }} projection={activityProjection} rightOcclusion={activityInspectorOpen ? 448 : 0} selectedNodeId={selectedActivityNodeId} /> : null}
       {view === 'graph' && !model.activity && hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionGraphLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /></div> : null}
+      {view === 'evidence' && hasEvidence ? <InteractionEvidence itemId={itemId} /> : null}
       {view === 'blueprint' && hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionBlueprintLens model={model} onSelect={setSelectedStep} selectedStep={selectedStep} /></div> : null}
-      {view === 'anatomy' || !hasFlow ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionAnatomy context={context} /></div> : null}
+      {view === 'anatomy' || (!hasFlow && !hasEvidence) ? <div className='px-6 pb-6 pt-20 sm:px-8 lg:px-10'><InteractionAnatomy context={context} /></div> : null}
       {view === 'graph' && activityProjection && selectedActivityNode && activityInspectorOpen ? (
         <aside
           aria-label='Activity node details panel'
@@ -5065,7 +5102,10 @@ const renderMarkdownBody = (body: string, context: MarkdownRenderContext) => {
     }
 
     blocks.push(
-      <p key={`paragraph-${index}`} className='text-[15px] leading-7 text-muted-foreground'>
+      <p
+        key={`paragraph-${index}`}
+        className='max-w-[76ch] text-[15px] leading-7 text-muted-foreground'
+      >
         {renderMarkdownInline(paragraphLines.join(' '), context)}
       </p>,
     );
@@ -5668,7 +5708,7 @@ const FullDetailSurface = ({
               'h-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
               overviewUsesDedicatedSurface
                 ? 'overflow-y-auto'
-                : 'overflow-y-auto px-6 py-6 sm:px-8 lg:px-10',
+                : 'overflow-y-auto px-8 py-8 sm:px-12 sm:py-10 lg:px-16 xl:px-20',
             )}
           >
           {activeTab === 'overview' ? contentStatus === 'loading' ? (
@@ -5680,8 +5720,8 @@ const FullDetailSurface = ({
               className={cn(
                 overviewUsesDedicatedSurface
                   ? 'h-full min-h-0 min-w-0'
-                  : 'grid min-h-full min-w-0 items-stretch gap-6 px-1 sm:px-2',
-                overviewRendersMarkdown &&
+                  : 'grid min-h-full min-w-0 content-start items-start gap-6',
+                overviewRendersMarkdown && markdownSectionGroups.length > 0 &&
                   'xl:grid-cols-[minmax(0,1fr)_12rem]',
               )}
             >
@@ -5689,8 +5729,8 @@ const FullDetailSurface = ({
                 className={cn(
                   overviewUsesDedicatedSurface
                     ? 'h-full min-h-0 min-w-0 max-w-full overflow-hidden'
-                    : 'grid min-w-0 max-w-full gap-5 overflow-hidden break-words [&>*]:min-w-0 [&>*]:max-w-full',
-                  overviewRendersMarkdown && 'xl:pr-2',
+                    : 'grid min-w-0 max-w-full content-start gap-5 overflow-hidden break-words [&>*]:min-w-0 [&>*]:max-w-full',
+                  overviewRendersMarkdown && markdownSectionGroups.length > 0 && 'xl:pr-2',
                 )}
               >
                 <ItemKindOverview context={markdownContext} />
@@ -6810,11 +6850,18 @@ export const PlanWorkstreamExplorer = ({
       setSearchNavigationMode('pointer');
       setSearchOpen(true);
     };
+    const handleSearchRequest = () => {
+      setActiveSearchIndex(0);
+      setSearchNavigationMode('pointer');
+      setSearchOpen(true);
+    };
 
     globalThis.window.addEventListener('keydown', handleKeyDown);
+    globalThis.addEventListener(atlasSearchRequestedEvent, handleSearchRequest);
 
     return () => {
       globalThis.window.removeEventListener('keydown', handleKeyDown);
+      globalThis.removeEventListener(atlasSearchRequestedEvent, handleSearchRequest);
     };
   }, []);
 
@@ -7881,17 +7928,6 @@ export const PlanWorkstreamExplorer = ({
           );
         })}
       </div>
-
-      <button
-        type='button'
-        aria-label='Open Atlas search'
-        title='Search Atlas (⌘K)'
-        className='pointer-events-auto absolute left-4 top-4 z-40 inline-flex items-center gap-2 rounded-lg border border-border/70 bg-background/78 px-3 py-2 text-sm font-semibold tracking-tight shadow-lg backdrop-blur-xl transition-colors hover:border-primary/45 hover:bg-background/90 focus:outline-none focus:ring-2 focus:ring-ring'
-        onClick={() => setSearchOpen(true)}
-      >
-        <AtlasMark className='size-7' priority />
-        <span>Atlas</span>
-      </button>
 
       {searchOpen ? (
         <div

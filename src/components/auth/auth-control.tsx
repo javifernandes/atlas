@@ -10,7 +10,9 @@ import { cn } from '@/lib/classes';
 
 type AuthControlProps = {
   authAvailable: boolean;
+  callbackURL?: string;
   className?: string;
+  errorCallbackURL?: string;
   viewer: AtlasViewer | null;
   variant?: 'chrome' | 'compact' | 'sign-in';
 };
@@ -37,7 +39,9 @@ const ThemeMenuItem = ({ onSelect }: { onSelect: () => void }) => {
 
 export const AuthControl = ({
   authAvailable,
+  callbackURL = '/',
   className,
+  errorCallbackURL = '/sign-in',
   viewer,
   variant = 'compact',
 }: AuthControlProps) => {
@@ -71,8 +75,8 @@ export const AuthControl = ({
     setPendingAction('sign-in');
 
     const result = await atlasAuthClient.signIn.social({
-      callbackURL: '/',
-      errorCallbackURL: '/sign-in',
+      callbackURL,
+      errorCallbackURL,
       provider: 'github',
     });
 

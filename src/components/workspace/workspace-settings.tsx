@@ -10,6 +10,7 @@ import { AtlasWorkspaceAdministrationClient } from '@/atlas/client/workspace-adm
 import { atlasWorkspaceRef } from '@/atlas/model/workspace-administration';
 import {
   workspaceContributorsQuery,
+  workspaceInvitationsQuery,
   workspaceMembersQuery,
   workspaceSettingsQuery,
   workspaceSourceImportsQuery,
@@ -62,6 +63,111 @@ type WorkspaceSourceRow = {
   repository: string | null;
   sourceId: string;
   status: 'active' | 'paused';
+};
+
+type WorkspaceInvitationRow = {
+  id: string;
+  proposedRole: 'collaborator' | 'viewer';
+  recipientKind: 'user' | 'github';
+  recipientProviderAccountId: string | null;
+  recipientUserId: string | null;
+  status: 'pending' | 'claimed' | 'accepted' | 'declined' | 'revoked' | 'expired';
+};
+
+const ContributorInvitationAction = ({
+  contributor,
+  invitation,
+  onInvited,
+  workspaceId,
+}: {
+  contributor: WorkspaceContributorRow;
+  invitation?: WorkspaceInvitationRow;
+  onInvited: () => Promise<unknown>;
+  workspaceId: string;
+}) => {
+  const invite = useOperation(AtlasWorkspaceAdministrationClient.domain.invite);
+  const revokeInvitation = useOperation(
+    AtlasWorkspaceAdministrationClient.domain.revokeInvitation,
+  );
+  const [role, setRole] = useState<'collaborator' | 'viewer'>('collaborator');
+  const [message, setMessage] = useState<string | null>(null);
+
+  if (invitation) {
+    return (
+      <div className='grid justify-items-end gap-1'>
+        <div className='flex items-center gap-2'>
+          <span className='font-mono text-[11px] uppercase text-primary'>
+            {invitation.status} invitation · {invitation.proposedRole}
+          </span>
+          <button
+            className='text-xs text-muted-foreground transition-colors hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50'
+            disabled={revokeInvitation.isExecuting}
+            onClick={() => {
+              setMessage(null);
+              void revokeInvitation
+                .executeAsync({
+                  workspace: atlasWorkspaceRef(workspaceId),
+                  invitationId: invitation.id,
+                })
+                .then(async result => {
+                  if (!result.ok) {
+                    setMessage(result.message);
+                    return;
+                  }
+                  await onInvited();
+                });
+            }}
+            type='button'
+          >
+            {revokeInvitation.isExecuting ? 'Revoking…' : 'Revoke'}
+          </button>
+        </div>
+        <span className='text-[11px] text-muted-foreground'>Access has not been granted yet.</span>
+        {message ? <p className='max-w-72 text-right text-xs text-destructive'>{message}</p> : null}
+      </div>
+    );
+  }
+
+  const submit = async () => {
+    setMessage(null);
+    const result = await invite.executeAsync({
+      workspace: atlasWorkspaceRef(workspaceId),
+      contributorId: contributor.id,
+      proposedRole: role,
+    });
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    await onInvited();
+  };
+
+  return (
+    <div className='grid justify-items-end gap-1'>
+      <div className='flex items-center gap-1'>
+        <Select
+          compact
+          disabled={invite.isExecuting}
+          label={`Role for @${contributor.login}`}
+          onChange={setRole}
+          options={[
+            { label: 'Collaborator', value: 'collaborator' },
+            { label: 'Viewer', value: 'viewer' },
+          ]}
+          value={role}
+        />
+        <button
+          className='h-8 rounded-md border border-border px-3 text-xs font-medium transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50'
+          disabled={invite.isExecuting}
+          onClick={() => void submit()}
+          type='button'
+        >
+          {invite.isExecuting ? 'Inviting…' : 'Invite'}
+        </button>
+      </div>
+      {message ? <p className='max-w-72 text-right text-xs text-destructive'>{message}</p> : null}
+    </div>
+  );
 };
 
 const WorkspaceSourceSettingsRow = ({
@@ -614,6 +720,7 @@ export const WorkspaceSettings = ({
   const membersQuery = useGraphQuery(workspaceMembersQuery);
   const sourcesQuery = useGraphQuery(workspaceSourcesQuery);
   const contributorsQuery = useGraphQuery(workspaceContributorsQuery);
+  const invitationsQuery = useGraphQuery(workspaceInvitationsQuery);
   const sourceImportsQuery = useGraphQuery(workspaceSourceImportsQuery);
 
   if (
@@ -621,6 +728,7 @@ export const WorkspaceSettings = ({
     membersQuery.isLoading ||
     sourcesQuery.isLoading ||
     contributorsQuery.isLoading ||
+    invitationsQuery.isLoading ||
     sourceImportsQuery.isLoading
   ) {
     return (
@@ -639,6 +747,7 @@ export const WorkspaceSettings = ({
     membersQuery.isError ||
     sourcesQuery.isError ||
     contributorsQuery.isError ||
+    invitationsQuery.isError ||
     sourceImportsQuery.isError
   ) {
     return (
@@ -659,6 +768,7 @@ export const WorkspaceSettings = ({
                 membersQuery.refetch(),
                 sourcesQuery.refetch(),
                 contributorsQuery.refetch(),
+                invitationsQuery.refetch(),
                 sourceImportsQuery.refetch(),
               ])
             }
@@ -703,6 +813,17 @@ export const WorkspaceSettings = ({
     contributor =>
       !contributor.linkedUserId || !memberUserIds.has(contributor.linkedUserId),
   );
+  const activeInvitations = (invitationsQuery.data ?? []).filter(
+    invitation => invitation.status === 'pending' || invitation.status === 'claimed',
+  );
+  const invitationFor = (contributor: WorkspaceContributorRow) =>
+    activeInvitations.find(invitation =>
+      contributor.linkedUserId
+        ? invitation.recipientKind === 'user' &&
+          invitation.recipientUserId === contributor.linkedUserId
+        : invitation.recipientKind === 'github' &&
+          invitation.recipientProviderAccountId === contributor.providerAccountId,
+    );
 
   return (
     <main className='min-h-screen bg-background px-6 py-12 text-foreground'>
@@ -891,11 +1012,16 @@ export const WorkspaceSettings = ({
                       Observed repository participants who do not have Workspace access.
                     </p>
                   </div>
-                  <div className='overflow-hidden rounded-lg border border-border'>
+                  <div className='rounded-lg border border-border'>
                     {contributorsToReview.length === 0 ? (
-                      <p className='px-4 py-6 text-sm text-muted-foreground'>
-                        All observed contributors already have Workspace access.
-                      </p>
+                      <div className='grid gap-1 px-4 py-6'>
+                        <p className='text-sm font-medium'>No contributors available to invite</p>
+                        <p className='text-sm text-muted-foreground'>
+                          Everyone discovered from connected repositories already has Workspace
+                          access. Connect a repository with other contributors to discover more
+                          people.
+                        </p>
+                      </div>
                     ) : (
                       contributorsToReview.map(contributor => (
                         <div
@@ -935,14 +1061,23 @@ export const WorkspaceSettings = ({
                               </p>
                             </div>
                           </div>
-                          <div className='flex shrink-0 items-center gap-2 font-mono text-[11px] uppercase text-muted-foreground'>
-                            {contributor.kind === 'bot' ? <span>bot</span> : null}
-                            <span>
-                              {contributor.linkedUserId
-                                ? 'Atlas account linked'
-                                : 'no Atlas account'}
-                            </span>
-                          </div>
+                          {canManage && contributor.kind === 'person' ? (
+                            <ContributorInvitationAction
+                              contributor={contributor}
+                              invitation={invitationFor(contributor)}
+                              onInvited={invitationsQuery.refetch}
+                              workspaceId={workspace.id}
+                            />
+                          ) : (
+                            <div className='flex shrink-0 items-center gap-2 font-mono text-[11px] uppercase text-muted-foreground'>
+                              {contributor.kind === 'bot' ? <span>bot</span> : null}
+                              <span>
+                                {contributor.linkedUserId
+                                  ? 'Atlas account linked'
+                                  : 'no Atlas account'}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       ))
                     )}

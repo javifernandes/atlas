@@ -6,6 +6,7 @@ import {
   AtlasUser,
   AtlasWorkspace,
   AtlasWorkspaceMembership,
+  AtlasWorkspaceInvitation,
   AtlasWorkspaceSource,
   AtlasWorkspaceContributor,
   AtlasWorkspaceSourceImport,
@@ -34,6 +35,13 @@ const sourceScope = ({ authority }: { authority: AtlasRuntimeAuthority }) =>
   authority.workspace
     ? Selection.where(AtlasWorkspaceSource, source =>
         source.workspaceId.eq(authority.workspace!.id),
+      )
+    : noSelection;
+
+const invitationScope = ({ authority }: { authority: AtlasRuntimeAuthority }) =>
+  authority.workspace?.role === 'owner'
+    ? Selection.where(AtlasWorkspaceInvitation, invitation =>
+        invitation.workspaceId.eq(authority.workspace!.id),
       )
     : noSelection;
 
@@ -101,6 +109,26 @@ export const atlasWorkspaceMembershipReadPolicy = {
   },
   scope: membershipScope,
 } satisfies GraphReadPolicy<typeof AtlasWorkspaceMembership, AtlasRuntimeAuthority>;
+
+export const atlasWorkspaceInvitationReadPolicy = {
+  entity: AtlasWorkspaceInvitation,
+  modes: ['run'],
+  cardinalities: ['many'],
+  maxLimit: 100,
+  fields: {
+    id: { select: true },
+    workspaceId: { select: true },
+    recipientKind: { select: true },
+    recipientUserId: { select: true },
+    recipientProvider: { select: true },
+    recipientProviderAccountId: { select: true },
+    proposedRole: { select: true },
+    status: { select: true },
+    expiresAt: { select: true },
+    createdAt: { select: true },
+  },
+  scope: invitationScope,
+} satisfies GraphReadPolicy<typeof AtlasWorkspaceInvitation, AtlasRuntimeAuthority>;
 
 export const atlasWorkspaceReadPolicy = {
   entity: AtlasWorkspace,
@@ -183,6 +211,7 @@ export const atlasWorkspaceSourceImportReadPolicy = {
 export const atlasWorkspaceReadPolicies = [
   atlasWorkspaceReadPolicy,
   atlasWorkspaceMembershipReadPolicy,
+  atlasWorkspaceInvitationReadPolicy,
   atlasWorkspaceMemberReadPolicy,
   atlasWorkspaceSourceReadPolicy,
   atlasWorkspaceContributorReadPolicy,
