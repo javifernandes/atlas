@@ -5,6 +5,7 @@ import type { Pool } from 'pg';
 
 import type { AtlasReconciliationRequest } from '../domain/atlas-application';
 import { createAtlasPostgresApplication } from '../persistence/postgres-application';
+import { createAtlasPullRequestEvidenceReplicaStore } from '../persistence/pull-request-evidence-replica-store';
 import { loadAtlasProjectionInput } from './load-atlas-projection';
 import {
   createAtlasWorkspaceModelProviderResolver,
@@ -32,6 +33,7 @@ export const createAtlasPostgresComposition = (input: {
   repoRoot?: string;
 }) => {
   const repoRoot = input.repoRoot ?? getAtlasRepoRoot();
+  const pullRequestEvidenceReplicaStore = createAtlasPullRequestEvidenceReplicaStore(input.pool);
 
   return createAtlasPostgresApplication({
     assistantProvider: createAtlasWorkspaceModelProviderResolver({
@@ -54,6 +56,7 @@ export const createAtlasPostgresComposition = (input: {
             : undefined,
         preferRemoteAtlas: process.env.NODE_ENV === 'production',
         providerDeliveryId: request.webhook?.deliveryId,
+        pullRequestEvidenceReplicaStore,
         reconciliationObserver,
         repositoryFullName: request.webhook?.repositoryFullName,
         repoRoot,

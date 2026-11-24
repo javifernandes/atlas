@@ -153,6 +153,8 @@ confirms the authoritative revision. Revision drift produces an explicit rebase/
        156 as the Atlas adoption of its runtime kernel and behavioral Materializer SPI.
 4. Adopt incremental parsed/semantic artifacts in Atlas behind full-rebuild equivalence checks and
    retain atomic Projection Revision publication.
+   - [ ] Execute Plan 163 to replicate GitHub Pull Request evidence from a durable provider frontier
+         instead of reconstructing the complete remote collection for every reconciliation.
 5. Execute Plan 157 to author and publish Git-backed changes from Atlas.
 6. Validate the same SPI in BookOps, then extract the shared declarative Entity API in Ontahí.
 

@@ -35,6 +35,28 @@ export type AtlasGitHubEvidenceSource = {
   sourceId: string;
 };
 
+export type AtlasPullRequestEvidenceReplicaSnapshot = {
+  frontier: string | null;
+  pullRequests: AtlasObservedPullRequest[];
+};
+
+export type AtlasPullRequestEvidenceReplicaChange = {
+  id: string;
+  pullRequest: AtlasObservedPullRequest | null;
+  updatedAt: string;
+};
+
+export type AtlasPullRequestEvidenceReplicaStore = {
+  load: (
+    source: AtlasGitHubEvidenceSource,
+  ) => Promise<AtlasPullRequestEvidenceReplicaSnapshot>;
+  save: (input: {
+    changes: AtlasPullRequestEvidenceReplicaChange[];
+    frontier: string;
+    source: AtlasGitHubEvidenceSource;
+  }) => Promise<void>;
+};
+
 type GitHubPullRequest = {
   body?: unknown;
   html_url?: unknown;
@@ -43,6 +65,7 @@ type GitHubPullRequest = {
   merged_at?: unknown;
   number?: unknown;
   title?: unknown;
+  updated_at?: unknown;
   user?: unknown;
 };
 
@@ -170,6 +193,13 @@ const optionalString = (value: unknown) => (typeof value === 'string' ? value : 
 const optionalIdentifier = (value: unknown) =>
   typeof value === 'string' || typeof value === 'number' ? String(value) : null;
 
+const normalizeTimestamp = (value: unknown) => {
+  if (typeof value !== 'string') return null;
+  const timestamp = Date.parse(value);
+
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
+};
+
 const readGitHubUser = (value: unknown) => {
   if (!value || typeof value !== 'object') {
     return { accountId: null, avatarUrl: null, login: null };
@@ -228,6 +258,17 @@ export const fetchAtlasPullRequestEvidence = async (input: {
   maxPages?: number;
   source: AtlasGitHubEvidenceSource;
 }) => {
+  const observation = await fetchAtlasPullRequestEvidenceChanges(input);
+
+  return observation.changes.flatMap(change => change.pullRequest ?? []);
+};
+
+export const fetchAtlasPullRequestEvidenceChanges = async (input: {
+  fetcher?: typeof fetch;
+  frontier?: string | null;
+  maxPages?: number;
+  source: AtlasGitHubEvidenceSource;
+}) => {
   const fetcher = input.fetcher ?? fetch;
   const maxPages = input.maxPages ?? 20;
   const pageSize = 25;
@@ -235,7 +276,10 @@ export const fetchAtlasPullRequestEvidence = async (input: {
     fetcher,
     repositoryFullName: input.source.repositoryFullName,
   });
-  const evidence: AtlasObservedPullRequest[] = [];
+  const changes: AtlasPullRequestEvidenceReplicaChange[] = [];
+  const acceptedFrontier = normalizeTimestamp(input.frontier);
+  let frontier = acceptedFrontier;
+  let fetchedPullRequestCount = 0;
 
   const hydrateMergeActor = async (pullRequest: AtlasObservedPullRequest) => {
     if (pullRequest.mergedByLogin || pullRequest.mergedByAvatarUrl) {
@@ -304,38 +348,89 @@ export const fetchAtlasPullRequestEvidence = async (input: {
       );
     }
 
-    const pageEvidence = body.flatMap(pullRequest => {
-      if (!pullRequest || typeof pullRequest !== 'object') {
+    fetchedPullRequestCount += body.length;
+    const pageChanges = body.flatMap(pullRequest => {
+      if (!pullRequest || typeof pullRequest !== 'object' || Array.isArray(pullRequest)) {
         return [];
       }
 
+      const number = typeof pullRequest.number === 'number' ? pullRequest.number : null;
+      const updatedAt = normalizeTimestamp(pullRequest.updated_at);
+      if (number === null || !updatedAt) return [];
+
       const mapped = mapPullRequest(pullRequest, input.source);
 
-      return mapped ? [mapped] : [];
+      return [{
+        id: `github:${input.source.repositoryFullName.toLowerCase()}#${number}`,
+        pullRequest: mapped,
+        updatedAt,
+      }];
     });
+    const hydratedChanges = await Promise.all(
+      pageChanges.map(async change => ({
+        ...change,
+        pullRequest: change.pullRequest
+          ? await hydrateMergeActor(change.pullRequest)
+          : null,
+      })),
+    );
 
-    evidence.push(...(await Promise.all(pageEvidence.map(hydrateMergeActor))));
+    changes.push(...hydratedChanges);
+    for (const change of hydratedChanges) {
+      if (!frontier || change.updatedAt > frontier) frontier = change.updatedAt;
+    }
 
-    if (body.length < pageSize) {
+    const crossedAcceptedFrontier = Boolean(
+      acceptedFrontier && pageChanges.some(change => change.updatedAt < acceptedFrontier),
+    );
+    if (body.length < pageSize || crossedAcceptedFrontier) {
       break;
     }
   }
 
-  return evidence;
+  return { changes, fetchedPullRequestCount, frontier };
 };
 
 export const loadAtlasPullRequestEvidenceObservation = async (input: {
   fetcher?: typeof fetch;
+  replicaStore?: AtlasPullRequestEvidenceReplicaStore;
   repoRoot: string;
 }) => {
   const sources = listAtlasGitHubEvidenceSources(input.repoRoot);
   const results = await Promise.allSettled(
-    sources.map(source =>
-      fetchAtlasPullRequestEvidence({
+    sources.map(async source => {
+      const snapshot = input.replicaStore
+        ? await input.replicaStore.load(source)
+        : { frontier: null, pullRequests: [] };
+      const observation = await fetchAtlasPullRequestEvidenceChanges({
         fetcher: input.fetcher,
+        frontier: snapshot.frontier,
         source,
-      }),
-    ),
+      });
+      const pullRequestsById = new Map(
+        snapshot.pullRequests.map(pullRequest => [pullRequest.id, pullRequest] as const),
+      );
+
+      for (const change of observation.changes) {
+        if (change.pullRequest) pullRequestsById.set(change.id, change.pullRequest);
+        else pullRequestsById.delete(change.id);
+      }
+
+      if (input.replicaStore && observation.frontier) {
+        await input.replicaStore.save({
+          changes: observation.changes,
+          frontier: observation.frontier,
+          source,
+        });
+      }
+
+      return {
+        changedPullRequestCount: observation.changes.length,
+        fetchedPullRequestCount: observation.fetchedPullRequestCount,
+        pullRequests: [...pullRequestsById.values()],
+        reusedPullRequestCount: snapshot.pullRequests.length,
+      };
+    }),
   );
 
   const failures = results.flatMap((result, index) =>
@@ -353,10 +448,29 @@ export const loadAtlasPullRequestEvidenceObservation = async (input: {
     result.status === 'fulfilled' && sources[index] ? [sources[index]] : [],
   );
   const pullRequests = results.flatMap(result =>
-    result.status === 'fulfilled' ? result.value : [],
+    result.status === 'fulfilled' ? result.value.pullRequests : [],
+  );
+  const fetchedPullRequestCount = results.reduce(
+    (count, result) => count + (result.status === 'fulfilled' ? result.value.fetchedPullRequestCount : 0),
+    0,
+  );
+  const changedPullRequestCount = results.reduce(
+    (count, result) => count + (result.status === 'fulfilled' ? result.value.changedPullRequestCount : 0),
+    0,
+  );
+  const reusedPullRequestCount = results.reduce(
+    (count, result) => count + (result.status === 'fulfilled' ? result.value.reusedPullRequestCount : 0),
+    0,
   );
 
-  return { failures, pullRequests, successfulSources };
+  return {
+    changedPullRequestCount,
+    failures,
+    fetchedPullRequestCount,
+    pullRequests,
+    reusedPullRequestCount,
+    successfulSources,
+  };
 };
 
 export const loadAtlasPullRequestEvidence = async (input: {

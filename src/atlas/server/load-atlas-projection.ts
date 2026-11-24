@@ -1,4 +1,7 @@
-import { loadAtlasPullRequestEvidenceObservation } from '../github/pull-request-evidence';
+import {
+  loadAtlasPullRequestEvidenceObservation,
+  type AtlasPullRequestEvidenceReplicaStore,
+} from '../github/pull-request-evidence';
 import { loadAtlasReleaseEvidenceObservation } from '../github/release-evidence';
 import {
   loadAtlasSourceObservation,
@@ -133,6 +136,7 @@ export const loadAtlasProjectionInput = async (input: {
   fetcher?: typeof fetch;
   preferRemoteAtlas?: boolean;
   providerDeliveryId?: string | null;
+  pullRequestEvidenceReplicaStore?: AtlasPullRequestEvidenceReplicaStore;
   reconciliationObserver?: AtlasReconciliationStageObserver;
   repositoryFullName?: string;
   repoRoot: string;
@@ -185,11 +189,15 @@ export const loadAtlasProjectionInput = async (input: {
       () =>
         loadAtlasPullRequestEvidenceObservation({
           fetcher: input.fetcher,
+          replicaStore: input.pullRequestEvidenceReplicaStore,
           repoRoot: input.repoRoot,
         }),
       value => ({
+        changedPullRequestCount: value.changedPullRequestCount,
         failureCount: value.failures.length,
+        fetchedPullRequestCount: value.fetchedPullRequestCount,
         pullRequestCount: value.pullRequests.length,
+        reusedPullRequestCount: value.reusedPullRequestCount,
         sourceCount: value.successfulSources.length,
       }),
     ),
