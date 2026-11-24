@@ -109,4 +109,66 @@ packageType: example
       }),
     ]));
   });
+
+  it('projects accepted Pull Request evidence into the Workspace snapshot', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-workspace-source-'));
+    temporaryDirectories.push(repoRoot);
+    fs.mkdirSync(path.join(repoRoot, 'atlas', 'items'), { recursive: true });
+    fs.mkdirSync(path.join(repoRoot, 'plans', 'current'), { recursive: true });
+    fs.writeFileSync(
+      path.join(repoRoot, 'plans', 'current', '159-invitations.md'),
+      '# 159. Invitations\n\nStatus: current\n',
+    );
+    fs.writeFileSync(
+      path.join(repoRoot, 'atlas', 'items', 'respond.md'),
+      `---
+id: atlas.workspace.respond
+kind: interaction
+title: Respond To Invitation
+status: shaping
+relatedPlans:
+  - plans/current/159-invitations.md
+---
+`,
+    );
+
+    const result = await reconcileAtlasWorkspaceSources({
+      observePullRequestEvidence: async ({ sources }) => {
+        expect(sources).toEqual([
+          { repositoryFullName: 'javifernandes/atlas', sourceId: 'atlas' },
+        ]);
+        return {
+          failures: [],
+          pullRequests: [{
+            authorAvatarUrl: null,
+            authorProviderAccountId: '1',
+            authorLogin: 'javi',
+            body: 'Atlas-Shapes: atlas.workspace.respond',
+            directives: [{ kind: 'shapes', target: 'atlas.workspace.respond' }],
+            id: 'github:javifernandes/atlas#116',
+            mergeCommitSha: 'abc123',
+            mergedByAvatarUrl: null,
+            mergedByLogin: 'javi',
+            mergedAt: '2026-11-24T01:52:58Z',
+            number: 116,
+            repositoryFullName: 'javifernandes/atlas',
+            sourceId: 'atlas',
+            title: 'Restore invitation evidence',
+            url: 'https://github.com/javifernandes/atlas/pull/116',
+          }],
+        };
+      },
+      repoRoot,
+      sources: [{ id: 'atlas', ref: 'main', repository: 'javifernandes/atlas' }],
+    });
+
+    expect(result.snapshot.evidence).toEqual([
+      expect.objectContaining({
+        kind: 'shapes',
+        targetNodeId: 'atlas:atlas.workspace.respond',
+        pullRequest: expect.objectContaining({ number: 116 }),
+      }),
+    ]);
+  });
 });

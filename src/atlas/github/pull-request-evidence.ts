@@ -395,8 +395,9 @@ export const loadAtlasPullRequestEvidenceObservation = async (input: {
   fetcher?: typeof fetch;
   replicaStore?: AtlasPullRequestEvidenceReplicaStore;
   repoRoot: string;
+  sources?: AtlasGitHubEvidenceSource[];
 }) => {
-  const sources = listAtlasGitHubEvidenceSources(input.repoRoot);
+  const sources = input.sources ?? listAtlasGitHubEvidenceSources(input.repoRoot);
   const results = await Promise.allSettled(
     sources.map(async source => {
       const snapshot = input.replicaStore

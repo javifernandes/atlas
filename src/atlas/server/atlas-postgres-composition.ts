@@ -42,7 +42,7 @@ export const createAtlasPostgresComposition = (input: {
     }),
     pool: input.pool,
     reconcileWorkspaceSources: ({ sources }) =>
-      reconcileAtlasWorkspaceSources({ repoRoot, sources }),
+      reconcileAtlasWorkspaceSources({ pullRequestEvidenceReplicaStore, repoRoot, sources }),
     loadProjection: async (request: AtlasReconciliationRequest, baseline, reconciliationObserver) => {
       if (request.webhook) {
         input.invalidateRepository?.(request.webhook.repositoryFullName);
