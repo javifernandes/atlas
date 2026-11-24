@@ -1,9 +1,15 @@
 // @vitest-environment node
 
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  fetchAtlasPullRequestEvidenceChanges,
   fetchAtlasPullRequestEvidence,
+  loadAtlasPullRequestEvidenceObservation,
   parseAtlasPullRequestDirectives,
 } from './pull-request-evidence';
 
@@ -56,6 +62,7 @@ Completes the work.`),
           body: 'Atlas-Shapes: product.reader',
           html_url: 'https://github.com/acme/product/pull/42',
           merged_at: '2026-09-01T10:00:00Z',
+          updated_at: '2026-09-02T10:00:00Z',
           merge_commit_sha: 'abc123',
           user: { id: 101, login: 'javi', avatar_url: 'https://avatars.example/javi' },
           merged_by: { login: 'octo', avatar_url: 'https://avatars.example/octo' },
@@ -69,6 +76,7 @@ Completes the work.`),
           body: 'Atlas-Shapes: product.reader',
           html_url: 'https://github.com/acme/product/pull/42',
           merged_at: '2026-09-01T10:00:00Z',
+          updated_at: '2026-09-02T10:00:00Z',
           merge_commit_sha: 'abc123',
           user: { id: 101, login: 'javi', avatar_url: 'https://avatars.example/javi' },
         },
@@ -78,6 +86,7 @@ Completes the work.`),
           body: 'Atlas-Shapes: product.reader',
           html_url: 'https://github.com/acme/product/pull/41',
           merged_at: null,
+          updated_at: '2026-09-01T09:00:00Z',
           user: { login: 'javi' },
         },
         {
@@ -86,6 +95,7 @@ Completes the work.`),
           body: 'No Atlas assertions here.',
           html_url: 'https://github.com/acme/product/pull/40',
           merged_at: '2026-08-31T10:00:00Z',
+          updated_at: '2026-09-01T08:00:00Z',
           user: { login: 'javi' },
         },
       ]);
@@ -121,5 +131,103 @@ Completes the work.`),
     expect(fetcherMock.mock.calls[0]?.[1]).toMatchObject({
       next: { revalidate: 300, tags: ['atlas:github:acme/product'] },
     });
+  });
+
+  it('observes an inclusive updated frontier and emits negative changes for removed directives', async () => {
+    delete process.env.ATLAS_GITHUB_APP_ID;
+    delete process.env.ATLAS_GITHUB_APP_PRIVATE_KEY_BASE64;
+    const page = Array.from({ length: 25 }, (_, index) => ({
+      number: 100 - index,
+      title: `PR ${100 - index}`,
+      body: index === 0 ? 'No Atlas directives now.' : 'Atlas-Shapes: product.reader',
+      html_url: `https://github.com/acme/product/pull/${100 - index}`,
+      merged_at: '2026-09-01T10:00:00Z',
+      updated_at: index < 2 ? '2026-09-02T10:00:00Z' : '2026-09-01T10:00:00Z',
+      user: { login: 'javi' },
+      merged_by: { login: 'octo' },
+    }));
+    const fetcherMock = vi.fn(async () => Response.json(page));
+
+    const result = await fetchAtlasPullRequestEvidenceChanges({
+      fetcher: fetcherMock as typeof fetch,
+      frontier: '2026-09-02T10:00:00Z',
+      source: { sourceId: 'product', repositoryFullName: 'acme/product' },
+    });
+
+    expect(fetcherMock).toHaveBeenCalledTimes(1);
+    expect(result.frontier).toBe('2026-09-02T10:00:00.000Z');
+    expect(result.changes[0]).toMatchObject({
+      id: 'github:acme/product#100',
+      pullRequest: null,
+      updatedAt: '2026-09-02T10:00:00.000Z',
+    });
+    expect(result.changes[1]?.pullRequest?.number).toBe(99);
+  });
+
+  it('reuses the accepted replica and persists only the observed frontier window', async () => {
+    delete process.env.ATLAS_GITHUB_APP_ID;
+    delete process.env.ATLAS_GITHUB_APP_PRIVATE_KEY_BASE64;
+    const repoRoot = await mkdtemp(path.join(os.tmpdir(), 'atlas-evidence-replica-'));
+    await writeFile(
+      path.join(repoRoot, 'package.json'),
+      JSON.stringify({ repository: 'https://github.com/acme/atlas.git' }),
+    );
+    const cached = {
+      authorAvatarUrl: null,
+      authorProviderAccountId: '1',
+      authorLogin: 'javi',
+      body: 'Atlas-Shapes: product.reader',
+      directives: [{ kind: 'shapes' as const, target: 'product.reader' }],
+      id: 'github:acme/atlas#42',
+      mergeCommitSha: 'abc123',
+      mergedByAvatarUrl: null,
+      mergedByLogin: 'javi',
+      mergedAt: '2026-09-01T10:00:00Z',
+      number: 42,
+      repositoryFullName: 'acme/atlas',
+      sourceId: 'atlas',
+      title: 'Shape reader',
+      url: 'https://github.com/acme/atlas/pull/42',
+    };
+    const save = vi.fn(async () => undefined);
+
+    try {
+      const observation = await loadAtlasPullRequestEvidenceObservation({
+        fetcher: vi.fn(async () => Response.json([
+          {
+            number: 42,
+            title: 'Shape reader',
+            body: 'Atlas-Shapes: product.reader',
+            html_url: 'https://github.com/acme/atlas/pull/42',
+            merged_at: '2026-09-01T10:00:00Z',
+            updated_at: '2026-09-02T10:00:00Z',
+            merge_commit_sha: 'abc123',
+            user: { id: 1, login: 'javi' },
+            merged_by: { login: 'javi' },
+          },
+        ])) as typeof fetch,
+        replicaStore: {
+          load: async () => ({
+            frontier: '2026-09-02T10:00:00Z',
+            pullRequests: [cached],
+          }),
+          save,
+        },
+        repoRoot,
+      });
+
+      expect(observation).toMatchObject({
+        failures: [],
+        fetchedPullRequestCount: 1,
+        reusedPullRequestCount: 1,
+      });
+      expect(observation.pullRequests).toHaveLength(1);
+      expect(save).toHaveBeenCalledWith(expect.objectContaining({
+        frontier: '2026-09-02T10:00:00.000Z',
+        source: { repositoryFullName: 'acme/atlas', sourceId: 'atlas' },
+      }));
+    } finally {
+      await rm(repoRoot, { force: true, recursive: true });
+    }
   });
 });

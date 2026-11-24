@@ -15,6 +15,7 @@ relatedPlans:
   - plans/done/154-unified-source-and-derivation-model.md
   - plans/done/155-changeset-and-replica-runtime.md
   - plans/current/156-adaptive-materialization-policy.md
+  - plans/current/163-incremental-github-evidence-replication.md
   - plans/backlog/157-atlas-editing-and-git-write-back.md
 ---
 
@@ -75,6 +76,12 @@ many-to-many form.
 A database table or cache is not automatically a Source. It earns Source identity only when Atlas
 can name what state it represents, how it is revised, who owns it, and how it is observed or
 reconstructed.
+
+GitHub Pull Request evidence is one such Source. GitHub remains its authority; Atlas accepts a
+repository-scoped `updated_at` frontier and normalized relevant PR records as a reconstructible
+replica. The frontier is provider observation state rather than PR identity, and incremental
+observation must retain an inclusive boundary so equal timestamps cannot hide edited historical
+records.
 
 ## Execution boundary
 
