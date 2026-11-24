@@ -46,6 +46,10 @@ release and version stay separate from raw PR chronology: publication is a
 semantic checkpoint over delivery evidence, not another Pull Request bubble and not proof that a
 Plan is complete.
 
+Item timelines may include evidence bound to a Plan already shown in that Item's evolution map.
+This inherited evidence is labeled `via <Plan>` and yields to direct Item evidence for the same
+Pull Request, preserving the distinction between line-level chronology and a direct shape claim.
+
 > [!DECISION]
 > Target: [[spec-workstream-atlas.atlas-experiences.history-and-evolution|History And Evolution]]
 >

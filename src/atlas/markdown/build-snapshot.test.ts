@@ -303,6 +303,13 @@ typeOf:
         to: 'atlas:atlas.operation',
       }),
     );
+    expect(snapshot.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'atlas:atlas.operation', kind: 'item' }),
+        expect.objectContaining({ id: 'atlas:ontahi.domain-operation', kind: 'item' }),
+        expect.objectContaining({ id: 'atlas:ontahi.durable-operation', kind: 'item' }),
+      ]),
+    );
   });
 
   it('projects a package manifest and its colocated items as semantic containment', () => {
@@ -667,6 +674,38 @@ Define Plan as the first pilot.
           kind: 'related',
           to: 'plan:plans/next/107-plan-model-research-and-v0.md',
         }),
+      ]),
+    );
+  });
+
+  it('normalizes vague legacy kinds to a neutral Item without losing their source records', () => {
+    const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
+      {
+        path: 'atlas/items/concept.md',
+        content: `---
+id: atlas.legacy-concept
+kind: concept
+title: Legacy Concept
+status: shaping
+---
+`,
+      },
+      {
+        path: 'atlas/items/primitive.md',
+        content: `---
+id: atlas.legacy-primitive
+kind: system-primitive
+title: Legacy Primitive
+status: shaping
+---
+`,
+      },
+    ]);
+
+    expect(snapshot.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'atlas:atlas.legacy-concept', kind: 'item' }),
+        expect.objectContaining({ id: 'atlas:atlas.legacy-primitive', kind: 'item' }),
       ]),
     );
   });

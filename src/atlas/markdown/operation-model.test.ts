@@ -81,4 +81,33 @@ describe('Operation model', () => {
       },
     ]);
   });
+
+  it('projects authored input, output, and failure tables without Markdown table syntax', () => {
+    const model = parseOperationModel(`## Inputs And Output
+
+| Direction | Value | Meaning |
+| --------- | ----- | ------- |
+| input | \`name\` | Human-readable name |
+| output | \`Classroom\` | Persisted space |
+| output | \`Owner Enrollment\` | Initial authority |
+
+## Failures
+
+| Failure | Meaning |
+| ------- | ------- |
+| \`user-not-active\` | User is inactive |
+| \`actor-mismatch\` | Actor is not the receiver |`);
+
+    expect(model.inputsAndOutput).toBe(
+      'Inputs are name. The result is Classroom and Owner Enrollment',
+    );
+    expect(model.failures).toEqual(['user-not-active', 'actor-mismatch']);
+    expect(buildOperationPseudocode('Create Classroom', model)).toContain(`  input "name"
+  returns "Classroom and Owner Enrollment"`);
+    expect(buildOperationPseudocode('Create Classroom', model)).toContain(`  fails with
+    user-not-active
+    actor-mismatch`);
+    expect(buildOperationPseudocode('Create Classroom', model)).not.toContain('|');
+    expect(buildOperationPseudocode('Create Classroom', model)).not.toContain('Direction');
+  });
 });

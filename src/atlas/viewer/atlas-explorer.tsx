@@ -1237,11 +1237,11 @@ const BranchSproutToggle = ({
   return (
     <button
       type='button'
-      aria-label={`Expand branch: ${directChildCount} direct children, ${totalDescendantCount} total descendants`}
+      aria-label={`Expand branch: ${directChildCount} direct ${directChildCount === 1 ? 'child' : 'children'}, ${totalDescendantCount} total ${totalDescendantCount === 1 ? 'descendant' : 'descendants'}`}
       aria-expanded={expanded}
       data-collapse-toggle
       data-collapse-node-id={nodeId}
-      title={`${directChildCount} direct children / ${totalDescendantCount} total descendants`}
+      title={`${directChildCount} direct ${directChildCount === 1 ? 'child' : 'children'} / ${totalDescendantCount} total ${totalDescendantCount === 1 ? 'descendant' : 'descendants'}`}
       className={cn(
         'absolute left-[220px] top-1/2 z-30 flex w-max -translate-y-1/2 items-center gap-1 rounded-full px-0.5 py-0.5 text-muted-foreground transition-[opacity,transform,color] hover:scale-110 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/35',
         focusLevel === 'context' && 'opacity-70',
@@ -1840,9 +1840,11 @@ const EvolutionEntryList = ({
 const PullRequestEvidenceSection = ({
   evidence,
   releases,
+  viaPlanLabelByEvidenceId,
 }: {
   evidence: PlanWorkstreamEvidence[];
   releases: PlanWorkstreamRelease[];
+  viaPlanLabelByEvidenceId: Map<string, string>;
 }) => {
   const [focusedDayKey, setFocusedDayKey] = useState<string | null>(null);
 
@@ -2006,8 +2008,13 @@ const PullRequestEvidenceSection = ({
                         <span className='shrink-0 rounded-md border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none tracking-tight text-sky-300'>
                           #{binding.pullRequest.number}
                         </span>
-                        <span className='min-w-0 text-xs font-medium leading-4 text-popover-foreground'>
-                          {binding.pullRequest.title}
+                        <span className='grid min-w-0 gap-0.5 text-xs font-medium leading-4 text-popover-foreground'>
+                          <span>{binding.pullRequest.title}</span>
+                          {viaPlanLabelByEvidenceId.has(binding.id) ? (
+                            <span className='font-mono text-[9px] font-normal uppercase text-violet-300/80'>
+                              via {viaPlanLabelByEvidenceId.get(binding.id)}
+                            </span>
+                          ) : null}
                         </span>
                       </a>
                     );
@@ -5235,6 +5242,7 @@ const FullDetailSurface = ({
   onActiveTabChange,
   onClose,
   onNavigateBack,
+  onReturnToMap,
   onOpenFull,
   semanticSignals,
   contentStatus,
@@ -5254,6 +5262,7 @@ const FullDetailSurface = ({
   onActiveTabChange: (tab: FullMarkdownModalTab) => void;
   onClose: () => void;
   onNavigateBack: () => void;
+  onReturnToMap: () => void;
   onOpenFull: (nodeId: string) => void;
   semanticSignals: SemanticSignal[];
   contentStatus: NodeContentState['status'];
@@ -5326,10 +5335,40 @@ const FullDetailSurface = ({
       return componentVersions.length > 0 ? [{ ...release, componentVersions }] : [];
     });
   }, [evolutionEntries, node.id, releases]);
-  const nodeEvidence = useMemo(
-    () => evidence.filter(binding => binding.targetNodeId === node.id),
-    [evidence, node.id],
-  );
+  const nodeEvidenceProjection = useMemo(() => {
+    const planById = new Map(
+      evolutionEntries
+        .filter(entry => entry.node.kind === 'plan')
+        .map(entry => [entry.node.id, entry.node] as const),
+    );
+    const pullRequestKey = (binding: PlanWorkstreamEvidence) =>
+      `${binding.pullRequest.repositoryFullName.toLowerCase()}#${binding.pullRequest.number}`;
+    const evidenceByPullRequest = new Map<string, PlanWorkstreamEvidence>();
+    const viaPlanLabelByEvidenceId = new Map<string, string>();
+
+    for (const binding of evidence.filter(binding => binding.targetNodeId === node.id)) {
+      evidenceByPullRequest.set(pullRequestKey(binding), binding);
+    }
+
+    for (const binding of evidence) {
+      const plan = planById.get(binding.targetNodeId);
+      const key = pullRequestKey(binding);
+
+      if (!plan || evidenceByPullRequest.has(key)) continue;
+
+      evidenceByPullRequest.set(key, binding);
+      viaPlanLabelByEvidenceId.set(
+        binding.id,
+        getPlanDisplayId(plan) ?? plan.shortTitle,
+      );
+    }
+
+    return {
+      evidence: [...evidenceByPullRequest.values()],
+      viaPlanLabelByEvidenceId,
+    };
+  }, [evidence, evolutionEntries, node.id]);
+  const nodeEvidence = nodeEvidenceProjection.evidence;
   const incoming = useMemo(() => edges.filter(edge => edge.to === node.id), [edges, node.id]);
   const outgoing = useMemo(() => edges.filter(edge => edge.from === node.id), [edges, node.id]);
   const { hierarchy, relations } = useMemo(
@@ -5558,6 +5597,15 @@ const FullDetailSurface = ({
               >
                 <ArrowLeft className='size-4' />
               </button>
+              <button
+                type='button'
+                aria-label='Return to ontology map'
+                className='grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/55 hover:text-foreground'
+                title='Return to ontology map'
+                onClick={onReturnToMap}
+              >
+                <Network className='size-4' />
+              </button>
               <h2 className='min-w-0 text-2xl font-semibold leading-tight tracking-tight'>
                 <PlanTitle node={node} titleClassName='truncate' />
               </h2>
@@ -5732,7 +5780,11 @@ const FullDetailSurface = ({
                     </EvolutionBoardColumn>
                   </div>
 
-                  <PullRequestEvidenceSection evidence={nodeEvidence} releases={nodeReleases} />
+                  <PullRequestEvidenceSection
+                    evidence={nodeEvidence}
+                    releases={nodeReleases}
+                    viaPlanLabelByEvidenceId={nodeEvidenceProjection.viaPlanLabelByEvidenceId}
+                  />
                 </div>
               ) : (
                 <p className='text-sm leading-6 text-muted-foreground'>
@@ -6259,9 +6311,15 @@ export const PlanWorkstreamExplorer = ({
     () => new Map(referenceNodes.map(node => [node.id, node])),
     [referenceNodes],
   );
-  const canvasNodeIds = useMemo(
-    () => new Set(snapshot.nodes.map(node => node.id)),
+  const mapNodes = useMemo(
+    () => snapshot.nodes.filter(node => node.kind !== 'plan'),
     [snapshot.nodes],
+  );
+  const canvasNodeIds = useMemo(() => new Set(mapNodes.map(node => node.id)), [mapNodes]);
+  const mapEdges = useMemo(
+    () =>
+      snapshot.edges.filter(edge => canvasNodeIds.has(edge.from) && canvasNodeIds.has(edge.to)),
+    [canvasNodeIds, snapshot.edges],
   );
   const nodesByPath = useMemo(() => {
     const nodes = new Map<string, PlanWorkstreamNode>();
@@ -6305,22 +6363,22 @@ export const PlanWorkstreamExplorer = ({
     [query, snapshot.nodes],
   );
   const hierarchyIndex = useMemo(
-    () => getHierarchyIndex(snapshot.nodes, snapshot.edges),
-    [snapshot.edges, snapshot.nodes],
+    () => getHierarchyIndex(mapNodes, mapEdges),
+    [mapEdges, mapNodes],
   );
   const statusVisibleNodeIds = useMemo(
-    () => getStatusVisibleNodeIds(snapshot.nodes, snapshot.edges, allStatuses),
-    [snapshot.edges, snapshot.nodes],
+    () => getStatusVisibleNodeIds(mapNodes, mapEdges, allStatuses),
+    [mapEdges, mapNodes],
   );
   const visibleNodeIds = useMemo(
     () =>
       getExpandedVisibleNodeIds(
-        snapshot.nodes,
+        mapNodes,
         statusVisibleNodeIds,
         hierarchyIndex.parentByChild,
         expandedNodeIds,
       ),
-    [expandedNodeIds, hierarchyIndex.parentByChild, snapshot.nodes, statusVisibleNodeIds],
+    [expandedNodeIds, hierarchyIndex.parentByChild, mapNodes, statusVisibleNodeIds],
   );
   const expandableBranchStatsByParent = useMemo(() => {
     const branchStatsByParent = new Map<
@@ -6344,12 +6402,12 @@ export const PlanWorkstreamExplorer = ({
     return branchStatsByParent;
   }, [hierarchyIndex.primaryChildrenByParent, statusVisibleNodeIds]);
   const initialExpandedNodeIds = useMemo(
-    () => getInitialExpandedNodeIds(snapshot.nodes, snapshot.edges),
-    [snapshot.edges, snapshot.nodes],
+    () => getInitialExpandedNodeIds(mapNodes, mapEdges),
+    [mapEdges, mapNodes],
   );
   const visibleNodes = useMemo(
-    () => snapshot.nodes.filter(node => visibleNodeIds.has(node.id)),
-    [snapshot.nodes, visibleNodeIds],
+    () => mapNodes.filter(node => visibleNodeIds.has(node.id)),
+    [mapNodes, visibleNodeIds],
   );
   const boardProjects = useMemo(
     () =>
@@ -6394,8 +6452,8 @@ export const PlanWorkstreamExplorer = ({
   }, [globalBoardNodes]);
   const visibleEdges = useMemo(
     () =>
-      snapshot.edges.filter(edge => visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to)),
-    [snapshot.edges, visibleNodeIds],
+      mapEdges.filter(edge => visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to)),
+    [mapEdges, visibleNodeIds],
   );
   const renderedEdges = useMemo(() => getRenderedEdges(visibleEdges), [visibleEdges]);
   const selectedNode = selectedNodeId ? nodesById.get(selectedNodeId) : null;
@@ -7119,6 +7177,38 @@ export const PlanWorkstreamExplorer = ({
       selectedNodeId,
     });
   };
+
+  const returnToOntologyMap = useCallback(() => {
+    const targetNodeId =
+      fullNodeId && canvasNodeIds.has(fullNodeId)
+        ? fullNodeId
+        : selectedNodeId && canvasNodeIds.has(selectedNodeId)
+          ? selectedNodeId
+          : null;
+
+    setAtlasView('map');
+    setFullNodeId(null);
+    setFullNodeHistoryIds([]);
+    setHoveredNodeId(null);
+    setSelectedNodeId(targetNodeId);
+    setDetailOpen(Boolean(targetNodeId));
+
+    if (targetNodeId) {
+      revealNodePath(targetNodeId);
+      focusNode(targetNodeId);
+    }
+
+    if (typeof globalThis.window !== 'undefined') {
+      const nextUrl = getAtlasRouteUrl({
+        fullNodeId: null,
+        fullNodeTab: defaultFullMarkdownModalTab,
+        selectedNodeId: targetNodeId,
+      });
+      nextUrl.searchParams.delete('view');
+      nextUrl.searchParams.delete('session');
+      globalThis.history.pushState({ atlas: true }, '', nextUrl);
+    }
+  }, [canvasNodeIds, focusNode, fullNodeId, revealNodePath, selectedNodeId]);
 
   const navigateFullNodeBack = useCallback(() => {
     const previousNodeId = fullNodeHistoryIds[fullNodeHistoryIds.length - 1];
@@ -8059,6 +8149,7 @@ export const PlanWorkstreamExplorer = ({
           onActiveTabChange={tab => setFullNodeActiveTab(fullNodeWithContent.id, tab)}
           onClose={closeFullNode}
           onNavigateBack={navigateFullNodeBack}
+          onReturnToMap={returnToOntologyMap}
           onOpenFull={openFullNode}
           semanticSignals={
             fullNodeWithContent.semanticId

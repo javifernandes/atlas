@@ -10,12 +10,60 @@ const plainOperationText = (value: string) =>
     .replaceAll(/\s+/g, ' ')
     .trim();
 
-const operationList = (body: string, title: string) =>
-  sectionText(body, title)
+const markdownTableRows = (value: string) => {
+  const lines = value
     .split('\n')
-    .map(line => line.trim().replace(/^[-*]\s+/, ''))
-    .filter(Boolean)
-    .map(plainOperationText);
+    .map(line => line.trim())
+    .filter(line => line.startsWith('|') && line.endsWith('|'));
+
+  if (lines.length < 2) return [];
+
+  const rows = lines.map(line =>
+    line
+      .slice(1, -1)
+      .split('|')
+      .map(cell => plainOperationText(cell.trim())),
+  );
+  const separator = rows[1];
+
+  if (!separator?.every(cell => /^:?-{3,}:?$/.test(cell))) return [];
+
+  return rows.slice(2);
+};
+
+const operationList = (body: string, title: string) =>
+  (() => {
+    const authored = sectionText(body, title);
+    const tableRows = markdownTableRows(authored);
+
+    return tableRows.length > 0
+      ? tableRows.map(row => row[0]).filter((value): value is string => Boolean(value))
+      : authored
+          .split('\n')
+          .map(line => line.trim().replace(/^[-*]\s+/, ''))
+          .filter(Boolean)
+          .map(plainOperationText);
+  })();
+
+const inputsAndOutputText = (body: string) => {
+  const authored = sectionText(body, 'Inputs And Output');
+  const tableRows = markdownTableRows(authored);
+
+  if (tableRows.length === 0) return plainOperationText(authored);
+
+  const inputs = tableRows
+    .filter(row => row[0]?.toLowerCase() === 'input')
+    .map(row => row[1])
+    .filter((value): value is string => Boolean(value));
+  const outputs = tableRows
+    .filter(row => row[0]?.toLowerCase() === 'output')
+    .map(row => row[1])
+    .filter((value): value is string => Boolean(value));
+  const inputText = inputs.length > 0 ? `Inputs are ${inputs.join(' and ')}` : '';
+  const outputText = outputs.length > 0 ? `The result is ${outputs.join(' and ')}` : '';
+
+  return [inputText, outputText].filter(Boolean).join('. ');
+};
 
 const invariantReferences = (body: string, ownerReference?: string): OperationInvariantReference[] => {
   const authored = sectionText(body, 'Invariants Preserved');
@@ -44,7 +92,7 @@ export const parseOperationModel = (
   actor: plainOperationText(sectionText(body, 'Actor')),
   availability: plainOperationText(sectionText(body, 'Availability')),
   failures: operationList(body, 'Failures'),
-  inputsAndOutput: plainOperationText(sectionText(body, 'Inputs And Output')),
+  inputsAndOutput: inputsAndOutputText(body),
   invariantsPreserved: invariantReferences(body, invariantOwnerReference),
   kind: 'operation',
   realizationRefs,

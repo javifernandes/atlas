@@ -12,15 +12,20 @@ relatedPlans:
   - plans/done/101-workstream-atlas-semantic-source.md
   - plans/done/121-full-item-project-badges.md
   - plans/done/122-plan-centered-execution-projection.md
+  - plans/current/161-ontology-map-and-plan-coverage.md
 ---
 
 Map Navigation UX covers the full-canvas atlas: pan, zoom, search, selected-node detail, dimming, semantic grouping, and the shift from a flattened plan graph to a navigable product map.
 
-The Map is primarily a structural and ontological lens. Concepts, capabilities, entities, and
-other durable items form its hierarchy. Plans may remain visible because they explain and can be
-created from that structure, but they are temporal interventions rather than structural peers and
-must look visually distinct. A later control may make this Plan layer optional without changing the
-underlying graph.
+The Map is a structural and ontological lens. Concepts, capabilities, entities, and other durable
+items form its hierarchy. Plans remain first-class temporal interventions, but they are not
+structural peers and do not render as Map nodes. Board, search, Sessions, Item Evolution, direct
+routes, and related-Plan projections keep them addressable without allowing temporal work to
+overwhelm durable system form.
+
+Full detail exposes a stable return to Map that does not depend on replaying browser-like Back
+history. When the addressed node is a durable Map Item, returning selects it in the ontology;
+directly addressed Plans still return to Map even though they are not Map nodes.
 
 The interactive map, board, Sessions workspace, and full-detail renderer form a browser-only
 surface. The server authenticates the request and prepares the bounded page projection, while the
