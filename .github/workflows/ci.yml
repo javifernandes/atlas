@@ -53,6 +53,10 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - name: Validate Atlas PR context
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-atlas-pr-context.mjs
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

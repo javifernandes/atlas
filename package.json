@@ -31,6 +31,7 @@
     "test:postgres:neon": "node scripts/test-postgres-neon.mjs",
     "typecheck": "tsc --noEmit",
     "check:text-format": "node scripts/check-text-format.mjs",
+    "check:pr-context": "node scripts/check-atlas-pr-context.mjs",
     "verify": "pnpm check:text-format && pnpm test && pnpm typecheck && pnpm build",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"

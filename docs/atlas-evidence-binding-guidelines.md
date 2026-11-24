@@ -136,12 +136,22 @@ When preparing commits:
 When preparing the PR:
 
 1. explain the behavioral or system change normally;
-2. add only the directives supported by the change;
-3. use exact target references and remove template placeholders;
-4. if the work arrived with a copied Session instruction, include its exact `Atlas-Session` line
+2. inspect the complete diff, not only the task summary: when implementation changes are paired
+   with Atlas-owned Plan or Item edits, cover every changed durable target with the supported
+   `Atlas-Implements` or `Atlas-Shapes` directive that expresses the actual relationship;
+3. add only the directives supported by the change; co-change is an audit signal, not proof of a
+   semantic relationship, so do not invent metadata for unrelated or mechanical documentation;
+4. use exact target references and remove template placeholders;
+5. if the work arrived with a copied Session instruction, include its exact `Atlas-Session` line
    once; otherwise omit it;
-5. keep the directives in the PR body through every edit, review, and merge;
-6. report the verification actually run.
+6. keep the directives in the PR body through every edit, review, and merge;
+7. report the verification actually run.
+
+Atlas CI enforces the deterministic part of this audit. If a PR changes implementation files and
+Atlas-owned Plans or Items together, each changed Plan must appear under `Atlas-Implements` and each
+changed Item ID must appear under `Atlas-Implements` or `Atlas-Shapes`. The check deliberately does
+not infer which relationship is correct; the author or agent must make that semantic judgment. A
+documentation-only PR remains eligible to omit evidence metadata when it is ordinary maintenance.
 
 After merge, open the target node's `Evolution` section in Atlas and confirm that the PR appears as
 implementation evidence. A missing binding is a target-resolution or ingestion problem, not a
