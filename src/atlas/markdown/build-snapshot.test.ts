@@ -678,7 +678,7 @@ Define Plan as the first pilot.
     );
   });
 
-  it('normalizes vague legacy kinds to a neutral Item without losing their source records', () => {
+  it('normalizes legacy semantic and structural kinds without losing their source records', () => {
     const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
       {
         path: 'atlas/items/concept.md',
@@ -700,12 +700,56 @@ status: shaping
 ---
 `,
       },
+      {
+        path: 'atlas/items/territory.md',
+        content: `---
+id: atlas.legacy-territory
+kind: territory
+title: Legacy Territory
+status: shaping
+---
+`,
+      },
+      {
+        path: 'atlas/items/model.md',
+        content: `---
+id: atlas.legacy-model
+kind: model
+title: Legacy Model
+status: shaping
+---
+`,
+      },
+      {
+        path: 'atlas/items/experience.md',
+        content: `---
+id: atlas.legacy-experience
+kind: experience
+title: Legacy Experience
+status: shaping
+---
+`,
+      },
+      {
+        path: 'atlas/items/capability.md',
+        content: `---
+id: atlas.legacy-capability
+kind: capability
+title: Legacy Capability
+status: shaping
+---
+`,
+      },
     ]);
 
     expect(snapshot.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'atlas:atlas.legacy-concept', kind: 'item' }),
         expect.objectContaining({ id: 'atlas:atlas.legacy-primitive', kind: 'item' }),
+        expect.objectContaining({ id: 'atlas:atlas.legacy-territory', kind: 'collection' }),
+        expect.objectContaining({ id: 'atlas:atlas.legacy-model', kind: 'collection' }),
+        expect.objectContaining({ id: 'atlas:atlas.legacy-experience', kind: 'item' }),
+        expect.objectContaining({ id: 'atlas:atlas.legacy-capability', kind: 'item' }),
       ]),
     );
   });
@@ -851,12 +895,16 @@ Development as shape transformation frames development as changes to system form
       expect.arrayContaining([
         expect.objectContaining({
           id: 'atlas:product.reader-experience.listening',
-          kind: 'experience',
+          kind: 'item',
           exemplars: ['product.model.book'],
           markdown: expect.stringContaining('Listening Experience covers voices'),
           semanticId: 'product.reader-experience.listening',
           status: 'shaping',
           territory: 'Product',
+        }),
+        expect.objectContaining({
+          id: 'atlas:product.reader-experience',
+          kind: 'collection',
         }),
         expect.objectContaining({
           id: 'plan:plans/done/80-reader-audio-and-soundscape-prototype.md',

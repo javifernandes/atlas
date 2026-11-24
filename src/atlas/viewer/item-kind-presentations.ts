@@ -15,6 +15,7 @@ export type ItemKindPresentation = {
 
 const presentationOverrides: Partial<Record<PlanNodeKind, Partial<ItemKindPresentation>>> = {
   candidate: { visualRole: 'temporal' },
+  collection: { visualRole: 'container' },
   entity: { detail: { sections: { states: 'entity-behavior' } } },
   interaction: { detail: { overview: 'interaction-details', renderMarkdown: false } },
   model: { visualRole: 'container' },

@@ -24,7 +24,15 @@ An [[spec-workstream-atlas.atlas-model.item|Atlas Item]] is a durable thing the 
 
 `node` is a graph/UI implementation word. `Item` is the current product-language noun. `Shape` stays a verb: plans, operations, and practices shape atlas items over time.
 
-An item may be a project, package, model, experience, principle, practice, capability, entity, operation, artifact, policy, evidence group, or work item. The important property is not its category; it is that the project needs to keep giving it form as plans, code, prototypes, and evidence evolve.
+An item may have a proven specialized form such as Project, Package, Entity, Operation,
+Interaction, Principle, Practice, Artifact, Policy, Evidence group, or Work Item. A neutral `item`
+keeps durable identity without claiming a form that Atlas has not established. A neutral
+`collection` groups Items without pretending that hierarchy itself is a semantic type.
+
+Historical Sources may still author `concept`, `system-primitive`, `territory`, `model`,
+`experience`, or `capability`. Atlas accepts these as compatibility vocabulary but normalizes them
+to Item or Collection in its canonical projection. New authoring should use a proven specialized
+kind or the honest neutral form.
 
 Projects are items too. BookOps, Ontahi, and Workstream Atlas all show how something can begin inside another project and later gain enough identity to become a project-level item with its own repositories, paths, evidence, and planning surface.
 

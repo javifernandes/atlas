@@ -185,7 +185,7 @@ relatedPlans:
       id: 'atlas:product.reader',
       semanticId: 'product.reader',
       title: 'Reader Experience',
-      kind: 'experience',
+      kind: 'item',
       status: 'shaping',
       parent: {
         id: 'atlas:product',
