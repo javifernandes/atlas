@@ -44,10 +44,15 @@ than proven Item Types. Both project to the neutral `item` kind: a durable named
 specific form has not been established. This preserves old Sources without continuing to advertise
 false semantic precision.
 
-`territory`, `model`, `experience`, and `capability` remain under explicit audit. Territory and
-model may prove to be structural roles orthogonal to semantic kind; Experience and Capability must
-demonstrate anatomy or behavior distinct from Interaction, Goal, and Operation before Atlas treats
-them as stable authoring contracts. `surface` is not a supported Item kind.
+The first cross-source audit found no stable anatomy for `territory`, `model`, `experience`, or
+`capability`. Territory and Model currently prove only structural grouping, so Atlas projects both
+as the neutral `collection` kind. Experience and Capability mix several unrelated forms and project
+as neutral `item` values until a future exemplar earns a specialized contract. The source labels
+remain accepted as compatibility aliases; they are not recommended authoring vocabulary.
+
+Collection is intentionally narrow: it groups durable Items without claiming their semantic form.
+It does not imply Project ownership, Package distribution, or a domain Model. `surface` is not a
+supported Item kind.
 
 `Plan` is the first worked example because it already exposes operations such as review state, close, reconcile, extract follow-ups, and reshape. The next passes should contrast it with a product/model item such as Book and an experience item such as Reader Experience or Sharing And Collaboration.
 

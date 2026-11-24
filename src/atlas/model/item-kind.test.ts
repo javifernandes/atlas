@@ -13,11 +13,20 @@ describe('Atlas Item Kind extension surface', () => {
     expect(atlasItemKinds).toContain('entity');
     expect(isAtlasItemKind('package')).toBe(true);
     expect(isAtlasItemKind('item')).toBe(true);
+    expect(isAtlasItemKind('collection')).toBe(true);
     expect(isAtlasItemKind('concept')).toBe(false);
+    expect(isAtlasItemKind('territory')).toBe(false);
+    expect(isAtlasItemKind('model')).toBe(false);
+    expect(isAtlasItemKind('experience')).toBe(false);
+    expect(isAtlasItemKind('capability')).toBe(false);
     expect(isAtlasItemKind('plan')).toBe(false);
     expect(isAtlasItemKind('candidate')).toBe(false);
     expect(normalizeAtlasItemKind('concept')).toBe('item');
     expect(normalizeAtlasItemKind('system-primitive')).toBe('item');
+    expect(normalizeAtlasItemKind('experience')).toBe('item');
+    expect(normalizeAtlasItemKind('capability')).toBe('item');
+    expect(normalizeAtlasItemKind('territory')).toBe('collection');
+    expect(normalizeAtlasItemKind('model')).toBe('collection');
     expect(normalizeAtlasItemKind('not-a-kind')).toBeUndefined();
   });
 

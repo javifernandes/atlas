@@ -24,6 +24,14 @@ describe('Item Kind presentation contract', () => {
     expect(getItemKindSectionPresentation('operation', 'States')).toBeUndefined();
   });
 
+  it('presents a neutral Collection as structural without restoring legacy category semantics', () => {
+    expect(getItemKindPresentation('collection')).toEqual({
+      detail: undefined,
+      evolution: 'self',
+      visualRole: 'container',
+    });
+  });
+
   it('registers the typed Operation realization overview', () => {
     expect(getItemKindPresentation('operation')).toMatchObject({
       detail: { overview: 'operation-details' },

@@ -3,13 +3,10 @@ import type { ActivityGraph } from './activity-graph';
 
 export const atlasItemKinds = [
   'item',
+  'collection',
   'project',
   'package',
   'goal',
-  'territory',
-  'model',
-  'experience',
-  'capability',
   'entity',
   'operation',
   'interaction',
@@ -26,8 +23,12 @@ export const atlasItemKinds = [
 export type AtlasItemKind = (typeof atlasItemKinds)[number];
 
 export const legacyAtlasItemKindAliases = {
+  capability: 'item',
   concept: 'item',
+  experience: 'item',
+  model: 'collection',
   'system-primitive': 'item',
+  territory: 'collection',
 } as const satisfies Record<string, AtlasItemKind>;
 
 export type LegacyAtlasItemKind = keyof typeof legacyAtlasItemKindAliases;
