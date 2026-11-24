@@ -83,6 +83,12 @@ replica. The frontier is provider observation state rather than PR identity, and
 observation must retain an inclusive boundary so equal timestamps cannot hide edited historical
 records.
 
+The provider-neutral runtime for such a replica should use the application's active Ontahi Entity
+storage by default for accepted frontiers and records. This keeps replication inside the same
+transactional and portability boundary as the rest of the application. A distinct storage adapter
+is an optional capability for applications that intentionally split stores; it is not part of the
+minimum Source declaration.
+
 ## Execution boundary
 
 A Unit of Work records execution intent and lifecycle. A successful Unit of Work may produce one
