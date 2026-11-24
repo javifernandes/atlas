@@ -42,6 +42,7 @@ describe('WorkspaceControl', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Workspace menu' }));
 
     expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Search Atlas/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'All Workspaces' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('menuitem', { name: 'Workspace settings' })).toHaveAttribute(
       'href',

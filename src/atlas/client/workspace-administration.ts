@@ -10,8 +10,19 @@ import {
   AtlasWorkspaceCreateOutputSchema,
   AtlasWorkspaceDeleteInputSchema,
   AtlasWorkspaceDeleteOutputSchema,
+  AtlasWorkspaceInviteInputSchema,
+  AtlasWorkspaceInviteOutputSchema,
+  AtlasWorkspaceInvitationAcceptOutputSchema,
+  AtlasWorkspaceInvitationClaimInputSchema,
+  AtlasWorkspaceInvitationClaimOutputSchema,
+  AtlasWorkspaceInvitationDeclineOutputSchema,
+  AtlasWorkspaceInvitationInspectInputSchema,
+  AtlasWorkspaceInvitationInspectOutputSchema,
+  AtlasWorkspaceInvitationRespondInputSchema,
   AtlasWorkspaceRegisterSourceInputSchema,
   AtlasWorkspaceRegisterSourceOutputSchema,
+  AtlasWorkspaceRevokeInvitationInputSchema,
+  AtlasWorkspaceRevokeInvitationOutputSchema,
   AtlasWorkspaceRemoveSourceInputSchema,
   AtlasWorkspaceRemoveSourceOutputSchema,
   AtlasWorkspaceReconcileSourcesInputSchema,
@@ -21,6 +32,55 @@ import {
   AtlasWorkspaceUpdateVisibilityInputSchema,
   AtlasWorkspaceUpdateVisibilityOutputSchema,
 } from '../model/workspace-administration';
+
+const invitationReceiver = {
+  kind: 'input',
+  path: 'invitation',
+  entityName: 'AtlasWorkspaceInvitation',
+  participant: 'ref',
+  requirement: 'portable',
+  source: 'declaration',
+} as const;
+
+export const AtlasWorkspaceInvitationClient = defineClientEntity(
+  'AtlasWorkspaceInvitation',
+  {
+    domainOperations: {
+      inspect: defineClientDomainOperation({
+        authority: 'server',
+        exposure: 'bridge',
+        bridge: {},
+        receiver: invitationReceiver,
+        input: AtlasWorkspaceInvitationInspectInputSchema,
+        output: AtlasWorkspaceInvitationInspectOutputSchema,
+      }),
+      claim: defineClientDomainOperation({
+        authority: 'server',
+        exposure: 'bridge',
+        bridge: {},
+        receiver: invitationReceiver,
+        input: AtlasWorkspaceInvitationClaimInputSchema,
+        output: AtlasWorkspaceInvitationClaimOutputSchema,
+      }),
+      accept: defineClientDomainOperation({
+        authority: 'server',
+        exposure: 'bridge',
+        bridge: {},
+        receiver: invitationReceiver,
+        input: AtlasWorkspaceInvitationRespondInputSchema,
+        output: AtlasWorkspaceInvitationAcceptOutputSchema,
+      }),
+      decline: defineClientDomainOperation({
+        authority: 'server',
+        exposure: 'bridge',
+        bridge: {},
+        receiver: invitationReceiver,
+        input: AtlasWorkspaceInvitationRespondInputSchema,
+        output: AtlasWorkspaceInvitationDeclineOutputSchema,
+      }),
+    },
+  },
+);
 
 const workspaceReceiver = {
   kind: 'input',
@@ -47,6 +107,22 @@ export const AtlasWorkspaceAdministrationClient = defineClientEntity('AtlasWorks
       receiver: workspaceReceiver,
       input: AtlasWorkspaceDeleteInputSchema,
       output: AtlasWorkspaceDeleteOutputSchema,
+    }),
+    invite: defineClientDomainOperation({
+      authority: 'server',
+      exposure: 'bridge',
+      bridge: {},
+      receiver: workspaceReceiver,
+      input: AtlasWorkspaceInviteInputSchema,
+      output: AtlasWorkspaceInviteOutputSchema,
+    }),
+    revokeInvitation: defineClientDomainOperation({
+      authority: 'server',
+      exposure: 'bridge',
+      bridge: {},
+      receiver: workspaceReceiver,
+      input: AtlasWorkspaceRevokeInvitationInputSchema,
+      output: AtlasWorkspaceRevokeInvitationOutputSchema,
     }),
     updateVisibility: defineClientDomainOperation({
       authority: 'server',

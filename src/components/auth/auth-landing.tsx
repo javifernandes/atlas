@@ -6,13 +6,17 @@ type AuthLandingProps = Pick<
   AtlasReadAccess,
   'authAvailable' | 'configurationError' | 'viewer'
 > & {
+  callbackURL?: string;
   error?: string | null;
+  errorCallbackURL?: string;
 };
 
 export const AuthLanding = ({
   authAvailable,
+  callbackURL,
   configurationError,
   error,
+  errorCallbackURL,
   viewer,
 }: AuthLandingProps) => (
   <main className='relative grid min-h-screen place-items-center overflow-hidden bg-background px-5 py-12'>
@@ -46,7 +50,9 @@ export const AuthLanding = ({
 
       <AuthControl
         authAvailable={authAvailable}
+        callbackURL={callbackURL}
         className='mt-7'
+        errorCallbackURL={errorCallbackURL}
         variant='sign-in'
         viewer={viewer}
       />

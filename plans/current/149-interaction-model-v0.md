@@ -601,7 +601,8 @@ details into the Interaction.
       external validation, failure, and compensation boundaries.
 - [ ] Record which additional Activity Graph primitives are justified by at least one exemplar and
       which remain projection-only concepts.
-- [ ] Use the model to shape the first end-to-end invitation implementation plan.
+- [x] Use the model to shape the first end-to-end invitation implementation plan in
+      [`Workspace Invitations End To End`](159-workspace-invitations-end-to-end.md).
 
 ## Verification
 
@@ -682,6 +683,12 @@ This plan starts with the model and one manual exemplar. The first implementatio
 prove that Atlas can preserve and render the interaction independently of its current Settings
 realization. Workspace invitation and membership workflows are the next adoption pressure, not the
 initial parser scope.
+
+Plan 159 converts that adoption pressure into the first bounded implementation contract. It keeps
+the Interaction graphs as product authority while assigning executable behavior to persisted
+Workspace Invitation state and Ontahí Operations. Its first slice supports linked Atlas Users and
+stable GitHub identities; email delivery and generalized authorization remain explicit follow-up
+pressure rather than hidden prerequisites.
 
 The production exemplar exposed two compatibility edges after the first detail-surface deployment:
 an older Projection Revision could still label the Item as `capability`, and the generic Markdown

@@ -1176,6 +1176,32 @@ const selection: Selection = Selection.references(Book, refs);
     ).not.toBeInTheDocument();
   });
 
+  it('keeps prose overviews compact instead of stretching paragraphs across the viewport', () => {
+    globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-a'
+          ? {
+              ...node,
+              markdown: `First readable paragraph.
+
+Second readable paragraph.`,
+            }
+          : node,
+      ),
+    };
+
+    renderExplorer({ value });
+
+    const dialog = screen.getByRole('dialog');
+    const firstParagraph = within(dialog).getByText('First readable paragraph.').closest('p');
+    const article = firstParagraph?.closest('article');
+
+    expect(firstParagraph).toHaveClass('max-w-[76ch]');
+    expect(article).toHaveClass('content-start');
+  });
+
   it('navigates to the parent and direct children inside the same focus surface', async () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const user = userEvent.setup();
@@ -1433,7 +1459,7 @@ const selection: Selection = Selection.references(Book, refs);
 
     expect(screen.queryByRole('button', { name: 'Item A' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+    fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
     const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
 
     await user.type(within(searchDialog).getByRole('combobox', { name: 'Search atlas' }), 'Item A');
@@ -1481,7 +1507,7 @@ const selection: Selection = Selection.references(Book, refs);
     await user.click(screen.getByRole('button', { name: 'Board' }));
     expect(screen.getByRole('button', { name: 'Map Plan' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+    fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
     const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
     await user.type(within(searchDialog).getByRole('combobox', { name: 'Search atlas' }), 'Map Plan');
     expect(within(searchDialog).getByRole('option', { name: /Map Plan/ })).toBeInTheDocument();
@@ -1589,7 +1615,6 @@ const selection: Selection = Selection.references(Book, refs);
     };
 
     renderExplorer({ value: { ...snapshot, nodes: [...snapshot.nodes, federatedPlan] } });
-    expect(screen.getByRole('button', { name: 'Open Atlas search' })).toHaveTextContent('Atlas');
     expect(screen.queryByRole('combobox', { name: 'Search atlas' })).not.toBeInTheDocument();
 
     fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
@@ -1629,7 +1654,7 @@ const selection: Selection = Selection.references(Book, refs);
     const user = userEvent.setup();
 
     renderExplorer();
-    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+    fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
 
     const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
     const searchInput = within(searchDialog).getByRole('combobox', { name: 'Search atlas' });
@@ -1677,7 +1702,7 @@ const selection: Selection = Selection.references(Book, refs);
     renderExplorer({
       value: { ...snapshot, nodes: [...snapshot.nodes, incidentalMatch, ontahiModel] },
     });
-    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+    fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
 
     const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
     await user.type(
@@ -1703,7 +1728,7 @@ const selection: Selection = Selection.references(Book, refs);
     renderExplorer({
       value: { ...snapshot, nodes: [...snapshot.nodes, sourceCodeOrganization] },
     });
-    await user.click(screen.getByRole('button', { name: 'Open Atlas search' }));
+    fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
 
     const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
     await user.type(
@@ -1714,6 +1739,53 @@ const selection: Selection = Selection.references(Book, refs);
     const results = within(searchDialog).getAllByRole('option');
     expect(results[0]).toHaveAttribute('data-node-id', sourceCodeOrganization.id);
     expect(results[0]).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('matches title acronyms without returning incidental short-query matches', async () => {
+    globalThis.history.replaceState({}, '', '/internal/plans');
+    const user = userEvent.setup();
+    const workspaceInvitation = createNode('workspace-invitation', {
+      kind: 'entity',
+      markdown: '# Workspace Invitation',
+      semanticId: 'atlas://atlas/access-and-identity/workspace-invitation',
+      shortTitle: 'Workspace Invitation',
+    });
+    const incidentalTitleMatch = createNode('wire-protocol', {
+      kind: 'plan',
+      markdown: '# Relationship Command Wire Protocol',
+      semanticId: 'ontahi://plans/128c-relationship-command-wire-protocol',
+      shortTitle: 'Relationship Command Wire Protocol',
+    });
+    const incidentalMetadataMatch = createNode('goal-with-incidental-match', {
+      kind: 'concept',
+      markdown: '# Goal',
+      semanticId: 'atlas://atlas/items/with-incidental-match',
+      shortTitle: 'Goal',
+      summary: 'A wide implementation surface.',
+    });
+
+    renderExplorer({
+      value: {
+        ...snapshot,
+        nodes: [
+          ...snapshot.nodes,
+          incidentalTitleMatch,
+          incidentalMetadataMatch,
+          workspaceInvitation,
+        ],
+      },
+    });
+    fireEvent.keyDown(globalThis.window, { key: 'k', metaKey: true });
+
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Atlas' });
+    await user.type(
+      within(searchDialog).getByRole('combobox', { name: 'Search atlas' }),
+      'WI',
+    );
+
+    const results = within(searchDialog).getAllByRole('option');
+    expect(results).toHaveLength(1);
+    expect(results[0]).toHaveAttribute('data-node-id', workspaceInvitation.id);
   });
 
   it('renders explicit merged PR evidence as an attachment outside evolution stages', async () => {

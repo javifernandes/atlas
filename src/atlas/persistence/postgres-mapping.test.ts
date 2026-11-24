@@ -32,6 +32,9 @@ describe('Atlas PostgreSQL identity mappings', () => {
     const workspaceContributor = mappings.find(
       mapping => mapping.entity.name === 'AtlasWorkspaceContributor',
     );
+    const workspaceInvitation = mappings.find(
+      mapping => mapping.entity.name === 'AtlasWorkspaceInvitation',
+    );
     const workspaceModelConnection = mappings.find(
       mapping => mapping.entity.name === 'AtlasWorkspaceModelConnection',
     );
@@ -99,6 +102,22 @@ describe('Atlas PostgreSQL identity mappings', () => {
         contributionCount: 'contribution_count',
         lastContributedAt: 'last_contributed_at',
         linkedUserId: 'linked_user_id',
+      },
+    });
+    expect(workspaceInvitation).toMatchObject({
+      table: 'atlas_workspace_invitations',
+      columns: {
+        workspaceId: 'workspace_id',
+        invitedByUserId: 'invited_by_user_id',
+        recipientKind: 'recipient_kind',
+        recipientUserId: 'recipient_user_id',
+        recipientProvider: 'recipient_provider',
+        recipientProviderAccountId: 'recipient_provider_account_id',
+        claimPolicy: 'claim_policy',
+        proposedRole: 'proposed_role',
+        claimedByUserId: 'claimed_by_user_id',
+        membershipId: 'membership_id',
+        expiresAt: 'expires_at',
       },
     });
     expect(workspaceModelConnection).toMatchObject({

@@ -24,6 +24,17 @@ import {
   AtlasWorkspaceCreateOutputSchema,
   AtlasWorkspaceDeleteInputSchema,
   AtlasWorkspaceDeleteOutputSchema,
+  AtlasWorkspaceInviteInputSchema,
+  AtlasWorkspaceInviteOutputSchema,
+  AtlasWorkspaceInvitationAcceptOutputSchema,
+  AtlasWorkspaceInvitationClaimInputSchema,
+  AtlasWorkspaceInvitationClaimOutputSchema,
+  AtlasWorkspaceInvitationDeclineOutputSchema,
+  AtlasWorkspaceInvitationInspectInputSchema,
+  AtlasWorkspaceInvitationInspectOutputSchema,
+  AtlasWorkspaceInvitationRespondInputSchema,
+  AtlasWorkspaceRevokeInvitationInputSchema,
+  AtlasWorkspaceRevokeInvitationOutputSchema,
   AtlasWorkspaceRegisterSourceInputSchema,
   AtlasWorkspaceRegisterSourceOutputSchema,
   AtlasWorkspaceRemoveSourceInputSchema,
@@ -117,6 +128,24 @@ export const atlasWorkspaceMembershipFields = {
   userId: field.id(),
   role: field.enum(['owner', 'collaborator', 'viewer']),
   status: field.enum(['active', 'suspended']),
+  createdAt: field.nonEmptyString({ trim: true }),
+  updatedAt: field.nonEmptyString({ trim: true }),
+};
+
+export const atlasWorkspaceInvitationFields = {
+  id: field.id(),
+  workspaceId: field.id(),
+  invitedByUserId: field.id(),
+  recipientKind: field.enum(['user', 'github']),
+  recipientUserId: field.nullable(field.id()),
+  recipientProvider: field.nullable(field.enum(['github'])),
+  recipientProviderAccountId: field.nullable(field.string()),
+  claimPolicy: field.enum(['known-user', 'provider-identity']),
+  proposedRole: field.enum(['collaborator', 'viewer']),
+  status: field.enum(['pending', 'claimed', 'accepted', 'declined', 'revoked', 'expired']),
+  claimedByUserId: field.nullable(field.id()),
+  membershipId: field.nullable(field.id()),
+  expiresAt: field.nonEmptyString({ trim: true }),
   createdAt: field.nonEmptyString({ trim: true }),
   updatedAt: field.nonEmptyString({ trim: true }),
 };
@@ -227,6 +256,9 @@ const AtlasAuthAccountRef = entity.ref('AtlasAuthAccount', { fields: atlasAuthAc
 const AtlasWorkspaceMembershipRef = entity.ref('AtlasWorkspaceMembership', {
   fields: atlasWorkspaceMembershipFields,
 });
+const AtlasWorkspaceInvitationRef = entity.ref('AtlasWorkspaceInvitation', {
+  fields: atlasWorkspaceInvitationFields,
+});
 const AtlasWorkspaceSourceRef = entity.ref('AtlasWorkspaceSource', {
   fields: atlasWorkspaceSourceFields,
 });
@@ -282,6 +314,7 @@ export const AtlasWorkspace = entity({
   },
   relations: {
     memberships: relation.hasMany(AtlasWorkspaceMembershipRef, { via: 'workspaceId' }),
+    invitations: relation.hasMany(AtlasWorkspaceInvitationRef, { via: 'workspaceId' }),
     sources: relation.hasMany(AtlasWorkspaceSourceRef, { via: 'workspaceId' }),
     contributors: relation.hasMany(AtlasWorkspaceContributorRef, { via: 'workspaceId' }),
     sourceImports: relation.hasMany(AtlasWorkspaceSourceImportRef, { via: 'workspaceId' }),
@@ -297,6 +330,7 @@ export const AtlasWorkspace = entity({
     entities: {
       contributors: AtlasWorkspaceContributorRef,
       memberships: AtlasWorkspaceMembershipRef,
+      invitations: AtlasWorkspaceInvitationRef,
       sources: AtlasWorkspaceSourceRef,
       sourceImports: AtlasWorkspaceSourceImportRef,
       projectionRevisions: AtlasWorkspaceProjectionRevisionRef,
@@ -509,6 +543,10 @@ export const AtlasWorkspace = entity({
               .where(source => source.workspaceId.eq(workspace.id))
               .delete()
               .run();
+            yield* entities.invitations
+              .where(invitation => invitation.workspaceId.eq(workspace.id))
+              .delete()
+              .run();
             yield* entities.memberships
               .where(membership => membership.workspaceId.eq(workspace.id))
               .delete()
@@ -524,6 +562,143 @@ export const AtlasWorkspace = entity({
             }) ?? Effect.void;
 
             return { id: workspace.id, slug: workspace.slug };
+          }),
+      }),
+      invite: operation.atomic({
+        receiver: { kind: 'input', path: 'workspace' },
+        description: 'Invite an observed contributor to join a Workspace.',
+        exposure: 'bridge',
+        bridge: {},
+        input: AtlasWorkspaceInviteInputSchema,
+        output: AtlasWorkspaceInviteOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const workspaceId = String(input.workspace.locator.id);
+            const principal = getCurrentInvocationContext()?.principal;
+            const userId = principal?.kind === 'user' ? principal.subject : null;
+            if (!userId) {
+              return yield* failOperation(
+                'workspace_owner_required',
+                'Only an active Workspace owner can invite contributors.',
+              );
+            }
+            yield* requireOwner(
+              workspaceId,
+              'Only an active Workspace owner can invite contributors.',
+            );
+
+            const contributor = (yield* entities.contributors
+              .where(candidate => candidate.id.eq(input.contributorId))
+              .where(candidate => candidate.workspaceId.eq(workspaceId))
+              .limit(1)
+              .run())[0];
+            if (!contributor || contributor.kind !== 'person') {
+              return yield* failOperation(
+                'workspace_contributor_not_invitable',
+                'That contributor is not available for invitation.',
+              );
+            }
+
+            if (contributor.linkedUserId) {
+              const membership = (yield* entities.memberships
+                .where(candidate => candidate.workspaceId.eq(workspaceId))
+                .where(candidate => candidate.userId.eq(contributor.linkedUserId!))
+                .where(candidate => candidate.status.eq('active'))
+                .limit(1)
+                .run())[0];
+              if (membership) {
+                return yield* failOperation(
+                  'workspace_member_already_active',
+                  'That contributor already has Workspace access.',
+                );
+              }
+            }
+
+            const existingInvitations = yield* entities.invitations
+              .where(invitation => invitation.workspaceId.eq(workspaceId))
+              .run();
+            const duplicate = existingInvitations.find(
+              invitation =>
+                (invitation.status === 'pending' || invitation.status === 'claimed') &&
+                (contributor.linkedUserId
+                  ? invitation.recipientKind === 'user' &&
+                    invitation.recipientUserId === contributor.linkedUserId
+                  : invitation.recipientKind === 'github' &&
+                    invitation.recipientProviderAccountId === contributor.providerAccountId),
+            );
+            if (duplicate) {
+              return yield* failOperation(
+                'workspace_invitation_already_pending',
+                'That contributor already has a pending invitation.',
+              );
+            }
+
+            const timestamp = new Date();
+            const id = randomUUID();
+            const expiresAt = new Date(timestamp.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+            const recipientKind = contributor.linkedUserId ? 'user' as const : 'github' as const;
+            yield* entities.invitations.insert({
+              id,
+              workspaceId,
+              invitedByUserId: userId,
+              recipientKind,
+              recipientUserId: contributor.linkedUserId,
+              recipientProvider: contributor.linkedUserId ? null : 'github',
+              recipientProviderAccountId: contributor.linkedUserId
+                ? null
+                : contributor.providerAccountId,
+              claimPolicy: contributor.linkedUserId ? 'known-user' : 'provider-identity',
+              proposedRole: input.proposedRole,
+              status: 'pending',
+              claimedByUserId: null,
+              membershipId: null,
+              expiresAt,
+              createdAt: timestamp.toISOString(),
+              updatedAt: timestamp.toISOString(),
+            }).run();
+
+            return { id, recipientKind, proposedRole: input.proposedRole, status: 'pending' as const, expiresAt };
+          }),
+      }),
+      revokeInvitation: operation.atomic({
+        receiver: { kind: 'input', path: 'workspace' },
+        description: 'Revoke a pending or claimed Workspace invitation.',
+        exposure: 'bridge',
+        bridge: {},
+        input: AtlasWorkspaceRevokeInvitationInputSchema,
+        output: AtlasWorkspaceRevokeInvitationOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const workspaceId = String(input.workspace.locator.id);
+            yield* requireOwner(
+              workspaceId,
+              'Only an active Workspace owner can revoke invitations.',
+            );
+
+            const invitation = (yield* entities.invitations
+              .where(candidate => candidate.id.eq(input.invitationId))
+              .where(candidate => candidate.workspaceId.eq(workspaceId))
+              .limit(1)
+              .run())[0];
+            if (!invitation) {
+              return yield* failOperation(
+                'workspace_invitation_not_found',
+                'That invitation is not available in this Workspace.',
+              );
+            }
+            if (invitation.status !== 'pending' && invitation.status !== 'claimed') {
+              return yield* failOperation(
+                'workspace_invitation_not_revocable',
+                'Only a pending or claimed invitation can be revoked.',
+              );
+            }
+
+            yield* entities.invitations
+              .where(candidate => candidate.id.eq(invitation.id))
+              .update({ status: 'revoked', updatedAt: new Date().toISOString() })
+              .run();
+
+            return { id: invitation.id, status: 'revoked' as const };
           }),
       }),
       askPlans: operation({
@@ -1126,6 +1301,300 @@ export const AtlasWorkspaceMembership = entity({
   relations: {
     workspace: relation.belongsTo(AtlasWorkspace, { via: 'workspaceId' }),
     user: relation.belongsTo(AtlasUser, { via: 'userId' }),
+  },
+});
+
+export const AtlasWorkspaceInvitation = entity({
+  name: 'AtlasWorkspaceInvitation',
+  fields: atlasWorkspaceInvitationFields,
+  domainOperationDefaults: {
+    authority: 'server',
+    exposure: 'server-only',
+    layer: 'atlas.workspace',
+  },
+  relations: {
+    workspace: relation.belongsTo(AtlasWorkspace, { via: 'workspaceId' }),
+    invitedBy: relation.belongsTo(AtlasUser, { via: 'invitedByUserId' }),
+    recipientUser: relation.belongsTo(AtlasUser, { via: 'recipientUserId' }),
+    claimedBy: relation.belongsTo(AtlasUser, { via: 'claimedByUserId' }),
+    membership: relation.belongsTo(AtlasWorkspaceMembership, { via: 'membershipId' }),
+  },
+  uses: {
+    entities: {
+      accounts: AtlasAuthAccount,
+      memberships: AtlasWorkspaceMembership,
+      users: AtlasUser,
+      workspaces: AtlasWorkspace,
+    },
+  },
+  operations: ({ operation, commands, entities }) => {
+    const requirePrincipal = () => {
+      const principal = getCurrentInvocationContext()?.principal;
+      return principal?.kind === 'user' ? principal.subject : null;
+    };
+    const loadInvitation = (id: string) =>
+      Effect.gen(function* () {
+        const invitation = (yield* commands
+          .where(candidate => candidate.id.eq(id))
+          .limit(1)
+          .run())[0];
+        if (!invitation) {
+          return yield* failOperation(
+            'workspace_invitation_not_found',
+            'That Workspace invitation does not exist.',
+          );
+        }
+        return invitation;
+      });
+    const requireRecipient = (invitation: {
+      recipientKind: 'user' | 'github';
+      recipientProviderAccountId: string | null;
+      recipientUserId: string | null;
+    }, userId: string) =>
+      Effect.gen(function* () {
+        if (invitation.recipientKind === 'user') {
+          if (invitation.recipientUserId !== userId) {
+            return yield* failOperation(
+              'workspace_invitation_recipient_mismatch',
+              'This invitation belongs to another Atlas user.',
+            );
+          }
+          return;
+        }
+
+        const matchingAccount = (yield* entities.accounts
+          .where(account => account.userId.eq(userId))
+          .where(account => account.providerId.eq('github'))
+          .where(account => account.accountId.eq(invitation.recipientProviderAccountId ?? ''))
+          .limit(1)
+          .run())[0];
+        if (!matchingAccount) {
+          return yield* failOperation(
+            'workspace_invitation_recipient_mismatch',
+            'Connect the GitHub identity addressed by this invitation before responding.',
+          );
+        }
+      });
+    const requireLiveInvitation = (invitation: {
+      expiresAt: string;
+      status: 'pending' | 'claimed' | 'accepted' | 'declined' | 'revoked' | 'expired';
+    }) => {
+      if (invitation.status === 'revoked') {
+        return failOperation('workspace_invitation_revoked', 'This invitation was revoked.');
+      }
+      if (invitation.status === 'expired' || Date.parse(invitation.expiresAt) <= Date.now()) {
+        return failOperation('workspace_invitation_expired', 'This invitation has expired.');
+      }
+      if (invitation.status === 'accepted' || invitation.status === 'declined') {
+        return failOperation(
+          'workspace_invitation_already_answered',
+          `This invitation was already ${invitation.status}.`,
+        );
+      }
+      return Effect.void;
+    };
+
+    return {
+      inspect: operation({
+        receiver: { kind: 'input', path: 'invitation' },
+        description: 'Inspect a Workspace invitation addressed to the current user.',
+        exposure: 'bridge',
+        bridge: {},
+        input: AtlasWorkspaceInvitationInspectInputSchema,
+        output: AtlasWorkspaceInvitationInspectOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const userId = requirePrincipal();
+            if (!userId) {
+              return yield* failOperation(
+                'workspace_invitation_authentication_required',
+                'Sign in to inspect this invitation.',
+              );
+            }
+            const invitation = yield* loadInvitation(String(input.invitation.locator.id));
+            yield* requireRecipient(invitation, userId);
+            const workspace = (yield* entities.workspaces
+              .where(candidate => candidate.id.eq(invitation.workspaceId))
+              .limit(1)
+              .run())[0];
+            const invitedBy = (yield* entities.users
+              .where(candidate => candidate.id.eq(invitation.invitedByUserId))
+              .limit(1)
+              .run())[0];
+            if (!workspace || !invitedBy) {
+              return yield* failOperation(
+                'workspace_invitation_context_unavailable',
+                'The invitation context is no longer available.',
+              );
+            }
+            const status =
+              invitation.status === 'pending' && Date.parse(invitation.expiresAt) <= Date.now()
+                ? 'expired' as const
+                : invitation.status;
+            return {
+              id: invitation.id,
+              workspaceId: invitation.workspaceId,
+              workspaceName: workspace.name,
+              workspaceSlug: workspace.slug,
+              invitedByName: invitedBy.name,
+              proposedRole: invitation.proposedRole,
+              status,
+              expiresAt: invitation.expiresAt,
+              claimedByCurrentUser: invitation.claimedByUserId === userId,
+            };
+          }),
+      }),
+      claim: operation.atomic({
+        receiver: { kind: 'input', path: 'invitation' },
+        description: 'Bind a pending Workspace invitation to its proven Atlas user.',
+        exposure: 'bridge',
+        bridge: {},
+        input: AtlasWorkspaceInvitationClaimInputSchema,
+        output: AtlasWorkspaceInvitationClaimOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const userId = requirePrincipal();
+            if (!userId) {
+              return yield* failOperation(
+                'workspace_invitation_authentication_required',
+                'Sign in to claim this invitation.',
+              );
+            }
+            const invitation = yield* loadInvitation(String(input.invitation.locator.id));
+            yield* requireRecipient(invitation, userId);
+            yield* requireLiveInvitation(invitation);
+            if (invitation.status === 'claimed') {
+              if (invitation.claimedByUserId !== userId) {
+                return yield* failOperation(
+                  'workspace_invitation_claimed_by_another_user',
+                  'This invitation was claimed by another Atlas user.',
+                );
+              }
+              return { id: invitation.id, status: 'claimed' as const };
+            }
+            yield* commands
+              .where(candidate => candidate.id.eq(invitation.id))
+              .update({
+                claimedByUserId: userId,
+                status: 'claimed',
+                updatedAt: new Date().toISOString(),
+              })
+              .run();
+            return { id: invitation.id, status: 'claimed' as const };
+          }),
+      }),
+      accept: operation.atomic({
+        receiver: { kind: 'input', path: 'invitation' },
+        description: 'Accept a claimed Workspace invitation and activate Membership.',
+        exposure: 'bridge',
+        bridge: {},
+        input: AtlasWorkspaceInvitationRespondInputSchema,
+        output: AtlasWorkspaceInvitationAcceptOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const userId = requirePrincipal();
+            if (!userId) {
+              return yield* failOperation(
+                'workspace_invitation_authentication_required',
+                'Sign in to accept this invitation.',
+              );
+            }
+            const invitation = yield* loadInvitation(String(input.invitation.locator.id));
+            yield* requireRecipient(invitation, userId);
+            yield* requireLiveInvitation(invitation);
+            if (invitation.status !== 'claimed' || invitation.claimedByUserId !== userId) {
+              return yield* failOperation(
+                'workspace_invitation_claim_required',
+                'Claim this invitation before accepting it.',
+              );
+            }
+
+            const existingMembership = (yield* entities.memberships
+              .where(membership => membership.workspaceId.eq(invitation.workspaceId))
+              .where(membership => membership.userId.eq(userId))
+              .limit(1)
+              .run())[0];
+            const now = new Date().toISOString();
+            const membershipId = existingMembership?.id ?? randomUUID();
+            if (existingMembership) {
+              yield* entities.memberships
+                .where(membership => membership.id.eq(existingMembership.id))
+                .update({
+                  role: invitation.proposedRole,
+                  status: 'active',
+                  updatedAt: now,
+                })
+                .run();
+            } else {
+              yield* entities.memberships.insert({
+                id: membershipId,
+                workspaceId: invitation.workspaceId,
+                userId,
+                role: invitation.proposedRole,
+                status: 'active',
+                createdAt: now,
+                updatedAt: now,
+              }).run();
+            }
+            yield* commands
+              .where(candidate => candidate.id.eq(invitation.id))
+              .update({
+                membershipId,
+                status: 'accepted',
+                updatedAt: now,
+              })
+              .run();
+            const workspace = (yield* entities.workspaces
+              .where(candidate => candidate.id.eq(invitation.workspaceId))
+              .limit(1)
+              .run())[0];
+            if (!workspace) {
+              return yield* failOperation(
+                'workspace_invitation_context_unavailable',
+                'The invited Workspace no longer exists.',
+              );
+            }
+            return {
+              id: invitation.id,
+              membershipId,
+              status: 'accepted' as const,
+              workspaceSlug: workspace.slug,
+            };
+          }),
+      }),
+      decline: operation.atomic({
+        receiver: { kind: 'input', path: 'invitation' },
+        description: 'Decline a claimed Workspace invitation without creating Membership.',
+        exposure: 'bridge',
+        bridge: {},
+        input: AtlasWorkspaceInvitationRespondInputSchema,
+        output: AtlasWorkspaceInvitationDeclineOutputSchema,
+        run: input =>
+          Effect.gen(function* () {
+            const userId = requirePrincipal();
+            if (!userId) {
+              return yield* failOperation(
+                'workspace_invitation_authentication_required',
+                'Sign in to decline this invitation.',
+              );
+            }
+            const invitation = yield* loadInvitation(String(input.invitation.locator.id));
+            yield* requireRecipient(invitation, userId);
+            yield* requireLiveInvitation(invitation);
+            if (invitation.status !== 'claimed' || invitation.claimedByUserId !== userId) {
+              return yield* failOperation(
+                'workspace_invitation_claim_required',
+                'Claim this invitation before declining it.',
+              );
+            }
+            yield* commands
+              .where(candidate => candidate.id.eq(invitation.id))
+              .update({ status: 'declined', updatedAt: new Date().toISOString() })
+              .run();
+            return { id: invitation.id, status: 'declined' as const };
+          }),
+      }),
+    };
   },
 });
 

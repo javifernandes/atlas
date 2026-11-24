@@ -7,3 +7,6 @@ coverage/
 atlas.sources.local.yaml
 .neon
 .DS_Store
+
+*storybook.log
+storybook-static

@@ -10,8 +10,16 @@ export const AtlasWorkspaceReferenceSchema = defineEntitySchema('AtlasWorkspace'
   id: field.id(),
 });
 
+export const AtlasWorkspaceInvitationReferenceSchema = defineEntitySchema(
+  'AtlasWorkspaceInvitation',
+  { id: field.id() },
+);
+
 export const atlasWorkspaceRef = (id: string) =>
   createEntityRef(AtlasWorkspaceReferenceSchema, { id });
+
+export const atlasWorkspaceInvitationRef = (id: string) =>
+  createEntityRef(AtlasWorkspaceInvitationReferenceSchema, { id });
 
 export const AtlasWorkspaceCreateInputSchema = graphSchema.object({
   name: field.nonEmptyString({ trim: true }),
@@ -43,6 +51,71 @@ export const AtlasWorkspaceDeleteInputSchema = graphSchema.object({
 export const AtlasWorkspaceDeleteOutputSchema = graphSchema.object({
   id: field.id(),
   slug: field.nonEmptyString({ trim: true }),
+});
+
+export const AtlasWorkspaceInviteInputSchema = graphSchema.object({
+  workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
+  contributorId: field.id(),
+  proposedRole: field.enum(['collaborator', 'viewer']),
+});
+
+export const AtlasWorkspaceInviteOutputSchema = graphSchema.object({
+  id: field.id(),
+  recipientKind: field.enum(['user', 'github']),
+  proposedRole: field.enum(['collaborator', 'viewer']),
+  status: field.enum(['pending']),
+  expiresAt: field.nonEmptyString({ trim: true }),
+});
+
+export const AtlasWorkspaceRevokeInvitationInputSchema = graphSchema.object({
+  workspace: graphSchema.ref(AtlasWorkspaceReferenceSchema),
+  invitationId: field.id(),
+});
+
+export const AtlasWorkspaceRevokeInvitationOutputSchema = graphSchema.object({
+  id: field.id(),
+  status: field.enum(['revoked']),
+});
+
+export const AtlasWorkspaceInvitationInspectInputSchema = graphSchema.object({
+  invitation: graphSchema.ref(AtlasWorkspaceInvitationReferenceSchema),
+});
+
+export const AtlasWorkspaceInvitationInspectOutputSchema = graphSchema.object({
+  id: field.id(),
+  workspaceId: field.id(),
+  workspaceName: field.nonEmptyString({ trim: true }),
+  workspaceSlug: field.nonEmptyString({ trim: true }),
+  invitedByName: field.nonEmptyString({ trim: true }),
+  proposedRole: field.enum(['collaborator', 'viewer']),
+  status: field.enum(['pending', 'claimed', 'accepted', 'declined', 'revoked', 'expired']),
+  expiresAt: field.nonEmptyString({ trim: true }),
+  claimedByCurrentUser: field.boolean(),
+});
+
+export const AtlasWorkspaceInvitationClaimInputSchema = graphSchema.object({
+  invitation: graphSchema.ref(AtlasWorkspaceInvitationReferenceSchema),
+});
+
+export const AtlasWorkspaceInvitationClaimOutputSchema = graphSchema.object({
+  id: field.id(),
+  status: field.enum(['claimed']),
+});
+
+export const AtlasWorkspaceInvitationRespondInputSchema = graphSchema.object({
+  invitation: graphSchema.ref(AtlasWorkspaceInvitationReferenceSchema),
+});
+
+export const AtlasWorkspaceInvitationAcceptOutputSchema = graphSchema.object({
+  id: field.id(),
+  membershipId: field.id(),
+  status: field.enum(['accepted']),
+  workspaceSlug: field.nonEmptyString({ trim: true }),
+});
+
+export const AtlasWorkspaceInvitationDeclineOutputSchema = graphSchema.object({
+  id: field.id(),
+  status: field.enum(['declined']),
 });
 
 export const AtlasWorkspaceRegisterSourceInputSchema = graphSchema.object({

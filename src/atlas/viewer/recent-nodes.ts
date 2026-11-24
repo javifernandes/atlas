@@ -1,4 +1,5 @@
 export const atlasRecentNodesChangedEvent = 'atlas:recent-nodes-changed';
+export const atlasSearchRequestedEvent = 'atlas:search-requested';
 export const atlasRecentNodesStorageKey = 'atlas.recent-nodes.v1';
 
 export type RecentAtlasNode = {

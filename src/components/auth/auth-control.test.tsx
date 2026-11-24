@@ -64,6 +64,27 @@ describe('AuthControl', () => {
     );
   });
 
+  it('preserves a requested deep link through GitHub authentication', async () => {
+    render(
+      <AuthControl
+        authAvailable
+        callbackURL='/invitations/invitation-1'
+        errorCallbackURL='/invitations/invitation-1'
+        viewer={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() =>
+      expect(signInMock).toHaveBeenCalledWith({
+        callbackURL: '/invitations/invitation-1',
+        errorCallbackURL: '/invitations/invitation-1',
+        provider: 'github',
+      }),
+    );
+  });
+
   it('names the primary landing action after the identity provider', () => {
     render(<AuthControl authAvailable variant='sign-in' viewer={null} />);
 

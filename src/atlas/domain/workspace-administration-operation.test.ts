@@ -1,9 +1,12 @@
-import { query } from '@ontahi/core';
+import { createInMemoryDataGraphStorage, query } from '@ontahi/core';
 import { Effect } from 'effect';
 import { withInvocationContext } from '@ontahi/core/runtime/server';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createAtlasOntahiApplication } from './atlas-application';
+import {
+  createAtlasOntahiApplication,
+  createAtlasOntahiApplicationWithStorage,
+} from './atlas-application';
 import { ATLAS_GITHUB_REPOSITORY_DISCOVERY_RESOURCE } from '../github/user-repositories';
 import { ATLAS_WORKSPACE_SOURCE_RECONCILIATION_RESOURCE } from '../workspace/workspace-source-reconciliation';
 import { atlasWorkspaceSourceImportReadPolicy } from '../workspace/workspace-read-policies';
@@ -13,6 +16,69 @@ const workspaceId = '00000000-0000-4000-8000-000000000137';
 const principal = {
   principal: { issuer: 'atlas', kind: 'user', subject: 'user-1' },
 } as never;
+
+const createInvitationAtlas = (input: {
+  contributor: {
+    id: string;
+    linkedUserId: string | null;
+    providerAccountId: string;
+  };
+  memberships?: Array<{
+    id: string;
+    role: 'owner' | 'collaborator' | 'viewer';
+    status: 'active' | 'suspended';
+    userId: string;
+  }>;
+  role?: 'owner' | 'collaborator' | 'viewer' | null;
+}) =>
+  createAtlasOntahiApplicationWithStorage({
+    storage: createInMemoryDataGraphStorage({
+      dataset: {
+        AtlasWorkspace: [
+          {
+            id: workspaceId,
+            slug: 'atlas',
+            name: 'Atlas',
+            visibility: 'private',
+            createdAt: '2026-11-01T00:00:00.000Z',
+            updatedAt: '2026-11-01T00:00:00.000Z',
+          },
+        ],
+        AtlasWorkspaceContributor: [
+          {
+            id: input.contributor.id,
+            workspaceId,
+            workspaceSourceId: 'source-1',
+            sourceId: 'atlas',
+            provider: 'github',
+            providerAccountId: input.contributor.providerAccountId,
+            login: 'contributor',
+            avatarUrl: null,
+            kind: 'person',
+            contributionCount: 3,
+            lastContributedAt: '2026-11-01T00:00:00.000Z',
+            linkedUserId: input.contributor.linkedUserId,
+          },
+        ],
+        AtlasWorkspaceInvitation: [],
+        AtlasWorkspaceMembership: (input.memberships ?? []).map(membership => ({
+          ...membership,
+          workspaceId,
+          createdAt: '2026-11-01T00:00:00.000Z',
+          updatedAt: '2026-11-01T00:00:00.000Z',
+        })),
+      },
+    }),
+    capabilities: {
+      runtime: {
+        projection: { reconcile: () => Effect.die('unused') },
+        proposals: { linkPlanToItem: () => Effect.die('unused') },
+        workspaceAuthorization: {
+          roleFor: () => Effect.succeed(input.role === undefined ? 'owner' : input.role),
+        },
+      },
+    } as never,
+  });
 
 describe('AtlasWorkspace.create', () => {
   it('creates a private Workspace and its owner Membership for the authenticated User', async () => {
@@ -111,6 +177,247 @@ describe('AtlasWorkspace.updateVisibility', () => {
       failure: { reason: 'workspace_owner_required' },
     });
     expect(roleFor).not.toHaveBeenCalled();
+  });
+});
+
+describe('AtlasWorkspace.invite', () => {
+  it('persists a pending invitation for a linked Atlas User without granting access', async () => {
+    const atlas = createInvitationAtlas({
+      contributor: {
+        id: 'contributor-1',
+        linkedUserId: 'user-2',
+        providerAccountId: '42',
+      },
+    });
+    const operation = atlas.application.graph.entities.AtlasWorkspace.domain.invite;
+
+    await expect(
+      withInvocationContext(principal, () =>
+        atlas.application.invokeOperation(operation, {
+          workspace: atlasWorkspaceRef(workspaceId),
+          contributorId: 'contributor-1',
+          proposedRole: 'collaborator',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        recipientKind: 'user',
+        proposedRole: 'collaborator',
+        status: 'pending',
+        expiresAt: expect.any(String),
+      },
+    });
+
+    await expect(
+      atlas.application.graph.read(
+        query(atlas.application.graph.entities.AtlasWorkspaceInvitation).select(
+          invitation => ({
+            recipientKind: invitation.recipientKind,
+            recipientUserId: invitation.recipientUserId,
+            status: invitation.status,
+          }),
+        ),
+      ),
+    ).resolves.toEqual([
+      { recipientKind: 'user', recipientUserId: 'user-2', status: 'pending' },
+    ]);
+    await expect(
+      atlas.application.graph.read(
+        query(atlas.application.graph.entities.AtlasWorkspaceMembership).select(
+          membership => ({ id: membership.id }),
+        ),
+      ),
+    ).resolves.toEqual([]);
+  });
+
+  it('uses stable GitHub identity for an observed contributor without an Atlas account', async () => {
+    const atlas = createInvitationAtlas({
+      contributor: {
+        id: 'contributor-1',
+        linkedUserId: null,
+        providerAccountId: '42',
+      },
+    });
+    const operation = atlas.application.graph.entities.AtlasWorkspace.domain.invite;
+
+    await expect(
+      withInvocationContext(principal, () =>
+        atlas.application.invokeOperation(operation, {
+          workspace: atlasWorkspaceRef(workspaceId),
+          contributorId: 'contributor-1',
+          proposedRole: 'viewer',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { recipientKind: 'github', proposedRole: 'viewer', status: 'pending' },
+    });
+    await expect(
+      atlas.application.graph.read(
+        query(atlas.application.graph.entities.AtlasWorkspaceInvitation).select(
+          invitation => ({
+            claimPolicy: invitation.claimPolicy,
+            recipientProvider: invitation.recipientProvider,
+            recipientProviderAccountId: invitation.recipientProviderAccountId,
+          }),
+        ),
+      ),
+    ).resolves.toEqual([
+      {
+        claimPolicy: 'provider-identity',
+        recipientProvider: 'github',
+        recipientProviderAccountId: '42',
+      },
+    ]);
+  });
+
+  it('rejects non-owners, active members, and duplicate pending invitations', async () => {
+    const viewerAtlas = createInvitationAtlas({
+      contributor: {
+        id: 'contributor-1',
+        linkedUserId: 'user-2',
+        providerAccountId: '42',
+      },
+      role: 'viewer',
+    });
+    await expect(
+      withInvocationContext(principal, () =>
+        viewerAtlas.application.invokeOperation(
+          viewerAtlas.application.graph.entities.AtlasWorkspace.domain.invite,
+          {
+            workspace: atlasWorkspaceRef(workspaceId),
+            contributorId: 'contributor-1',
+            proposedRole: 'viewer',
+          },
+        ),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'workspace_owner_required' },
+    });
+
+    const memberAtlas = createInvitationAtlas({
+      contributor: {
+        id: 'contributor-1',
+        linkedUserId: 'user-2',
+        providerAccountId: '42',
+      },
+      memberships: [
+        { id: 'membership-2', userId: 'user-2', role: 'viewer', status: 'active' },
+      ],
+    });
+    await expect(
+      withInvocationContext(principal, () =>
+        memberAtlas.application.invokeOperation(
+          memberAtlas.application.graph.entities.AtlasWorkspace.domain.invite,
+          {
+            workspace: atlasWorkspaceRef(workspaceId),
+            contributorId: 'contributor-1',
+            proposedRole: 'viewer',
+          },
+        ),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'workspace_member_already_active' },
+    });
+
+    const atlas = createInvitationAtlas({
+      contributor: {
+        id: 'contributor-1',
+        linkedUserId: null,
+        providerAccountId: '42',
+      },
+    });
+    const operation = atlas.application.graph.entities.AtlasWorkspace.domain.invite;
+    const invoke = () =>
+      withInvocationContext(principal, () =>
+        atlas.application.invokeOperation(operation, {
+          workspace: atlasWorkspaceRef(workspaceId),
+          contributorId: 'contributor-1',
+          proposedRole: 'viewer',
+        }),
+      );
+    await expect(invoke()).resolves.toMatchObject({ ok: true });
+    await expect(invoke()).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'workspace_invitation_already_pending' },
+    });
+  });
+});
+
+describe('AtlasWorkspace.revokeInvitation', () => {
+  it('lets an owner revoke a pending invitation without granting access', async () => {
+    const atlas = createInvitationAtlas({
+      contributor: {
+        id: 'contributor-1',
+        linkedUserId: null,
+        providerAccountId: '42',
+      },
+    });
+    const invite = atlas.application.graph.entities.AtlasWorkspace.domain.invite;
+    const invitation = await withInvocationContext(principal, () =>
+      atlas.application.invokeOperation(invite, {
+        workspace: atlasWorkspaceRef(workspaceId),
+        contributorId: 'contributor-1',
+        proposedRole: 'viewer',
+      }),
+    );
+    expect(invitation).toMatchObject({ ok: true });
+    if (!invitation.ok) throw new Error('Expected invitation creation to succeed.');
+    const createdInvitation = invitation.value as { id: string };
+
+    const revoke = atlas.application.graph.entities.AtlasWorkspace.domain.revokeInvitation;
+    await expect(
+      withInvocationContext(principal, () =>
+        atlas.application.invokeOperation(revoke, {
+          workspace: atlasWorkspaceRef(workspaceId),
+          invitationId: createdInvitation.id,
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { id: createdInvitation.id, status: 'revoked' },
+    });
+    await expect(
+      atlas.application.graph.read(
+        query(atlas.application.graph.entities.AtlasWorkspaceInvitation).select(candidate => ({
+          id: candidate.id,
+          status: candidate.status,
+        })),
+      ),
+    ).resolves.toEqual([{ id: createdInvitation.id, status: 'revoked' }]);
+    await expect(
+      atlas.application.graph.read(
+        query(atlas.application.graph.entities.AtlasWorkspaceMembership).select(membership => ({
+          id: membership.id,
+        })),
+      ),
+    ).resolves.toEqual([]);
+  });
+
+  it('rejects revocation by a non-owner', async () => {
+    const atlas = createInvitationAtlas({
+      contributor: {
+        id: 'contributor-1',
+        linkedUserId: null,
+        providerAccountId: '42',
+      },
+      role: 'viewer',
+    });
+    const revoke = atlas.application.graph.entities.AtlasWorkspace.domain.revokeInvitation;
+    await expect(
+      withInvocationContext(principal, () =>
+        atlas.application.invokeOperation(revoke, {
+          workspace: atlasWorkspaceRef(workspaceId),
+          invitationId: '00000000-0000-4000-8000-000000000999',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      failure: { reason: 'workspace_owner_required' },
+    });
   });
 });
 

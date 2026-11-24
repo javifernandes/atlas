@@ -39,6 +39,19 @@ const AtlasWorkspaceSourceSchema = defineEntitySchema('AtlasWorkspaceSource', {
   contributorAccess: field.enum(['off', 'approval-required', 'automatic-viewer']),
 });
 
+const AtlasWorkspaceInvitationSchema = defineEntitySchema('AtlasWorkspaceInvitation', {
+  id: field.id(),
+  workspaceId: field.id(),
+  recipientKind: field.enum(['user', 'github']),
+  recipientUserId: field.nullable(field.id()),
+  recipientProvider: field.nullable(field.enum(['github'])),
+  recipientProviderAccountId: field.nullable(field.string()),
+  proposedRole: field.enum(['collaborator', 'viewer']),
+  status: field.enum(['pending', 'claimed', 'accepted', 'declined', 'revoked', 'expired']),
+  expiresAt: field.nonEmptyString({ trim: true }),
+  createdAt: field.nonEmptyString({ trim: true }),
+});
+
 const AtlasWorkspaceContributorSchema = defineEntitySchema('AtlasWorkspaceContributor', {
   id: field.id(),
   workspaceId: field.id(),
@@ -103,6 +116,23 @@ const WorkspaceMember = Membership.view('AtlasWorkspaceMember', {
 
 export const workspaceSettingsQuery = Workspace.all().as(WorkspaceSettings).limit(1);
 export const workspaceMembersQuery = Membership.all().as(WorkspaceMember).limit(100);
+
+const Invitation = defineClientEntity(AtlasWorkspaceInvitationSchema);
+const WorkspaceInvitation = Invitation.view('AtlasWorkspaceInvitationSettings', {
+  id: true,
+  recipientKind: true,
+  recipientUserId: true,
+  recipientProvider: true,
+  recipientProviderAccountId: true,
+  proposedRole: true,
+  status: true,
+  expiresAt: true,
+  createdAt: true,
+});
+
+export const workspaceInvitationsQuery = Invitation.all()
+  .as(WorkspaceInvitation)
+  .limit(100);
 
 const Source = defineClientEntity(AtlasWorkspaceSourceSchema);
 const WorkspaceSource = Source.view('AtlasWorkspaceSourceSettings', {
