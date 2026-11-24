@@ -43,6 +43,12 @@ and presentation caches; other server instances discover the committed identity 
 read. PostgreSQL query observations record metadata-only row counts, approximate result bytes,
 duration, and trigger context so Projection Revision egress is visible outside the Neon UI.
 
+Mounted clients also treat committed revision identity as their invalidation boundary. They may
+poll that narrow value or subscribe to a revision-advanced signal and refresh their query and server
+presentation caches only when it changes. Filesystem notifications, Git webhooks, and Task Runs are
+upstream causes and progress evidence; they are not client cache-invalidation contracts. SSE and
+WebSocket can therefore transport the same subject revision signal without changing its meaning.
+
 The page-facing materialization is intentionally narrower than the durable revision. Initial
 renders carry topology, summaries, metrics, evidence, and viewer-specific execution state, but omit
 the multi-megabyte Markdown bodies. An authenticated node-content read resolves one body from the

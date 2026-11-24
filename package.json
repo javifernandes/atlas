@@ -11,7 +11,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-dev.ts",
     "build": "next build && node scripts/verify-atlas-source-traces.mjs",
     "db:migrate": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-postgres.ts migrate",
     "db:backfill:workspaces": "node --env-file-if-exists=.env.local --import tsx scripts/atlas-workspace-backfill.ts",
