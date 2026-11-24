@@ -65,7 +65,47 @@ is discovered from an ordered updated window rather than supplied as file operat
 3. [x] Compose cached records with observed changes and persist the next frontier idempotently.
 4. [x] Add stage metrics for fetched, reused, changed, and resulting evidence records.
 5. [x] Prove edits adding or removing directives and timestamp ties converge correctly.
-6. [ ] Evaluate the behavior as a candidate replicated-collection adapter in Ontahi.
+6. [x] Evaluate the behavior as a candidate replicated-collection adapter in Ontahi.
+
+## Ontahi extraction brief
+
+The merged Atlas implementation proves a provider-neutral runtime shape that is adjacent to, but
+not identical with, the existing Materializer SPI:
+
+```ts
+interface ReplicatedCollectionObserver<Frontier, RecordChange> {
+  observe(input: {
+    acceptedFrontier: Frontier | null
+    mode: 'bootstrap' | 'incremental' | 'repair'
+  }): Promise<{
+    changes: RecordChange[]
+    targetFrontier: Frontier
+    diagnostics: ReplicationDiagnostic[]
+  }>
+}
+```
+
+An Ontahi-owned provider plan should extract the shared runner invariants rather than the GitHub
+adapter:
+
+- canonical frontier comparison and atomic acceptance;
+- idempotent positive and negative record changes;
+- protection against stale writers and out-of-order observations;
+- bootstrap, incremental observation, validation, and repair modes;
+- common fetched, changed, reused, and resulting-record diagnostics;
+- a complete accepted snapshot exposed to downstream Materializers.
+
+Storage should be zero-configuration by default. Replica checkpoints and records should use the
+same active Ontahi application storage as ordinary Entities, participating in its transaction and
+portability model. A custom storage adapter remains an explicit escape hatch for split stores,
+remote checkpoints, or specialized retention; it should not be mandatory ceremony for the common
+case.
+
+Atlas remains responsible for GitHub pagination, `updated_at` frontier semantics, normalized PR
+payloads, and evidence derivation. After the Ontahi runtime exists, Atlas can replace its local
+runner and PostgreSQL-specific orchestration while retaining those application behaviors. BookOps
+should then validate the provider-neutral contract with a distinct remote collection before any
+higher-level declarative Entity API is stabilized.
 
 ## Verification
 
@@ -92,11 +132,17 @@ is discovered from an ordered updated window rather than supplied as file operat
 1. Should a later webhook adapter enqueue `pull_request.edited` directly, or is frontier polling on
    the next reconciliation sufficient for the first production slice?
 2. Should GitHub ETags complement `updated_at` after the replicated collection behavior is proven?
-3. Which portion belongs in a generic Ontahi replicated-collection adapter after Atlas validates
-   failure and repair semantics?
+3. Should accepted replica records be ordinary addressable Entities or runtime-internal records
+   stored through the same Entity storage contract?
 
 ## Closure / Evolution
 
-Current. Created from the production observation checkpoint in Plans 153 and 156. Incremental
-semantic assembly remains the following optimization; this plan first removes repeated remote
-collection reconstruction and establishes GitHub evidence as another explicit replicated Source.
+Current. PR #117 landed the Atlas proof: a durable repository frontier, normalized relevant
+records, inclusive incremental observation, idempotent positive and negative changes, stale-write
+protection, and stage metrics. The first production run must bootstrap the replica; a later run
+should demonstrate boundary-page observation and accepted-record reuse before this Plan closes.
+
+The implementation is deliberately application-local. Evaluation exposed a reusable
+`ReplicatedCollectionObserver`/runner capability that belongs in an Ontahi provider plan, with the
+active Entity storage as its default persistence and a custom storage adapter only as an escape
+hatch. Incremental semantic assembly remains the following Atlas optimization.
