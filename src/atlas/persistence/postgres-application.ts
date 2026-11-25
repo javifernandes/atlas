@@ -435,10 +435,10 @@ export const createAtlasPostgresApplication = (input: {
       return result.rows[0]?.snapshot ?? null;
     },
   });
-  const readWorkspacePageProjectionSnapshot = async (workspaceId: string) => {
-    const result = await pool.query<{ snapshot: PlanWorkstreamSnapshot }>(
+  const readWorkspacePageProjection = async (workspaceId: string) => {
+    const result = await pool.query<{ id: string; snapshot: PlanWorkstreamSnapshot }>(
       `
-        SELECT
+        SELECT revision.id,
           (revision.snapshot_json::jsonb - 'nodes' - 'documents')
           || jsonb_build_object(
             'nodes', COALESCE(
@@ -466,7 +466,7 @@ export const createAtlasPostgresApplication = (input: {
       [workspaceId],
     );
 
-    return result.rows[0]?.snapshot ?? null;
+    return result.rows[0] ?? null;
   };
 
   const getProjectionNodeContent = async (nodeId: string, workspaceId?: string) => {
@@ -1986,7 +1986,9 @@ export const createAtlasPostgresApplication = (input: {
   return {
     ...atlas,
     getPageProjectionSnapshot: pageProjectionSnapshotCache.read,
-    getWorkspacePageProjectionSnapshot: readWorkspacePageProjectionSnapshot,
+    getWorkspacePageProjection: readWorkspacePageProjection,
+    getWorkspacePageProjectionSnapshot: async (workspaceId: string) =>
+      (await readWorkspacePageProjection(workspaceId))?.snapshot ?? null,
     getProjectionNodeContent,
     getProjectionSnapshot: projectionSnapshotCache.read,
     previewMergeCatchUp: (previewInput: { since: string }) =>

@@ -97,7 +97,7 @@ const AtlasWorkspaceProjectionRevisionSchema = defineEntitySchema(
   {
     id: field.id(),
     workspaceId: field.id(),
-    createdAt: field.nonEmptyString({ trim: true }),
+    startedAt: field.nonEmptyString({ trim: true }),
   },
 );
 
@@ -199,10 +199,11 @@ export const workspaceSourceImportsQuery = SourceImport.all()
 const ProjectionRevision = defineClientEntity(AtlasWorkspaceProjectionRevisionSchema);
 const WorkspaceProjectionRevision = ProjectionRevision.view('AtlasWorkspaceProjectionRevisionPulse', {
   id: true,
-  createdAt: true,
+  startedAt: true,
 });
 
 export const workspaceProjectionRevisionQuery = ProjectionRevision.all()
   .as(WorkspaceProjectionRevision)
-  .orderBy(revision => revision.createdAt.desc())
+  .orderBy(revision => revision.startedAt.desc())
+  .orderBy(revision => revision.id.desc())
   .limit(1);

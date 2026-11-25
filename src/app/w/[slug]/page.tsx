@@ -145,7 +145,7 @@ const WorkspacePage = async ({ params, searchParams }: WorkspacePageProps) => {
   const selectedStreamId = Array.isArray(searchParams?.session)
     ? searchParams.session[0]
     : searchParams?.session;
-  const [{ executionStreams, snapshot }, syncRuns, sources] = await Promise.all([
+  const [{ executionStreams, snapshot, workspaceProjectionRevisionId }, syncRuns, sources] = await Promise.all([
     getAtlasPageData(access.viewer.id, selectedStreamId, workspace.id),
     listAtlasWorkspaceSyncRuns(workspace.id),
     listAtlasWorkspaceSources(workspace.id),
@@ -159,7 +159,7 @@ const WorkspacePage = async ({ params, searchParams }: WorkspacePageProps) => {
     return (
       <>
         <WorkspaceEmptyState workspace={workspace} workspaces={workspaces} />
-        <WorkspaceProjectionObserver />
+        <WorkspaceProjectionObserver key={workspace.id} renderedRevisionId={workspaceProjectionRevisionId} />
         <WorkspaceSyncActivity runs={syncRuns} />
       </>
     );
@@ -195,7 +195,7 @@ const WorkspacePage = async ({ params, searchParams }: WorkspacePageProps) => {
       {await hasAtlasWorkspaceModelProvider(workspace.id) ? (
         <PlanAssistant workspaceId={workspace.id} />
       ) : null}
-      <WorkspaceProjectionObserver />
+      <WorkspaceProjectionObserver key={workspace.id} renderedRevisionId={workspaceProjectionRevisionId} />
       <WorkspaceSyncActivity runs={syncRuns} />
     </>
   );
