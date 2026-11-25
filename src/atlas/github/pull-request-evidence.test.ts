@@ -5,12 +5,15 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createInMemoryReplicatedCollectionStorage } from '@ontahi/core';
 
 import {
   fetchAtlasPullRequestEvidenceChanges,
   fetchAtlasPullRequestEvidence,
   loadAtlasPullRequestEvidenceObservation,
   parseAtlasPullRequestDirectives,
+  githubEvidenceCollectionId,
+  type AtlasPullRequestEvidenceReplicaStore,
 } from './pull-request-evidence';
 
 const originalAppId = process.env.ATLAS_GITHUB_APP_ID;
@@ -189,7 +192,14 @@ Completes the work.`),
       title: 'Shape reader',
       url: 'https://github.com/acme/atlas/pull/42',
     };
-    const save = vi.fn(async () => undefined);
+    const collectionId = githubEvidenceCollectionId('acme/atlas');
+    const replicaStore: AtlasPullRequestEvidenceReplicaStore =
+      createInMemoryReplicatedCollectionStorage({
+        [collectionId]: {
+          frontier: '2026-09-02T10:00:00.000Z',
+          records: [{ id: cached.id, record: cached }],
+        },
+      });
 
     try {
       const observation = await loadAtlasPullRequestEvidenceObservation({
@@ -206,13 +216,7 @@ Completes the work.`),
             merged_by: { login: 'javi' },
           },
         ])) as typeof fetch,
-        replicaStore: {
-          load: async () => ({
-            frontier: '2026-09-02T10:00:00Z',
-            pullRequests: [cached],
-          }),
-          save,
-        },
+        replicaStore,
         repoRoot,
       });
 
@@ -222,10 +226,58 @@ Completes the work.`),
         reusedPullRequestCount: 1,
       });
       expect(observation.pullRequests).toHaveLength(1);
-      expect(save).toHaveBeenCalledWith(expect.objectContaining({
-        frontier: '2026-09-02T10:00:00.000Z',
-        source: { repositoryFullName: 'acme/atlas', sourceId: 'atlas' },
-      }));
+      expect(await replicaStore.load(collectionId)).toMatchObject({
+        snapshot: { frontier: '2026-09-02T10:00:00.000Z' },
+      });
+
+      const failing = await loadAtlasPullRequestEvidenceObservation({
+        fetcher: vi.fn(async () => new Response(null, { status: 503 })) as typeof fetch,
+        replicaStore,
+        repoRoot,
+      });
+      expect(failing.failures).toHaveLength(1);
+      expect((await replicaStore.load(collectionId))?.snapshot.records).toHaveLength(1);
+
+      const removed = await loadAtlasPullRequestEvidenceObservation({
+        fetcher: vi.fn(async () => Response.json([{
+          number: 42, updated_at: '2026-09-03T10:00:00Z', body: '',
+        }])) as typeof fetch,
+        replicaStore,
+        repoRoot,
+      });
+      expect(removed).toMatchObject({ failures: [], changedPullRequestCount: 1, pullRequests: [] });
+      expect((await replicaStore.load(collectionId))?.snapshot.records).toEqual([]);
+
+      const noChange = await loadAtlasPullRequestEvidenceObservation({
+        fetcher: vi.fn(async () => Response.json([])) as typeof fetch,
+        replicaStore,
+        repoRoot,
+      });
+      expect(noChange).toMatchObject({ failures: [], changedPullRequestCount: 0 });
+
+      let startSlow!: () => void;
+      let finishSlow!: (response: Response) => void;
+      const slowStarted = new Promise<void>(resolve => { startSlow = resolve; });
+      const slowResponse = new Promise<Response>(resolve => { finishSlow = resolve; });
+      const slow = loadAtlasPullRequestEvidenceObservation({
+        fetcher: async () => {
+          startSlow();
+          return slowResponse;
+        },
+        replicaStore,
+        repoRoot,
+      });
+      await slowStarted;
+      const fast = await loadAtlasPullRequestEvidenceObservation({
+        fetcher: async () => Response.json([{ number: 42, updated_at: '2026-09-05T10:00:00Z' }]),
+        replicaStore,
+        repoRoot,
+      });
+      finishSlow(Response.json([{ number: 42, updated_at: '2026-09-04T10:00:00Z' }]));
+      expect(fast.failures).toEqual([]);
+      expect((await slow).failures).toHaveLength(1);
+      expect((await replicaStore.load(collectionId))?.snapshot.frontier)
+        .toBe('2026-09-05T10:00:00.000Z');
     } finally {
       await rm(repoRoot, { force: true, recursive: true });
     }

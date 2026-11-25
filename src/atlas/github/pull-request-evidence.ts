@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import {
+  createInMemoryReplicatedCollectionStorage,
+  createReplicatedCollectionAcceptanceRunner,
+  type ReplicatedCollectionStorage,
+} from '@ontahi/core';
+
 import { getAtlasGitHubRequestHeaders } from './installation-client';
 import { githubRepositoryCacheTag, parseGitHubRepositoryName } from './repository';
 import { loadAtlasSourceDefinitions } from '../sources/markdown-source';
@@ -35,27 +41,17 @@ export type AtlasGitHubEvidenceSource = {
   sourceId: string;
 };
 
-export type AtlasPullRequestEvidenceReplicaSnapshot = {
-  frontier: string | null;
-  pullRequests: AtlasObservedPullRequest[];
-};
-
 export type AtlasPullRequestEvidenceReplicaChange = {
   id: string;
   pullRequest: AtlasObservedPullRequest | null;
   updatedAt: string;
 };
 
-export type AtlasPullRequestEvidenceReplicaStore = {
-  load: (
-    source: AtlasGitHubEvidenceSource,
-  ) => Promise<AtlasPullRequestEvidenceReplicaSnapshot>;
-  save: (input: {
-    changes: AtlasPullRequestEvidenceReplicaChange[];
-    frontier: string;
-    source: AtlasGitHubEvidenceSource;
-  }) => Promise<void>;
-};
+export type AtlasPullRequestEvidenceReplicaStore =
+  ReplicatedCollectionStorage<AtlasObservedPullRequest, string | null>;
+
+export const githubEvidenceCollectionId = (repositoryFullName: string) =>
+  `atlas:github-evidence:${repositoryFullName.toLowerCase()}`;
 
 type GitHubPullRequest = {
   body?: unknown;
@@ -280,6 +276,7 @@ export const fetchAtlasPullRequestEvidenceChanges = async (input: {
   const acceptedFrontier = normalizeTimestamp(input.frontier);
   let frontier = acceptedFrontier;
   let fetchedPullRequestCount = 0;
+  let complete = false;
 
   const hydrateMergeActor = async (pullRequest: AtlasObservedPullRequest) => {
     if (pullRequest.mergedByLogin || pullRequest.mergedByAvatarUrl) {
@@ -384,11 +381,12 @@ export const fetchAtlasPullRequestEvidenceChanges = async (input: {
       acceptedFrontier && pageChanges.some(change => change.updatedAt < acceptedFrontier),
     );
     if (body.length < pageSize || crossedAcceptedFrontier) {
+      complete = true;
       break;
     }
   }
 
-  return { changes, fetchedPullRequestCount, frontier };
+  return { changes, complete, fetchedPullRequestCount, frontier };
 };
 
 export const loadAtlasPullRequestEvidenceObservation = async (input: {
@@ -398,38 +396,59 @@ export const loadAtlasPullRequestEvidenceObservation = async (input: {
   sources?: AtlasGitHubEvidenceSource[];
 }) => {
   const sources = input.sources ?? listAtlasGitHubEvidenceSources(input.repoRoot);
+  const storage = input.replicaStore ??
+    createInMemoryReplicatedCollectionStorage<AtlasObservedPullRequest, string | null>();
   const results = await Promise.allSettled(
     sources.map(async source => {
-      const snapshot = input.replicaStore
-        ? await input.replicaStore.load(source)
-        : { frontier: null, pullRequests: [] };
-      const observation = await fetchAtlasPullRequestEvidenceChanges({
-        fetcher: input.fetcher,
-        frontier: snapshot.frontier,
-        source,
-      });
-      const pullRequestsById = new Map(
-        snapshot.pullRequests.map(pullRequest => [pullRequest.id, pullRequest] as const),
-      );
-
-      for (const change of observation.changes) {
-        if (change.pullRequest) pullRequestsById.set(change.id, change.pullRequest);
-        else pullRequestsById.delete(change.id);
-      }
-
-      if (input.replicaStore && observation.frontier) {
-        await input.replicaStore.save({
-          changes: observation.changes,
-          frontier: observation.frontier,
-          source,
-        });
+      const startedAt = performance.now();
+      let githubFetchMs = 0;
+      const runner = createReplicatedCollectionAcceptanceRunner<AtlasObservedPullRequest, string | null>({
+        observe: async (frontier, mode) => {
+          const fetchStartedAt = performance.now();
+          const observation = await fetchAtlasPullRequestEvidenceChanges({
+            fetcher: input.fetcher,
+            frontier,
+            source,
+          });
+          githubFetchMs += performance.now() - fetchStartedAt;
+          if (input.replicaStore && !observation.complete) {
+            throw new Error(`GitHub evidence page limit reached for ${source.repositoryFullName}.`);
+          }
+          const byId = new Map<string, AtlasPullRequestEvidenceReplicaChange>();
+          for (const change of observation.changes) {
+            const previous = byId.get(change.id);
+            if ((!frontier || change.updatedAt >= frontier) &&
+              (!previous || change.updatedAt > previous.updatedAt)) {
+              byId.set(change.id, change);
+            }
+          }
+          return {
+            changes: Array.from(byId.values(), ({ id, pullRequest }) =>
+              pullRequest ? { kind: 'put', id, record: pullRequest } : { kind: 'remove', id },
+            ),
+            targetFrontier: observation.frontier,
+            fetched: observation.fetchedPullRequestCount,
+            diagnostics: [],
+            completeness: mode === 'incremental' ? 'candidate' : 'complete',
+          };
+        },
+      }, { collectionId: githubEvidenceCollectionId(source.repositoryFullName), storage });
+      const incremental = await runner.run('incremental');
+      const result = incremental.diagnostics.some(({ code }) => code === 'missing-accepted-frontier')
+        ? await runner.run('bootstrap')
+        : incremental;
+      if (result.status !== 'accepted' || !result.snapshot || !result.metrics) {
+        throw new Error(result.diagnostics.map(({ message }) => message).join('; ') ||
+          'GitHub evidence replica acceptance failed.');
       }
 
       return {
-        changedPullRequestCount: observation.changes.length,
-        fetchedPullRequestCount: observation.fetchedPullRequestCount,
-        pullRequests: [...pullRequestsById.values()],
-        reusedPullRequestCount: snapshot.pullRequests.length,
+        githubFetchMs,
+        replicaAcceptanceMs: performance.now() - startedAt - githubFetchMs,
+        changedPullRequestCount: result.metrics.changed,
+        fetchedPullRequestCount: result.metrics.fetched,
+        pullRequests: result.snapshot.records.map(({ record }) => ({ ...record, sourceId: source.sourceId })),
+        reusedPullRequestCount: result.metrics.reused,
       };
     }),
   );
@@ -468,8 +487,14 @@ export const loadAtlasPullRequestEvidenceObservation = async (input: {
     changedPullRequestCount,
     failures,
     fetchedPullRequestCount,
+    githubFetchMs: results.reduce(
+      (total, result) => total + (result.status === 'fulfilled' ? result.value.githubFetchMs : 0), 0,
+    ),
     pullRequests,
     reusedPullRequestCount,
+    replicaAcceptanceMs: results.reduce(
+      (total, result) => total + (result.status === 'fulfilled' ? result.value.replicaAcceptanceMs : 0), 0,
+    ),
     successfulSources,
   };
 };

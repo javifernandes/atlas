@@ -83,6 +83,10 @@ replica. The frontier is provider observation state rather than PR identity, and
 observation must retain an inclusive boundary so equal timestamps cannot hide edited historical
 records.
 
+Atlas accepts the GitHub evidence replica through Ontahí's replicated collection runner, using
+the same PostgreSQL pool as its Entity storage. The runner's accepted snapshot contains the source
+frontier and normalized records, and Atlas derives Evidence Bindings from that snapshot.
+
 The provider-neutral runtime for such a replica should use the application's active Ontahi Entity
 storage by default for accepted frontiers and records. This keeps replication inside the same
 transactional and portability boundary as the rest of the application. A distinct storage adapter

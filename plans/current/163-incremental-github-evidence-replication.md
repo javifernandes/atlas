@@ -155,3 +155,11 @@ Git-backed Markdown Sources. The replica and global projection correctly resolve
 Atlas Workspace published `PAST · 0`. The Workspace reconciler now composes the same accepted PR
 records before snapshot publication and rejects an evidence-observation failure instead of
 silently publishing an empty history.
+
+Atlas now adopts the acceptance runner from
+`ontahi://plans/172-replicated-collection-observer-and-acceptance-runner`. The migration seeds
+the accepted frontier and normalized evidence from the previous replica, preserving those tables
+for rollback. GitHub observation reports a failed attempt if a bounded scan cannot establish
+coverage. The runner owns atomic acceptance through its PostgreSQL revision guard. Compare
+remote fetch, replica acceptance, and projection publication timings after deployment before
+deciding whether snapshot persistence needs a record-level storage strategy.
