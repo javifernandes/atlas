@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.operating-principles
-kind: territory
+kind: collection
 title: Operating Principles
 parent: spec-workstream-atlas
 status: shaping

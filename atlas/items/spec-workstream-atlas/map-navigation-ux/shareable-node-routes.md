@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.map-navigation-ux.shareable-node-routes
-kind: capability
+kind: item
 title: Shareable Node Routes
 parent: spec-workstream-atlas.map-navigation-ux
 status: shaping

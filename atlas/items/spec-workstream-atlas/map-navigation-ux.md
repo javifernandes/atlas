@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.map-navigation-ux
-kind: experience
+kind: item
 title: Map Navigation UX
 parent: spec-workstream-atlas.atlas-experiences
 status: shaping

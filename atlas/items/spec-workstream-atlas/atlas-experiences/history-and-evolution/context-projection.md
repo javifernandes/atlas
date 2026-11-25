@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-experiences.history-and-evolution.context-projection
-kind: capability
+kind: item
 title: Context Projection
 parent: spec-workstream-atlas.atlas-experiences.history-and-evolution
 status: idea

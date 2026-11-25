@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.operating-practice.evidence-binding-conventions
-kind: practice
+kind: item
 title: Evidence Binding Conventions
 parent: spec-workstream-atlas.operating-practice
 status: shaping

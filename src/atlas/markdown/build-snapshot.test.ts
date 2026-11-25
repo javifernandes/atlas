@@ -913,7 +913,7 @@ Development as shape transformation frames development as changes to system form
         }),
         expect.objectContaining({
           id: 'atlas:spec-workstream-atlas.operating-principles.development-as-shape-transformation',
-          kind: 'principle',
+          kind: 'item',
           title: 'Development As Shape Transformation',
         }),
       ]),

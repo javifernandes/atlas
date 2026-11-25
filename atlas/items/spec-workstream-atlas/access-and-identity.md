@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.access-identity
-kind: territory
+kind: collection
 title: Access And Identity
 parent: spec-workstream-atlas
 status: shaping

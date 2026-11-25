@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model
-kind: territory
+kind: collection
 title: Atlas Model
 parent: spec-workstream-atlas
 status: shaping

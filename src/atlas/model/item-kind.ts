@@ -11,13 +11,6 @@ export const atlasItemKinds = [
   'operation',
   'interaction',
   'artifact',
-  'policy',
-  'state',
-  'relation',
-  'tooling',
-  'evidence',
-  'practice',
-  'principle',
 ] as const;
 
 export type AtlasItemKind = (typeof atlasItemKinds)[number];
@@ -25,10 +18,17 @@ export type AtlasItemKind = (typeof atlasItemKinds)[number];
 export const legacyAtlasItemKindAliases = {
   capability: 'item',
   concept: 'item',
+  evidence: 'collection',
   experience: 'item',
   model: 'collection',
+  policy: 'item',
+  practice: 'item',
+  principle: 'item',
+  relation: 'item',
+  state: 'item',
   'system-primitive': 'item',
   territory: 'collection',
+  tooling: 'item',
 } as const satisfies Record<string, AtlasItemKind>;
 
 export type LegacyAtlasItemKind = keyof typeof legacyAtlasItemKindAliases;

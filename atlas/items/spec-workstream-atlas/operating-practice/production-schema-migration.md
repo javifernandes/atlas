@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.operating-practice.production-schema-migration
-kind: practice
+kind: item
 title: Production Schema Migration
 parent: spec-workstream-atlas.operating-practice
 status: shaping

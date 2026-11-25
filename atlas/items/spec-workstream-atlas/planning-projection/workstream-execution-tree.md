@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.planning-projection.workstream-execution-tree
-kind: experience
+kind: item
 title: Workstream Execution Tree
 parent: spec-workstream-atlas.planning-projection
 status: shaping

@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.assisted-editing.proposal-review-ux
-kind: capability
+kind: item
 title: Proposal Review UX
 parent: spec-workstream-atlas.assisted-editing
 status: idea

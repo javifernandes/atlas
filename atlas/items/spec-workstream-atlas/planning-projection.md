@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.planning-projection
-kind: experience
+kind: item
 title: Planning Projection
 parent: spec-workstream-atlas.atlas-experiences
 status: shaping

@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.goal
-kind: concept
+kind: item
 title: Goal
 parent: spec-workstream-atlas.atlas-model.work-item
 status: shaping

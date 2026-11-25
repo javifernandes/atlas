@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.assisted-editing
-kind: experience
+kind: item
 title: Assisted Editing
 parent: spec-workstream-atlas.atlas-experiences
 status: idea

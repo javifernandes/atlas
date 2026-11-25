@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.implementation-evidence.preview-environments
-kind: capability
+kind: item
 title: Preview Environments
 parent: spec-workstream-atlas.implementation-evidence
 status: idea

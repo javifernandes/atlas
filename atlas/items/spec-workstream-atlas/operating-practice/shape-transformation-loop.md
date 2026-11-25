@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.operating-practice.shape-transformation-loop
-kind: practice
+kind: item
 title: Shape Transformation Loop
 parent: spec-workstream-atlas.operating-practice
 status: shaping

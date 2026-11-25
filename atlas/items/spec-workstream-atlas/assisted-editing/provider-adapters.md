@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.assisted-editing.provider-adapters
-kind: capability
+kind: item
 title: Provider Adapters
 parent: spec-workstream-atlas.assisted-editing
 status: idea

@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.operating-practice
-kind: territory
+kind: collection
 title: Operating Practice
 parent: spec-workstream-atlas
 status: shaping

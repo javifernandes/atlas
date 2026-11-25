@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.operating-practice.dual-grounding
-kind: practice
+kind: item
 title: Dual Grounding
 parent: spec-workstream-atlas.operating-practice
 status: shaping

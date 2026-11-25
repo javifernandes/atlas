@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-experiences.history-and-evolution
-kind: experience
+kind: item
 title: History And Evolution
 parent: spec-workstream-atlas.atlas-experiences
 status: shaping

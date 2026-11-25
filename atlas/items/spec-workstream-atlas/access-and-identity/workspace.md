@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.access-identity.workspace
-kind: system
+kind: item
 title: Workspace
 parent: spec-workstream-atlas.access-identity
 status: active

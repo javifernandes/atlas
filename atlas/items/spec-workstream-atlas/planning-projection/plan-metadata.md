@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.planning-projection.plan-metadata
-kind: capability
+kind: item
 title: Plan Metadata
 parent: spec-workstream-atlas.planning-projection
 status: idea

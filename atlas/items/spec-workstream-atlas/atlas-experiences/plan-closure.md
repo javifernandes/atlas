@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-experiences.plan-closure
-kind: experience
+kind: item
 title: Plan Closure
 parent: spec-workstream-atlas.atlas-experiences
 status: idea

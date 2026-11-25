@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-experiences
-kind: territory
+kind: collection
 title: Atlas Experiences
 parent: spec-workstream-atlas
 status: shaping

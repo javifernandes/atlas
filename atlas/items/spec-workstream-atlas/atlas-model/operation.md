@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.operation
-kind: concept
+kind: item
 title: Operation
 parent: spec-workstream-atlas.atlas-model.item-type
 status: shaping

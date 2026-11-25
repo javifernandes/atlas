@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.assisted-editing.operation-command-interface
-kind: capability
+kind: item
 title: Operation Command Interface
 parent: spec-workstream-atlas.assisted-editing
 status: idea

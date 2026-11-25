@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-experiences.history-and-evolution.release-story-projection
-kind: capability
+kind: item
 title: Release Story Projection
 parent: spec-workstream-atlas.atlas-experiences.history-and-evolution
 status: shaping

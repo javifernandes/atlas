@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.planning-projection.plan-backfill-and-reconciliation
-kind: capability
+kind: item
 title: Plan Backfill And Reconciliation
 parent: spec-workstream-atlas.planning-projection
 status: shaping

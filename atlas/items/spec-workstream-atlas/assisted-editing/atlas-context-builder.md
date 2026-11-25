@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.assisted-editing.context-builder
-kind: capability
+kind: item
 title: Atlas Context Builder
 parent: spec-workstream-atlas.assisted-editing
 status: idea

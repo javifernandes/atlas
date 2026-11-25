@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.assisted-editing.codex-agent-backend
-kind: capability
+kind: item
 title: Codex Agent Backend
 parent: spec-workstream-atlas.assisted-editing
 status: idea

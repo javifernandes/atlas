@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.operating-practice.archaeological-reading
-kind: practice
+kind: item
 title: Archaeological Reading
 parent: spec-workstream-atlas.operating-practice
 status: shaping

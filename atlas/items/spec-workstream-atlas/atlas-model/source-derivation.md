@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.source-derivation
-kind: relation
+kind: item
 title: Source Derivation
 parent: spec-workstream-atlas.atlas-model.source
 status: shaping

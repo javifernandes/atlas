@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.participation
-kind: concept
+kind: item
 title: Participation
 parent: spec-workstream-atlas.atlas-model
 status: shaping
