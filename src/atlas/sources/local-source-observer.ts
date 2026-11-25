@@ -74,7 +74,14 @@ export const observeLocalAtlasSource = (input: {
   const watcher = watch(input.repoRoot, { recursive: true }, (eventType, fileName) => {
     if (!fileName) return;
     const relativePath = fileName.toString().replaceAll('\\', '/');
-    if (!isAtlasSourceMarkdownPath(relativePath)) return;
+    const sourceTreeRename =
+      eventType === 'rename' &&
+      (relativePath === 'atlas' ||
+        relativePath === 'atlas/items' ||
+        relativePath.startsWith('atlas/items/') ||
+        relativePath === 'plans' ||
+        relativePath.startsWith('plans/'));
+    if (!sourceTreeRename && !isAtlasSourceMarkdownPath(relativePath)) return;
 
     input.onChange({ eventType, relativePath });
   });

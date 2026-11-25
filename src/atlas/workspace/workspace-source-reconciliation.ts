@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
-import { buildAtlasOntahiDataset } from '../domain/atlas-application';
+import { buildAtlasOntahiDataset, buildAtlasOntahiDatasetFromSource } from '../domain/atlas-application';
+import type { materializeAtlasParsedRecords } from '../markdown/parsed-record-materialization';
 import {
   loadAtlasPullRequestEvidenceObservation,
   type AtlasGitHubEvidenceSource,
@@ -13,6 +14,7 @@ import {
   loadAtlasSourceDefinitions,
   loadAtlasSourceSetObservation,
   type AtlasLoadedSourceRevision,
+  type AtlasMarkdownFile,
   type AtlasSource,
 } from '../sources/markdown-source';
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
@@ -39,6 +41,9 @@ export type AtlasWorkspaceSourceReconciler = {
 };
 
 export const reconcileAtlasWorkspaceSources = async (input: {
+  localSourceFiles?: readonly AtlasMarkdownFile[];
+  parseSource?: (input: Parameters<typeof materializeAtlasParsedRecords>[0]) =>
+    Promise<Awaited<ReturnType<typeof materializeAtlasParsedRecords>>['source']>;
   fetcher?: typeof fetch;
   observePullRequestEvidence?: (input: {
     sources: AtlasGitHubEvidenceSource[];
@@ -79,7 +84,9 @@ export const reconcileAtlasWorkspaceSources = async (input: {
           })
       : async () => ({ failures: [], pullRequests: [] }));
   const [observation, evidenceObservation] = await Promise.all([
-    loadAtlasSourceSetObservation({ fetcher: input.fetcher, repoRoot: input.repoRoot, sources }),
+    loadAtlasSourceSetObservation({
+      fetcher: input.fetcher, repoRoot: input.repoRoot, sources, localSourceFiles: input.localSourceFiles,
+    }),
     observePullRequestEvidence({ sources: evidenceSources }),
   ]);
   const observedSourceIds = new Set(
@@ -100,11 +107,16 @@ export const reconcileAtlasWorkspaceSources = async (input: {
         .join('; ')}`,
     );
   }
-  const dataset = buildAtlasOntahiDataset(
-    observation.files.map(normalizeAtlasSourceRecord),
-    evidenceObservation.pullRequests,
-    observation.sourceRevisions,
-  );
+  const records = observation.files.map(normalizeAtlasSourceRecord);
+  const sourceRevisions = observation.sourceRevisions;
+  const dataset = input.parseSource
+    ? buildAtlasOntahiDatasetFromSource(
+        await input.parseSource({ records, sourceRevisions }),
+        records,
+        evidenceObservation.pullRequests,
+        sourceRevisions,
+      )
+    : buildAtlasOntahiDataset(records, evidenceObservation.pullRequests, sourceRevisions);
   const snapshot = JSON.parse(
     dataset.ProjectionRevision[0]?.snapshotJson ?? '{}',
   ) as PlanWorkstreamSnapshot;

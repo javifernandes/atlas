@@ -153,13 +153,10 @@ export const isAtlasSourceMarkdownPath = (filePath: string) => {
   );
 };
 
-const walkAtlasSourceMarkdownFiles = (
+export const listLocalAtlasSourcePaths = (
   directory: string,
   sourceRoot: string,
-  source?: string,
-): AtlasMarkdownFile[] => {
-  if (!fs.existsSync(directory)) return [];
-
+): string[] => {
   return fs
     .readdirSync(directory, { withFileTypes: true })
     .sort((left, right) => left.name.localeCompare(right.name))
@@ -168,15 +165,24 @@ const walkAtlasSourceMarkdownFiles = (
 
       const fullPath = path.join(directory, entry.name);
       if (entry.isDirectory()) {
-        return walkAtlasSourceMarkdownFiles(fullPath, sourceRoot, source);
+        return listLocalAtlasSourcePaths(fullPath, sourceRoot);
       }
 
       const relativePath = path.relative(sourceRoot, fullPath).replaceAll(path.sep, '/');
       return entry.isFile() && isAtlasSourceMarkdownPath(relativePath)
-        ? [{ path: relativePath, content: fs.readFileSync(fullPath, 'utf8'), source }]
+        ? [relativePath]
         : [];
     });
 };
+
+const walkAtlasSourceMarkdownFiles = (directory: string, sourceRoot: string, source?: string) =>
+  fs.existsSync(directory)
+    ? listLocalAtlasSourcePaths(directory, sourceRoot).map(relativePath => ({
+        path: relativePath,
+        content: fs.readFileSync(path.join(sourceRoot, relativePath), 'utf8'),
+        source,
+      }))
+    : [];
 
 const atlasSourceFileOrder = (left: AtlasMarkdownFile, right: AtlasMarkdownFile) => {
   const rank = (file: AtlasMarkdownFile) =>
@@ -344,13 +350,16 @@ export const loadAtlasSource = async (
   source: AtlasSource,
   repoRoot: string,
   fetcher: typeof fetch,
+  localSourceFiles?: readonly AtlasMarkdownFile[],
 ) => {
   const localRoot = source.localRoot ? path.resolve(repoRoot, source.localRoot) : undefined;
 
   if (localRoot && fs.existsSync(localRoot)) {
-    const files = walkAtlasSourceMarkdownFiles(localRoot, localRoot, source.id).sort(
-      atlasSourceFileOrder,
-    );
+    const files = (
+      localSourceFiles && source.id === 'atlas' && localRoot === path.resolve(repoRoot)
+        ? [...localSourceFiles]
+        : walkAtlasSourceMarkdownFiles(localRoot, localRoot, source.id)
+    ).sort(atlasSourceFileOrder);
 
     return withSourceRevision(files, {
       sourceId: source.id,
@@ -365,12 +374,13 @@ export const loadAtlasSourceSetObservation = async (input: {
   fetcher?: typeof fetch;
   repoRoot: string;
   sources: AtlasSource[];
+  localSourceFiles?: readonly AtlasMarkdownFile[];
 }) => {
   const observedAt = new Date().toISOString();
   const files = (
     await Promise.all(
       input.sources.map(source =>
-        loadAtlasSource(source, input.repoRoot, input.fetcher ?? fetch),
+        loadAtlasSource(source, input.repoRoot, input.fetcher ?? fetch, input.localSourceFiles),
       ),
     )
   ).flat();

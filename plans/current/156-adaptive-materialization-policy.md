@@ -246,6 +246,13 @@ Atlas development now observes semantic Markdown in the local working tree and a
 reconciles the configured Workspace after startup and coalesced changes. This closes the stale-local
 projection rough edge without claiming incremental derivation: production-grade filesystem
 notifications trigger reconciliation rather than supplying a ChangeSet themselves.
+The local watcher compares file metadata and a content hash per physical path. New paths, watcher
+hints, and changed modification time or size trigger content reads. Missing paths count as removals
+after a successful scan. Full observation reads every file regardless of metadata, including at
+development startup. The watcher supplies the observed local files to Workspace reconciliation
+in-process. The existing Source ChangeSet and Materializer reuse compatible parse artifacts
+from the last successful publication. A missing or incompatible baseline rebuilds from the
+observed files. Publication still assembles the complete Workspace projection.
 
 Mounted Workspace clients independently observe the latest committed Projection Revision identity.
 The v0 transport polls a narrow Graph query and refreshes the server projection only on identity
