@@ -5,6 +5,11 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { reconcileAtlasWorkspaceSources } from './workspace-source-reconciliation';
+import { observeLocalSourceInventory } from '../sources/local-source-inventory';
+import {
+  materializeLocalWorkspace,
+  type LocalWorkspaceMaterialization,
+} from './local-workspace-materialization';
 
 const temporaryDirectories: string[] = [];
 
@@ -16,6 +21,60 @@ afterEach(() => {
 });
 
 describe('Workspace Source reconciliation', () => {
+  it('reuses the watcher reading and parses only affected records across edits and removals', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-workspace-watch-'));
+    temporaryDirectories.push(repoRoot);
+    fs.mkdirSync(path.join(repoRoot, 'plans', 'current'), { recursive: true });
+    const a = path.join(repoRoot, 'plans', 'current', '101-a.md');
+    const b = path.join(repoRoot, 'plans', 'current', '102-b.md');
+    fs.writeFileSync(a, '# Plan A\n');
+    fs.writeFileSync(b, '# Plan B\n');
+    const input = { repoRoot, sources: [{ id: 'atlas', ref: 'main', repository: 'javifernandes/atlas' }] };
+    let inventory: ReturnType<typeof observeLocalSourceInventory>['inventory'] | undefined;
+    let previous: LocalWorkspaceMaterialization | undefined;
+    const reconcile = async () => {
+      const observed = observeLocalSourceInventory(repoRoot, inventory);
+      const read = vi.spyOn(fs, 'readFileSync');
+      try {
+        const result = await reconcileAtlasWorkspaceSources({
+          ...input,
+          localSourceFiles: Array.from(observed.inventory, ([filePath, file]) => ({
+            path: filePath, content: file.content,
+          })),
+          parseSource: async source => {
+            previous = await materializeLocalWorkspace(source, previous);
+            return previous.materialization.source;
+          },
+        });
+        expect(read.mock.calls.filter(([file]) => file === a || file === b)).toEqual([]);
+        inventory = observed.inventory;
+        return { result, filesRead: observed.filesRead };
+      } finally {
+        read.mockRestore();
+      }
+    };
+
+    await reconcile();
+    fs.writeFileSync(a, '# Plan A revised\n');
+    const edited = await reconcile();
+    expect(edited.filesRead).toBe(1);
+    expect(previous?.materialization).toMatchObject({
+      mode: 'incremental', parsedRecordCount: 1, reusedRecordCount: 1,
+    });
+    expect(edited.result.snapshot.nodes).toEqual((await reconcileAtlasWorkspaceSources(input)).snapshot.nodes);
+
+    fs.unlinkSync(b);
+    const removed = await reconcile();
+    expect(removed.filesRead).toBe(0);
+    expect(previous?.materialization).toMatchObject({
+      mode: 'incremental', parsedRecordCount: 0, reusedRecordCount: 1,
+    });
+    const rebuilt = await reconcileAtlasWorkspaceSources(input);
+    expect(removed.result.snapshot.nodes).toEqual(rebuilt.snapshot.nodes);
+    expect(removed.result.snapshot.edges).toEqual(rebuilt.snapshot.edges);
+    expect(removed.result.sourceRevisionSetHash).toBe(rebuilt.sourceRevisionSetHash);
+  });
   it('observes the intrinsic Atlas Source from the checkout outside production', async () => {
     vi.stubEnv('NODE_ENV', 'development');
     const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-workspace-source-'));

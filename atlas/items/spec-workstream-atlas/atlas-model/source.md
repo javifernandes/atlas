@@ -109,9 +109,9 @@ duplicated or lost, and never mutate the graph directly.
 
 The development adapter therefore serializes reconciliation and retains full observation as its
 repair path. Its first adoption automatically rebuilds the local Workspace projection after
-startup and relevant Markdown changes. A later adoption can derive an exact filesystem ChangeSet
-and feed the same versioned Materializer used by remote Git events without changing Source or
-Projection Revision semantics.
+startup and relevant Markdown changes. Atlas compares complete local inventories by physical path
+and confirms content changes by hash. Development reconciliation consumes the observed files and
+feeds a Source ChangeSet to the same versioned Materializer used for remote observations.
 
 ## Relations
 
