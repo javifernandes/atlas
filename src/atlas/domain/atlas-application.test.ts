@@ -17,6 +17,8 @@ import {
 
 import { createAtlasGitHubWebhookIngressProvider } from '../github/webhook-ingress-provider';
 import { createAtlasGitHubWebhookSignature } from '../github/webhook-signature';
+import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
+import { parseAtlasSourceRecords } from '../markdown/build-snapshot';
 import type { AtlasMarkdownFile } from '../sources/markdown-source';
 import { normalizeAtlasSourceRecord } from '../sources/normalized-source';
 import {
@@ -30,6 +32,7 @@ import {
   buildAtlasOntahiDataset,
   createAtlasOntahiApplication,
   createAtlasOntahiApplicationWithStorage,
+  createAtlasPullRequestEvidenceMaterializer,
 } from './atlas-application';
 
 describe('Atlas Ontahi fit pilot', () => {
@@ -924,30 +927,88 @@ relatedPlans:
 `,
       },
     ];
-    const atlas = createAtlasOntahiApplication(files.map(normalizeAtlasSourceRecord), {
-      observedPullRequests: [
-        {
-          id: 'github:javifernandes/atlas#8',
-          sourceId: 'atlas',
-          repositoryFullName: 'javifernandes/atlas',
-          number: 8,
-          title: 'Connect merged PR evidence',
-          url: 'https://github.com/javifernandes/atlas/pull/8',
-          authorAvatarUrl: 'https://avatars.example/javi',
-          authorProviderAccountId: '101',
-          authorLogin: 'javi',
-          mergedByAvatarUrl: 'https://avatars.example/maintainer',
-          mergedByLogin: 'maintainer',
-          mergedAt: '2026-09-01T10:00:00Z',
-          mergeCommitSha: 'abc123',
-          directives: [
-            { kind: 'implements', target: 'plans/current/102-evidence.md' },
-            { kind: 'implements', target: '102' },
-            { kind: 'shapes', target: 'atlas.evidence' },
-            { kind: 'shapes', target: 'missing.item' },
-          ],
-        },
+    const pullRequest: AtlasObservedPullRequest = {
+      id: 'github:javifernandes/atlas#8',
+      sourceId: 'atlas',
+      repositoryFullName: 'javifernandes/atlas',
+      number: 8,
+      title: 'Connect merged PR evidence',
+      url: 'https://github.com/javifernandes/atlas/pull/8',
+      authorAvatarUrl: 'https://avatars.example/javi',
+      authorProviderAccountId: '101',
+      authorLogin: 'javi',
+      mergedByAvatarUrl: 'https://avatars.example/maintainer',
+      mergedByLogin: 'maintainer',
+      mergedAt: '2026-09-01T10:00:00Z',
+      mergeCommitSha: 'abc123',
+      directives: [
+        { kind: 'implements', target: 'plans/current/102-evidence.md' },
+        { kind: 'implements', target: '102' },
+        { kind: 'shapes', target: 'atlas.evidence' },
+        { kind: 'shapes', target: 'missing.item' },
       ],
+    };
+    const records = files.map(normalizeAtlasSourceRecord);
+    const atlas = createAtlasOntahiApplication(records, { observedPullRequests: [pullRequest] });
+    const source = parseAtlasSourceRecords(records);
+    const materialize = createAtlasPullRequestEvidenceMaterializer();
+    const accepted = [{
+      sourceId: 'atlas',
+      snapshot: { frontier: 'f1', records: [{ id: pullRequest.id, record: pullRequest }] },
+    }];
+    const initial = await materialize(source, [pullRequest], accepted);
+    expect(initial.mode).toBe('rebuilt');
+    expect(initial.evidence.bindings).toHaveLength(2);
+    const restored = createAtlasPullRequestEvidenceMaterializer(
+      JSON.parse(JSON.stringify(initial.checkpoint)),
+    );
+    await expect(restored(source, [pullRequest], accepted)).resolves.toEqual({
+      ...initial,
+      mode: 'reused',
+      derivedPullRequestCount: 0,
+    });
+    const added = { ...pullRequest, id: 'github:javifernandes/atlas#9', number: 9 };
+    const acceptedBoth = [{
+      sourceId: 'atlas',
+      snapshot: {
+        frontier: 'f2',
+        records: [pullRequest, added].map(record => ({ id: record.id, record })),
+      },
+    }];
+    const both = await restored(source, [pullRequest, added], acceptedBoth);
+    const rebuilt = await createAtlasPullRequestEvidenceMaterializer()(
+      source,
+      [pullRequest, added],
+      acceptedBoth,
+    );
+    expect(both).toEqual({
+      evidence: rebuilt.evidence,
+      checkpoint: rebuilt.checkpoint,
+      mode: 'incremental',
+      derivedPullRequestCount: 1,
+    });
+
+    const overlay = { ...pullRequest, directives: [] };
+    await expect(restored(source, [overlay, added], acceptedBoth)).resolves.toMatchObject({
+      mode: 'incremental',
+      derivedPullRequestCount: 1,
+      evidence: { bindings: both.evidence.bindings.filter(binding => binding.pullRequestId === added.id) },
+    });
+    const removed = [{
+      sourceId: 'atlas',
+      snapshot: { frontier: 'f3', records: [{ id: added.id, record: added }] },
+    }];
+    await expect(restored(source, [added], removed)).resolves.toMatchObject({
+      mode: 'incremental',
+      derivedPullRequestCount: 0,
+      evidence: { pullRequests: [added] },
+    });
+    await expect(restored(source, [added], removed)).resolves.toMatchObject({ mode: 'reused' });
+
+    await expect(restored({ ...source, items: [] }, [added], removed)).resolves.toMatchObject({
+      mode: 'rebuilt',
+      derivedPullRequestCount: 1,
+      evidence: { bindings: [{ targetKind: 'plan' }] },
     });
 
     await expect(atlas.getEvidence()).resolves.toEqual([

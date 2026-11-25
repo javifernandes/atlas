@@ -4,12 +4,18 @@ import path from 'node:path';
 import {
   createInMemoryReplicatedCollectionStorage,
   createReplicatedCollectionAcceptanceRunner,
+  type AcceptedCollectionSnapshot,
   type ReplicatedCollectionStorage,
 } from '@ontahi/core';
 
 import { getAtlasGitHubRequestHeaders } from './installation-client';
 import { githubRepositoryCacheTag, parseGitHubRepositoryName } from './repository';
 import { loadAtlasSourceDefinitions } from '../sources/markdown-source';
+
+export type AtlasAcceptedPullRequestEvidence = {
+  sourceId: string;
+  snapshot: AcceptedCollectionSnapshot<AtlasObservedPullRequest, string | null>;
+};
 
 export type AtlasEvidenceBindingKind = 'implements' | 'shapes';
 
@@ -447,7 +453,7 @@ export const loadAtlasPullRequestEvidenceObservation = async (input: {
         replicaAcceptanceMs: performance.now() - startedAt - githubFetchMs,
         changedPullRequestCount: result.metrics.changed,
         fetchedPullRequestCount: result.metrics.fetched,
-        pullRequests: result.snapshot.records.map(({ record }) => ({ ...record, sourceId: source.sourceId })),
+        acceptedCollection: { sourceId: source.sourceId, snapshot: result.snapshot },
         reusedPullRequestCount: result.metrics.reused,
       };
     }),
@@ -467,9 +473,10 @@ export const loadAtlasPullRequestEvidenceObservation = async (input: {
   const successfulSources = results.flatMap((result, index) =>
     result.status === 'fulfilled' && sources[index] ? [sources[index]] : [],
   );
-  const pullRequests = results.flatMap(result =>
-    result.status === 'fulfilled' ? result.value.pullRequests : [],
+  const acceptedCollections = results.flatMap(result =>
+    result.status === 'fulfilled' ? [result.value.acceptedCollection] : [],
   );
+  const pullRequests = pullRequestsFromAcceptedEvidence(acceptedCollections);
   const fetchedPullRequestCount = results.reduce(
     (count, result) => count + (result.status === 'fulfilled' ? result.value.fetchedPullRequestCount : 0),
     0,
@@ -484,6 +491,7 @@ export const loadAtlasPullRequestEvidenceObservation = async (input: {
   );
 
   return {
+    acceptedCollections,
     changedPullRequestCount,
     failures,
     fetchedPullRequestCount,
@@ -498,6 +506,13 @@ export const loadAtlasPullRequestEvidenceObservation = async (input: {
     successfulSources,
   };
 };
+
+export const pullRequestsFromAcceptedEvidence = (
+  collections: readonly AtlasAcceptedPullRequestEvidence[],
+): AtlasObservedPullRequest[] =>
+  collections.flatMap(({ sourceId, snapshot }) =>
+    snapshot.records.map(({ record }) => ({ ...record, sourceId })),
+  );
 
 export const loadAtlasPullRequestEvidence = async (input: {
   fetcher?: typeof fetch;

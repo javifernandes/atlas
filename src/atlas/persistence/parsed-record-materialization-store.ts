@@ -1,4 +1,5 @@
 import type {
+  JsonValue,
   MaterializerDependency,
   ReplicatedVersionedModelSnapshot,
 } from '@ontahi/core';
@@ -7,11 +8,13 @@ import type { Pool, PoolClient } from 'pg';
 import type { PortableParsedAtlasSourceRecordArtifact } from '../markdown/parsed-record-artifact';
 import type { AtlasParsedRecordMaterializerState } from '../markdown/parsed-record-materializer';
 
-export type AtlasParsedRecordMaterializationCheckpoint = {
+export type AtlasParsedRecordMaterializationCheckpoint<
+  TState extends JsonValue = AtlasParsedRecordMaterializerState,
+> = {
   artifacts: readonly PortableParsedAtlasSourceRecordArtifact[];
   dependencies: readonly MaterializerDependency[];
   scopeId: string;
-  snapshot: ReplicatedVersionedModelSnapshot<AtlasParsedRecordMaterializerState>;
+  snapshot: ReplicatedVersionedModelSnapshot<TState>;
   updatedAt: string;
 };
 
@@ -57,11 +60,13 @@ const parseOutputs = (row: MaterializationDependencyRow) => {
   return outputs;
 };
 
-export const createAtlasParsedRecordMaterializationStore = (pool: Pick<Pool, 'connect'>) => ({
+export const createAtlasParsedRecordMaterializationStore = <
+  TState extends JsonValue = AtlasParsedRecordMaterializerState,
+>(pool: Pick<Pool, 'connect'>) => ({
   async load(input: {
     derivationId: string;
     scopeId: string;
-  }): Promise<AtlasParsedRecordMaterializationCheckpoint | null> {
+  }): Promise<AtlasParsedRecordMaterializationCheckpoint<TState> | null> {
     const client = await pool.connect();
 
     try {
@@ -121,7 +126,7 @@ export const createAtlasParsedRecordMaterializationStore = (pool: Pick<Pool, 'co
             materializerVersion: checkpoint.materializer_version,
             sourceFrontier: checkpoint.source_frontier,
           },
-          state: JSON.parse(checkpoint.state_json) as AtlasParsedRecordMaterializerState,
+          state: JSON.parse(checkpoint.state_json) as TState,
         },
         updatedAt:
           checkpoint.updated_at instanceof Date
@@ -137,7 +142,7 @@ export const createAtlasParsedRecordMaterializationStore = (pool: Pick<Pool, 'co
   },
 
   async replace(input: {
-    checkpoint: AtlasParsedRecordMaterializationCheckpoint;
+    checkpoint: AtlasParsedRecordMaterializationCheckpoint<TState>;
     expectedSourceFrontier: string | null;
   }): Promise<AtlasMaterializationCheckpointWriteResult> {
     const { checkpoint } = input;
@@ -163,7 +168,7 @@ export const createAtlasParsedRecordMaterializationStore = (pool: Pick<Pool, 'co
         };
       }
 
-      await client.query(
+      const write = await client.query(
         `INSERT INTO atlas_materialization_checkpoints
            (scope_id, derivation_id, materializer_version, source_frontier, accepted_frontier,
             state_json, updated_at)
@@ -173,7 +178,8 @@ export const createAtlasParsedRecordMaterializationStore = (pool: Pick<Pool, 'co
            source_frontier = EXCLUDED.source_frontier,
            accepted_frontier = EXCLUDED.accepted_frontier,
            state_json = EXCLUDED.state_json,
-           updated_at = EXCLUDED.updated_at`,
+           updated_at = EXCLUDED.updated_at
+         WHERE atlas_materialization_checkpoints.source_frontier = $8`,
         [
           checkpoint.scopeId,
           acceptance.derivationId,
@@ -182,8 +188,19 @@ export const createAtlasParsedRecordMaterializationStore = (pool: Pick<Pool, 'co
           acceptance.acceptedFrontier,
           JSON.stringify(checkpoint.snapshot.state),
           checkpoint.updatedAt,
+          input.expectedSourceFrontier,
         ],
       );
+      if (write.rowCount === 0) {
+        const concurrent = await client.query<{ source_frontier: string }>(
+          `SELECT source_frontier FROM atlas_materialization_checkpoints
+            WHERE scope_id = $1 AND derivation_id = $2`,
+          [checkpoint.scopeId, acceptance.derivationId],
+        );
+        await rollback(client);
+        return { status: 'conflict', currentSourceFrontier: concurrent.rows[0]?.source_frontier ?? null };
+      }
+
       await client.query(
         `DELETE FROM atlas_materialization_artifacts
           WHERE scope_id = $1 AND derivation_id = $2`,

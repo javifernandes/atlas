@@ -93,6 +93,27 @@ describe('Atlas parsed-record materialization store', () => {
     ]);
   });
 
+  it('rejects a concurrent first insert before replacing artifacts', async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('FOR UPDATE')) return { rows: [] };
+      if (sql.includes('INSERT INTO atlas_materialization_checkpoints')) {
+        expect(sql).toContain('WHERE atlas_materialization_checkpoints.source_frontier = $8');
+        return { rowCount: 0, rows: [] };
+      }
+      if (sql.includes('SELECT source_frontier')) {
+        return { rows: [{ source_frontier: 'git:winner' }] };
+      }
+      return { rows: [] };
+    });
+    const { pool } = fakePool(query);
+    const store = createAtlasParsedRecordMaterializationStore(pool);
+
+    await expect(
+      store.replace({ checkpoint, expectedSourceFrontier: null }),
+    ).resolves.toEqual({ currentSourceFrontier: 'git:winner', status: 'conflict' });
+    expect(query.mock.calls.some(([sql]) => sql.includes('DELETE FROM'))).toBe(false);
+  });
+
   it('hydrates one repeatable-read snapshot including empty-output dependencies', async () => {
     const query = vi.fn(async (sql: string) => {
       if (sql.includes('FROM atlas_materialization_checkpoints')) {

@@ -8,16 +8,20 @@ import { Effect } from 'effect';
 import type { Pool } from 'pg';
 
 import {
+  ATLAS_PULL_REQUEST_EVIDENCE_MATERIALIZER_ID,
   buildAtlasOntahiDataset,
   buildAtlasOntahiDatasetFromSource,
   createAtlasOntahiApplicationWithStorage,
+  createAtlasPullRequestEvidenceMaterializer,
   type AtlasMergedPullRequestInput,
+  type AtlasPullRequestEvidenceCheckpoint,
   type AtlasCapabilities,
   type AtlasReconciliationRequest,
   type AtlasReconciliationResult,
 } from '../domain/atlas-application';
 import {
   parseAtlasPullRequestDirectives,
+  pullRequestsFromAcceptedEvidence,
   type AtlasObservedPullRequest,
 } from '../github/pull-request-evidence';
 import { parseAtlasSourceRecords } from '../markdown/build-snapshot';
@@ -136,10 +140,13 @@ const mergeWebhookPullRequestObservation = (
   projection: AtlasProjectionInput,
   request: AtlasReconciliationRequest,
 ) => {
+  const pullRequests = projection.acceptedPullRequestEvidence
+    ? pullRequestsFromAcceptedEvidence(projection.acceptedPullRequestEvidence)
+    : projection.observedPullRequests;
   const webhook = request.webhook;
 
   if (!webhook || !('number' in webhook)) {
-    return projection.observedPullRequests;
+    return pullRequests;
   }
 
   const sourceRevision = projection.sourceRevisions.find(
@@ -148,11 +155,11 @@ const mergeWebhookPullRequestObservation = (
   );
 
   if (!sourceRevision) {
-    return projection.observedPullRequests;
+    return pullRequests;
   }
 
   const id = `github:${webhook.repositoryFullName.toLowerCase()}#${webhook.number}`;
-  const existing = projection.observedPullRequests.find(candidate => candidate.id === id);
+  const existing = pullRequests.find(candidate => candidate.id === id);
   const directives = parseAtlasPullRequestDirectives(webhook.body);
   const observation: AtlasObservedPullRequest = {
     authorAvatarUrl: existing?.authorAvatarUrl ?? null,
@@ -174,7 +181,7 @@ const mergeWebhookPullRequestObservation = (
   };
 
   return [
-    ...projection.observedPullRequests.filter(candidate => candidate.id !== id),
+    ...pullRequests.filter(candidate => candidate.id !== id),
     observation,
   ];
 };
@@ -377,6 +384,8 @@ export const createAtlasPostgresApplication = (input: {
     }),
   );
   const taskStorage = createPostgresTaskStorage({ pool: input.pool });
+  const evidenceMaterializationStore =
+    createAtlasParsedRecordMaterializationStore<AtlasPullRequestEvidenceCheckpoint['state']>(pool);
   const parsedRecordMaterializationStore = createAtlasParsedRecordMaterializationStore(pool);
   const atlas = createAtlasOntahiApplicationWithStorage({
     storage: createPostgresDataGraphStorage({
@@ -1432,18 +1441,51 @@ export const createAtlasPostgresApplication = (input: {
                     }),
                   );
 
+                  const observedPullRequests = mergeWebhookPullRequestObservation(
+                    projection,
+                    request,
+                  );
+                  const evidenceCheckpoint = await evidenceMaterializationStore.load({
+                    derivationId: ATLAS_PULL_REQUEST_EVIDENCE_MATERIALIZER_ID,
+                    scopeId: ATLAS_PARSED_RECORD_MATERIALIZATION_SCOPE,
+                  });
+                  const materializePullRequestEvidence = createAtlasPullRequestEvidenceMaterializer(
+                    evidenceCheckpoint?.snapshot,
+                  );
+                  const pullRequestEvidence = await reconciliationObserver.measure(
+                    'resolve-pull-request-evidence',
+                    () =>
+                      materializePullRequestEvidence(
+                        materialization.source,
+                        observedPullRequests,
+                        projection.acceptedPullRequestEvidence ?? [],
+                      ),
+                    value => ({
+                      bindingCount: value.evidence.bindings.length,
+                      derivedPullRequestCount: value.derivedPullRequestCount,
+                      mode: value.mode,
+                    }),
+                  );
+
                   return {
                     expectedMaterializationSourceFrontier:
                       checkpoint?.snapshot.acceptance.sourceFrontier ?? null,
+                    expectedEvidenceFrontier:
+                      evidenceCheckpoint?.snapshot.acceptance.sourceFrontier ?? null,
                     materialization,
+                    observedPullRequests,
                     projection,
+                    pullRequestEvidence,
                   };
                 }),
               ),
               Effect.flatMap(({
                 expectedMaterializationSourceFrontier,
+                expectedEvidenceFrontier,
                 materialization,
+                observedPullRequests,
                 projection,
+                pullRequestEvidence,
               }) => {
         const catchUpSince =
           request.trigger === 'catch-up'
@@ -1458,7 +1500,6 @@ export const createAtlasPostgresApplication = (input: {
           );
         }
 
-        const observedPullRequests = mergeWebhookPullRequestObservation(projection, request);
         const dataset = reconciliationObserver.measureSync(
           'assemble-projection-dataset',
           () => {
@@ -1469,6 +1510,7 @@ export const createAtlasPostgresApplication = (input: {
               projection.sourceRevisions,
               projection.observedReleases ?? [],
               reconciliationObserver.measureSync,
+              pullRequestEvidence.evidence,
             );
             reconciliationObserver.measureSync('validate-projection-identities', () =>
               assertAtlasProjectionIdentities(assembled),
@@ -1499,6 +1541,10 @@ export const createAtlasPostgresApplication = (input: {
             mode: materialization.mode,
             parsedRecordCount: materialization.parsedRecordCount,
             reusedRecordCount: materialization.reusedRecordCount,
+          },
+          pullRequestEvidenceMaterialization: {
+            derivedPullRequestCount: pullRequestEvidence.derivedPullRequestCount,
+            mode: pullRequestEvidence.mode,
           },
           sourceChangeSetId: projection.sourceChangeSet?.id ?? null,
         });
@@ -1874,6 +1920,31 @@ export const createAtlasPostgresApplication = (input: {
           ),
           Effect.tapError(() =>
             Effect.sync(() => finishPublicationObservation('failed')),
+          ),
+          Effect.tap(result =>
+            result.projectionRevisionId === projectionRevisionId &&
+            pullRequestEvidence.mode !== 'reused'
+              ? Effect.promise(async () => {
+                  try {
+                    await reconciliationObserver.measure(
+                      'persist-pull-request-evidence-checkpoint',
+                      () => evidenceMaterializationStore.replace({
+                        checkpoint: {
+                          artifacts: [],
+                          dependencies: [],
+                          scopeId: ATLAS_PARSED_RECORD_MATERIALIZATION_SCOPE,
+                          snapshot: pullRequestEvidence.checkpoint,
+                          updatedAt: startedAt,
+                        },
+                        expectedSourceFrontier: expectedEvidenceFrontier,
+                      }),
+                      value => ({ writeStatus: value.status }),
+                    );
+                  } catch (error) {
+                    console.error('Atlas projection published without advancing its evidence checkpoint.', error);
+                  }
+                })
+              : Effect.void,
           ),
           Effect.tap(result =>
             result.projectionRevisionId === projectionRevisionId

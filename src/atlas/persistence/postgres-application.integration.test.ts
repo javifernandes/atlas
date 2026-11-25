@@ -128,6 +128,17 @@ Durable Atlas projection.
     loadProjectionCalls += 1;
     projectionBaselines.push(baseline);
     return {
+      acceptedPullRequestEvidence: evidenceAvailable
+        ? [
+            {
+              sourceId: 'atlas',
+              snapshot: {
+                frontier: '2026-09-02T00:00:00.000Z',
+                records: [{ id: observedPullRequest.id, record: observedPullRequest }],
+              },
+            },
+          ]
+        : [],
       evidenceFailures: evidenceAvailable
         ? []
         : [
@@ -139,7 +150,7 @@ Durable Atlas projection.
           ],
       evidenceSourceIds: evidenceAvailable ? ['atlas'] : [],
       observedAt: new Date(Date.UTC(2026, 8, 2, 0, 0, observedAtSequence++)).toISOString(),
-      observedPullRequests: evidenceAvailable ? [observedPullRequest] : [],
+      observedPullRequests: [],
       records,
       sourceRevisions,
     };
@@ -576,12 +587,22 @@ Durable Atlas projection.
       planCount: 2,
       evidenceBindingCount: 1,
     });
-    await expect(atlas.reconcile({ trigger: 'rebuild' })).resolves.toMatchObject({
+    const restartedAtlas = createAtlasPostgresApplication({ pool, loadProjection });
+    const restarted = await restartedAtlas.reconcile({ trigger: 'rebuild' });
+    expect(restarted).toMatchObject({
       duplicate: false,
       itemCount: 1,
       planCount: 2,
       evidenceBindingCount: 1,
     });
+
+    const checkpointUse = await pool.query(
+      `SELECT diagnostics_json::jsonb -> 'pullRequestEvidenceMaterialization' AS evidence
+       FROM projection_revisions ORDER BY started_at DESC LIMIT 1`,
+    );
+    expect(checkpointUse.rows).toEqual([
+      { evidence: { mode: 'reused', derivedPullRequestCount: 0 } },
+    ]);
 
     const counts = await pool.query(`
       SELECT

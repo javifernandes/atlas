@@ -163,3 +163,15 @@ for rollback. GitHub observation reports a failed attempt if a bounded scan cann
 coverage. The runner owns atomic acceptance through its PostgreSQL revision guard. Compare
 remote fetch, replica acceptance, and projection publication timings after deployment before
 deciding whether snapshot persistence needs a record-level storage strategy.
+
+The canonical projection loader now carries the accepted collection snapshot and frontier for
+each successful source. Its reconciliation derives PR input from those snapshots and applies
+the webhook observation as a separate overlay. Failed sources supply no candidate snapshot.
+The canonical PostgreSQL reconciliation runs the Ontahí Materializer for explicit PR Evidence
+Bindings. It reuses the previous result across application instances when accepted
+frontiers, effective PRs, and target identities agree. With stable target identities, it derives
+bindings only for new PRs or changed directives and drops bindings for removed PRs. A target
+identity change rebuilds explicit bindings because it can affect any PR. The checkpoint uses the
+existing PostgreSQL materialization store and advances after a successful projection publication,
+subject to a compare-and-swap guard. If publication succeeds but checkpoint persistence fails,
+the next reconciliation can resume from the older checkpoint or rebuild.
