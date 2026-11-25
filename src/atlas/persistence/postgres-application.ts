@@ -1468,8 +1468,11 @@ export const createAtlasPostgresApplication = (input: {
               observedPullRequests,
               projection.sourceRevisions,
               projection.observedReleases ?? [],
+              reconciliationObserver.measureSync,
             );
-            assertAtlasProjectionIdentities(assembled);
+            reconciliationObserver.measureSync('validate-projection-identities', () =>
+              assertAtlasProjectionIdentities(assembled),
+            );
             return assembled;
           },
           value => ({

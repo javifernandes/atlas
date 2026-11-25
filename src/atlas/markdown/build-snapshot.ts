@@ -970,10 +970,10 @@ const hasDescendantRelatedPlan = (
 
 const getPlanReferences = (plan: ParsedPlan) => [plan.path];
 
-export const buildPlanWorkstreamSnapshotFromParsedSource = ({
-  plans,
-  items: rawAtlasItems,
-}: ParsedAtlasSource): PlanWorkstreamSnapshot => {
+export const buildPlanWorkstreamSnapshotFromParsedSource = (
+  { plans, items: rawAtlasItems }: ParsedAtlasSource,
+  measure: <T>(stage: string, run: () => T) => T = (_stage, run) => run(),
+): PlanWorkstreamSnapshot => {
   const planByPath = new Map(
     plans.flatMap(plan => getPlanReferences(plan).map(reference => [reference, plan] as const)),
   );
@@ -1292,7 +1292,7 @@ export const buildPlanWorkstreamSnapshotFromParsedSource = ({
   });
 
   const documents = plans.map(toPlanNode);
-  const enriched = addInferredMentions(nodesWithStats, documents);
+  const enriched = measure('infer-mentions', () => addInferredMentions(nodesWithStats, documents));
 
   return {
     generatedAt: new Date().toISOString(),
