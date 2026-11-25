@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.implementation-evidence.coverage-and-code-impact
-kind: capability
+kind: item
 title: Coverage And Code Impact
 parent: spec-workstream-atlas.implementation-evidence
 status: idea

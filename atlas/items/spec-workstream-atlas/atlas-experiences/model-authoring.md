@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-experiences.model-authoring
-kind: experience
+kind: item
 title: Model Authoring
 parent: spec-workstream-atlas.atlas-experiences
 status: idea

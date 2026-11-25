@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.interaction
-kind: concept
+kind: item
 title: Interaction
 parent: spec-workstream-atlas.atlas-model.item-type
 status: shaping

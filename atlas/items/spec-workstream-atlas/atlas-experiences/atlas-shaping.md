@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-experiences.atlas-shaping
-kind: experience
+kind: item
 title: Atlas Shaping
 parent: spec-workstream-atlas.atlas-experiences
 status: idea

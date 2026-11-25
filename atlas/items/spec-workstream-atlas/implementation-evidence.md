@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.implementation-evidence
-kind: evidence
+kind: collection
 title: Implementation Evidence
 parent: spec-workstream-atlas
 status: shaping

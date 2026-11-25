@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.work-item.impact-surface
-kind: concept
+kind: item
 title: Work Item Impact Surface
 parent: spec-workstream-atlas.atlas-model.work-item
 status: idea

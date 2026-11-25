@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.implementation-surface
-kind: concept
+kind: item
 title: Implementation Surface
 parent: spec-workstream-atlas.atlas-model.implementation-component
 status: shaping

@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.operating-practice.backfill-strategy
-kind: practice
+kind: item
 title: Backfill Strategy
 parent: spec-workstream-atlas.operating-practice
 status: idea

@@ -14,7 +14,7 @@ import {
 } from './build-snapshot';
 
 export const ATLAS_PARSED_RECORD_MATERIALIZER_ID = 'atlas.markdown-record';
-export const ATLAS_PARSED_RECORD_MATERIALIZER_VERSION = '4';
+export const ATLAS_PARSED_RECORD_MATERIALIZER_VERSION = '5';
 
 export const atlasSourceRecordIdentity = (
   record: Pick<NormalizedAtlasSourceRecord, 'sourceId' | 'sourcePath'>,

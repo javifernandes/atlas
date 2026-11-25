@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.implementation-evidence.storybook-bindings
-kind: capability
+kind: item
 title: Storybook Bindings
 parent: spec-workstream-atlas.implementation-evidence
 status: shaping

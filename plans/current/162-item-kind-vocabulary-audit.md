@@ -88,3 +88,48 @@ trees; Capability mixes UI functions, infrastructure, documentation, metadata, l
 and product behavior. Their authored sections do not converge on a stable contract. Atlas will
 therefore project Territory and Model as `collection`, and Experience and Capability as `item`,
 while retaining all four source labels as read-compatible historical aliases.
+
+### 2026-11-25 — Retire Tooling
+
+The local Atlas, BookOps, and Ontahi inventories showed one authored `tooling` item, Semantic
+Source. It describes the federated Markdown corpus and has no children. Its authored kind is now
+`item`, with the same semantic identity and relationships. The parser accepts historical
+`tooling` as an alias of `item`, and parsed-record materialization advances to version 5.
+
+The inventory found no authored examples of standalone `policy` or `state` across the three trees.
+Both now normalize to `item` when read from historical Markdown. Entity lifecycle states and
+source-binding roles keep their existing meaning. Historical Plan-to-Item backfill remains open
+in slice 3.
+
+### 2026-11-25 — Classify the evidence collection
+
+Implementation Evidence groups Preview Environments, Coverage and Code Impact, and Storybook
+Bindings. It is now authored as a `collection`. Historical `evidence` item declarations normalize
+to `collection`. Evidence signals and observed PR bindings retain their existing semantics.
+
+### 2026-11-25 — Retire Relation and Principle as item kinds
+
+Source Binding and Source Derivation describe relation contracts under Source. Development As
+Shape Transformation already sits under Operating Principles. These three documents now use
+`item`, keeping their IDs, parents, and references. Historical `relation` and `principle`
+declarations normalize to `item`. Graph relations retain their existing semantics.
+
+### 2026-11-25 — Retire Practice as an item kind
+
+The six authored Practices are guidance documents under Operating Practice. They now use
+`item`, retaining their parent and references. Historical `practice` declarations normalize
+to `item`. The source-shape reference lists the reduced authoring catalog and the readable
+historical aliases.
+
+### 2026-11-25 — Canonicalize Atlas-owned collections
+
+Atlas Experiences, Atlas Model, Access and Identity, Operating Practice, and Operating Principles
+now declare `collection` in Markdown, matching their existing projected kind. Their identities and
+containment stay the same. Federated Sources retain their own authoring authority.
+
+### 2026-11-25 — Canonicalize Atlas-owned generic items
+
+The remaining Atlas-owned declarations using `concept`, `capability`, and `experience` now
+declare `item`, matching their existing projection. This changes only their authored kind.
+Historical aliases remain readable for federated Sources and older revisions.
+Workspace also now declares `item`, matching the parser fallback for its former `system` kind.

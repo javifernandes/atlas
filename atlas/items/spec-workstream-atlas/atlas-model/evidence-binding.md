@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.evidence-binding
-kind: concept
+kind: item
 title: Evidence Binding
 parent: spec-workstream-atlas.atlas-model
 status: shaping

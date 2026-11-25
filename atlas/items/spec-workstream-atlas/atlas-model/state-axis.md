@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.state-axis
-kind: concept
+kind: item
 title: State Axis
 parent: spec-workstream-atlas.atlas-model
 status: idea

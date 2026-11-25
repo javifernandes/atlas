@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-experiences.history-and-evolution.local-evolution-projection
-kind: capability
+kind: item
 title: Local Evolution Projection
 parent: spec-workstream-atlas.atlas-experiences.history-and-evolution
 status: shaping

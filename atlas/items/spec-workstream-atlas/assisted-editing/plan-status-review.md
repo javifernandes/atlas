@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.assisted-editing.plan-status-review
-kind: capability
+kind: item
 title: Plan Status Review
 parent: spec-workstream-atlas.assisted-editing
 status: idea

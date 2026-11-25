@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.semantic-source
-kind: tooling
+kind: item
 title: Semantic Source
 parent: spec-workstream-atlas.atlas-model
 status: shaping

@@ -11,6 +11,36 @@ are always loaded with the source id `atlas`; they do not need to register this 
 external dependency. The `atlas` id is therefore reserved and must not appear in source
 configuration.
 
+## Start with an item, a plan, and a PR
+
+Start in a repository registered as a Source in your Atlas workspace. Use
+[Respond To Workspace Invitation](atlas/items/spec-workstream-atlas/access-and-identity/respond-to-workspace-invitation.md)
+and [its implementation plan](plans/current/159-workspace-invitations-end-to-end.md) as a
+worked example.
+
+1. **Describe the system in an item.** Add a Markdown file under `atlas/items/` with a stable
+   frontmatter `id`, a `title`, and a `kind`. Use `item` for a generic shape, `collection` to
+   group related items, or a specialized kind such as `interaction` when its structure fits.
+2. **Describe the work in a plan.** Put active work under `plans/current/` with `Status: current`.
+   In the item's frontmatter, add the plan under `relatedPlans`. Use a repository-relative
+   path for a plan in the same source and a canonical URI for a plan in another source.
+3. **Record the relationship in the PR body.** Use `Atlas-Implements` for the plan the PR
+   advances and `Atlas-Shapes` for an item whose durable form it changes. For example:
+
+   ```text
+   Atlas-Implements: atlas://plans/159-workspace-invitations-end-to-end
+   Atlas-Shapes: spec-workstream-atlas.access-identity.workspace.respond-to-invitation
+   ```
+
+4. **See the evidence in Atlas.** After the PR merges and the workspace reconciles, open the
+   item's **Evolution** timeline or the plan's **Merged PRs** list in **Overview**. The plan
+   list shows PRs bound directly to that plan. On an item's timeline, `VIA` identifies evidence
+   that came through a related plan.
+
+See the [source shape reference](atlas/SOURCE-SHAPE.md) for Markdown, item kinds, and references,
+the [plan workflow](docs/plan-execution-workflow.md) for plan statuses, and the
+[evidence binding guidelines](docs/atlas-evidence-binding-guidelines.md) for PR syntax.
+
 ## Source configuration
 
 Copy `atlas.sources.example.yaml` to the ignored `atlas.sources.local.yaml` and point each source at

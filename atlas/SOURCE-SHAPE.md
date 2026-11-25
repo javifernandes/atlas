@@ -198,26 +198,22 @@ Signals can live anywhere. A future idea about `Entity` can be written inside a 
 
 ## Kinds
 
-The v0 kind set is intentionally broad enough to name what we already discuss in plans:
+Use the following kinds for new declarations.
 
 1. `project`: a root system or extracted project.
 2. `package`: a repository-local implementation and semantic ownership boundary.
 3. `goal`: a desired future state that Plans can advance without prescribing one intervention.
-4. `territory`: a broad area within a project.
-5. `model`: a named model or ontology area when `territory` is not precise enough.
-6. `concept`: a model term that may or may not become code.
-7. `experience`: a human-facing or operator-facing workflow.
-8. `capability`: something the system can do.
-9. `entity`: a domain or persisted object.
-10. `operation`: an action the system or a person can perform.
-11. `artifact`: generated, persisted, rendered, or derived output.
-12. `policy`: a rule, constraint, permission, or invariant.
-13. `state`: a named lifecycle or product state.
-14. `relation`: a named relationship between model items.
-15. `system-primitive`: a low-level framework primitive.
-16. `tooling`: supporting developer or operational tooling.
-17. `evidence`: a grouped evidence area.
-18. `practice`: a working agreement or repeatable operating method.
+4. `item`: a named part of the model with no specialized kind.
+5. `collection`: a group of related items.
+6. `entity`: a domain or persisted object.
+7. `operation`: an action the system or a person can perform.
+8. `interaction`: behavior organized around what an actor perceives and does.
+9. `artifact`: generated, persisted, rendered, or derived output.
+
+Historical `capability`, `concept`, `experience`, `policy`, `practice`, `principle`, `relation`,
+`state`, `system-primitive`, and `tooling` declarations project as `item`. Historical `evidence`,
+`model`, and `territory` item declarations project as `collection`. Entity lifecycle states
+remain part of the Entity model.
 
 Avoid adding kinds because they sound elegant. Add them when they improve navigation, closure, evidence review, or stale-state detection.
 

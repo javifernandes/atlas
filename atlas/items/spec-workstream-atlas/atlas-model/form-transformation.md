@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.form-transformation
-kind: concept
+kind: item
 title: Form Transformation
 parent: spec-workstream-atlas.atlas-model
 status: shaping

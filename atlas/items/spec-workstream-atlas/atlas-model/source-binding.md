@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.source-binding
-kind: relation
+kind: item
 title: Source Binding
 parent: spec-workstream-atlas.atlas-model.source
 status: shaping

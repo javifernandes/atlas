@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.current-system-form
-kind: concept
+kind: item
 title: Current System Form
 parent: spec-workstream-atlas.atlas-model
 status: shaping

@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.work-item.work-classification
-kind: concept
+kind: item
 title: Work Classification
 parent: spec-workstream-atlas.atlas-model.work-item
 status: shaping

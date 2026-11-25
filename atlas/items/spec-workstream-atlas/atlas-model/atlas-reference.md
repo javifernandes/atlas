@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.atlas-model.atlas-reference
-kind: concept
+kind: item
 title: Atlas Reference
 parent: spec-workstream-atlas.atlas-model
 status: idea

@@ -1,6 +1,6 @@
 ---
 id: spec-workstream-atlas.operating-principles.development-as-shape-transformation
-kind: principle
+kind: item
 title: Development As Shape Transformation
 parent: spec-workstream-atlas.operating-principles
 status: shaping
