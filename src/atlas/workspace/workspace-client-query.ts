@@ -92,6 +92,15 @@ const AtlasWorkspaceSourceImportSchema = defineEntitySchema('AtlasWorkspaceSourc
   diagnosticsJson: field.string(),
 });
 
+const AtlasWorkspaceProjectionRevisionSchema = defineEntitySchema(
+  'AtlasWorkspaceProjectionRevision',
+  {
+    id: field.id(),
+    workspaceId: field.id(),
+    createdAt: field.nonEmptyString({ trim: true }),
+  },
+);
+
 const Workspace = defineClientEntity(AtlasWorkspaceSchema);
 const WorkspaceSettings = Workspace.view('AtlasWorkspaceSettings', {
   id: true,
@@ -186,3 +195,14 @@ export const workspaceSourceImportsQuery = SourceImport.all()
   .as(WorkspaceSourceImport)
   .orderBy(sourceImport => sourceImport.startedAt.desc())
   .limit(50);
+
+const ProjectionRevision = defineClientEntity(AtlasWorkspaceProjectionRevisionSchema);
+const WorkspaceProjectionRevision = ProjectionRevision.view('AtlasWorkspaceProjectionRevisionPulse', {
+  id: true,
+  createdAt: true,
+});
+
+export const workspaceProjectionRevisionQuery = ProjectionRevision.all()
+  .as(WorkspaceProjectionRevision)
+  .orderBy(revision => revision.createdAt.desc())
+  .limit(1);

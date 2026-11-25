@@ -136,6 +136,12 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
        ChangeSet.
    - [x] Extract a per-record parsing boundary and prove that assembling its artifacts is equivalent
          to the existing global parser.
+   - [x] Observe the local Atlas Source during development, coalesce filesystem hints, and serialize
+         automatic reconciliation. Keep content observation as truth and the full rebuild path as
+         the safe v0 fallback.
+   - [x] Make mounted Workspace clients poll the accepted Projection Revision identity and refresh
+         their server projection only when that identity advances. Preserve this as a fallback for
+         a future subject subscription transported over SSE or WebSocket.
    - [x] Persist compatible artifacts by Source Record identity, content hash, and Materializer
          version.
      - [x] Keep physical Source Record identity distinct from semantic entity/reference URIs so
@@ -194,6 +200,12 @@ hiding application-specific behavior or forcing a one-file/one-Entity assumption
   or by full derivation.
 - Treat Markdown as the first record parser adapter, not as part of the generic replicated-model
   contract; extract a media-neutral record-artifact envelope only after Atlas and BookOps evidence.
+- Treat local filesystem notifications as observation hints, never as accepted Source changes by
+  themselves. A fresh content observation determines the revision and repairs lost or duplicated
+  watcher events.
+- Keep client invalidation downstream from committed Projection Revision identity. Clients must not
+  observe filesystem or provider events directly; polling, SSE, and WebSocket are interchangeable
+  transports for the same revision-advanced signal.
 
 ## Open Questions
 
@@ -229,3 +241,14 @@ parsed/reused counters are therefore the next measurement checkpoint before incr
 semantic-dependency derivation, after
 measuring this smaller change and evaluating the record-artifact pattern in BookOps. Cooling,
 eviction, and tier policy remain possible later plugins but have no execution slice here.
+
+Atlas development now observes semantic Markdown in the local working tree and automatically
+reconciles the configured Workspace after startup and coalesced changes. This closes the stale-local
+projection rough edge without claiming incremental derivation: production-grade filesystem
+notifications trigger reconciliation rather than supplying a ChangeSet themselves.
+
+Mounted Workspace clients independently observe the latest committed Projection Revision identity.
+The v0 transport polls a narrow Graph query and refreshes the server projection only on identity
+change. A later Ontahí subject subscription can use SSE (or WebSocket where bidirectionality is
+already required) without coupling client caches to filesystem events or changing the acceptance
+model.

@@ -9,6 +9,7 @@ import {
   AtlasWorkspaceInvitation,
   AtlasWorkspaceSource,
   AtlasWorkspaceContributor,
+  AtlasWorkspaceProjectionRevision,
   AtlasWorkspaceSourceImport,
 } from './workspace-entities';
 
@@ -56,6 +57,13 @@ const sourceImportScope = ({ authority }: { authority: AtlasRuntimeAuthority }) 
   authority.workspace
     ? Selection.where(AtlasWorkspaceSourceImport, sourceImport =>
         sourceImport.workspaceId.eq(authority.workspace!.id),
+      )
+    : noSelection;
+
+const projectionRevisionScope = ({ authority }: { authority: AtlasRuntimeAuthority }) =>
+  authority.workspace
+    ? Selection.where(AtlasWorkspaceProjectionRevision, revision =>
+        revision.workspaceId.eq(authority.workspace!.id),
       )
     : noSelection;
 
@@ -208,6 +216,19 @@ export const atlasWorkspaceSourceImportReadPolicy = {
   scope: sourceImportScope,
 } satisfies GraphReadPolicy<typeof AtlasWorkspaceSourceImport, AtlasRuntimeAuthority>;
 
+export const atlasWorkspaceProjectionRevisionReadPolicy = {
+  entity: AtlasWorkspaceProjectionRevision,
+  modes: ['run'],
+  cardinalities: ['many'],
+  maxLimit: 1,
+  fields: {
+    id: { select: true },
+    workspaceId: { select: true },
+    createdAt: { select: true, order: true },
+  },
+  scope: projectionRevisionScope,
+} satisfies GraphReadPolicy<typeof AtlasWorkspaceProjectionRevision, AtlasRuntimeAuthority>;
+
 export const atlasWorkspaceReadPolicies = [
   atlasWorkspaceReadPolicy,
   atlasWorkspaceMembershipReadPolicy,
@@ -216,4 +237,5 @@ export const atlasWorkspaceReadPolicies = [
   atlasWorkspaceSourceReadPolicy,
   atlasWorkspaceContributorReadPolicy,
   atlasWorkspaceSourceImportReadPolicy,
+  atlasWorkspaceProjectionRevisionReadPolicy,
 ] as const;

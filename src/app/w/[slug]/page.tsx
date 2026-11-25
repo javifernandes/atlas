@@ -18,6 +18,7 @@ import { PlanAssistant } from '@/components/plan-assistant';
 import { WorkspaceAccessDenied } from '@/components/workspace/workspace-access-denied';
 import { WorkspaceControl } from '@/components/workspace/workspace-control';
 import { WorkspaceEmptyState } from '@/components/workspace/workspace-empty-state';
+import { WorkspaceProjectionObserver } from '@/components/workspace/workspace-projection-observer';
 import { WorkspaceSyncActivity } from '@/components/workspace/workspace-sync-activity';
 import type { PlanWorkstreamSnapshot } from '@/atlas/model/snapshot';
 
@@ -158,6 +159,7 @@ const WorkspacePage = async ({ params, searchParams }: WorkspacePageProps) => {
     return (
       <>
         <WorkspaceEmptyState workspace={workspace} workspaces={workspaces} />
+        <WorkspaceProjectionObserver />
         <WorkspaceSyncActivity runs={syncRuns} />
       </>
     );
@@ -193,6 +195,7 @@ const WorkspacePage = async ({ params, searchParams }: WorkspacePageProps) => {
       {await hasAtlasWorkspaceModelProvider(workspace.id) ? (
         <PlanAssistant workspaceId={workspace.id} />
       ) : null}
+      <WorkspaceProjectionObserver />
       <WorkspaceSyncActivity runs={syncRuns} />
     </>
   );

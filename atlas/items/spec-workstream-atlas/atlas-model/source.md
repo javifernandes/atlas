@@ -100,6 +100,19 @@ The initial runtime remains single-authority per Source. Future Atlas editing ma
 outbound ChangeSets and publish them through the provider, but provider confirmation advances the
 accepted Git-backed lineage.
 
+## Local development observation
+
+A checked-out directory can be an observable Source adapter without becoming a second authority.
+Atlas identifies its revision from the semantic files' content hash. Filesystem notifications are
+only hints that a fresh observation may produce a new revision; they are debounced, may be
+duplicated or lost, and never mutate the graph directly.
+
+The development adapter therefore serializes reconciliation and retains full observation as its
+repair path. Its first adoption automatically rebuilds the local Workspace projection after
+startup and relevant Markdown changes. A later adoption can derive an exact filesystem ChangeSet
+and feed the same versioned Materializer used by remote Git events without changing Source or
+Projection Revision semantics.
+
 ## Relations
 
 - [[spec-workstream-atlas.atlas-model.source-revision|Source Revision]] gives one Source an immutable

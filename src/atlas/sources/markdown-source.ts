@@ -143,10 +143,15 @@ export const isAtlasItemMarkdownPath = (filePath: string) =>
   (filePath.startsWith('atlas/items/') || filePath.includes('/atlas/items/')) &&
   filePath.endsWith('.md');
 
-const isAtlasSourceMarkdownPath = (filePath: string) =>
-  ((filePath.startsWith('plans/') && filePath.endsWith('.md')) ||
-    isAtlasItemMarkdownPath(filePath) ||
-    isAtlasPackageManifestPath(filePath));
+export const isAtlasSourceMarkdownPath = (filePath: string) => {
+  const normalizedPath = filePath.replaceAll('\\', '/');
+
+  return (
+    (normalizedPath.startsWith('plans/') && normalizedPath.endsWith('.md')) ||
+    isAtlasItemMarkdownPath(normalizedPath) ||
+    isAtlasPackageManifestPath(normalizedPath)
+  );
+};
 
 const walkAtlasSourceMarkdownFiles = (
   directory: string,
@@ -189,6 +194,9 @@ const contentRevision = (files: AtlasMarkdownFile[]) =>
         .join('\0'),
     )
     .digest('hex');
+
+export const readLocalAtlasSourceRevision = (repoRoot: string) =>
+  contentRevision(walkAtlasSourceMarkdownFiles(repoRoot, repoRoot, 'atlas'));
 
 const withSourceRevision = (
   files: AtlasMarkdownFile[],

@@ -10,7 +10,10 @@ const listAtlasWorkspaceSourcesMock = vi.hoisted(() => vi.fn());
 
 vi.mock('next/headers', () => ({ headers: () => new Headers() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-vi.mock('@ontahi/react/graph', () => ({ useRuntimeTransportCapability: () => undefined }));
+vi.mock('@ontahi/react/graph', () => ({
+  useGraphQuery: () => ({ data: [] }),
+  useRuntimeTransportCapability: () => undefined,
+}));
 vi.mock('@/auth/server', () => ({ getAtlasRequestAccess: getAtlasRequestAccessMock }));
 vi.mock('@/atlas/workspace/workspace-access', () => ({
   getAtlasWorkspaceForUser: getAtlasWorkspaceForUserMock,
