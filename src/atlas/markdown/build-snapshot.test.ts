@@ -524,6 +524,39 @@ An execution interval.
     ]);
   });
 
+  it('preserves title priority, Unicode boundaries, and the first match per title', () => {
+    const item = (id: string, title: string, body = '') => ({
+      path: `atlas/items/${id}.md`,
+      content: `---\nid: atlas.${id}\nkind: concept\ntitle: ${title}\nstatus: active\n---\n\n${body}\n`,
+    });
+
+    const snapshot = buildPlanWorkstreamSnapshotFromFiles([], [
+      item(
+        'source',
+        'Source document',
+        'Execution Stream Entry includes an Execution Stream. ' +
+          'éKey Scope and Key Scope9 have no boundary. ' +
+          '🧭Key ſcope calls Acción Local for Éxito Local. Operation and Shared Title stay as text.',
+      ),
+      item('entry', 'Execution Stream Entry'),
+      item('stream', 'Execution Stream'),
+      item('key', 'Key Scope'),
+      item('action', 'Acción Local'),
+      item('success', 'Éxito Local'),
+      item('operation', 'Operation'),
+      item('shared-one', 'Shared Title'),
+      item('shared-two', 'Shared Title'),
+    ]);
+    const source = snapshot.nodes.find(node => node.semanticId === 'atlas.source');
+
+    expect(source?.inferredMentions?.map(({ matchedText }) => matchedText)).toEqual([
+      'Execution Stream Entry',
+      'Acción Local',
+      'Éxito Local',
+      'Key ſcope',
+    ]);
+  });
+
   it('builds plan, related, and unmaterialized candidate relationships from markdown', () => {
     const snapshot = buildPlanWorkstreamSnapshotFromFiles([
       {
