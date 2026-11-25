@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { inferPostgresMappings, inspectPostgresDataGraphSchema } from '@ontahi/postgres/data-graph';
+import { createPostgresReplicatedCollectionStorage } from '@ontahi/postgres';
 import { withInvocationContext } from '@ontahi/core/runtime/server';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { getMigrations } from 'better-auth/db/migration';
@@ -200,6 +201,7 @@ Durable Atlas projection.
         '024-materialization-checkpoints.sql',
         '025-workspace-invitations.sql',
         '026-github-pull-request-evidence-replica.sql',
+        '027-ontahi-github-evidence-replica.sql',
       ],
       skipped: [],
     });
@@ -231,6 +233,38 @@ Durable Atlas projection.
       toBeCreated: [],
       unsafeChanges: [],
     });
+  }, postgresTestTimeout);
+
+  it('seeds the Ontahí replica from accepted GitHub evidence without replacing newer state', async () => {
+    const repository = 'Acme/Migration-Proof';
+    const collectionId = 'atlas:github-evidence:acme/migration-proof';
+    const frontier = '2026-09-02T01:00:00.000Z';
+    const record = { id: 'github:acme/migration-proof#42', number: 42 };
+    await pool.query(
+      `INSERT INTO atlas_github_evidence_frontiers
+         (repository_full_name, source_id, provider_updated_at) VALUES ($1, 'atlas', $2)`,
+      [repository, frontier],
+    );
+    await pool.query(
+      `INSERT INTO atlas_github_pull_request_evidence_replica
+         (id, repository_full_name, number, source_id, provider_updated_at, payload_json)
+       VALUES ($1, $2, 42, 'atlas', $3, $4)`,
+      [record.id, repository, frontier, JSON.stringify(record)],
+    );
+    const migration = await readFile(
+      path.join(process.cwd(), 'migrations/027-ontahi-github-evidence-replica.sql'),
+      'utf8',
+    );
+    await pool.query(migration);
+    const store = createPostgresReplicatedCollectionStorage({ pool });
+    await expect(store.load(collectionId)).resolves.toEqual({
+      revision: '1',
+      snapshot: { frontier, records: [{ id: record.id, record }] },
+    });
+    const snapshot = { frontier: '2026-09-03T01:00:00.000Z', records: [] };
+    await store.accept({ collectionId, expectedRevision: '1', snapshot });
+    await pool.query(migration);
+    await expect(store.load(collectionId)).resolves.toEqual({ revision: '2', snapshot });
   }, postgresTestTimeout);
 
   it('atomically persists and hydrates a parsed-record materialization checkpoint', async () => {

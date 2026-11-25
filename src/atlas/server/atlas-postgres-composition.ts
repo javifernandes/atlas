@@ -5,7 +5,8 @@ import type { Pool } from 'pg';
 
 import type { AtlasReconciliationRequest } from '../domain/atlas-application';
 import { createAtlasPostgresApplication } from '../persistence/postgres-application';
-import { createAtlasPullRequestEvidenceReplicaStore } from '../persistence/pull-request-evidence-replica-store';
+import { createPostgresReplicatedCollectionStorage } from '@ontahi/postgres';
+import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
 import { loadAtlasProjectionInput } from './load-atlas-projection';
 import {
   createAtlasWorkspaceModelProviderResolver,
@@ -33,7 +34,8 @@ export const createAtlasPostgresComposition = (input: {
   repoRoot?: string;
 }) => {
   const repoRoot = input.repoRoot ?? getAtlasRepoRoot();
-  const pullRequestEvidenceReplicaStore = createAtlasPullRequestEvidenceReplicaStore(input.pool);
+  const pullRequestEvidenceReplicaStore =
+    createPostgresReplicatedCollectionStorage<AtlasObservedPullRequest, string | null>({ pool: input.pool });
 
   return createAtlasPostgresApplication({
     assistantProvider: createAtlasWorkspaceModelProviderResolver({
