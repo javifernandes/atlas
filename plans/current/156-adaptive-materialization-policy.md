@@ -255,7 +255,8 @@ from the last successful publication. A missing or incompatible baseline rebuild
 observed files. Publication still assembles the complete Workspace projection.
 
 Mounted Workspace clients independently observe the latest committed Projection Revision identity.
-The v0 transport polls a narrow Graph query and refreshes the server projection only on identity
-change. A later Ontahí subject subscription can use SSE (or WebSocket where bidirectionality is
-already required) without coupling client caches to filesystem events or changing the acceptance
-model.
+The v0 transport polls a narrow Graph query. Production compares its result with the rendered
+Projection Revision and keeps a reload action visible until the newer revision is rendered.
+Development refreshes automatically. A later Ontahí subject subscription can use SSE (or WebSocket
+where bidirectionality is already required) without coupling client caches to filesystem events or
+changing the acceptance model.

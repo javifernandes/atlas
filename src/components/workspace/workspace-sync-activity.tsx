@@ -50,6 +50,8 @@ const WorkspaceSyncRun = ({ initialRun }: { initialRun: AtlasWorkspaceSyncRun })
           { signal: controller.signal },
         )) {
           setRun(current => ({ ...current, ...snapshot }));
+          // Published revisions are announced by the persistent projection notice in production.
+          if (snapshot.status === 'completed' && process.env.NODE_ENV === 'production') return;
           if (
             snapshot.status === 'completed' ||
             snapshot.status === 'failed' ||

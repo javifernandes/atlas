@@ -5,6 +5,7 @@ import { withAtlasPostgresQueryContext } from '../persistence/postgres-observabi
 import { getAtlasServerApplication, resolveAtlasStorageMode } from './atlas-composition';
 
 export type AtlasPageData = {
+  workspaceProjectionRevisionId?: string | null;
   executionStreams: AtlasExecutionStreamProjection[];
   snapshot: PlanWorkstreamSnapshot;
 };
@@ -39,8 +40,11 @@ export const getAtlasPageData = async (
     },
     async () => {
       const atlas = await getAtlasServerApplication();
-      const [workspaceSnapshot, executionStreams] = await Promise.all([
-        workspaceId && 'getWorkspacePageProjectionSnapshot' in atlas
+      const hasWorkspaceRevision = Boolean(workspaceId && 'getWorkspacePageProjection' in atlas);
+      const [pageProjection, executionStreams] = await Promise.all([
+        workspaceId && 'getWorkspacePageProjection' in atlas
+          ? atlas.getWorkspacePageProjection(workspaceId)
+          : (workspaceId && 'getWorkspacePageProjectionSnapshot' in atlas
           ? atlas.getWorkspacePageProjectionSnapshot(workspaceId)
           : workspaceId && 'getWorkspaceProjectionSnapshot' in atlas
             ? atlas.getWorkspaceProjectionSnapshot(workspaceId).then(value =>
@@ -50,7 +54,7 @@ export const getAtlasPageData = async (
               ? atlas.getPageProjectionSnapshot()
               : atlas.getProjectionSnapshot().then(value =>
                   value ? createAtlasPageSnapshot(value) : null,
-                ),
+                )).then(snapshot => snapshot ? { id: null, snapshot } : null),
         userId
           ? selectedStreamId
             ? atlas.getExecutionStreams(userId, { selectedStreamId })
@@ -61,10 +65,13 @@ export const getAtlasPageData = async (
       const snapshot =
         workspaceId && resolveAtlasStorageMode() === 'memory' && 'getProjectionSnapshot' in atlas
           ? await atlas.getProjectionSnapshot()
-          : workspaceSnapshot;
+          : pageProjection?.snapshot;
 
-      return snapshot
+      const data = snapshot
         ? { executionStreams, snapshot }
         : { ...emptyPageData(), executionStreams };
+      return hasWorkspaceRevision
+        ? { ...data, workspaceProjectionRevisionId: pageProjection?.id ?? null }
+        : data;
     },
   );

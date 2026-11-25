@@ -222,9 +222,9 @@ export const atlasWorkspaceProjectionRevisionReadPolicy = {
   cardinalities: ['many'],
   maxLimit: 1,
   fields: {
-    id: { select: true },
+    id: { select: true, order: true },
     workspaceId: { select: true },
-    createdAt: { select: true, order: true },
+    startedAt: { select: true, order: true },
   },
   scope: projectionRevisionScope,
 } satisfies GraphReadPolicy<typeof AtlasWorkspaceProjectionRevision, AtlasRuntimeAuthority>;

@@ -122,18 +122,22 @@ describe('Atlas page data', () => {
       metrics: [],
       territories: [],
     };
-    const getWorkspacePageProjectionSnapshot = vi.fn().mockResolvedValue(pageSnapshot);
+    const getWorkspacePageProjection = vi.fn().mockResolvedValue({
+      id: 'revision-1',
+      snapshot: pageSnapshot,
+    });
     const getWorkspaceProjectionSnapshot = vi.fn();
     getApplication.mockResolvedValue({
       getExecutionStreams: vi.fn().mockResolvedValue([]),
-      getWorkspacePageProjectionSnapshot,
+      getWorkspacePageProjection,
       getWorkspaceProjectionSnapshot,
     } as never);
 
     await expect(getAtlasPageData('user-1', null, 'workspace-1')).resolves.toMatchObject({
       snapshot: pageSnapshot,
+      workspaceProjectionRevisionId: 'revision-1',
     });
-    expect(getWorkspacePageProjectionSnapshot).toHaveBeenCalledWith('workspace-1');
+    expect(getWorkspacePageProjection).toHaveBeenCalledWith('workspace-1');
     expect(getWorkspaceProjectionSnapshot).not.toHaveBeenCalled();
   });
 
