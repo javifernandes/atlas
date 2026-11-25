@@ -1,3 +1,5 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api';
+
 export type AtlasReconciliationStageMetrics = Record<
   string,
   boolean | number | string | null | undefined
@@ -88,18 +90,26 @@ export const createAtlasReconciliationStageObserver = (input: {
       }
     },
     measureSync: (stage, run, metrics) => {
-      const startedAt = performance.now();
-
-      try {
-        const value = run();
-        report(stage, 'completed', startedAt, metrics?.(value));
-        return value;
-      } catch (error) {
-        report(stage, 'failed', startedAt, {
-          errorName: error instanceof Error ? error.name : 'UnknownError',
-        });
-        throw error;
-      }
+      return trace.getTracer('atlas.reconciliation').startActiveSpan(stage, span => {
+        const startedAt = performance.now();
+        try {
+          const value = run();
+          const fields = metrics?.(value);
+          for (const [key, field] of Object.entries(fields ?? {})) {
+            if (field != null) span.setAttribute(`atlas.reconciliation.${key}`, field);
+          }
+          report(stage, 'completed', startedAt, fields);
+          return value;
+        } catch (error) {
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          report(stage, 'failed', startedAt, {
+            errorName: error instanceof Error ? error.name : 'UnknownError',
+          });
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
     },
     start: stage => {
       const startedAt = performance.now();

@@ -1181,18 +1181,15 @@ export const buildAtlasOntahiDatasetFromSource = (
   observedPullRequests: AtlasObservedPullRequest[] = [],
   loadedSourceRevisions?: AtlasLoadedSourceRevision[],
   observedReleases: AtlasObservedRelease[] = [],
+  measure: <T>(stage: string, run: () => T) => T = (_stage, run) => run(),
 ) => {
   const planByPath = new Map(plans.map(plan => [plan.path, plan]));
   const itemBySemanticId = new Map(items.map(item => [item.id, item]));
-  const resolvedEvidence = resolvePullRequestEvidence(
-    { items, plans },
-    observedPullRequests,
+  const resolvedEvidence = measure('resolve-pull-request-evidence', () =>
+    resolvePullRequestEvidence({ items, plans }, observedPullRequests),
   );
-  const releases = resolveReleaseEvidence(
-    { items, plans },
-    observedReleases,
-    observedPullRequests,
-    resolvedEvidence,
+  const releases = measure('resolve-release-evidence', () =>
+    resolveReleaseEvidence({ items, plans }, observedReleases, observedPullRequests, resolvedEvidence),
   );
   const sourceRevisions = loadedSourceRevisions ?? buildInMemorySourceRevisions(records);
   const sourceRevisionBySourceId = new Map(
@@ -1238,7 +1235,9 @@ export const buildAtlasOntahiDatasetFromSource = (
       sourceRecordId: sourceRecord.id,
     };
   };
-  const snapshot = buildPlanWorkstreamSnapshotFromParsedSource({ items, plans });
+  const snapshot = measure('build-projection-snapshot', () =>
+    buildPlanWorkstreamSnapshotFromParsedSource({ items, plans }, measure),
+  );
   const sourceRevisionSetHash = sha256(
     sourceRevisions
       .map(revision => revision.id)
@@ -1444,7 +1443,7 @@ export const buildAtlasOntahiDatasetFromSource = (
         ]
       : [];
   });
-  dataset.ProjectionRevision[0]!.snapshotJson = JSON.stringify({
+  dataset.ProjectionRevision[0]!.snapshotJson = measure('serialize-projection-snapshot', () => JSON.stringify({
     ...snapshot,
     edges: projectAtlasTopology({
       items: dataset.AtlasItem,
@@ -1456,7 +1455,7 @@ export const buildAtlasOntahiDatasetFromSource = (
     }),
     evidence,
     releases,
-  });
+  }));
 
   return dataset;
 };

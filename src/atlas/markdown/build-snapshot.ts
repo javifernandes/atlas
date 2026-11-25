@@ -801,25 +801,65 @@ const addInferredMentions = (
     .map(([, matches]) => matches[0]!)
     .sort((left, right) => right.shortTitle.length - left.shortTitle.length);
 
+  const targetsByPrefix = new Map<string, Array<{ id: string; pattern: RegExp }>>();
+  const unindexedTargets: Array<{ id: string; pattern: RegExp }> = [];
+
+  for (const target of vocabulary) {
+    const prefix = /^[A-Za-z]{3}/.exec(target.shortTitle)?.[0].toLowerCase();
+    const pattern = escapeRegularExpression(target.shortTitle);
+    if (prefix === undefined) {
+      unindexedTargets.push({
+        id: target.id,
+        pattern: new RegExp(`(^|[^\\p{L}\\p{N}])(${pattern})(?=$|[^\\p{L}\\p{N}])`, 'iu'),
+      });
+      continue;
+    }
+
+    const candidate = {
+      id: target.id,
+      pattern: new RegExp(`${pattern}(?=$|[^\\p{L}\\p{N}])`, 'iuy'),
+    };
+    const bucket = targetsByPrefix.get(prefix);
+    if (bucket) bucket.push(candidate);
+    else targetsByPrefix.set(prefix, [candidate]);
+  }
+
   const enrich = (source: PlanWorkstreamNode): PlanWorkstreamNode => {
     if (!source.markdown) return source;
 
     const mentionText = getMentionText(source.markdown);
+    const firstMatches = new Map<string, { start: number; text: string }>();
+
+    for (const boundary of mentionText.matchAll(/(^|[^\p{L}\p{N}])(?=([a-z]{3}))/giu)) {
+      const start = boundary.index + boundary[0].length;
+      // Unicode regex case folding also matches Kelvin sign and long s to ASCII letters.
+      const prefix = boundary[2]!.toLowerCase().replaceAll('ſ', 's');
+      for (const { id, pattern } of targetsByPrefix.get(prefix) ?? []) {
+        if (id === source.id || firstMatches.has(id)) continue;
+        pattern.lastIndex = start;
+        const match = pattern.exec(mentionText);
+        if (match) firstMatches.set(id, { start, text: match[0] });
+      }
+    }
+
+    for (const { id, pattern } of unindexedTargets) {
+      if (id === source.id) continue;
+      const match = pattern.exec(mentionText);
+      if (match?.[2]) {
+        firstMatches.set(id, { start: match.index + (match[1]?.length ?? 0), text: match[2] });
+      }
+    }
+
     const claimedRanges: Array<{ end: number; start: number }> = [];
     const inferredMentions: NonNullable<PlanWorkstreamNode['inferredMentions']> = [];
 
     for (const target of vocabulary) {
-      if (target.id === source.id) continue;
+      const match = firstMatches.get(target.id);
+      if (!match) continue;
+      const { start, text } = match;
+      const end = start + text.length;
 
-      const pattern = new RegExp(
-        `(^|[^\\p{L}\\p{N}])(${escapeRegularExpression(target.shortTitle)})(?=$|[^\\p{L}\\p{N}])`,
-        'iu',
-      );
-      const match = pattern.exec(mentionText);
-      const start = match ? match.index + (match[1]?.length ?? 0) : -1;
-      const end = start + (match?.[2]?.length ?? 0);
-
-      if (!match?.[2] || claimedRanges.some(range => start < range.end && end > range.start)) {
+      if (claimedRanges.some(range => start < range.end && end > range.start)) {
         continue;
       }
 
@@ -827,7 +867,7 @@ const addInferredMentions = (
       inferredMentions.push({
         confidence: 1,
         inference: 'exact-title',
-        matchedText: match[2],
+        matchedText: text,
         targetNodeId: target.id,
       });
     }
@@ -970,10 +1010,10 @@ const hasDescendantRelatedPlan = (
 
 const getPlanReferences = (plan: ParsedPlan) => [plan.path];
 
-export const buildPlanWorkstreamSnapshotFromParsedSource = ({
-  plans,
-  items: rawAtlasItems,
-}: ParsedAtlasSource): PlanWorkstreamSnapshot => {
+export const buildPlanWorkstreamSnapshotFromParsedSource = (
+  { plans, items: rawAtlasItems }: ParsedAtlasSource,
+  measure: <T>(stage: string, run: () => T) => T = (_stage, run) => run(),
+): PlanWorkstreamSnapshot => {
   const planByPath = new Map(
     plans.flatMap(plan => getPlanReferences(plan).map(reference => [reference, plan] as const)),
   );
@@ -1292,7 +1332,7 @@ export const buildPlanWorkstreamSnapshotFromParsedSource = ({
   });
 
   const documents = plans.map(toPlanNode);
-  const enriched = addInferredMentions(nodesWithStats, documents);
+  const enriched = measure('infer-mentions', () => addInferredMentions(nodesWithStats, documents));
 
   return {
     generatedAt: new Date().toISOString(),
