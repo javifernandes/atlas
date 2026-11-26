@@ -226,6 +226,9 @@ Completes the work.`),
         reusedPullRequestCount: 1,
       });
       expect(observation.pullRequests).toHaveLength(1);
+      expect(observation.acceptedCollections).toEqual([
+        { sourceId: 'atlas', snapshot: (await replicaStore.load(collectionId))?.snapshot },
+      ]);
       expect(await replicaStore.load(collectionId)).toMatchObject({
         snapshot: { frontier: '2026-09-02T10:00:00.000Z' },
       });
@@ -236,6 +239,7 @@ Completes the work.`),
         repoRoot,
       });
       expect(failing.failures).toHaveLength(1);
+      expect(failing.acceptedCollections).toEqual([]);
       expect((await replicaStore.load(collectionId))?.snapshot.records).toHaveLength(1);
 
       const removed = await loadAtlasPullRequestEvidenceObservation({
@@ -246,7 +250,9 @@ Completes the work.`),
         repoRoot,
       });
       expect(removed).toMatchObject({ failures: [], changedPullRequestCount: 1, pullRequests: [] });
-      expect((await replicaStore.load(collectionId))?.snapshot.records).toEqual([]);
+      expect(removed.acceptedCollections).toEqual([
+        { sourceId: 'atlas', snapshot: { frontier: '2026-09-03T10:00:00.000Z', records: [] } },
+      ]);
 
       const noChange = await loadAtlasPullRequestEvidenceObservation({
         fetcher: vi.fn(async () => Response.json([])) as typeof fetch,

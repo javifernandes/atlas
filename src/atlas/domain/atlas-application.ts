@@ -3,7 +3,9 @@ import path from 'node:path';
 
 import {
   createInMemoryDataGraphStorage,
+  createReplicatedVersionedMaterializerRunner,
   type DataGraphDefaultStorage,
+  type ReplicatedVersionedModelSnapshot,
   field,
   graphSchema,
   query,
@@ -29,7 +31,10 @@ import {
   type ParsedPlan,
   type ParsedAtlasSource,
 } from '../markdown/build-snapshot';
-import type { AtlasObservedPullRequest } from '../github/pull-request-evidence';
+import type {
+  AtlasAcceptedPullRequestEvidence,
+  AtlasObservedPullRequest,
+} from '../github/pull-request-evidence';
 import type { AtlasObservedRelease } from '../github/release-evidence';
 import type { PlanWorkstreamSnapshot } from '../model/snapshot';
 import { retrieveRelevantPlanDocuments } from '../model/plan-assistant';
@@ -1039,6 +1044,168 @@ const resolvePullRequestEvidence = (
   };
 };
 
+type ResolvedPullRequestEvidence = ReturnType<typeof resolvePullRequestEvidence>;
+
+export const ATLAS_PULL_REQUEST_EVIDENCE_MATERIALIZER_ID = 'atlas:pull-request-evidence';
+const pullRequestEvidenceMaterializerVersion = '1';
+
+export type AtlasPullRequestEvidenceCheckpoint = ReplicatedVersionedModelSnapshot<{
+  bindings: ResolvedPullRequestEvidence['bindings'];
+  signatures: [string, string][];
+  targets: string;
+  uniquePullRequests: boolean;
+}>;
+
+export const createAtlasPullRequestEvidenceMaterializer = (
+  initial?: AtlasPullRequestEvidenceCheckpoint,
+) => {
+  let checkpoint =
+    initial?.acceptance.derivationId === ATLAS_PULL_REQUEST_EVIDENCE_MATERIALIZER_ID &&
+    initial.acceptance.materializerVersion === pullRequestEvidenceMaterializerVersion
+      ? initial
+      : undefined;
+
+  return async (
+    source: ParsedAtlasSource,
+    pullRequests: AtlasObservedPullRequest[],
+    acceptedCollections: readonly AtlasAcceptedPullRequestEvidence[],
+  ) => {
+    const targets = createHash('sha256')
+      .update(JSON.stringify({
+        items: source.items.map(({ id, path, nodeId }) => [id, path, nodeId]),
+        plans: source.plans.map(({ id, path, sourceId, key }) => [id, path, sourceId, key]),
+      }))
+      .digest('hex');
+    // GitHub can revise a record at the inclusive timestamp boundary.
+    const frontier = createHash('sha256')
+      .update(
+        JSON.stringify({
+          collections: acceptedCollections.map(({ sourceId, snapshot }) => [
+            sourceId,
+            snapshot.frontier,
+          ]),
+          targets,
+          pullRequests,
+        }),
+      )
+      .digest('hex');
+    const previous = checkpoint;
+
+    if (previous?.acceptance.sourceFrontier === frontier) {
+      const linkedIds = new Set(previous.state.bindings.map(binding => binding.pullRequestId));
+      return {
+        evidence: {
+          bindings: previous.state.bindings,
+          pullRequests: pullRequests.filter(({ id }) => linkedIds.has(id)),
+        },
+        checkpoint: previous,
+        mode: 'reused' as const,
+        derivedPullRequestCount: 0,
+      };
+    }
+
+    const signatures = new Map(
+      pullRequests.map(({ id, sourceId, directives }) => [id, JSON.stringify([sourceId, directives])]),
+    );
+    const uniquePullRequests = signatures.size === pullRequests.length;
+    const incremental =
+      previous?.state.targets === targets && previous.state.uniquePullRequests && uniquePullRequests
+        ? previous
+        : undefined;
+    const previousSignatures = new Map(incremental?.state.signatures);
+    const changedPullRequests = incremental
+      ? pullRequests.filter(({ id }) => previousSignatures.get(id) !== signatures.get(id))
+      : pullRequests;
+
+    const runner = createReplicatedVersionedMaterializerRunner<
+      { source: ParsedAtlasSource; pullRequests: AtlasObservedPullRequest[] },
+      string[],
+      ResolvedPullRequestEvidence
+    >(
+      {
+        id: ATLAS_PULL_REQUEST_EVIDENCE_MATERIALIZER_ID,
+        version: pullRequestEvidenceMaterializerVersion,
+        affectedBy: outputs => ({ status: 'known', outputs }),
+        derive: async (input, context) => {
+          const affected = new Set(context.affectedOutputs ?? []);
+          const state = resolvePullRequestEvidence(
+            input.source,
+            context.mode === 'incremental'
+              ? input.pullRequests.filter(({ id }) => affected.has(id))
+              : input.pullRequests,
+          );
+          if (context.mode === 'incremental') {
+            const unchangedBindings = (context.previous?.state.bindings ?? []).filter(
+              binding => !affected.has(binding.pullRequestId),
+            );
+            const bindingsByPullRequest = Map.groupBy(
+              [...unchangedBindings, ...state.bindings],
+              binding => binding.pullRequestId,
+            );
+            state.bindings = input.pullRequests.flatMap(
+              ({ id }) => bindingsByPullRequest.get(id) ?? [],
+            );
+            state.pullRequests = input.pullRequests.filter(({ id }) => bindingsByPullRequest.has(id));
+          }
+          return {
+            acceptedFrontier: context.sourceFrontier,
+            state,
+            artifacts: [],
+            changes: [],
+            dependencies: [],
+            diagnostics: [],
+          };
+        },
+      },
+      incremental
+        ? {
+            initial: {
+              snapshot: {
+                acceptance: incremental.acceptance,
+                state: { bindings: incremental.state.bindings, pullRequests: [] },
+              },
+              dependencies: [],
+            },
+          }
+        : {},
+    );
+    const input = { source, pullRequests };
+    const { result } = await runner.run(
+      incremental
+        ? {
+            mode: 'incremental',
+            input,
+            delta: [
+              ...changedPullRequests.map(({ id }) => id),
+              ...[...previousSignatures.keys()].filter(id => !signatures.has(id)),
+            ],
+            baseSourceFrontier: incremental.acceptance.sourceFrontier,
+            sourceFrontier: frontier,
+          }
+        : { mode: 'rebuild', input, sourceFrontier: frontier },
+    );
+    if (result.status !== 'accepted') {
+      throw new Error(`Atlas pull request evidence materialization failed: ${result.reason}.`);
+    }
+
+    checkpoint = {
+      acceptance: result.snapshot.acceptance,
+      state: {
+        bindings: result.snapshot.state.bindings,
+        signatures: [...signatures],
+        targets,
+        uniquePullRequests,
+      },
+    };
+    return {
+      evidence: result.snapshot.state,
+      checkpoint,
+      mode: incremental ? 'incremental' as const : 'rebuilt' as const,
+      derivedPullRequestCount: changedPullRequests.length,
+    };
+  };
+};
+
 const resolveReleaseEvidence = (
   source: ParsedAtlasSource,
   observedReleases: AtlasObservedRelease[],
@@ -1182,12 +1349,15 @@ export const buildAtlasOntahiDatasetFromSource = (
   loadedSourceRevisions?: AtlasLoadedSourceRevision[],
   observedReleases: AtlasObservedRelease[] = [],
   measure: <T>(stage: string, run: () => T) => T = (_stage, run) => run(),
+  materializedEvidence?: ResolvedPullRequestEvidence,
 ) => {
   const planByPath = new Map(plans.map(plan => [plan.path, plan]));
   const itemBySemanticId = new Map(items.map(item => [item.id, item]));
-  const resolvedEvidence = measure('resolve-pull-request-evidence', () =>
-    resolvePullRequestEvidence({ items, plans }, observedPullRequests),
-  );
+  const resolvedEvidence =
+    materializedEvidence ??
+    measure('resolve-pull-request-evidence', () =>
+      resolvePullRequestEvidence({ items, plans }, observedPullRequests),
+    );
   const releases = measure('resolve-release-evidence', () =>
     resolveReleaseEvidence({ items, plans }, observedReleases, observedPullRequests, resolvedEvidence),
   );

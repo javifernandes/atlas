@@ -85,7 +85,10 @@ records.
 
 Atlas accepts the GitHub evidence replica through Ontahí's replicated collection runner, using
 the same PostgreSQL pool as its Entity storage. The runner's accepted snapshot contains the source
-frontier and normalized records, and Atlas derives Evidence Bindings from that snapshot.
+frontier and normalized records. The canonical reconciliation materializes explicit PR Evidence
+Bindings from the accepted collections, any webhook observation, and the current plan and item
+identities. Its materialization checkpoint stores bindings and input identity separately from the
+replica, so a new application instance can continue incremental derivation.
 
 The provider-neutral runtime for such a replica should use the application's active Ontahi Entity
 storage by default for accepted frontiers and records. This keeps replication inside the same

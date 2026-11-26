@@ -23,11 +23,13 @@ import type { AtlasReconciliationStageObserver } from '../persistence/reconcilia
 type LoadedAtlasProjectionInput = Awaited<ReturnType<typeof loadAtlasProjectionInput>>;
 export type AtlasProjectionInput = Omit<
   LoadedAtlasProjectionInput,
+  | 'acceptedPullRequestEvidence'
   | 'incrementalBaselineProjectionRevisionId'
   | 'observedReleases'
   | 'releaseFailures'
   | 'sourceChangeSet'
 > & {
+  acceptedPullRequestEvidence?: LoadedAtlasProjectionInput['acceptedPullRequestEvidence'];
   incrementalBaselineProjectionRevisionId?: string | null;
   observedReleases?: LoadedAtlasProjectionInput['observedReleases'];
   releaseFailures?: LoadedAtlasProjectionInput['releaseFailures'];
@@ -233,6 +235,7 @@ export const loadAtlasProjectionInput = async (input: {
       };
 
   return {
+    acceptedPullRequestEvidence: evidenceObservation.acceptedCollections,
     evidenceFailures: evidenceObservation.failures,
     evidenceSourceIds: evidenceObservation.successfulSources.map(source => source.sourceId),
     incrementalBaselineProjectionRevisionId: useIncrementalSourceObservation
