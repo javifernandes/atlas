@@ -1576,6 +1576,8 @@ export const createAtlasPostgresApplication = (input: {
         const publicationTimings: Record<string, number> = {};
         let wouldSkipPublication: boolean | null = null;
         let publicationSkipped = false;
+        let sourceRecordsWritten: number | undefined;
+        let sourceRecordsReused: number | undefined;
         let publicationStageStartedAt = publicationStartedAt;
         const markPublicationStage = (field: string) => {
           const now = performance.now();
@@ -1784,12 +1786,49 @@ export const createAtlasPostgresApplication = (input: {
                   strategy: 'merge',
                 }).run();
               }
-              if (dataset.AtlasSourceRecord.length > 0) {
-                yield* entities.AtlasSourceRecord.upsertMany(dataset.AtlasSourceRecord, {
+              markPublicationStage('writeSourceRevisionsMs');
+              const currentSourceRecords =
+                latestRevision && request.trigger !== 'rebuild'
+                  ? yield* entities.AtlasSourceRecord.all()
+                      .select(record => ({
+                        id: record.id,
+                        canonicalPath: record.canonicalPath,
+                        sourceId: record.sourceId,
+                        sourceRevisionId: record.sourceRevisionId,
+                        sourcePath: record.sourcePath,
+                        sourceFilePath: record.sourceFilePath,
+                        recordKind: record.recordKind,
+                        contentHash: record.contentHash,
+                      }))
+                      .run()
+                  : null;
+              const currentRecordsById = new Map(
+                currentSourceRecords?.map(record => [record.id, record]),
+              );
+              const recordsToWrite = currentSourceRecords
+                ? dataset.AtlasSourceRecord.filter(record => {
+                    const current = currentRecordsById.get(record.id);
+                    return (
+                      current?.contentHash !== record.contentHash ||
+                      current.canonicalPath !== record.canonicalPath ||
+                      current.sourceId !== record.sourceId ||
+                      current.sourceRevisionId !== record.sourceRevisionId ||
+                      current.sourcePath !== record.sourcePath ||
+                      current.sourceFilePath !== record.sourceFilePath ||
+                      current.recordKind !== record.recordKind
+                    );
+                  })
+                : dataset.AtlasSourceRecord;
+              sourceRecordsWritten = recordsToWrite.length;
+              sourceRecordsReused = dataset.AtlasSourceRecord.length - recordsToWrite.length;
+              markPublicationStage('compareSourceRecordsMs');
+              if (recordsToWrite.length > 0) {
+                yield* entities.AtlasSourceRecord.upsertMany(recordsToWrite, {
                   conflictOn: ['id'],
                   strategy: 'merge',
                 }).run();
               }
+              markPublicationStage('writeSourceRecordsMs');
               if (dataset.AtlasItem.length > 0) {
                 yield* entities.AtlasItem.upsertMany(dataset.AtlasItem, {
                   conflictOn: ['id'],
@@ -1820,7 +1859,16 @@ export const createAtlasPostgresApplication = (input: {
                   .delete()
                   .run();
               }
-              if (currentSourceRecordIds.size === 0) {
+              if (currentSourceRecords) {
+                const removedIds = currentSourceRecords
+                  .filter(record => !currentSourceRecordIds.has(record.id))
+                  .map(record => record.id);
+                if (removedIds.length > 0) {
+                  yield* entities.AtlasSourceRecord.where(record => record.id.in(removedIds))
+                    .delete()
+                    .run();
+                }
+              } else if (currentSourceRecordIds.size === 0) {
                 yield* entities.AtlasSourceRecord.all().delete().run();
               } else {
                 yield* entities.AtlasSourceRecord.where(record =>
@@ -2014,6 +2062,8 @@ export const createAtlasPostgresApplication = (input: {
                 ...publicationTimings,
                 wouldSkipPublication,
                 publicationSkipped,
+                sourceRecordsWritten,
+                sourceRecordsReused,
                 published: result.projectionRevisionId === projectionRevisionId,
                 evidenceBindingCount: result.evidenceBindingCount,
                 itemCount: result.itemCount,

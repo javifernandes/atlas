@@ -1759,6 +1759,8 @@ Atlas-Session: ${explicitStreamId}`,
     };
     let includeProduct = true;
     let revision = 5;
+    let sourceVersion = 5;
+    let editPlan = false;
     const queryObservations: AtlasPostgresQueryObservation[] = [];
     const inventoryAtlas = createAtlasPostgresApplication({
       pool,
@@ -1771,24 +1773,28 @@ Atlas-Session: ${explicitStreamId}`,
           evidenceSourceIds: ['atlas'],
           observedAt,
           observedPullRequests: [observedPullRequest],
-          records: [...sourceFiles, ...(includeProduct ? [productFile] : [])].map(
-            normalizeAtlasSourceRecord,
+          records: [...sourceFiles, ...(includeProduct ? [productFile] : [])].map(file =>
+            normalizeAtlasSourceRecord(
+              editPlan && file.path === 'plans/current/116-persistence.md'
+                ? { ...file, content: file.content + '\nSelective publication fixture.\n' }
+                : file,
+            ),
           ),
           sourceRevisions: [
             {
               ...sourceRevisions[0]!,
-              id: `atlas:markdown:inventory-${revision}`,
-              revision: `inventory-${revision}`,
+              id: `atlas:markdown:inventory-${sourceVersion}`,
+              revision: `inventory-${sourceVersion}`,
               observedAt,
             },
             ...(includeProduct
               ? [
                   {
-                    id: `product:markdown:inventory-${revision}`,
+                    id: `product:markdown:inventory-${sourceVersion}`,
                     sourceId: 'product',
                     repository: 'acme/product',
                     authority: 'markdown' as const,
-                    revision: `inventory-${revision}`,
+                    revision: `inventory-${sourceVersion}`,
                     revisionKind: 'git' as const,
                     observedAt,
                   },
@@ -1813,7 +1819,15 @@ Atlas-Session: ${explicitStreamId}`,
       ],
     });
 
+    const loadSourceRecords = async () =>
+      (await pool.query<{ id: string; row_version: string; content: string; source_revision_id: string }>(
+        `SELECT *, xmin::text AS row_version FROM atlas_source_records ORDER BY id`,
+      )).rows;
+    const before = await loadSourceRecords();
+    expect(before.some(record => record.id.includes('200-product.md'))).toBe(true);
+
     includeProduct = false;
+    editPlan = true;
     queryObservations.length = 0;
     await inventoryAtlas.reconcile({ trigger: 'manual' });
     expect(
@@ -1822,7 +1836,17 @@ Atlas-Session: ${explicitStreamId}`,
           observation.statement === 'select' &&
           observation.table === 'atlas_source_records',
       ),
-    ).toEqual([]);
+    ).toEqual([expect.objectContaining({ rowCount: before.length })]);
+    const incrementalRecords = await loadSourceRecords();
+    for (const record of incrementalRecords) {
+      const previous = before.find(candidate => candidate.id === record.id);
+      if (record.id.includes('116-persistence.md')) {
+        expect(record.content).toContain('Selective publication fixture.');
+        expect(record.row_version).not.toBe(previous?.row_version);
+      } else {
+        expect(record).toEqual(previous);
+      }
+    }
     expect(queryObservations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1841,6 +1865,26 @@ Atlas-Session: ${explicitStreamId}`,
         "SELECT count(*)::int AS count FROM atlas_source_records WHERE source_id = 'product'",
       ),
     ).resolves.toMatchObject({ rows: [{ count: 0 }] });
+
+    const projectionContent = async () => (await pool.query(
+      `SELECT snapshot_json::jsonb - 'generatedAt' AS snapshot
+         FROM projection_revisions ORDER BY started_at DESC LIMIT 1`,
+    )).rows[0];
+    const incrementalSnapshot = await projectionContent();
+    const contentRows = (rows: Awaited<ReturnType<typeof loadSourceRecords>>) =>
+      rows.map(({ row_version: _version, ...record }) => record);
+    await inventoryAtlas.reconcile({ trigger: 'rebuild' });
+    expect(contentRows(await loadSourceRecords())).toEqual(contentRows(incrementalRecords));
+    expect(await projectionContent()).toEqual(incrementalSnapshot);
+
+    sourceVersion += 1;
+    await inventoryAtlas.reconcile({ trigger: 'manual' });
+    const newProvenance = await loadSourceRecords();
+    expect(newProvenance.map(record => record.content)).toEqual(
+      incrementalRecords.map(record => record.content),
+    );
+    expect(newProvenance.every(record => record.source_revision_id === 'atlas:markdown:inventory-6'))
+      .toBe(true);
   }, postgresTestTimeout);
 
   it('reuses the full snapshot while unchanged and invalidates it after reconciliation', async () => {

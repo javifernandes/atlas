@@ -265,3 +265,8 @@ Canonical PostgreSQL reconciliation compares the publishable graph and snapshot 
 publication lock. Identical content reuses the current Projection Revision and advances the
 observation watermark while still recording webhook deliveries and merge activity. An explicit
 rebuild or an incomplete observation retains the full publication path.
+
+For changed projections, Atlas compares Source Record metadata and content hashes inside the
+publication transaction. It upserts new or changed rows and deletes missing identities after
+updating their dependents. Rebuild remains the full-write reference path. A new source revision
+still rewrites rows whose persisted provenance changed, even when their Markdown bytes match.
