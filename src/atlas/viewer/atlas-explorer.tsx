@@ -39,6 +39,7 @@ import {
 
 import { AtlasMark } from '@/components/atlas-mark';
 import { AtlasLoadingMark } from '@/components/atlas-loading-mark';
+import { AuthControl } from '@/components/auth/auth-control';
 import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { ScrollableOverflow } from '@/components/scrollable-overflow';
 import type { AtlasExecutionStreamProjection } from '@/atlas/model/execution-stream';
@@ -286,6 +287,7 @@ type AtlasRouteState = {
 type NodeContentState =
   | { status: 'loading' }
   | { status: 'loaded'; markdown: string }
+  | { status: 'session-expired' }
   | { status: 'error' };
 
 const rootNodeId = 'root:planning';
@@ -5320,7 +5322,13 @@ const DetailContentLoading = ({ node }: { node: PlanWorkstreamNode }) => (
   </div>
 );
 
-const DetailContentError = ({ node }: { node: PlanWorkstreamNode }) => (
+const DetailContentError = ({
+  node,
+  sessionExpired,
+}: {
+  node: PlanWorkstreamNode;
+  sessionExpired: boolean;
+}) => (
   <div
     role='alert'
     aria-label={`Could not load ${node.shortTitle}`}
@@ -5331,9 +5339,13 @@ const DetailContentError = ({ node }: { node: PlanWorkstreamNode }) => (
         <Info aria-hidden='true' className='size-4' />
       </span>
       <div className='grid gap-1.5'>
-        <span className='text-sm font-medium text-foreground/85'>Source content is unavailable</span>
+        <span className='text-sm font-medium text-foreground/85'>
+          {sessionExpired ? 'Your session has expired' : 'Source content is unavailable'}
+        </span>
         <span className='text-xs leading-5 text-muted-foreground'>
-          Atlas couldn’t read this item’s source right now.
+          {sessionExpired
+            ? 'Sign in again to reopen this item.'
+            : 'Atlas couldn’t read this item’s source right now.'}
         </span>
         <PlanTitle
           className='mt-1 justify-center text-xs text-muted-foreground/75'
@@ -5341,6 +5353,9 @@ const DetailContentError = ({ node }: { node: PlanWorkstreamNode }) => (
           titleClassName='line-clamp-1'
         />
       </div>
+      {sessionExpired ? (
+        <AuthControl authAvailable callbackURL={globalThis.location.href} viewer={null} />
+      ) : null}
     </div>
   </div>
 );
@@ -5796,8 +5811,8 @@ const FullDetailSurface = ({
           >
           {activeTab === 'overview' ? contentStatus === 'loading' ? (
             <DetailContentLoading node={node} />
-          ) : contentStatus === 'error' ? (
-            <DetailContentError node={node} />
+          ) : contentStatus === 'error' || contentStatus === 'session-expired' ? (
+            <DetailContentError node={node} sessionExpired={contentStatus === 'session-expired'} />
           ) : (
             <div
               className={cn(
@@ -6722,17 +6737,19 @@ export const PlanWorkstreamExplorer = ({
     void fetch(`/api/node-content?${contentSearchParams.toString()}`, {
       signal: controller.signal,
     })
-      .then(async response => {
+      .then(async (response): Promise<NodeContentState> => {
+        if (response.status === 401) return { status: 'session-expired' };
         if (!response.ok) {
           throw new Error(`Atlas node content request failed with ${response.status}.`);
         }
 
-        return (await response.json()) as { markdown: string };
+        const { markdown } = (await response.json()) as { markdown: string };
+        return { status: 'loaded', markdown };
       })
-      .then(({ markdown }) => {
+      .then(content => {
         setNodeContentById(current => {
           const next = new Map(current);
-          next.set(fullNodeId, { status: 'loaded', markdown });
+          next.set(fullNodeId, content);
           return next;
         });
       })
