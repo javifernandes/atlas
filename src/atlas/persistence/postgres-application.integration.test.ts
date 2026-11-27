@@ -597,11 +597,13 @@ Durable Atlas projection.
     });
 
     const checkpointUse = await pool.query(
-      `SELECT diagnostics_json::jsonb -> 'pullRequestEvidenceMaterialization' AS evidence
-       FROM projection_revisions ORDER BY started_at DESC LIMIT 1`,
+      `SELECT diagnostics_json::jsonb -> 'pullRequestEvidenceMaterialization' AS evidence,
+              diagnostics_json::jsonb -> 'wouldSkipPublication' AS "wouldSkipPublication"
+       FROM projection_revisions ORDER BY started_at DESC LIMIT 2`,
     );
     expect(checkpointUse.rows).toEqual([
-      { evidence: { mode: 'reused', derivedPullRequestCount: 0 } },
+      { evidence: { mode: 'reused', derivedPullRequestCount: 0 }, wouldSkipPublication: true },
+      { evidence: { mode: 'rebuilt', derivedPullRequestCount: 1 }, wouldSkipPublication: null },
     ]);
 
     const counts = await pool.query(`
