@@ -959,6 +959,26 @@ const selection: Selection = Selection.references(Book, refs);
     fetchMock.mockRestore();
   });
 
+  it('offers to sign in again when the source request returns 401', async () => {
+    globalThis.history.replaceState({}, '', '/w/atlas?view=board&full=item-b');
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 401 }));
+    const value: PlanWorkstreamSnapshot = {
+      ...snapshot,
+      nodes: snapshot.nodes.map(node =>
+        node.id === 'item-b' ? { ...node, markdown: undefined } : node,
+      ),
+    };
+
+    renderExplorer({ value, workspaceSlug: 'atlas' });
+
+    const alert = await screen.findByRole('alert', { name: 'Could not load Item B' });
+    expect(within(alert).getByText('Your session has expired')).toBeInTheDocument();
+    expect(within(alert).getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    fetchMock.mockRestore();
+  });
+
   it('renders federated Plan IDs as badges inside Markdown links', () => {
     globalThis.history.replaceState({}, '', '/internal/plans?full=item-a');
     const relatedPlan = {
