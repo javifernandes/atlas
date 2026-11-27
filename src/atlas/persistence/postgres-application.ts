@@ -753,10 +753,11 @@ export const createAtlasPostgresApplication = (input: {
         source_revision_id: string;
         source_revision_set_hash: string;
         started_at: string;
+        latest_observed_at: string;
       }>(
         `
           WITH latest AS (
-            SELECT id, snapshot_json, source_revision_set_hash, started_at
+            SELECT id, snapshot_json, source_revision_set_hash, started_at, diagnostics_json
             FROM projection_revisions
             ORDER BY started_at DESC
             LIMIT 1
@@ -765,6 +766,8 @@ export const createAtlasPostgresApplication = (input: {
             latest.id AS projection_revision_id,
             latest.snapshot_json,
             latest.started_at,
+            COALESCE(latest.diagnostics_json::jsonb ->> 'latestIdenticalObservationAt',
+                     latest.started_at::text) AS latest_observed_at,
             source_revision.source_id,
             source_revision.id AS source_revision_id,
             latest.source_revision_set_hash
@@ -998,7 +1001,7 @@ export const createAtlasPostgresApplication = (input: {
           const projectionRevisionId = `projection:${randomUUID()}`;
           const completedAt = new Date().toISOString();
           const startedAt = new Date(
-            Date.parse(context.matchedProjection.started_at) + 1,
+            Date.parse(context.matchedProjection.latest_observed_at) + 1,
           ).toISOString();
 
           yield* entities.ProjectionRevision.insert({
@@ -1470,6 +1473,7 @@ export const createAtlasPostgresApplication = (input: {
                   return {
                     expectedMaterializationSourceFrontier:
                       checkpoint?.snapshot.acceptance.sourceFrontier ?? null,
+                    previousMaterializerVersion: checkpoint?.snapshot.acceptance.materializerVersion,
                     expectedEvidenceFrontier:
                       evidenceCheckpoint?.snapshot.acceptance.sourceFrontier ?? null,
                     materialization,
@@ -1481,6 +1485,7 @@ export const createAtlasPostgresApplication = (input: {
               ),
               Effect.flatMap(({
                 expectedMaterializationSourceFrontier,
+                previousMaterializerVersion,
                 expectedEvidenceFrontier,
                 materialization,
                 observedPullRequests,
@@ -1570,6 +1575,9 @@ export const createAtlasPostgresApplication = (input: {
         const publicationStartedAt = performance.now();
         const publicationTimings: Record<string, number> = {};
         let wouldSkipPublication: boolean | null = null;
+        let publicationSkipped = false;
+        let sourceRecordsWritten: number | undefined;
+        let sourceRecordsReused: number | undefined;
         let publicationStageStartedAt = publicationStartedAt;
         const markPublicationStage = (field: string) => {
           const now = performance.now();
@@ -1637,6 +1645,11 @@ export const createAtlasPostgresApplication = (input: {
               .limit(1)
               .run();
             const latestRevision = latestRevisions[0];
+            const latestDiagnostics = latestRevision
+              ? JSON.parse(latestRevision.diagnosticsJson) ?? {}
+              : {};
+            const latestObservedAt =
+              latestDiagnostics.latestIdenticalObservationAt ?? latestRevision?.startedAt;
             if (
               projection.incrementalBaselineProjectionRevisionId &&
               latestRevision?.id !== projection.incrementalBaselineProjectionRevisionId
@@ -1647,7 +1660,7 @@ export const createAtlasPostgresApplication = (input: {
                 ),
               );
             }
-            if (latestRevision && Date.parse(latestRevision.startedAt) > Date.parse(startedAt)) {
+            if (latestRevision && Date.parse(latestObservedAt) > Date.parse(startedAt)) {
               if (webhook?.deliveryId && processingToken) {
                 yield* entities.WebhookDelivery.where(candidate =>
                   candidate.id.eq(webhook.deliveryId!),
@@ -1688,122 +1701,6 @@ export const createAtlasPostgresApplication = (input: {
             });
 
             markPublicationStage('admissionAndEvidenceRetentionMs');
-            for (const sourceId of projection.evidenceSourceIds) {
-              yield* entities.EvidenceBinding.where(binding => binding.sourceId.eq(sourceId))
-                .delete()
-                .run();
-            }
-            markPublicationStage('clearEvidenceBindingsMs');
-            yield* entities.AtlasShapingBinding.all().delete().run();
-            yield* entities.AtlasSupportBinding.all().delete().run();
-            yield* entities.AtlasTypeBinding.all().delete().run();
-            yield* entities.AtlasPlanRelationBinding.all().delete().run();
-
-            if (dataset.AtlasSourceRevision.length > 0) {
-              yield* entities.AtlasSourceRevision.upsertMany(dataset.AtlasSourceRevision, {
-                conflictOn: ['id'],
-                strategy: 'merge',
-              }).run();
-            }
-            if (projection.sourceChangeSet) {
-              const changeSet = projection.sourceChangeSet;
-              const sourceId = String(changeSet.source.locator.id);
-              yield* entities.AtlasSourceChangeSet.upsert(
-                {
-                  id: changeSet.id,
-                  sourceId,
-                  baseSourceRevisionId: `${sourceId}:markdown:${changeSet.baseRevision.revisionKey}`,
-                  targetSourceRevisionId: `${sourceId}:markdown:${changeSet.targetRevision.revisionKey}`,
-                  operationCount: changeSet.operations.length,
-                  operationsJson: JSON.stringify(changeSet.operations),
-                  provenanceJson: JSON.stringify(changeSet.provenance),
-                  provider: changeSet.provenance.provider,
-                  providerDeliveryId: changeSet.provenance.providerDeliveryId,
-                  unitOfWorkId: changeSet.attribution.unitOfWorkId,
-                  sessionId: changeSet.attribution.sessionId,
-                  principalId: changeSet.attribution.principalId,
-                  observedAt: changeSet.provenance.observedAt,
-                },
-                { conflictOn: ['id'], strategy: 'ignore' },
-              ).run();
-            }
-            if (dataset.AtlasSourceRecord.length > 0) {
-              yield* entities.AtlasSourceRecord.upsertMany(dataset.AtlasSourceRecord, {
-                conflictOn: ['id'],
-                strategy: 'merge',
-              }).run();
-            }
-            if (dataset.AtlasItem.length > 0) {
-              yield* entities.AtlasItem.upsertMany(dataset.AtlasItem, {
-                conflictOn: ['id'],
-                strategy: 'merge',
-              }).run();
-            }
-            if (dataset.AtlasPlan.length > 0) {
-              yield* entities.AtlasPlan.upsertMany(dataset.AtlasPlan, {
-                conflictOn: ['id'],
-                strategy: 'merge',
-              }).run();
-            }
-            if (currentItemIds.size === 0) {
-              yield* entities.AtlasItem.all().delete().run();
-            } else {
-              yield* entities.AtlasItem.where(item =>
-                selectionNot(item.id.in([...currentItemIds])),
-              )
-                .delete()
-                .run();
-            }
-            if (currentPlanIds.size === 0) {
-              yield* entities.AtlasPlan.all().delete().run();
-            } else {
-              yield* entities.AtlasPlan.where(plan =>
-                selectionNot(plan.id.in([...currentPlanIds])),
-              )
-                .delete()
-                .run();
-            }
-            if (currentSourceRecordIds.size === 0) {
-              yield* entities.AtlasSourceRecord.all().delete().run();
-            } else {
-              yield* entities.AtlasSourceRecord.where(record =>
-                selectionNot(record.id.in([...currentSourceRecordIds])),
-              )
-                .delete()
-                .run();
-            }
-            if (dataset.AtlasShapingBinding.length > 0) {
-              yield* entities.AtlasShapingBinding.upsertMany(dataset.AtlasShapingBinding, {
-                conflictOn: ['id'],
-                strategy: 'merge',
-              }).run();
-            }
-            if (dataset.AtlasSupportBinding.length > 0) {
-              yield* entities.AtlasSupportBinding.upsertMany(dataset.AtlasSupportBinding, {
-                conflictOn: ['id'],
-                strategy: 'merge',
-              }).run();
-            }
-            if (dataset.AtlasTypeBinding.length > 0) {
-              yield* entities.AtlasTypeBinding.upsertMany(dataset.AtlasTypeBinding, {
-                conflictOn: ['id'],
-                strategy: 'merge',
-              }).run();
-            }
-            if (dataset.AtlasPlanRelationBinding.length > 0) {
-              yield* entities.AtlasPlanRelationBinding.upsertMany(
-                dataset.AtlasPlanRelationBinding,
-                { conflictOn: ['id'], strategy: 'merge' },
-              ).run();
-            }
-            if (dataset.PullRequest.length > 0) {
-              yield* entities.PullRequest.upsertMany(dataset.PullRequest, {
-                conflictOn: ['id'],
-                strategy: 'merge',
-              }).run();
-            }
-
-            markPublicationStage('writeProjectionEntitiesMs');
             const workspaceSources = yield* entities.AtlasWorkspaceSource.all()
               .select(source => ({
                 id: source.id,
@@ -1826,17 +1723,7 @@ export const createAtlasPostgresApplication = (input: {
               pullRequests: observedPullRequests,
               sources: successfulSources,
             });
-            for (const source of successfulSources) {
-              yield* entities.AtlasWorkspaceContributor.where(contributor =>
-                contributor.workspaceSourceId.eq(source.id),
-              )
-                .delete()
-                .run();
-            }
-            if (contributors.length > 0) {
-              yield* entities.AtlasWorkspaceContributor.insertMany(contributors).run();
-            }
-            markPublicationStage('writeWorkspaceContributorsMs');
+            markPublicationStage('deriveWorkspaceContributorsMs');
             // A degraded publication can retain graph rows that are absent from the candidate.
             const fingerprintProjectionContent = () => {
               const { generatedAt: _generatedAt, ...snapshot } = JSON.parse(
@@ -1869,21 +1756,202 @@ export const createAtlasPostgresApplication = (input: {
             };
             const publicationFingerprint =
               projection.evidenceFailures.length === 0 ? fingerprintProjectionContent() : null;
-            const previousFingerprint: unknown = latestRevision
-              ? JSON.parse(latestRevision.diagnosticsJson)?.publicationFingerprint
-              : null;
+            const previousFingerprint: unknown = latestDiagnostics.publicationFingerprint;
             if (publicationFingerprint && typeof previousFingerprint === 'string') {
               wouldSkipPublication = publicationFingerprint === previousFingerprint;
             }
             markPublicationStage('comparePublicationContentMs');
-            if (dataset.EvidenceBinding.length > 0) {
-              yield* entities.EvidenceBinding.upsertMany(dataset.EvidenceBinding, {
-                conflictOn: ['id'],
-                strategy: 'merge',
-              }).run();
+            const reusedRevision =
+              wouldSkipPublication === true && request.trigger !== 'rebuild'
+                ? latestRevision
+                : undefined;
+            publicationSkipped = Boolean(reusedRevision);
+            const acceptedRevisionId = reusedRevision?.id ?? projectionRevisionId;
+
+            if (!publicationSkipped) {
+              for (const sourceId of projection.evidenceSourceIds) {
+                yield* entities.EvidenceBinding.where(binding => binding.sourceId.eq(sourceId))
+                  .delete()
+                  .run();
+              }
+              markPublicationStage('clearEvidenceBindingsMs');
+              yield* entities.AtlasShapingBinding.all().delete().run();
+              yield* entities.AtlasSupportBinding.all().delete().run();
+              yield* entities.AtlasTypeBinding.all().delete().run();
+              yield* entities.AtlasPlanRelationBinding.all().delete().run();
+
+              if (dataset.AtlasSourceRevision.length > 0) {
+                yield* entities.AtlasSourceRevision.upsertMany(dataset.AtlasSourceRevision, {
+                  conflictOn: ['id'],
+                  strategy: 'merge',
+                }).run();
+              }
+              markPublicationStage('writeSourceRevisionsMs');
+              const currentSourceRecords =
+                latestRevision && request.trigger !== 'rebuild'
+                  ? yield* entities.AtlasSourceRecord.all()
+                      .select(record => ({
+                        id: record.id,
+                        canonicalPath: record.canonicalPath,
+                        sourceId: record.sourceId,
+                        sourceRevisionId: record.sourceRevisionId,
+                        sourcePath: record.sourcePath,
+                        sourceFilePath: record.sourceFilePath,
+                        recordKind: record.recordKind,
+                        contentHash: record.contentHash,
+                      }))
+                      .run()
+                  : null;
+              const currentRecordsById = new Map(
+                currentSourceRecords?.map(record => [record.id, record]),
+              );
+              const recordsToWrite = currentSourceRecords
+                ? dataset.AtlasSourceRecord.filter(record => {
+                    const current = currentRecordsById.get(record.id);
+                    return (
+                      current?.contentHash !== record.contentHash ||
+                      current.canonicalPath !== record.canonicalPath ||
+                      current.sourceId !== record.sourceId ||
+                      current.sourceRevisionId !== record.sourceRevisionId ||
+                      current.sourcePath !== record.sourcePath ||
+                      current.sourceFilePath !== record.sourceFilePath ||
+                      current.recordKind !== record.recordKind
+                    );
+                  })
+                : dataset.AtlasSourceRecord;
+              sourceRecordsWritten = recordsToWrite.length;
+              sourceRecordsReused = dataset.AtlasSourceRecord.length - recordsToWrite.length;
+              markPublicationStage('compareSourceRecordsMs');
+              if (recordsToWrite.length > 0) {
+                yield* entities.AtlasSourceRecord.upsertMany(recordsToWrite, {
+                  conflictOn: ['id'],
+                  strategy: 'merge',
+                }).run();
+              }
+              markPublicationStage('writeSourceRecordsMs');
+              if (dataset.AtlasItem.length > 0) {
+                yield* entities.AtlasItem.upsertMany(dataset.AtlasItem, {
+                  conflictOn: ['id'],
+                  strategy: 'merge',
+                }).run();
+              }
+              if (dataset.AtlasPlan.length > 0) {
+                yield* entities.AtlasPlan.upsertMany(dataset.AtlasPlan, {
+                  conflictOn: ['id'],
+                  strategy: 'merge',
+                }).run();
+              }
+              if (currentItemIds.size === 0) {
+                yield* entities.AtlasItem.all().delete().run();
+              } else {
+                yield* entities.AtlasItem.where(item =>
+                  selectionNot(item.id.in([...currentItemIds])),
+                )
+                  .delete()
+                  .run();
+              }
+              if (currentPlanIds.size === 0) {
+                yield* entities.AtlasPlan.all().delete().run();
+              } else {
+                yield* entities.AtlasPlan.where(plan =>
+                  selectionNot(plan.id.in([...currentPlanIds])),
+                )
+                  .delete()
+                  .run();
+              }
+              if (currentSourceRecords) {
+                const removedIds = currentSourceRecords
+                  .filter(record => !currentSourceRecordIds.has(record.id))
+                  .map(record => record.id);
+                if (removedIds.length > 0) {
+                  yield* entities.AtlasSourceRecord.where(record => record.id.in(removedIds))
+                    .delete()
+                    .run();
+                }
+              } else if (currentSourceRecordIds.size === 0) {
+                yield* entities.AtlasSourceRecord.all().delete().run();
+              } else {
+                yield* entities.AtlasSourceRecord.where(record =>
+                  selectionNot(record.id.in([...currentSourceRecordIds])),
+                )
+                  .delete()
+                  .run();
+              }
+              if (dataset.AtlasShapingBinding.length > 0) {
+                yield* entities.AtlasShapingBinding.upsertMany(dataset.AtlasShapingBinding, {
+                  conflictOn: ['id'],
+                  strategy: 'merge',
+                }).run();
+              }
+              if (dataset.AtlasSupportBinding.length > 0) {
+                yield* entities.AtlasSupportBinding.upsertMany(dataset.AtlasSupportBinding, {
+                  conflictOn: ['id'],
+                  strategy: 'merge',
+                }).run();
+              }
+              if (dataset.AtlasTypeBinding.length > 0) {
+                yield* entities.AtlasTypeBinding.upsertMany(dataset.AtlasTypeBinding, {
+                  conflictOn: ['id'],
+                  strategy: 'merge',
+                }).run();
+              }
+              if (dataset.AtlasPlanRelationBinding.length > 0) {
+                yield* entities.AtlasPlanRelationBinding.upsertMany(
+                  dataset.AtlasPlanRelationBinding,
+                  { conflictOn: ['id'], strategy: 'merge' },
+                ).run();
+              }
+              if (dataset.PullRequest.length > 0) {
+                yield* entities.PullRequest.upsertMany(dataset.PullRequest, {
+                  conflictOn: ['id'],
+                  strategy: 'merge',
+                }).run();
+              }
+
+              markPublicationStage('writeProjectionEntitiesMs');
+              for (const source of successfulSources) {
+                yield* entities.AtlasWorkspaceContributor.where(contributor =>
+                  contributor.workspaceSourceId.eq(source.id),
+                )
+                  .delete()
+                  .run();
+              }
+              if (contributors.length > 0) {
+                yield* entities.AtlasWorkspaceContributor.insertMany(contributors).run();
+              }
+              markPublicationStage('writeWorkspaceContributorsMs');
+              if (dataset.EvidenceBinding.length > 0) {
+                yield* entities.EvidenceBinding.upsertMany(dataset.EvidenceBinding, {
+                  conflictOn: ['id'],
+                  strategy: 'merge',
+                }).run();
+              }
+
+              markPublicationStage('writeEvidenceBindingsMs');
             }
 
-            markPublicationStage('writeEvidenceBindingsMs');
+            if (projection.sourceChangeSet) {
+              const changeSet = projection.sourceChangeSet;
+              const sourceId = String(changeSet.source.locator.id);
+              yield* entities.AtlasSourceChangeSet.upsert(
+                {
+                  id: changeSet.id,
+                  sourceId,
+                  baseSourceRevisionId: `${sourceId}:markdown:${changeSet.baseRevision.revisionKey}`,
+                  targetSourceRevisionId: `${sourceId}:markdown:${changeSet.targetRevision.revisionKey}`,
+                  operationCount: changeSet.operations.length,
+                  operationsJson: JSON.stringify(changeSet.operations),
+                  provenanceJson: JSON.stringify(changeSet.provenance),
+                  provider: changeSet.provenance.provider,
+                  providerDeliveryId: changeSet.provenance.providerDeliveryId,
+                  unitOfWorkId: changeSet.attribution.unitOfWorkId,
+                  sessionId: changeSet.attribution.sessionId,
+                  principalId: changeSet.attribution.principalId,
+                  observedAt: changeSet.provenance.observedAt,
+                },
+                { conflictOn: ['id'], strategy: 'ignore' },
+              ).run();
+            }
             if (request.trigger === 'catch-up') {
               const catchUpPullRequests = [...projection.observedPullRequests]
                 .filter(
@@ -1910,27 +1978,39 @@ export const createAtlasPostgresApplication = (input: {
 
             markPublicationStage('recordMergeActivityMs');
             const completedAt = new Date().toISOString();
-            yield* entities.ProjectionRevision.insert({
-              id: projectionRevisionId,
-              trigger: request.trigger,
-              sourceRevisionSetHash,
-              snapshotJson,
-              diagnosticsJson: JSON.stringify({
-                ...diagnostics,
-                publicationFingerprint,
-                wouldSkipPublication,
-              }),
-              startedAt,
-              completedAt,
-              status: projection.evidenceFailures.length > 0 ? 'degraded' : 'completed',
-            }).run();
-            markPublicationStage('insertProjectionSnapshotMs');
+            if (publicationSkipped) {
+              // Fence out observations older than this accepted replay without changing revision identity.
+              yield* entities.ProjectionRevision.where(revision => revision.id.eq(acceptedRevisionId))
+                .updateOne({
+                  diagnosticsJson: JSON.stringify({
+                    ...latestDiagnostics,
+                    latestIdenticalObservationAt: startedAt,
+                  }),
+                })
+                .run();
+            } else {
+              yield* entities.ProjectionRevision.insert({
+                id: projectionRevisionId,
+                trigger: request.trigger,
+                sourceRevisionSetHash,
+                snapshotJson,
+                diagnosticsJson: JSON.stringify({
+                  ...diagnostics,
+                  publicationFingerprint,
+                  wouldSkipPublication,
+                }),
+                startedAt,
+                completedAt,
+                status: projection.evidenceFailures.length > 0 ? 'degraded' : 'completed',
+              }).run();
+              markPublicationStage('insertProjectionSnapshotMs');
+            }
             if (projection.sourceChangeSet) {
               yield* entities.AtlasSourceChangeSetApplication.upsert(
                 {
                   id: `source-change-set-application:${projection.sourceChangeSet.id}`,
                   changeSetId: projection.sourceChangeSet.id,
-                  projectionRevisionId,
+                  projectionRevisionId: acceptedRevisionId,
                   status: 'applied',
                   appliedAt: completedAt,
                   diagnosticsJson: '{}',
@@ -1938,7 +2018,7 @@ export const createAtlasPostgresApplication = (input: {
                 { conflictOn: ['changeSetId'], strategy: 'ignore' },
               ).run();
             }
-            if (dataset.AtlasSourceRevision.length > 0) {
+            if (!publicationSkipped && dataset.AtlasSourceRevision.length > 0) {
               yield* entities.ProjectionSourceRevision.insertMany(
                 dataset.AtlasSourceRevision.map(revision => ({
                   id: `${projectionRevisionId}:${revision.id}`,
@@ -1955,7 +2035,7 @@ export const createAtlasPostgresApplication = (input: {
               )
                 .updateOne({
                   processedAt: completedAt,
-                  projectionRevisionId,
+                  projectionRevisionId: acceptedRevisionId,
                 })
                 .run();
             }
@@ -1967,7 +2047,7 @@ export const createAtlasPostgresApplication = (input: {
               invalidated: Boolean(webhook),
               itemCount: dataset.AtlasItem.length,
               planCount: dataset.AtlasPlan.length,
-              projectionRevisionId,
+              projectionRevisionId: acceptedRevisionId,
               repositoryFullName: webhook?.repositoryFullName ?? null,
               sourceCount: dataset.AtlasSourceRevision.length,
             } satisfies AtlasReconciliationResult;
@@ -1975,12 +2055,15 @@ export const createAtlasPostgresApplication = (input: {
         ).pipe(
           Effect.tap(result =>
             Effect.sync(() => {
-              if (result.projectionRevisionId === projectionRevisionId) {
+              if (publicationSkipped || result.projectionRevisionId === projectionRevisionId) {
                 markPublicationStage('transactionExitMs');
               }
               finishPublicationObservation('completed', {
                 ...publicationTimings,
                 wouldSkipPublication,
+                publicationSkipped,
+                sourceRecordsWritten,
+                sourceRecordsReused,
                 published: result.projectionRevisionId === projectionRevisionId,
                 evidenceBindingCount: result.evidenceBindingCount,
                 itemCount: result.itemCount,
@@ -1993,7 +2076,7 @@ export const createAtlasPostgresApplication = (input: {
             Effect.sync(() => finishPublicationObservation('failed')),
           ),
           Effect.tap(result =>
-            result.projectionRevisionId === projectionRevisionId &&
+            (publicationSkipped || result.projectionRevisionId === projectionRevisionId) &&
             pullRequestEvidence.mode !== 'reused'
               ? Effect.promise(async () => {
                   try {
@@ -2018,7 +2101,10 @@ export const createAtlasPostgresApplication = (input: {
               : Effect.void,
           ),
           Effect.tap(result =>
-            result.projectionRevisionId === projectionRevisionId
+            result.projectionRevisionId === projectionRevisionId ||
+            (publicationSkipped &&
+              (expectedMaterializationSourceFrontier !== materialization.snapshot.acceptance.sourceFrontier ||
+                previousMaterializerVersion !== materialization.snapshot.acceptance.materializerVersion))
               ? Effect.promise(async () => {
                   try {
                     const write = await reconciliationObserver.measure(

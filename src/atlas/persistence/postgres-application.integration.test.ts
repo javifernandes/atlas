@@ -596,14 +596,18 @@ Durable Atlas projection.
       evidenceBindingCount: 1,
     });
 
+    const replay = await restartedAtlas.reconcile({ trigger: 'manual' });
+    expect(replay).toMatchObject(restarted as object);
+
     const checkpointUse = await pool.query(
       `SELECT diagnostics_json::jsonb -> 'pullRequestEvidenceMaterialization' AS evidence,
-              diagnostics_json::jsonb -> 'wouldSkipPublication' AS "wouldSkipPublication"
+              diagnostics_json::jsonb -> 'wouldSkipPublication' AS "wouldSkipPublication",
+              diagnostics_json::jsonb ->> 'latestIdenticalObservationAt' AS "latestIdenticalObservationAt"
        FROM projection_revisions ORDER BY started_at DESC LIMIT 2`,
     );
     expect(checkpointUse.rows).toEqual([
-      { evidence: { mode: 'reused', derivedPullRequestCount: 0 }, wouldSkipPublication: true },
-      { evidence: { mode: 'rebuilt', derivedPullRequestCount: 1 }, wouldSkipPublication: null },
+      { evidence: { mode: 'reused', derivedPullRequestCount: 0 }, wouldSkipPublication: true, latestIdenticalObservationAt: expect.any(String) },
+      { evidence: { mode: 'rebuilt', derivedPullRequestCount: 1 }, wouldSkipPublication: null, latestIdenticalObservationAt: null },
     ]);
 
     const counts = await pool.query(`
@@ -986,6 +990,21 @@ Atlas-Session: not-a-session`,
         ],
       }),
     ]);
+    const identicalDelivery = await atlas.application.invokeOperation(
+      atlas.application.graph.entities.PullRequest.domain.refreshAfterMerge,
+      { ...webhook, deliveryId: 'delivery-116-identical-content' },
+    );
+    expect(identicalDelivery).toMatchObject({ ok: true, value: { duplicate: false } });
+    const identicalDeliveries = await pool.query(
+      `SELECT projection_revision_id, processed_at IS NOT NULL AS processed
+         FROM webhook_deliveries WHERE id IN ('delivery-116', 'delivery-116-identical-content')`,
+    );
+    expect(identicalDeliveries.rows).toHaveLength(2);
+    expect(identicalDeliveries.rows[0]).toEqual(identicalDeliveries.rows[1]);
+    expect(identicalDeliveries.rows[0]).toMatchObject({ processed: true });
+    const streamsAfterReplay = await atlas.getExecutionStreams(streamOwner.user.id);
+    expect(streamsAfterReplay.flatMap(stream => stream.activities)).toHaveLength(1);
+
     const push: AtlasRepositoryPushInput = {
       after: 'push-revision',
       before: 'previous-revision',
@@ -1013,7 +1032,7 @@ Atlas-Session: not-a-session`,
         (SELECT count(*)::int FROM webhook_deliveries) AS deliveries,
         (SELECT count(*)::int FROM projection_revisions) AS projection_revisions
     `);
-    expect(counts.rows[0]).toEqual({ deliveries: 2, projection_revisions: 5 });
+    expect(counts.rows[0]).toEqual({ deliveries: 3, projection_revisions: 5 });
 
     const secondLineageWebhook: AtlasMergedPullRequestInput = {
       ...webhook,
@@ -1652,7 +1671,7 @@ Atlas-Session: ${explicitStreamId}`,
     expect(finalStreams.flatMap(stream => stream.activities)).toHaveLength(3);
   }, postgresTestTimeout);
 
-  it('does not let an older observation overwrite a newer projection', async () => {
+  it('fences an older observation after accepting an identical replay', async () => {
     let loadCount = 0;
     let announceOlderLoad!: () => void;
     let releaseOlderLoad!: () => void;
@@ -1690,27 +1709,33 @@ Atlas-Session: ${explicitStreamId}`,
       pool,
       loadProjection: async () => {
         loadCount += 1;
-        if (loadCount === 1) {
+        if (loadCount === 2) {
           announceOlderLoad();
           await olderLoadGate;
           return projection(
             'Older Atlas Persistence',
             'older-revision',
-            '2026-09-02T03:00:00.000Z',
+            '2026-09-02T03:45:00.000Z',
           );
         }
 
-        return projection('Newer Atlas Persistence', 'newer-revision', '2026-09-02T04:00:00.000Z');
+        return projection(
+          'Newer Atlas Persistence',
+          'newer-revision',
+          loadCount === 1 ? '2026-09-02T03:30:00.000Z' : '2026-09-02T04:00:00.000Z',
+        );
       },
     });
     const before = await pool.query<{ count: number }>(
       'SELECT count(*)::int AS count FROM projection_revisions',
     );
+    const initial = await racingAtlas.reconcile({ trigger: 'manual' });
     const older = racingAtlas.reconcile({ trigger: 'manual' });
     await olderLoadStarted;
-    await racingAtlas.reconcile({ trigger: 'manual' });
+    const replay = await racingAtlas.reconcile({ trigger: 'manual' });
     releaseOlderLoad();
-    await older;
+    expect(replay).toEqual(initial);
+    await expect(older).resolves.toMatchObject({ duplicate: false });
 
     await expect(racingAtlas.getProjectionSnapshot()).resolves.toMatchObject({
       nodes: expect.arrayContaining([
@@ -1734,6 +1759,8 @@ Atlas-Session: ${explicitStreamId}`,
     };
     let includeProduct = true;
     let revision = 5;
+    let sourceVersion = 5;
+    let editPlan = false;
     const queryObservations: AtlasPostgresQueryObservation[] = [];
     const inventoryAtlas = createAtlasPostgresApplication({
       pool,
@@ -1746,24 +1773,28 @@ Atlas-Session: ${explicitStreamId}`,
           evidenceSourceIds: ['atlas'],
           observedAt,
           observedPullRequests: [observedPullRequest],
-          records: [...sourceFiles, ...(includeProduct ? [productFile] : [])].map(
-            normalizeAtlasSourceRecord,
+          records: [...sourceFiles, ...(includeProduct ? [productFile] : [])].map(file =>
+            normalizeAtlasSourceRecord(
+              editPlan && file.path === 'plans/current/116-persistence.md'
+                ? { ...file, content: file.content + '\nSelective publication fixture.\n' }
+                : file,
+            ),
           ),
           sourceRevisions: [
             {
               ...sourceRevisions[0]!,
-              id: `atlas:markdown:inventory-${revision}`,
-              revision: `inventory-${revision}`,
+              id: `atlas:markdown:inventory-${sourceVersion}`,
+              revision: `inventory-${sourceVersion}`,
               observedAt,
             },
             ...(includeProduct
               ? [
                   {
-                    id: `product:markdown:inventory-${revision}`,
+                    id: `product:markdown:inventory-${sourceVersion}`,
                     sourceId: 'product',
                     repository: 'acme/product',
                     authority: 'markdown' as const,
-                    revision: `inventory-${revision}`,
+                    revision: `inventory-${sourceVersion}`,
                     revisionKind: 'git' as const,
                     observedAt,
                   },
@@ -1788,7 +1819,15 @@ Atlas-Session: ${explicitStreamId}`,
       ],
     });
 
+    const loadSourceRecords = async () =>
+      (await pool.query<{ id: string; row_version: string; content: string; source_revision_id: string }>(
+        `SELECT *, xmin::text AS row_version FROM atlas_source_records ORDER BY id`,
+      )).rows;
+    const before = await loadSourceRecords();
+    expect(before.some(record => record.id.includes('200-product.md'))).toBe(true);
+
     includeProduct = false;
+    editPlan = true;
     queryObservations.length = 0;
     await inventoryAtlas.reconcile({ trigger: 'manual' });
     expect(
@@ -1797,7 +1836,17 @@ Atlas-Session: ${explicitStreamId}`,
           observation.statement === 'select' &&
           observation.table === 'atlas_source_records',
       ),
-    ).toEqual([]);
+    ).toEqual([expect.objectContaining({ rowCount: before.length })]);
+    const incrementalRecords = await loadSourceRecords();
+    for (const record of incrementalRecords) {
+      const previous = before.find(candidate => candidate.id === record.id);
+      if (record.id.includes('116-persistence.md')) {
+        expect(record.content).toContain('Selective publication fixture.');
+        expect(record.row_version).not.toBe(previous?.row_version);
+      } else {
+        expect(record).toEqual(previous);
+      }
+    }
     expect(queryObservations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1816,6 +1865,26 @@ Atlas-Session: ${explicitStreamId}`,
         "SELECT count(*)::int AS count FROM atlas_source_records WHERE source_id = 'product'",
       ),
     ).resolves.toMatchObject({ rows: [{ count: 0 }] });
+
+    const projectionContent = async () => (await pool.query(
+      `SELECT snapshot_json::jsonb - 'generatedAt' AS snapshot
+         FROM projection_revisions ORDER BY started_at DESC LIMIT 1`,
+    )).rows[0];
+    const incrementalSnapshot = await projectionContent();
+    const contentRows = (rows: Awaited<ReturnType<typeof loadSourceRecords>>) =>
+      rows.map(({ row_version: _version, ...record }) => record);
+    await inventoryAtlas.reconcile({ trigger: 'rebuild' });
+    expect(contentRows(await loadSourceRecords())).toEqual(contentRows(incrementalRecords));
+    expect(await projectionContent()).toEqual(incrementalSnapshot);
+
+    sourceVersion += 1;
+    await inventoryAtlas.reconcile({ trigger: 'manual' });
+    const newProvenance = await loadSourceRecords();
+    expect(newProvenance.map(record => record.content)).toEqual(
+      incrementalRecords.map(record => record.content),
+    );
+    expect(newProvenance.every(record => record.source_revision_id === 'atlas:markdown:inventory-6'))
+      .toBe(true);
   }, postgresTestTimeout);
 
   it('reuses the full snapshot while unchanged and invalidates it after reconciliation', async () => {

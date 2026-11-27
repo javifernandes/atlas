@@ -73,3 +73,7 @@ Projection Revision is one revisioned derived Source in the broader Source graph
 full snapshot, checkpoint plus ChangeSets, cached semantic artifacts, or rebuild from authoritative
 Sources. That generalization does not make Atlas-owned collaboration state disposable; eviction is
 valid only for state with an explicit reconstruction contract.
+
+Canonical reconciliation reuses the current revision when the publishable content is identical.
+The publication transaction advances the observation watermark and records delivery and activity
+effects even when the graph and snapshot are reused.
