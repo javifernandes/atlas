@@ -1532,7 +1532,7 @@ export const createAtlasPostgresApplication = (input: {
         const currentPlanIds = new Set(dataset.AtlasPlan.map(plan => plan.id));
         const currentSourceRecordIds = new Set(dataset.AtlasSourceRecord.map(record => record.id));
         const currentSnapshotJson = dataset.ProjectionRevision[0]?.snapshotJson ?? '{}';
-        const diagnosticsJson = JSON.stringify({
+        const diagnostics = {
           catchUpSince: catchUpSince?.iso ?? null,
           evidenceFailures: projection.evidenceFailures,
           parsedRecordMaterialization: {
@@ -1547,7 +1547,7 @@ export const createAtlasPostgresApplication = (input: {
             mode: pullRequestEvidence.mode,
           },
           sourceChangeSetId: projection.sourceChangeSet?.id ?? null,
-        });
+        };
         const reconciliationToken = randomUUID();
         const webhook = request.webhook;
         const processingToken = webhook ? randomUUID() : null;
@@ -1567,8 +1567,18 @@ export const createAtlasPostgresApplication = (input: {
         const finishPublicationObservation = reconciliationObserver.start(
           'publish-projection-revision',
         );
+        const publicationStartedAt = performance.now();
+        const publicationTimings: Record<string, number> = {};
+        let wouldSkipPublication: boolean | null = null;
+        let publicationStageStartedAt = publicationStartedAt;
+        const markPublicationStage = (field: string) => {
+          const now = performance.now();
+          publicationTimings[field] = Math.round((now - publicationStageStartedAt) * 100) / 100;
+          publicationStageStartedAt = now;
+        };
         return atlas.application.app.graph.transaction(
           Effect.gen(function* () {
+            markPublicationStage('transactionEntryMs');
             yield* entities.ProjectionReconciliationLock.upsert(
               {
                 id: 'atlas-projection',
@@ -1578,6 +1588,7 @@ export const createAtlasPostgresApplication = (input: {
               { conflictOn: ['id'], strategy: 'merge' },
             ).run();
 
+            markPublicationStage('lockWriteMs');
             if (webhook?.deliveryId && processingToken) {
               yield* entities.WebhookDelivery.upsert(
                 {
@@ -1619,6 +1630,7 @@ export const createAtlasPostgresApplication = (input: {
             const latestRevisions = yield* entities.ProjectionRevision.all()
               .select(revision => ({
                 id: revision.id,
+                diagnosticsJson: revision.diagnosticsJson,
                 startedAt: revision.startedAt,
               }))
               .orderBy(revision => revision.startedAt.desc())
@@ -1675,11 +1687,13 @@ export const createAtlasPostgresApplication = (input: {
               previousSnapshotJson: previousSnapshots[0]?.snapshotJson,
             });
 
+            markPublicationStage('admissionAndEvidenceRetentionMs');
             for (const sourceId of projection.evidenceSourceIds) {
               yield* entities.EvidenceBinding.where(binding => binding.sourceId.eq(sourceId))
                 .delete()
                 .run();
             }
+            markPublicationStage('clearEvidenceBindingsMs');
             yield* entities.AtlasShapingBinding.all().delete().run();
             yield* entities.AtlasSupportBinding.all().delete().run();
             yield* entities.AtlasTypeBinding.all().delete().run();
@@ -1789,6 +1803,7 @@ export const createAtlasPostgresApplication = (input: {
               }).run();
             }
 
+            markPublicationStage('writeProjectionEntitiesMs');
             const workspaceSources = yield* entities.AtlasWorkspaceSource.all()
               .select(source => ({
                 id: source.id,
@@ -1821,6 +1836,46 @@ export const createAtlasPostgresApplication = (input: {
             if (contributors.length > 0) {
               yield* entities.AtlasWorkspaceContributor.insertMany(contributors).run();
             }
+            markPublicationStage('writeWorkspaceContributorsMs');
+            // A degraded publication can retain graph rows that are absent from the candidate.
+            const fingerprintProjectionContent = () => {
+              const { generatedAt: _generatedAt, ...snapshot } = JSON.parse(
+                snapshotJson,
+              ) as PlanWorkstreamSnapshot;
+              return createHash('sha256')
+                .update('atlas-projection-content-v1\0')
+                .update(JSON.stringify(snapshot))
+                .update('\0')
+                .update(JSON.stringify({
+                  sourceRevisions: dataset.AtlasSourceRevision.map(
+                    ({ observedAt: _observedAt, ...revision }) => revision,
+                  ),
+                  sourceRecords: dataset.AtlasSourceRecord.map(
+                    ({ content: _content, ...record }) => record,
+                  ),
+                  items: dataset.AtlasItem,
+                  plans: dataset.AtlasPlan,
+                  shapingBindings: dataset.AtlasShapingBinding,
+                  supportBindings: dataset.AtlasSupportBinding,
+                  typeBindings: dataset.AtlasTypeBinding,
+                  planRelationBindings: dataset.AtlasPlanRelationBinding,
+                  pullRequests: dataset.PullRequest,
+                  evidenceBindings: dataset.EvidenceBinding,
+                  evidenceSourceIds: projection.evidenceSourceIds,
+                  contributorScope: successfulSources.map(source => source.id),
+                  contributors,
+                }))
+                .digest('hex');
+            };
+            const publicationFingerprint =
+              projection.evidenceFailures.length === 0 ? fingerprintProjectionContent() : null;
+            const previousFingerprint: unknown = latestRevision
+              ? JSON.parse(latestRevision.diagnosticsJson)?.publicationFingerprint
+              : null;
+            if (publicationFingerprint && typeof previousFingerprint === 'string') {
+              wouldSkipPublication = publicationFingerprint === previousFingerprint;
+            }
+            markPublicationStage('comparePublicationContentMs');
             if (dataset.EvidenceBinding.length > 0) {
               yield* entities.EvidenceBinding.upsertMany(dataset.EvidenceBinding, {
                 conflictOn: ['id'],
@@ -1828,6 +1883,7 @@ export const createAtlasPostgresApplication = (input: {
               }).run();
             }
 
+            markPublicationStage('writeEvidenceBindingsMs');
             if (request.trigger === 'catch-up') {
               const catchUpPullRequests = [...projection.observedPullRequests]
                 .filter(
@@ -1852,17 +1908,23 @@ export const createAtlasPostgresApplication = (input: {
               yield* recordMergedPullRequestActivity(webhook, dataset);
             }
 
+            markPublicationStage('recordMergeActivityMs');
             const completedAt = new Date().toISOString();
             yield* entities.ProjectionRevision.insert({
               id: projectionRevisionId,
               trigger: request.trigger,
               sourceRevisionSetHash,
               snapshotJson,
-              diagnosticsJson,
+              diagnosticsJson: JSON.stringify({
+                ...diagnostics,
+                publicationFingerprint,
+                wouldSkipPublication,
+              }),
               startedAt,
               completedAt,
               status: projection.evidenceFailures.length > 0 ? 'degraded' : 'completed',
             }).run();
+            markPublicationStage('insertProjectionSnapshotMs');
             if (projection.sourceChangeSet) {
               yield* entities.AtlasSourceChangeSetApplication.upsert(
                 {
@@ -1898,6 +1960,7 @@ export const createAtlasPostgresApplication = (input: {
                 .run();
             }
 
+            markPublicationStage('writePublicationMetadataMs');
             return {
               duplicate: false,
               evidenceBindingCount,
@@ -1911,12 +1974,20 @@ export const createAtlasPostgresApplication = (input: {
           }),
         ).pipe(
           Effect.tap(result =>
-            Effect.sync(() => finishPublicationObservation('completed', {
-              evidenceBindingCount: result.evidenceBindingCount,
-              itemCount: result.itemCount,
-              planCount: result.planCount,
-              sourceCount: result.sourceCount,
-            })),
+            Effect.sync(() => {
+              if (result.projectionRevisionId === projectionRevisionId) {
+                markPublicationStage('transactionExitMs');
+              }
+              finishPublicationObservation('completed', {
+                ...publicationTimings,
+                wouldSkipPublication,
+                published: result.projectionRevisionId === projectionRevisionId,
+                evidenceBindingCount: result.evidenceBindingCount,
+                itemCount: result.itemCount,
+                planCount: result.planCount,
+                sourceCount: result.sourceCount,
+              });
+            }),
           ),
           Effect.tapError(() =>
             Effect.sync(() => finishPublicationObservation('failed')),
