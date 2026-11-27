@@ -260,3 +260,8 @@ Projection Revision and keeps a reload action visible until the newer revision i
 Development refreshes automatically. A later Ontahí subject subscription can use SSE (or WebSocket
 where bidirectionality is already required) without coupling client caches to filesystem events or
 changing the acceptance model.
+
+Canonical PostgreSQL reconciliation compares the publishable graph and snapshot under the
+publication lock. Identical content reuses the current Projection Revision and advances the
+observation watermark while still recording webhook deliveries and merge activity. An explicit
+rebuild or an incomplete observation retains the full publication path.
