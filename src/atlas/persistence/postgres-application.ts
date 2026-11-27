@@ -1576,6 +1576,12 @@ export const createAtlasPostgresApplication = (input: {
         const publicationTimings: Record<string, number> = {};
         let wouldSkipPublication: boolean | null = null;
         let publicationSkipped = false;
+        let evidenceBindingsWritten: number | undefined;
+        let evidenceBindingsReused: number | undefined;
+        let evidenceBindingsRemoved: number | undefined;
+        let planRelationsWritten: number | undefined;
+        let planRelationsReused: number | undefined;
+        let planRelationsRemoved: number | undefined;
         let sourceRecordsWritten: number | undefined;
         let sourceRecordsReused: number | undefined;
         let publicationStageStartedAt = publicationStartedAt;
@@ -1769,8 +1775,54 @@ export const createAtlasPostgresApplication = (input: {
             const acceptedRevisionId = reusedRevision?.id ?? projectionRevisionId;
 
             if (!publicationSkipped) {
-              for (const sourceId of projection.evidenceSourceIds) {
-                yield* entities.EvidenceBinding.where(binding => binding.sourceId.eq(sourceId))
+              const authoritativeEvidenceSources = new Set(projection.evidenceSourceIds);
+              const compareEvidenceBindings = latestRevision && request.trigger !== 'rebuild';
+              const candidateEvidenceBindings = dataset.EvidenceBinding;
+              const currentEvidenceBindings =
+                compareEvidenceBindings &&
+                (authoritativeEvidenceSources.size > 0 || candidateEvidenceBindings.length > 0)
+                  ? yield* entities.EvidenceBinding.all().run()
+                  : [];
+              const currentEvidenceBindingsById = new Map(
+                currentEvidenceBindings.map(binding => [binding.id, binding]),
+              );
+              const candidateEvidenceIds = new Set(
+                candidateEvidenceBindings.map(binding => binding.id),
+              );
+              const removedEvidenceIds = currentEvidenceBindings
+                .filter(binding =>
+                  authoritativeEvidenceSources.has(binding.sourceId) &&
+                  !candidateEvidenceIds.has(binding.id),
+                )
+                .map(binding => binding.id);
+              const evidenceBindingsToWrite = candidateEvidenceBindings.filter(binding => {
+                const current = currentEvidenceBindingsById.get(binding.id);
+                return (
+                  !current ||
+                  current.pullRequestId !== binding.pullRequestId ||
+                  current.itemId !== binding.itemId ||
+                  current.planId !== binding.planId ||
+                  current.targetNodeId !== binding.targetNodeId ||
+                  current.targetKind !== binding.targetKind ||
+                  current.kind !== binding.kind ||
+                  current.provenance !== binding.provenance ||
+                  current.sourceId !== binding.sourceId ||
+                  current.sourceAuthority !== binding.sourceAuthority ||
+                  current.sourceRevision !== binding.sourceRevision
+                );
+              });
+              evidenceBindingsWritten = evidenceBindingsToWrite.length;
+              evidenceBindingsReused = candidateEvidenceBindings.length - evidenceBindingsWritten;
+              evidenceBindingsRemoved = compareEvidenceBindings ? removedEvidenceIds.length : undefined;
+              markPublicationStage('compareEvidenceBindingsMs');
+              if (!compareEvidenceBindings) {
+                for (const sourceId of authoritativeEvidenceSources) {
+                  yield* entities.EvidenceBinding.where(binding => binding.sourceId.eq(sourceId))
+                    .delete()
+                    .run();
+                }
+              } else if (removedEvidenceIds.length > 0) {
+                yield* entities.EvidenceBinding.where(binding => binding.id.in(removedEvidenceIds))
                   .delete()
                   .run();
               }
@@ -1778,7 +1830,45 @@ export const createAtlasPostgresApplication = (input: {
               yield* entities.AtlasShapingBinding.all().delete().run();
               yield* entities.AtlasSupportBinding.all().delete().run();
               yield* entities.AtlasTypeBinding.all().delete().run();
-              yield* entities.AtlasPlanRelationBinding.all().delete().run();
+              markPublicationStage('clearOtherStructuralBindingsMs');
+              const currentPlanRelations =
+                latestRevision && request.trigger !== 'rebuild'
+                  ? yield* entities.AtlasPlanRelationBinding.all().run()
+                  : null;
+              const currentPlanRelationsById = new Map(
+                currentPlanRelations?.map(relation => [relation.id, relation]),
+              );
+              const candidatePlanRelations = dataset.AtlasPlanRelationBinding;
+              const candidatePlanRelationIds = new Set(
+                candidatePlanRelations.map(relation => relation.id),
+              );
+              const removedPlanRelationIds = currentPlanRelations
+                ?.filter(relation => !candidatePlanRelationIds.has(relation.id))
+                .map(relation => relation.id);
+              const planRelationsToWrite = candidatePlanRelations.filter(relation => {
+                const current = currentPlanRelationsById.get(relation.id);
+                return (
+                  !current ||
+                  current.sourcePlanId !== relation.sourcePlanId ||
+                  current.targetPlanId !== relation.targetPlanId ||
+                  current.kind !== relation.kind ||
+                  current.sourceId !== relation.sourceId ||
+                  current.sourceRevisionId !== relation.sourceRevisionId ||
+                  current.sourceRecordId !== relation.sourceRecordId
+                );
+              });
+              planRelationsWritten = planRelationsToWrite.length;
+              planRelationsReused = candidatePlanRelations.length - planRelationsWritten;
+              planRelationsRemoved = removedPlanRelationIds?.length;
+              markPublicationStage('comparePlanRelationsMs');
+              if (!removedPlanRelationIds) {
+                yield* entities.AtlasPlanRelationBinding.all().delete().run();
+              } else if (removedPlanRelationIds.length > 0) {
+                yield* entities.AtlasPlanRelationBinding.where(
+                  relation => relation.id.in(removedPlanRelationIds),
+                ).delete().run();
+              }
+              markPublicationStage('deletePlanRelationsMs');
 
               if (dataset.AtlasSourceRevision.length > 0) {
                 yield* entities.AtlasSourceRevision.upsertMany(dataset.AtlasSourceRevision, {
@@ -1895,12 +1985,6 @@ export const createAtlasPostgresApplication = (input: {
                   strategy: 'merge',
                 }).run();
               }
-              if (dataset.AtlasPlanRelationBinding.length > 0) {
-                yield* entities.AtlasPlanRelationBinding.upsertMany(
-                  dataset.AtlasPlanRelationBinding,
-                  { conflictOn: ['id'], strategy: 'merge' },
-                ).run();
-              }
               if (dataset.PullRequest.length > 0) {
                 yield* entities.PullRequest.upsertMany(dataset.PullRequest, {
                   conflictOn: ['id'],
@@ -1909,6 +1993,13 @@ export const createAtlasPostgresApplication = (input: {
               }
 
               markPublicationStage('writeProjectionEntitiesMs');
+              if (planRelationsToWrite.length > 0) {
+                yield* entities.AtlasPlanRelationBinding.upsertMany(planRelationsToWrite, {
+                  conflictOn: ['id'],
+                  strategy: 'merge',
+                }).run();
+              }
+              markPublicationStage('writePlanRelationsMs');
               for (const source of successfulSources) {
                 yield* entities.AtlasWorkspaceContributor.where(contributor =>
                   contributor.workspaceSourceId.eq(source.id),
@@ -1920,8 +2011,8 @@ export const createAtlasPostgresApplication = (input: {
                 yield* entities.AtlasWorkspaceContributor.insertMany(contributors).run();
               }
               markPublicationStage('writeWorkspaceContributorsMs');
-              if (dataset.EvidenceBinding.length > 0) {
-                yield* entities.EvidenceBinding.upsertMany(dataset.EvidenceBinding, {
+              if (evidenceBindingsToWrite.length > 0) {
+                yield* entities.EvidenceBinding.upsertMany(evidenceBindingsToWrite, {
                   conflictOn: ['id'],
                   strategy: 'merge',
                 }).run();
@@ -2062,6 +2153,12 @@ export const createAtlasPostgresApplication = (input: {
                 ...publicationTimings,
                 wouldSkipPublication,
                 publicationSkipped,
+                evidenceBindingsWritten,
+                evidenceBindingsReused,
+                evidenceBindingsRemoved,
+                planRelationsWritten,
+                planRelationsReused,
+                planRelationsRemoved,
                 sourceRecordsWritten,
                 sourceRecordsReused,
                 published: result.projectionRevisionId === projectionRevisionId,

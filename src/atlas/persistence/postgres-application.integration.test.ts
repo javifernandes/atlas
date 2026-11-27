@@ -650,6 +650,83 @@ Durable Atlas projection.
     evidenceAvailable = true;
   }, postgresTestTimeout);
 
+  it('applies evidence changes only within successfully observed sources', async () => {
+    const evidenceSchema = `atlas_evidence_${randomUUID().replaceAll('-', '')}`;
+    const evidencePool = new Pool({
+      connectionString,
+      options: `-c search_path=${evidenceSchema}`,
+    });
+    const pullRequest = (number: number, repositoryFullName = 'javifernandes/atlas') => ({
+      ...observedPullRequest,
+      id: `github:${repositoryFullName}#${number}`,
+      number,
+      repositoryFullName,
+    });
+    const kept = pullRequest(21);
+    const changed = pullRequest(22);
+    const removed = pullRequest(23);
+    const added = pullRequest(24);
+    const failed = { ...pullRequest(25, 'acme/other'), sourceId: 'other' };
+    let pullRequests = [kept, changed, removed, failed];
+    let otherFailed = false;
+    let step = 0;
+    const loadBindings = async () =>
+      (await evidencePool.query<{ pull_request_id: string; source_revision: string; row_version: string }>(
+        'SELECT *, xmin::text AS row_version FROM evidence_bindings ORDER BY id',
+      )).rows;
+
+    try {
+      await adminPool.query(`CREATE SCHEMA ${evidenceSchema}`);
+      await runAtlasMigrations({ pool: evidencePool });
+      const evidenceAtlas = createAtlasPostgresApplication({
+        pool: evidencePool,
+        loadProjection: async () => ({
+          evidenceFailures: otherFailed
+            ? [{ sourceId: 'other', repositoryFullName: 'acme/other', message: 'unavailable' }]
+            : [],
+          evidenceSourceIds: otherFailed ? ['atlas'] : ['atlas', 'other'],
+          observedAt: new Date(Date.UTC(2026, 8, 2, 0, step++)).toISOString(),
+          observedPullRequests: pullRequests,
+          records,
+          sourceRevisions,
+        }),
+      });
+      await evidenceAtlas.reconcile({ trigger: 'bootstrap' });
+      const before = await loadBindings();
+      expect(before).toHaveLength(4);
+
+      otherFailed = true;
+      pullRequests = [kept, { ...changed, mergeCommitSha: 'changed-revision' }, added];
+      await evidenceAtlas.reconcile({ trigger: 'manual' });
+      const selective = await loadBindings();
+      expect(selective.map(row => row.pull_request_id)).toEqual([
+        failed.id, kept.id, changed.id, added.id,
+      ]);
+      expect(selective.filter(row => [failed.id, kept.id].includes(row.pull_request_id)))
+        .toEqual(before.filter(row => [failed.id, kept.id].includes(row.pull_request_id)));
+      expect(selective.find(row => row.pull_request_id === changed.id)?.source_revision)
+        .toBe('changed-revision');
+
+      const selectiveSnapshot = await evidenceAtlas.getProjectionSnapshot();
+      expect(selectiveSnapshot?.evidence).toHaveLength(4);
+      await evidenceAtlas.reconcile({ trigger: 'rebuild' });
+      const withoutRowVersion = (rows: Awaited<ReturnType<typeof loadBindings>>) =>
+        rows.map(({ row_version: _version, ...row }) => row);
+      expect(withoutRowVersion(await loadBindings())).toEqual(withoutRowVersion(selective));
+      const rebuiltSnapshot = await evidenceAtlas.getProjectionSnapshot();
+      expect(rebuiltSnapshot?.evidence).toEqual(selectiveSnapshot?.evidence);
+
+      otherFailed = false;
+      await evidenceAtlas.reconcile({ trigger: 'manual' });
+      expect((await loadBindings()).map(row => row.pull_request_id)).toEqual([
+        kept.id, changed.id, added.id,
+      ]);
+    } finally {
+      await evidencePool.end();
+      await adminPool.query(`DROP SCHEMA IF EXISTS ${evidenceSchema} CASCADE`);
+    }
+  }, postgresTestTimeout);
+
   it('previews and recovers missing merge activity without regressing Session state', async () => {
     const catchUpSchema = `atlas_catch_up_${randomUUID().replaceAll('-', '')}`;
     const catchUpSince = '2026-09-02T01:00:00.000Z';
@@ -1755,7 +1832,7 @@ Atlas-Session: ${explicitStreamId}`,
     const productFile = {
       path: 'plans/current/200-product.md',
       source: 'product',
-      content: '# 200. Product Plan\n\nStatus: current\n',
+      content: '# 200. Product Plan\n\nStatus: current\n\n[Persistence](atlas://plans/116-persistence)\n',
     };
     let includeProduct = true;
     let revision = 5;
@@ -1776,8 +1853,13 @@ Atlas-Session: ${explicitStreamId}`,
           records: [...sourceFiles, ...(includeProduct ? [productFile] : [])].map(file =>
             normalizeAtlasSourceRecord(
               editPlan && file.path === 'plans/current/116-persistence.md'
-                ? { ...file, content: file.content + '\nSelective publication fixture.\n' }
-                : file,
+                ? {
+                    ...file,
+                    content: file.content + '\nSelective publication fixture. [Secondary](./117-secondary.md)\n',
+                  }
+                : file.path === 'plans/current/117-secondary.md'
+                  ? { ...file, content: file.content + '\n[Persistence](./116-persistence.md)\n' }
+                  : file,
             ),
           ),
           sourceRevisions: [
@@ -1823,6 +1905,13 @@ Atlas-Session: ${explicitStreamId}`,
       (await pool.query<{ id: string; row_version: string; content: string; source_revision_id: string }>(
         `SELECT *, xmin::text AS row_version FROM atlas_source_records ORDER BY id`,
       )).rows;
+    const loadPlanRelations = async () =>
+      (await pool.query<{ id: string; row_version: string; source_revision_id: string }>(
+        'SELECT *, xmin::text AS row_version FROM atlas_plan_relation_bindings ORDER BY id',
+      )).rows;
+    const beforeRelations = await loadPlanRelations();
+    expect(beforeRelations).toHaveLength(2);
+
     const before = await loadSourceRecords();
     expect(before.some(record => record.id.includes('200-product.md'))).toBe(true);
 
@@ -1838,6 +1927,15 @@ Atlas-Session: ${explicitStreamId}`,
       ),
     ).toEqual([expect.objectContaining({ rowCount: before.length })]);
     const incrementalRecords = await loadSourceRecords();
+    const incrementalRelations = await loadPlanRelations();
+    expect(incrementalRelations).toHaveLength(2);
+    expect(incrementalRelations).toContainEqual(
+      beforeRelations.find(relation => relation.id.startsWith('plan:atlas://plans/117-secondary->')),
+    );
+    expect(incrementalRelations.map(relation => relation.id)).toEqual([
+      'plan:atlas://plans/116-persistence->plan:atlas://plans/117-secondary:related',
+      'plan:atlas://plans/117-secondary->plan:atlas://plans/116-persistence:related',
+    ]);
     for (const record of incrementalRecords) {
       const previous = before.find(candidate => candidate.id === record.id);
       if (record.id.includes('116-persistence.md')) {
@@ -1876,10 +1974,24 @@ Atlas-Session: ${explicitStreamId}`,
     await inventoryAtlas.reconcile({ trigger: 'rebuild' });
     expect(contentRows(await loadSourceRecords())).toEqual(contentRows(incrementalRecords));
     expect(await projectionContent()).toEqual(incrementalSnapshot);
+    const relationRows = (rows: Awaited<ReturnType<typeof loadPlanRelations>>) =>
+      rows.map(({ row_version: _version, ...relation }) => relation);
+    const rebuiltRelations = await loadPlanRelations();
+    expect(relationRows(rebuiltRelations)).toEqual(relationRows(incrementalRelations));
 
     sourceVersion += 1;
     await inventoryAtlas.reconcile({ trigger: 'manual' });
     const newProvenance = await loadSourceRecords();
+    const updatedRelations = await loadPlanRelations();
+    expect(updatedRelations.map(relation => relation.id)).toEqual(
+      rebuiltRelations.map(relation => relation.id),
+    );
+    expect(updatedRelations.map(relation => relation.source_revision_id)).toEqual([
+      'atlas:markdown:inventory-6',
+      'atlas:markdown:inventory-6',
+    ]);
+    await inventoryAtlas.reconcile({ trigger: 'rebuild' });
+    expect(relationRows(await loadPlanRelations())).toEqual(relationRows(updatedRelations));
     expect(newProvenance.map(record => record.content)).toEqual(
       incrementalRecords.map(record => record.content),
     );

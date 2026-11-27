@@ -270,3 +270,11 @@ For changed projections, Atlas compares Source Record metadata and content hashe
 publication transaction. It upserts new or changed rows and deletes missing identities after
 updating their dependents. Rebuild remains the full-write reference path. A new source revision
 still rewrites rows whose persisted provenance changed, even when their Markdown bytes match.
+
+Atlas also compares Plan Relation Bindings by stable identity and persisted fields. It deletes
+missing relations before updating their referenced plans and source records, then upserts new or
+changed relations once their references exist. Full rebuild remains the reference path.
+
+Evidence Binding publication also applies a row diff. Only a successfully observed evidence source
+can remove bindings by absence. Explicit webhook evidence can still add or update a binding, and
+deleting a target still removes its dependent bindings. Rebuild preserves the same source boundary.
