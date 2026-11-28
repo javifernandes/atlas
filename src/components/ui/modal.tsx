@@ -4,14 +4,18 @@ import { X } from 'lucide-react';
 import { useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 
+import { cn } from '@/lib/classes';
+
 export const Modal = ({
   children,
+  contentClassName,
   description,
   onClose,
   open,
   title,
 }: {
   children: React.ReactNode;
+  contentClassName?: string;
   description?: string;
   onClose: () => void;
   open: boolean;
@@ -45,7 +49,12 @@ export const Modal = ({
       }}
       role='dialog'
     >
-      <section className='grid max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-lg gap-6 overflow-y-auto rounded-xl border border-border bg-background p-6 shadow-2xl shadow-black/50'>
+      <section
+        className={cn(
+          'grid max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-lg gap-6 overflow-y-auto rounded-xl border border-border bg-background p-6 shadow-2xl shadow-black/50',
+          contentClassName,
+        )}
+      >
         <header className='flex items-start justify-between gap-4'>
           <div className='grid gap-1'>
             <h2 className='text-xl font-semibold' id={titleId}>{title}</h2>
