@@ -132,7 +132,7 @@ export const MermaidDiagram = ({
         title='Diagram preview'
       >
         <div
-          className='min-h-0 overflow-auto rounded-lg bg-muted/20 p-6 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-h-none [&_svg]:max-w-none'
+          className='flex min-h-0 min-w-0 overflow-auto rounded-lg bg-muted/20 p-6 [&>svg]:m-auto [&>svg]:h-auto [&>svg]:shrink-0 [&>svg]:max-h-none [&>svg]:max-w-none'
           dangerouslySetInnerHTML={{ __html: svg }}
         />
       </Modal>
