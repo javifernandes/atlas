@@ -1,8 +1,10 @@
 'use client';
 
 import mermaid from 'mermaid';
+import { Maximize2 } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 
+import { Modal } from './ui/modal';
 import { useTheme } from './theme-provider';
 
 type MermaidDiagramVariant = 'atlas-state' | 'default';
@@ -59,6 +61,7 @@ export const MermaidDiagram = ({
   const id = `atlas-mermaid-${useId().replaceAll(':', '-')}`;
   const [svg, setSvg] = useState<string>();
   const [error, setError] = useState<string>();
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -102,14 +105,38 @@ export const MermaidDiagram = ({
   }
 
   return svg ? (
-    <div
-      className={
-        variant === 'atlas-state'
-          ? 'overflow-x-auto px-2 py-1 [&_svg]:mx-auto [&_svg]:max-h-[28rem]'
-          : 'overflow-x-auto rounded border p-4'
-      }
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    <>
+      <div className='group relative'>
+        <button
+          aria-label='Expand diagram'
+          className='absolute right-2 top-2 z-10 inline-grid size-8 place-items-center rounded-md border border-border/70 bg-background/90 text-muted-foreground opacity-80 shadow-sm backdrop-blur transition hover:text-foreground hover:opacity-100 focus-visible:opacity-100'
+          onClick={() => setExpanded(true)}
+          title='Expand diagram'
+          type='button'
+        >
+          <Maximize2 aria-hidden='true' className='size-4' />
+        </button>
+        <div
+          className={
+            variant === 'atlas-state'
+              ? 'overflow-x-auto px-2 py-1 pr-12 [&_svg]:mx-auto [&_svg]:max-h-[28rem]'
+              : 'overflow-x-auto p-4 pr-12 [&_svg]:mx-auto'
+          }
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      </div>
+      <Modal
+        contentClassName='h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] grid-rows-[auto_minmax(0,1fr)]'
+        onClose={() => setExpanded(false)}
+        open={expanded}
+        title='Diagram preview'
+      >
+        <div
+          className='min-h-0 overflow-auto rounded-lg bg-muted/20 p-6 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-h-none [&_svg]:max-w-none'
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      </Modal>
+    </>
   ) : (
     <p className='text-sm text-muted-foreground'>Rendering diagram…</p>
   );
